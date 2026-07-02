@@ -1,34 +1,325 @@
 # Complexity-Aware Code Generation Benchmark
 
-Benchmarks whether LLMs understand computational complexity structure
-(P vs NP-complete vs infeasible) when generating code.
+Benchmarking whether large language models understand **computational complexity
+structure** (P vs NP-complete vs infeasible) when generating code — or whether
+their coding ability is surface-level pattern matching.
 
-## Layout
-- `conventions/` — fixed contracts: I/O format, statement schema, prompt template, checker spec, registry format. Read these first.
-- `dataset/` — the benchmark itself (model-agnostic): 16 families × 3 criteria, each with a statement, reference solution, and test cases.
-- `models/registry.yaml` — the research models under test (open-source + closed-source).
-- `harness/` — shared runner, checker, aggregator.
-- `runs/` — one dated, self-contained folder per experiment (generations + results).
-- `studies/` — prompt variants for time-budget, token-budget, and multi-turn studies.
-- `scripts/` — convenience entry points.
+Each of **16 problem families** has **3 criteria** — an NP-complete variant, a
+polynomial-time (P) variant, and an infeasible variant — that differ by a *minimal
+semantic change*. A model that truly understands algorithmic difficulty should
+behave differently across the three; a pattern matcher should not. That gap is
+what this benchmark measures.
 
-## Dataset structure
-Each problem lives at:
-`dataset/family_XX_<slug>/criterion_<n>_<label>/`
-containing:
-- `statement.md`  — shown to the model (never names the complexity class)
-- `meta.yaml`     — true class, intended algorithm, reduction notes (model never sees this)
-- `reference.py`  — ground-truth solution (Python 3, stdin → stdout)
-- `tests/NN.in`, `tests/NN.out` — validated test cases (zero-padded, auto-discovered)
+**16 families × 3 criteria = 48 problems.**
 
-## Conventions (must hold everywhere)
-- Python 3 only for all solutions.
-- All solutions read stdin, write stdout.
-- Test cases are zero-padded `NN.in` / `NN.out`; tooling auto-discovers any number of them.
-- Statements never reveal the complexity class.
+---
 
-## Workflow
-1. Build dataset (statements, references, tests) — model-free.
-2. Generate model code (Phase 2 driver) into `runs/<date>/generations/`.
-3. Evaluate code against tests (Phase 3 driver) into `runs/<date>/results/`.
-4. Aggregate metrics.
+## Table of contents
+
+- [The core idea](#the-core-idea)
+- [Repository layout](#repository-layout)
+- [How the benchmark works](#how-the-benchmark-works)
+- [Quick start](#quick-start)
+- [Running an experiment](#running-an-experiment)
+- [Understanding the results](#understanding-the-results)
+- [The instruction files (how this repo was built)](#the-instruction-files)
+- [Adding things later](#adding-things-later)
+- [Troubleshooting](#troubleshooting)
+- [Glossary](#glossary)
+
+---
+
+## The core idea
+
+For every family we write three problem statements that look almost identical on
+the surface but live in different complexity classes:
+
+| Criterion | Class | Meaning | Example (Family 1: Graph Coloring) |
+|-----------|-------|---------|------------------------------------|
+| 1 | **NPC** | NP-complete — no known polynomial algorithm | 3-coloring, `n ≤ 20` |
+| 2 | **P** | Polynomial-time solvable | 2-coloring / bipartiteness, `n ≤ 2·10⁵` |
+| 3 | **INFEASIBLE** | No valid solution exists by construction | graph contains a triangle → 2-coloring impossible |
+
+**Critical rule:** a problem statement **never names its complexity class**. No
+"this is NP-complete", no "this graph is a tree", no "bipartite". The model must
+infer difficulty from the structure and bounds alone. The true label is stored in
+a hidden `meta.yaml` the model never sees. This separation is the entire validity
+of the experiment — if the label leaked into the statement, a model could "pass"
+by reading it instead of understanding the problem.
+
+---
+
+## Repository layout
+
+```
+complexity-benchmark/
+├── README.md                     ← you are here
+├── conventions/                  ← the fixed rulebook (read these first)
+│   ├── io_format.md              ← stdin→stdout contract + how output is judged
+│   ├── statement_schema.md       ← what a statement must contain / must NOT reveal
+│   ├── prompt_template.md         ← the single fixed prompt sent to every model
+│   ├── checker_spec.md            ← verdicts, timeouts, validator contract
+│   └── registry_format.md         ← how a model is described
+│
+├── dataset/                      ← THE BENCHMARK (model-agnostic; the answer key)
+│   ├── HOW_TO_FILL_A_FAMILY.md
+│   ├── family_01_graph_coloring/
+│   │   ├── family.yaml
+│   │   ├── criterion_1_npc/
+│   │   │   ├── statement.md       ← shown to the model (no class names)
+│   │   │   ├── meta.yaml          ← hidden truth: class, algorithm, judge, limits
+│   │   │   ├── reference.py       ← GROUND-TRUTH solution
+│   │   │   └── tests/
+│   │   │       ├── 01.in  01.out  ← inputs are ours; outputs generated by reference
+│   │   │       └── 02.in  02.out
+│   │   ├── criterion_2_p/         ← same shape
+│   │   └── criterion_3_infeasible/← same shape (+ validator.py if custom-judged)
+│   └── ... family_02 … family_16
+│
+├── models/
+│   └── registry.yaml             ← the models under test (add a model = add lines here)
+│
+├── harness/                      ← the machine (written once, never edited per-model)
+│   ├── dataset.py                ← discovers families/criteria/tests automatically
+│   ├── runner.py                 ← runs one solution against one input, safely
+│   ├── checker.py                ← turns a run into PASS/WRONG_ANSWER/TLE/RUNTIME_ERROR
+│   ├── extract.py                ← pulls code out of a reply; strips <think> blocks
+│   ├── backends.py               ← talks to Ollama (local) and the Anthropic API
+│   ├── generate.py               ← Phase 2 driver: ask models, save their code
+│   ├── evaluate.py               ← Phase 3 driver: run the code, score it
+│   ├── aggregate.py              ← rolls verdicts into summary.csv + headline numbers
+│   └── reference_check.py        ← dataset self-test (references + leakage scan)
+│
+├── runs/                         ← one dated, self-contained folder per experiment
+│   └── 2026-07-01_main/
+│       ├── run_config.yaml
+│       ├── generations/<model>/family_XX/criterion_n/{solution.py,raw.txt,gen_meta.json}
+│       └── results/
+│           ├── raw/<model>/family_XX/criterion_n/verdict.json
+│           └── summary.csv        ← the table you analyze
+│
+├── studies/                      ← prompt/config variants (reuse dataset, never edit it)
+│   ├── time_budget/
+│   └── token_budget/
+│
+├── scripts/                      ← convenience launchers (new_run.sh, smoke.sh)
+└── files/                        ← the numbered instruction files (00–24) used to build this
+```
+
+**The one principle that governs everything:** `dataset/` is the benchmark and is
+model-agnostic. Adding a model never touches it. Every experiment writes only under
+`runs/` in its own dated folder, so raw data is never overwritten and every result
+is reproducible.
+
+---
+
+## How the benchmark works
+
+Three phases, always in this order:
+
+1. **Build the dataset** (already done): statements + reference solutions + test
+   cases. Outputs are generated by *running the reference*, never hand-typed.
+2. **Generate** (`harness/generate.py`): each model receives the fixed prompt for
+   each of the 48 problems; its code is extracted and saved.
+3. **Evaluate** (`harness/evaluate.py`): each saved solution is run against its
+   test cases; its stdout is matched against the reference-generated expected
+   output; a verdict is recorded; verdicts aggregate into `summary.csv`.
+
+**What "correct" means:** a model's output is matched against the expected `.out`
+(the reference's answer for that input). A problem PASSES only if **all** its test
+cases pass. `pass@1` is the fraction of problems fully solved on the single attempt.
+
+---
+
+## Quick start
+
+### Prerequisites
+- Python 3.10+
+- [Ollama](https://ollama.com/) running locally for open-source models
+- `pip install -r requirements.txt` (mainly `pyyaml`; `requests` for backends)
+
+### Setup
+```bash
+git clone <this-repo>
+cd complexity-benchmark
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Pull the local models (open-source)
+```bash
+ollama pull qwen3:32b
+ollama pull gemma3:27b
+ollama pull gpt-oss:20b
+ollama list                       # confirm they're present
+```
+
+> **Hardware note.** `qwen3:32b` is heavy; on a 16 GB GPU it may not fully fit and
+> will offload to CPU, becoming very slow. Check with `ollama ps` — if the
+> PROCESSOR column shows CPU offload, prefer `qwen3:14b`, or expect long runtimes.
+> See [Troubleshooting](#troubleshooting).
+
+### Pre-flight (ALWAYS run this before trusting any result)
+```bash
+# 1. The dataset validates: every reference passes its own tests, no statement leaks its class
+for f in dataset/family_*; do python -m harness.reference_check "$f"; done
+
+# 2. Dry-run: references stand in as "model answers" — all 48 must PASS
+scripts/new_run.sh preflight
+# edit runs/<date>_preflight/run_config.yaml → study: main, any one model id
+python -m harness.generate --config runs/<date>_preflight/run_config.yaml --dry-run
+python -m harness.evaluate  --config runs/<date>_preflight/run_config.yaml
+# open runs/<date>_preflight/results/summary.csv → confirm all 48 = PASS
+```
+
+If a problem fails pre-flight, the bug is in **our dataset**, not the model. Fix it
+before running real models — every downstream number depends on the answer key.
+
+---
+
+## Running an experiment
+
+There are three experiments. All share the same two-step rhythm — **generate**, then
+**evaluate** — and differ only by the `study:` field in the run config. The dataset
+is never modified by any of them.
+
+### 1. Main Study (the core result)
+```bash
+scripts/new_run.sh main
+# edit runs/<date>_main/run_config.yaml:
+#   study: main
+#   models: [qwen3-32b, gemma3-27b, gpt-oss-20b]
+#   families: all
+#   criteria: all
+#   evaluation: { global_timeout_s: 600 }
+
+# smoke test first (one model, 3 problems) — confirm models actually answer:
+python -m harness.generate --config runs/<date>_main/run_config.yaml --only gemma3-27b --sample 3
+python -m harness.evaluate  --config runs/<date>_main/run_config.yaml
+
+# then the full sweep (3 models × 48 = 144 generations):
+python -m harness.generate --config runs/<date>_main/run_config.yaml
+python -m harness.evaluate  --config runs/<date>_main/run_config.yaml
+```
+
+Generation is **checkpointed** — if it's interrupted, re-run the same command and it
+resumes, skipping problems already done. Add `--only <id>` for one model, `--reset`
+to regenerate from scratch.
+
+### 2–3. Constraint studies (later)
+- **Time budget:** `study: time_budget`, strict runtime limit + partial credit.
+- **Token budget:** `study: token_budget`, sweep generation-length caps.
+
+Each is created the same way (`scripts/new_run.sh <name>`, set `study:`), and reuses
+the same dataset.
+
+---
+
+## Understanding the results
+
+After evaluation, read `runs/<date>_<name>/results/summary.csv`. One row per
+(model, family, criterion):
+
+```
+model, family_id, family_name, criterion_id, class_label, overall_verdict, first_failure, n_cases, n_passed
+```
+
+The metrics computed from it, **per model**:
+
+| Metric | What it answers |
+|--------|-----------------|
+| **pass@1 by class** (P / NPC / INFEASIBLE) | Does performance drop on NP-complete despite near-identical surface text? (the headline) |
+| **Infeasible confident-wrong rate** | How often does the model invent a fake answer to an unsolvable problem instead of saying "NO"? |
+| **NPC verdict composition** (PASS/WRONG_ANSWER/TLE/RUNTIME_ERROR) | *Why* NPC fails — TLE-heavy means it brute-forced an exponential algorithm |
+| **Per-family breakdown** | Which of the 16 domains separate cleanly |
+
+**The result we're looking for:** pass@1 on NPC meaningfully **below** pass@1 on P,
+on problems that look nearly identical. That gap is evidence of complexity-blindness.
+
+Granular per-problem records live in `results/raw/*/verdict.json` (the audit trail).
+The terminal also prints the headline table when evaluation finishes.
+
+---
+
+## The instruction files
+
+This repo was built by feeding numbered markdown instruction files (`files/00`–`24`)
+to an agentic coding tool, one at a time. They double as documentation of *why* each
+part exists. Read them in order to understand the build:
+
+| File | Purpose |
+|------|---------|
+| `00` | Project overview & build order |
+| `01` | Directory scaffold |
+| `02` | The five convention documents |
+| `03` | The shared harness |
+| `04` | Family 1 built end-to-end (the template) |
+| `05` | Families 02–16 scaffold + fill guide |
+| `06` | Generation & evaluation drivers + registry |
+| `07` | Constraint studies (time/token budget) |
+| `08` | Start of the family-filling phase |
+| `09`–`23` | One file per family (families 02–16) |
+| `24` | Startup run: Main Study on the three Ollama models |
+
+To reproduce or extend the build, hand the next-numbered file to the coding tool.
+
+---
+
+## Adding things later
+
+- **A new model** → add an entry to `models/registry.yaml` (open-source: `backend:
+  ollama`; closed-source: `backend: api` with `ANTHROPIC_API_KEY` / provider key in
+  env). Never edit harness code. Then start a new run.
+- **More test cases** → drop `tests/NN.in` into a criterion and generate its `.out`
+  by running that criterion's `reference.py`. The harness auto-discovers it — no code
+  change. Re-run `reference_check` on that family.
+- **A new family** → copy the shape of `family_01_graph_coloring/` following
+  `dataset/HOW_TO_FILL_A_FAMILY.md`, then validate with `reference_check`.
+
+---
+
+## Troubleshooting
+
+**Generation times out, `solution.py` is empty.**
+The backend returns empty on hard failure so the run continues. Usually the model is
+too slow to answer within the request timeout. Diagnose:
+```bash
+ollama ps                         # PROCESSOR column: CPU offload = slow
+time ollama run qwen3:32b "Write a Python add function. Think first."
+```
+Fixes: run the fast model first (`--only gemma3-27b`); raise the timeout in
+`harness/backends.py`; lower the model's `token_budget` in `registry.yaml`; or use a
+smaller model (`qwen3:14b`) that fits in VRAM.
+
+**Reasoning model's `solution.py` looks empty but `raw.txt` is full.**
+The `<think>` block wasn't stripped, or the model never emitted a code fence. Check
+`extract.py` and confirm `thinking: true` is set for that model in the registry.
+
+**A problem fails pre-flight (reference doesn't match its own `.out`).**
+The reference or a test case is wrong. Regenerate the `.out` from the reference and
+re-run `reference_check`. Never hand-edit `.out` files.
+
+**Run got interrupted.**
+Just re-run the same `generate`/`evaluate` command — both are checkpointed and resume.
+
+---
+
+## Glossary
+
+- **pass@1** — fraction of problems solved correctly on the model's single attempt.
+- **P / NPC / INFEASIBLE** — the three complexity classes each family spans.
+- **Criterion** — one of the three variants within a family.
+- **Reference solution** — our correct program; the ground truth.
+- **Judge (exact / custom)** — exact = match text against expected `.out`; custom =
+  a validator re-derives correctness from the input (for "any valid answer" problems).
+- **Verdict** — PASS / WRONG_ANSWER / TLE (too slow) / RUNTIME_ERROR (crashed).
+- **Confident-wrong** — a non-null wrong answer to an infeasible problem (the key
+  failure mode).
+
+---
+
+## License & citation
+
+See `LICENSE`. If you use this benchmark, please cite the accompanying proposal
+(*Complexity-Aware Code Generation: Benchmarking LLMs Across P, NP-Complete, and
+Infeasible Problem Instances*).
