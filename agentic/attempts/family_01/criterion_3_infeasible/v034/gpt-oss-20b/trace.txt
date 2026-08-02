@@ -1,0 +1,200 @@
+We need to find lexicographically smallest triangle in undirected graph with up to n=2000, m up to 200k. We need to output smallest triple (a<b<c) where all edges present.
+
+We can brute force all triples? n=2000 -> 1.33e9 too large.
+
+We need efficient algorithm. Standard approach: For each node u, we can iterate over neighbors v > u, and for each neighbor w > v such that edge u-w exists and v-w exists. Need efficient.
+
+We can store adjacency sets (bitset or boolean matrix). n=2000 -> adjacency matrix 2000x2000 booleans ~4 million bits -> 0.5 MB. We can store as list of bitset/array of bools. Python list of bytearray? We can use array of integers bitset using Python's int as bitset: each node has bitset of neighbors. 2000 bits fits in 32 ints of 64bits? Actually 2000 bits / 64 = 32. So each adjacency bitset can be int of 2000 bits? Use Python's int bit operations: set bit i. Then intersection is bitwise &.
+
+We want lexicographically smallest triple. Approach: iterate a from 1..n. For each a, we consider neighbors b > a. For each such b, we need c > b such that edges a-c and b-c exist. We can find intersection of neighbors of a and b, but only those > b. Use bitset intersection and mask to >b.
+
+Simpler: For each a, get sorted adjacency list. For each pair b,c in adjacency list with b<c, check if edge b-c exists. We need efficient.
+
+n=2000, average degree maybe 100? m up to 200k => avg degree 200k*2/2000=200. So adjacency lists size up to 2000. For each a, pair loops over neighbors choose 2 ~ (deg^2). Worst-case deg=2000 -> 2M pairs per a; times 2000 -> 4B too high. But m limited 200k, so maximum deg maybe 2000 but not all high. But worst-case star graph? Not triangle.
+
+We need efficient search for minimal triple. Use adjacency bitset intersection: For each a, for each b > a where edge exists, compute common neighbors > b. Intersection bitset of a and b, then iterate over set bits > b. That might be efficient.
+
+Implementation:
+
+- Build adjacency list: list of bitset ints: adj_bits[u] as int with bit v-1 set if edge. Also store adjacency list sorted for iterating b > a.
+
+- For a from 1..n:
+   For each b in adjacency list of a where b > a:
+        common = adj_bits[a] & adj_bits[b]
+        # need c > b and also c > b ensures a<b<c.
+        # So mask bits >= b+1 (i.e., indices > b-1)
+        mask = common >> b  # shift right by b bits: bit index b corresponds to original index b (0-based). Actually if we shift by b, bit 0 becomes original bit b. So we want bits with index >= b+1? Wait: we want c> b. So original indices > b-1. So shift by b to drop bits <= b-1. But we also need to exclude bit b itself. Since mask shift by b: bit 0 corresponds to original bit b. So we need to shift by b+1? Let's think: original indices 0..n-1. For a<b<c (1-based). We have a index a-1, b index b-1. We want c index > b-1. So shift by b (since shift right by b removes bits 0..b-1). After shift, bit 0 corresponds to original index b. But c must be > b-1, i.e., index >= b. So we need to exclude bit 0 (original b). So we shift by b then mask off bit 0. So we can do: common_shift = common >> b  # now bit 0 is original b
+        if common_shift & 1:  # original b is neighbor of both a and b (self?), but b is not neighbor of itself, so bit 0 should be 0. So fine.
+        Then find lowest set bit in common_shift after bit 0. So we can do: common_shift & -common_shift to get lowest set bit; if >0 then get index. But we need first set bit >0. We can do: t = common_shift & ~(1) to clear bit 0. Then if t>0, get lowest bit index via t.bit_length()-1. Then c_index = b + 1 + (t.bit_length()-1). Wait: Because we shifted by b, bit 0 is original index b, bit 1 is original b+1. So original index c = b + 1 + (t.bit_length()-1). But easier: We can iterate over set bits by while t: lsb = t & -t; c = (b) + lsb.bit_length() - 1? Actually lsb is a power of two; its position is (lsb.bit_length()-1). That is offset from bit 0 after shift. So original index = b + offset. offset = lsb.bit_length()-1. So original index = b + offset. But since we want 1-based index c = original index +1? Wait original index=0-based. So original index = b + offset. But b is 1-based? No, b is 1-based node number. But we used shift by b: we used shift by b, but b is 1-based. We need shift by (b) because original index of node b is b-1. After shift by b, bit 0 corresponds to original index b. That's correct. So shift by b. So offset = lsb.bit_length()-1. Then original index = b + offset. Convert to 1-based: node number = original index +1 = b + offset +1. But we want c> b. So c = b + offset +1.
+
+But careful: Suppose b=2 (node 2). shift by 2. original index of node 2 is 1. After shift, bit 0 corresponds to original index 1? Wait shift right by 2 removes bits 0 and 1. So bit 0 corresponds to original index 2. So yes, shift by b (not b-1). Good.
+
+Thus c = b + offset +1.
+
+But we must ensure c <= n.
+
+We need lexicographically smallest triple. We iterate a ascending, b ascending. For each, we find minimal c. So the first found will be lexicographically smallest. Because we iterate a ascending, then b ascending, then find minimal c.
+
+Edgecases: need to ensure common_shift after clearing bit 0 maybe zero.
+
+Implementation steps:
+
+- Read n,m.
+- Create list adj_bits of length n+1, each int 0.
+- For each edge u,v: set bit (v-1) in adj_bits[u], and bit (u-1) in adj_bits[v].
+- Also store adjacency lists sorted ascending for each node: adjacency_list[u] sorted list.
+
+We can simply build adjacency lists via list of sets and then sort each.
+
+- For a in 1..n:
+    for b in adjacency_list[a]:
+        if b <= a: continue (but adjacency_list sorted ascending; start from first > a). So we can find index via bisect. Simpler: for b in adjacency_list[a] when b > a.
+        compute common = adj_bits[a] & adj_bits[b]
+        # shift by b
+        shifted = common >> b
+        # clear bit 0
+        shifted &= shifted - 1? Wait we need to clear bit 0: shifted &= ~1
+        shifted_no_b = shifted & ~1
+        if shifted_no_b:
+            lsb = shifted_no_b & -shifted_no_b
+            offset = (lsb.bit_length() - 1)
+            c = b + offset + 1
+            print(a,b,c) exit.
+
+We must ensure c > b and <= n. Should hold.
+
+Complexity: For each edge (a,b) considered twice (once for each orientation). For each, we do bit operations O(1). So O(n+m). Good.
+
+Edge cases: Because we shift by b, but b up to n=2000, shifting int by 2000 bits is fine.
+
+Need to handle 1-indexing.
+
+Let's test conceptually with example 1.
+
+n=4, edges: 1-2,1-3,2-3,2-4,3-4.
+
+adj_bits[1] bits: 2,3 => bits 1,2 -> int 0b110? Actually bit 1 -> 2^1=2; bit 2 -> 4; so 6.
+adj_bits[2] bits: 1,3,4 -> bits 0,2,3 -> 1+4+8=13.
+adj_bits[3] bits:1,2,4 -> bits 0,1,3 ->1+2+8=11.
+adj_bits[4] bits:2,3 -> bits 1,2 -> 6.
+
+Iteration:
+a=1: adjacency_list[1] = [2,3]. b=2>1:
+common = 6 & 13 = 4 (bit 2). shifted = 4 >> 2 = 1. shifted_no_b = 1 & ~1 = 0. No c.
+b=3>1:
+common = 6 & 11 = 2 (bit1). shifted = 2 >> 3 = 0. no c.
+a=2: adjacency_list[2] = [1,3,4]. b=1 not >2 skip. b=3>2:
+common=13 & 11 = 9 (bits 0 and 3). shifted=9>>3=1 (bit 0). shifted_no_b=0. no c.
+b=4>2:
+common=13 & 6 = 4 (bit2). shifted=4>>4=0. no c.
+a=3: adjacency_list[3]=[1,2,4]. b=1,2 skip. b=4>3:
+common=11 & 6 = 2 (bit1). shifted=2>>4=0. no c.
+a=4: adjacency_list[4]=[2,3] none >4.
+
+No triangle found? But there is triangle 1,2,3. Why not found? Let's trace again: For a=1,b=2, common = 6 & 13 = 4 (bit 2). This is node 3? Wait node 3 has index 2 (0-based). bit 2. After shift by b=2, shift 4 >>2=1. shifted_no_b=1 & ~1 =0. So we cleared bit 0, but bit 0 corresponds to node 3? Wait shift by b=2 removed bits 0 and 1. After shift, bit 0 corresponds to original index 2 (node 3). But we cleared bit 0, thus removing node 3. That's wrong: we shouldn't clear bit 0 because bit 0 corresponds to node 3, not node 2. Wait earlier we said bit 0 corresponds to original index b. Let's confirm: When we shift by b, we removed bits 0..b-1. So the new bit 0 corresponds to original index b. But original index of node 2 is 1. So shift by b=2 removes bits 0 and 1. So new bit 0 corresponds to original index 2, which is node 3. Yes, correct. So bit 0 corresponds to node 3, which is valid candidate. But we also need C > B. Since C>2, node 3 qualifies. So we must not clear bit 0. We should not clear bit 0; we should clear bits representing nodes <= b. But after shift by b, bits <= b-1 are removed; bit 0 corresponds to original index b. But we want nodes > b, so we need to remove node b itself if present. But node b is not in intersection? Because a and b are neighbors, but nodes are not neighbors with themselves. So intersection cannot contain b. So we can keep bit 0. So we don't need to clear bit 0. So we should not clear bit 0. So we just need to find first set bit after shift. That includes bit 0 which is node b? Wait but b cannot be neighbor of both a and b, but can b be neighbor of a and b? No. So bit 0 will be 0. So we can safely include bit 0; but if bit 0 were 1 due to some bug? Not possible. So we can simply take lsb of shifted. That will give offset 0? But if bit 0 is 0, lsb will be next set bit. So we can just use shifted & -shifted.
+
+Thus formula: lsb = shifted & -shifted; offset = lsb.bit_length() - 1; c = b + offset + 1.
+
+Test: a=1,b=2:
+common=6&13=4.
+shifted=4>>2=1.
+lsb=1.
+offset=0.
+c=2+0+1=3. Good.
+
+Now a=1,b=3:
+common=6&11=2.
+shifted=2>>3=0. no c.
+
+Thus we find triangle 1 2 3. Good.
+
+Implementation: for each a,b, compute shifted = (adj_bits[a] & adj_bits[b]) >> b. If shifted: lsb = shifted & -shifted; offset = lsb.bit_length() - 1; c = b + offset + 1. Print a,b,c.
+
+Need to ensure c <= n. Should hold.
+
+Edgecases: Suppose intersection includes node <= b? But we shifted by b, so all indices <= b-1 removed. Node b itself cannot be present. So fine.
+
+Thus algorithm works.
+
+Complexity: For each edge (a,b) where a<b? We'll iterate for a across all nodes, and for each b in adjacency_list[a] with b > a. So each unordered edge considered once. So O(m) loops.
+
+We need adjacency_list sorted ascending to iterate b > a.
+
+Implementation details:
+
+- Build adjacency_bits: list of ints length n+1. Initially 0.
+- Build adjacency_list: list of lists length n+1.
+- For each edge (u,v), set bits: adj_bits[u] |= 1 << (v-1); adj_bits[v] |= 1 << (u-1); adjacency_list[u].append(v); adjacency_list[v].append(u).
+- After reading all edges, sort each adjacency_list[u].
+
+Then loops.
+
+Potential memory: adjacency_bits ints up to 2000 bits, fine.
+
+Edgecases: There may be multiple triangles; we output first lexicographically smallest. Our iteration ensures that: a ascending, b ascending, pick smallest c. But is it guaranteed that the first found is lexicographically smallest triple? Suppose there is triangle (1,3,4) and (2,3,4). For a=1,b=3, we find c=4. For a=2,b=3, we also find c=4. Lexicographically smallest is (1,3,4) which we find first. Good.
+
+But consider triangle (1,4,5) and (1,2,3). Our iteration: a=1,b=2 -> find c=3; that's earlier. So fine.
+
+Thus algorithm good.
+
+Let's test example 2:
+
+Edges: 1-2,1-4,2-4,3-4,3-5,4-5.
+
+Triangles: 1-2-4; 3-4-5. Lexicographically smallest is 1-2-4.
+
+Our iteration: a=1, adjacency_list[1] = [2,4]. b=2>1: common bits of 1 and 2: 1 has neighbors 2,4; 2 has neighbors 1,4. Intersection: node 4 bit. b=2, shifted = (bits of node4) >> 2. Node 4 index 3. Bits: node4 (index3) set. 1<<3 = 8. common=8. shifted=8>>2=2 (bit 1). lsb=2, offset=1, c=2+1+1=4. Output 1 2 4. Good.
+
+Edgecases: Need to ensure we only output when c > b. Our formula ensures c > b because offset >=0, so c>=b+1. But if offset=0 we get c=b+1. But offset=0 occurs if lsb=1 so c=b+1. That would mean node b+1 is common neighbor of a and b. But is it always >b? yes. Good.
+
+Now implement.
+
+Be careful with input reading. Use sys.stdin.buffer.read() to read all ints.
+
+Edge case: 1-index to 0-index mapping for bit positions.
+
+Implementation steps:
+
+- import sys
+- data = list(map(int, sys.stdin.buffer.read().split()))
+- n, m = data[0], data[1]
+- edges data from index 2: pairs.
+- Initialize adj_bits = [0]*(n+1)
+- adjacency_list = [[] for _ in range(n+1)]
+- for i in range(m): u=data[2+2*i]; v=data[2+2*i+1]
+- set bits.
+- After building: for u in 1..n: adjacency_list[u].sort()
+- loop:
+  for a in range(1,n+1):
+    for b in adjacency_list[a]:
+        if b <= a: continue
+        common = adj_bits[a] & adj_bits[b]
+        shifted = common >> b
+        if shifted:
+            lsb = shifted & -shifted
+            offset = lsb.bit_length() - 1
+            c = b + offset + 1
+            # ensure c <= n
+            if c <= n:
+                print(f"{a} {b} {c}")
+                return
+
+Edgecases: Might produce c > n due to shift? Let's test: Suppose intersection includes node n with index n-1. For b maybe large. For example n=2000, b=1999, c maybe 2000. Let's compute: Node index n-1=1999. b=1999. shift by b=1999 removes bits 0..1998. So bit 0 corresponds to original index 1999. So shifted will have bit 0 set. offset=0. c = 1999+0+1=2000. Good.
+
+If intersection includes node > n? Not possible.
+
+So we output.
+
+We need to exit after printing. Use sys.stdout.write.
+
+Ok.
+
+Let's test quickly mentally with sample.
+
+Edgecases: Guarantee at least one triangle.
+
+Let's produce final code.
+
+Potential performance: Using bit operations on ints of up to 2000 bits is fine. Each iteration uses & and >> and bit_length. m up to 200k, so 200k bit operations fine.
+
+Let's produce final code.

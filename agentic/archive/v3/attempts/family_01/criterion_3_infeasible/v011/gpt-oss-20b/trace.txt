@@ -1,0 +1,90 @@
+We need lexicographically smallest triangle in undirected graph up to n=2000, m up to 200k. We need efficient algorithm.
+
+We can use adjacency sets bitset or boolean matrix. n=2000, matrix 2000x2000 = 4 million booleans, fine. Use list of bitset or set.
+
+Goal: find minimal (a,b,c) with a<b<c and edges exist between all pairs.
+
+We can iterate a from 1..n, then consider neighbors b> a. For each such b, find common neighbors c > b that are adjacent to both a and b. We need minimal c. Since lexicographic: minimal a first, then minimal b, then minimal c.
+
+Implementation: adjacency list as boolean matrix using list of sets or bitset. Use bitset as Python int or bitarray? Since n <=2000, we can use Python int bitset: each node has bitmask of neighbors. But 2000 bits -> fits in int (~2000 bits). For each a, we iterate b in sorted neighbors > a. Compute common = adj[a] & adj[b]; then need smallest c > b in common. We can find by iterating bits from b+1 to n. We can precompute for each bit mask the next set bit after a position. But easier: iterate c from b+1..n and check if common bit set. Complexity: worst-case n=2000, each pair considered maybe O(n^2) with inner loop O(n). That's 8 million maybe okay? Actually loops: For each a, for each b neighbor. In dense graph, degree ~n, so pairs ~ n^2/2 ~2 million. For each pair we scan c from b+1..n up to n. That's O(n^3). Not good.
+
+We need efficient intersection and find min c.
+
+We can precompute adjacency lists sorted. For each a, for each b > a in adjacency list, compute intersection of neighbor lists of a and b that are > b. Since lists sorted, we can find intersection by two pointers. Complexity: sum over edges of min(deg(a), deg(b)). For n=2000, m up to 200k, worst-case deg ~2000, edges ~200k, min deg could be 2000, product 400M too high? But average deg 200k*2/2000=200. So intersection scanning 200 each edge -> 40M maybe okay in 2s Python? Might be borderline.
+
+But we only need first triangle lexicographically. We can early exit when found.
+
+We can also use bitset intersection and find smallest set bit > b quickly by using bit_length etc. Approach: common = adj_mask[a] & adj_mask[b]; We need to find smallest bit index > b. We can mask out bits <= b by shifting. Compute mask = common >> (b); then find lowest set bit: c = (mask & -mask).bit_length() + b. Wait: we need index of lowest set bit. For integer x, lowest set bit index (0-based) is (x & -x).bit_length() -1. So we can compute shift = common >> (b+1). Since we want > b, shift by b+1. Then if shift==0 no candidate. Else c = ( (shift & -shift).bit_length() -1 ) + b +1.
+
+Thus we can find c in O(1).
+
+So algorithm:
+
+- Build array masks[1..n] as int.
+- For each edge u,v: set bit v-1 in masks[u] and bit u-1 in masks[v].
+- For a from 1 to n:
+   for b in neighbors of a sorted ascending such that b>a:
+       common = masks[a] & masks[b]
+       shift = common >> (b)    # bits > b-1? Wait careful: bits index 0..n-1 correspond to node 1..n. For node b, its bit is at position b-1. We want bits > (b-1). So shift by b. Because shift right by b removes bits 0..b-1 inclusive? Actually shift by b removes first b bits (positions 0..b-1). For b=2, shift by 2 removes bits 0 and 1. So nodes 1 and 2 removed. We want >b, so shift by b. Good.
+       if shift:
+           low = shift & -shift
+           c = (low.bit_length() -1) + b
+           Print a,b,c and exit.
+
+Need neighbors list for each a sorted ascending. But we don't need to sort if we iterate all neighbors > a. But we need lexicographic smallest b. So we should iterate b ascending. So neighbors list sorted.
+
+We can build neighbor lists as list of ints. For each u,v, append v to neighbors[u] and u to neighbors[v].
+
+After building, sort each list.
+
+Complexities: building masks O(m). Sorting each list: total O(m log m). Acceptable.
+
+Edge case: ensure that we consider only b > a to avoid duplicates and maintain lexicographic.
+
+Let's test with example.
+
+Implementation details: bit positions: node i -> bit i-1.
+
+Compute common = masks[a] & masks[b].
+
+Compute shift = common >> (b) . Because shift removes bits 0..b-1 inclusive. Node b has bit at position b-1, removed. Bits > b-1 correspond to nodes > b. So shift indexes start at 0 for node b+1. So lowbit = shift & -shift. c = (lowbit.bit_length() -1) + b.
+
+Check: Suppose b=2, shift after >>2, lowbit bit_length-1 gives offset in shifted. Suppose c=4, node 4 bit index 3. shift >>2: bits starting at 0 for original bit 2. Wait original bits: 0 for node1,1 for node2,2 for node3,3 for node4. shift >>2: original bit 2 becomes position 0, original bit3 -> pos1. So for c=4 original bit 3 -> shifted pos1. lowbit bit_length-1 =1. +b = 2+1=3? Wait 2+1=3, but node index 3? Off by 1. Let's compute again: nodes: a,b,c. We want c=4. b=2. shift = common >> b? b=2 shift right by 2. original bit 3 goes to pos1. lowbit binary 10 -> bit_length=2 -> -1 =>1. +b => 3. But we need 4. So error: we must shift by b? Let's test b=2: shift by 2 means we removed bits 0-1 (nodes 1 and 2). Node3 originally bit2, after shift becomes pos0. Node4 originally bit3, after shift pos1. We want to map pos1 to node4. So formula: node_index = (lowbit.bit_length()-1) + b +1? Because original bit index = shifted_index + b. Wait original bit index = shifted_index + b. Node index (1-based) = original bit index +1. original bit index = bit_pos. For node4: original bit index=3. shifted_index=1. b=2. So shifted_index + b = 3. Then +1 =>4. So formula c = (low.bit_length()-1) + b +1.
+
+Thus c = (lowbit.bit_length() -1) + b +1.
+
+Let's test: lowbit=2 (10) bit_length=2 => -1=1. +b=2 =>3. +1 =>4. correct.
+
+Check for c=3, b=2: original bit index 2, shift>>2 -> pos0, lowbit=1 bit_length=1 => -1=0 + b=2 =>2 +1 =>3 correct.
+
+Edge: if c>n, but shift ensures only bits <=n-1; fine.
+
+Thus algorithm.
+
+Implementation steps:
+
+- read n,m.
+- initialize masks = [0]*(n+1)
+- neighbors = [[] for _ in range(n+1)]
+- for each edge: u,v; set masks[u] |= 1 << (v-1); masks[v] |= 1 << (u-1); neighbors[u].append(v); neighbors[v].append(u)
+- sort neighbors[i]
+- for a in range(1,n+1):
+    for b in neighbors[a]:
+        if b <= a: continue
+        common = masks[a] & masks[b]
+        shift = common >> b  # remove bits <= b-1
+        if shift:
+            low = shift & -shift
+            c = (low.bit_length() -1) + b +1
+            print(a,b,c)
+            return
+
+Should guarantee termination because triangle exists.
+
+Complexities: O(n + m log n) memory fine.
+
+Edge cases: bit length shift may produce large int but fine.
+
+Test with example.
+
+Let's implement.

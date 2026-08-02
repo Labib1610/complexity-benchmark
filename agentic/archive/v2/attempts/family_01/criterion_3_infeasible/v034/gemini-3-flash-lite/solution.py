@@ -1,0 +1,48 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        edges.append((u, v))
+        
+    edges.sort()
+    
+    # To find the lexicographically smallest triple (a, b, c)
+    # Iterate through all edges (u, v) as the first two elements of the triple.
+    # Since we want the smallest a, then b, then c, we iterate a from 1 to n.
+    # For a fixed a, iterate b in adj[a] (sorted).
+    # Then look for c > b such that c is in adj[a] and adj[b].
+    
+    adj_list_sorted = [sorted(list(s)) for s in adj]
+    
+    for a in range(1, n + 1):
+        neighbors_a = adj_list_sorted[a]
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # Now we need c > b such that c is in adj[a] and adj[b]
+            # Since both adj[a] and adj[b] are sorted, we can use intersection
+            # To be efficient, we only need to check c > b
+            set_b = adj[b]
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                if c in set_b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

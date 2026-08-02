@@ -1,0 +1,70 @@
+import sys
+
+# Increase recursion depth for deep DFS trees
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    N = int(input_data[0])
+    M = int(input_data[1])
+    
+    adj = [[] for _ in range(N + 1)]
+    idx = 2
+    for _ in range(M):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+
+    # color[i] will be 0 (unvisited), 1, or 2
+    color = [0] * (N + 1)
+    
+    # To find the lexicographically smallest sequence, we want to assign 
+    # channel 1 to the smallest index possible in each connected component.
+    # For each component, we can start BFS/DFS from the smallest unvisited node
+    # and assign it color 1. Then all other nodes in that component are 
+    # constrained. However, we must check if swapping 1s and 2s in that 
+    # specific component would result in a lexicographically smaller sequence.
+    
+    for i in range(1, N + 1):
+        if color[i] == 0:
+            # New component found.
+            # We use a queue for BFS to find all nodes in this component.
+            component = []
+            queue = [i]
+            color[i] = 1
+            head = 0
+            while head < len(queue):
+                u = queue[head]
+                head += 1
+                component.append(u)
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+            
+            # Now we have the component and a valid 2-coloring.
+            # There are only two possible colorings for this component:
+            # 1. The current coloring.
+            # 2. The inverted coloring (1->2, 2->1).
+            # To make the overall sequence lexicographically smallest, 
+            # we compare the two options for the smallest index in the component.
+            # Since we started BFS from the smallest index 'i' and assigned it 1,
+            # the sequence starting with color[i]=1 is always lexicographically
+            # smaller than or equal to the sequence starting with color[i]=2.
+            # (Because the first differing element at index 'i' would be 1 vs 2).
+            # Thus, the assignment we just made is already the best for this component.
+
+    print("YES")
+    print(*(color[i] for i in range(1, N + 1)))
+
+if __name__ == "__main__":
+    solve()

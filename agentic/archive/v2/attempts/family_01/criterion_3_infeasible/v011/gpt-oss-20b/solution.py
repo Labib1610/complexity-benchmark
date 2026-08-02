@@ -1,0 +1,37 @@
+import sys
+import bisect
+
+def main() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adjacency = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u == v:
+            continue
+        adjacency[u].add(v)
+        adjacency[v].add(u)
+
+    # Sorted neighbor lists for lexicographic iteration
+    neighbor_list = [sorted(adjacency[i]) for i in range(n + 1)]
+
+    for a in range(1, n - 1):
+        neigh_a = neighbor_list[a]
+        for b in neigh_a:
+            if b <= a:
+                continue  # ensure a < b
+            # find first neighbor > b
+            idx = bisect.bisect_right(neigh_a, b)
+            neigh_b_set = adjacency[b]
+            for c in neigh_a[idx:]:
+                if c in neigh_b_set:
+                    sys.stdout.write(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    main()

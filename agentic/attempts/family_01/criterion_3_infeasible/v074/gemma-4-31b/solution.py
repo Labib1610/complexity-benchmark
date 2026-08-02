@@ -1,0 +1,62 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    # Adjacency matrix for O(1) lookup (using bitsets/integers for efficiency)
+    # Since n <= 2000, a bitset approach or a list of sets/booleans is feasible.
+    # In Python, a list of bitsets (integers) is very fast for intersection.
+    bitsets = [0] * (n + 1)
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].append(v)
+        bitsets[u] |= (1 << v)
+        bitsets[v] |= (1 << u)
+
+    # To find the lexicographically smallest triplet (a, b, c):
+    # We iterate a from 1 to n, then b from a+1 to n.
+    # If (a, b) is an edge, we look for c > b such that (a, c) and (b, c) are edges.
+    # This is equivalent to finding the smallest bit set in (bitsets[a] & bitsets[b]) that is > b.
+    
+    for a in range(1, n + 1):
+        # Only iterate over neighbors of a that are greater than a
+        # Sort neighbors to ensure we check b in increasing order
+        neighbors_a = sorted(adj[a])
+        for b in neighbors_a:
+            if b <= a:
+                continue
+            
+            # Find common neighbors of a and b that are greater than b
+            # common = bitsets[a] & bitsets[b]
+            common = bitsets[a] & bitsets[b]
+            
+            if common:
+                # We need the smallest c > b.
+                # We can mask out bits <= b.
+                mask = ~((1 << (b + 1)) - 1)
+                candidates = common & mask
+                if candidates:
+                    # Find the lowest set bit (LSB) of candidates
+                    # c = (candidates & -candidates).bit_length() - 1
+                    # In Python 3.10+, candidates.bit_count() or int.bit_length()
+                    # The smallest c is the index of the first 1 bit.
+                    c = (candidates & -candidates).bit_length() - 1
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

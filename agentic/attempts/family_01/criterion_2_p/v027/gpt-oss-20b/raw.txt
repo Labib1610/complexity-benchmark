@@ -1,0 +1,124 @@
+<think>
+We need to check if graph is bipartite. If yes, find lexicographically smallest assignment of 1/2 to nodes 1..n. Lexicographically smallest means at first differing position, we want 1 instead of 2. Since assignment is 1/2 values. So we want minimize each s_i sequentially.
+
+Given bipartite graph, there may be multiple colorings: for each connected component, we can flip colors. Lexicographically smallest means for each component, we choose orientation that gives smaller assignment at first node index in that component.
+
+Because lexicographic order depends on node indices. So for each component, find minimal node index. For that component, we have two possible assignments: original color (say color 0/1) or flipped. We should choose orientation that gives smaller value at that minimal node index (since earlier nodes are fixed; if minimal node index is the first differing, we choose color 1 if possible). But also if the minimal node index's color in one orientation is 1, then that's smaller than 2. So we choose orientation that gives color 1 at minimal node index. But what if both give color 1? That means both orientations produce same at minimal node, but maybe differ later. But lexicographically, if same at minimal node, we need to consider the next node. However, if the component's nodes are all after that minimal node? Wait, minimal node is the smallest index in component; all other nodes > minimal. So lexicographic ordering between assignments of that component is determined first by minimal node, then by next smallest node in component, etc. So we need to choose orientation that yields lexicographically smallest sequence restricted to nodes in that component sorted by index.
+
+We can compute for each component the two sequences: color mapping and flipped. Then compare lexicographically over nodes in that component sorted ascending. Since component size could be large but total n <= 2e5, we can do this.
+
+Simpler: For each component, we can compute the color assignment when starting DFS with root colored 0. After entire component colored, we have array 'color' for nodes. Then we have two possibilities: original mapping: color 0 -> 1, color 1 -> 2. Flipped: color 0 -> 2, color 1 -> 1. Now we need to decide which orientation gives lexicographically smaller vector of s_i for nodes sorted by index. Since we will combine across components, we can decide each component independently.
+
+We can just examine nodes in component sorted ascending: for each node, compare s values under both orientations. The first difference decides. Since we want smallest, we pick orientation that gives smaller at first difference. Implementation: For each component, gather list of nodes sorted. For each node in that list, compute val1 = 1 if color[node]==0 else 2; val2 = 2 if color[node]==0 else 1. Compare. If val1 < val2, choose orientation 'original'; else if val2 < val1 choose 'flipped'; else continue. If all equal (which can happen if component has only one node? Actually color same but val1==val2 only if color 0 leads to 1 and 2? Wait val1 and val2 differ as 1 vs 2; they can't be equal. So first difference will occur at first node. So orientation selection reduces to: at minimal node, we want val=1. So we just need to ensure minimal node color is 0. If minimal node color is 1, then original gives val2=2? Wait if color 0->1, color1->2. So if minimal node color=0, val1=1, val2=2. So we choose original. If minimal node color=1, original gives 2, flipped gives 1. So choose flipped. So orientation basically depends on color of minimal node. So we don't need to compare all nodes.
+
+Thus algorithm: run BFS/DFS bipartite check. For each component, find min node index. If color[min] == 0, orientation = original; else orientation = flipped. That ensures lexicographically smallest.
+
+Edge cases: isolated nodes: component with single node, min node itself, color=0. orientation original gives 1. That's minimal.
+
+Thus final assignment: for each node i: if orientation of its component is original: s_i = 1 if color[i]==0 else 2; else: s_i = 2 if color[i]==0 else 1.
+
+Implementation: n up to 200k, m up to 200k. Use adjacency list.
+
+Check bipartite: BFS using deque. color array size n+1, -1 unvisited, 0/1 colored. Also store component id per node, or store min node per component and orientation after BFS.
+
+Simpler: During BFS, gather list of nodes in component. After BFS, find min node, decide orientation, then assign s values for those nodes accordingly.
+
+We can store result array s initialized zeros. After BFS, when orientation decided, set s[node] accordingly.
+
+Complexities O(n+m).
+
+Input reading: use sys.stdin.read().split().
+
+Let's test with examples.
+
+Example 1: 4 nodes, edges: 1-2,2-3,3-4,1-4. Graph is cycle even. BFS coloring: start 1 color0. 2 color1. 3 color0. 4 color1. Component min=1 color0 -> original -> mapping 0->1,1->2. So s: 1,2,1,2. Works.
+
+Example 2: triangle. BFS color: 1 color0, 2 color1, 3 color? 2-3 edge: 2 color1, so 3 must be 0. Edge 1-3: 1 color0, 3 color0 -> conflict. So output NO.
+
+Edge case: multiple components: e.g., component1: nodes 2,3. component2: node1 alone. Lexicographic: nodes order: 1,2,3. Node1 is in component2; orientation ensures s1=1. Node2,3 orientation may produce 1 or 2 depending on colors. Works.
+
+Need to ensure we process components in any order but result array will be correct.
+
+Implementation details: adjacency list as list of lists. For each node 1..n, if color==-1, BFS.
+
+BFS: use deque, push start node with color 0. While queue: node pop, for neighbor: if color[neighbor]==-1: set color = 1-color[node], push; else if color[neighbor]==color[node]: not bipartite.
+
+Collect component_nodes list.
+
+After BFS finish: find min_node = min(component_nodes). If color[min_node]==0: orientation=original else flipped.
+
+Set s for each node in component: if orientation==original: s[node] = 1 if color[node]==0 else 2; else: s[node] = 2 if color[node]==0 else 1.
+
+After all, output YES and s[1..n] space separated.
+
+Check memory: adjacency list size ~ 2m edges. fine.
+
+Potential pitfalls: recursion depth if using DFS; use BFS.
+
+Let's code.
+
+Complexities acceptable.
+
+Let's produce final code.
+</think>
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * (n + 1)
+    s = [0] * (n + 1)
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS for component
+        q = deque([start])
+        color[start] = 0
+        comp_nodes = [start]
+        bipartite = True
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    q.append(v)
+                    comp_nodes.append(v)
+                elif color[v] == cu:
+                    bipartite = False
+                    break
+            if not bipartite:
+                break
+        if not bipartite:
+            print("NO")
+            return
+        # determine orientation
+        min_node = min(comp_nodes)
+        if color[min_node] == 0:
+            # original: 0->1, 1->2
+            for node in comp_nodes:
+                s[node] = 1 if color[node] == 0 else 2
+        else:
+            # flipped: 0->2, 1->1
+            for node in comp_nodes:
+                s[node] = 2 if color[node] == 0 else 1
+
+    print("YES")
+    print(' '.join(str(s[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()
+```

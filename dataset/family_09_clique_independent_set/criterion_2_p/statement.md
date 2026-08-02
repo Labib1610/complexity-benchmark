@@ -12,7 +12,7 @@ Find the size of the largest all-strangers group.
 
 ## Input
 
-The first line contains three integers **nA**, **nB**, and **m** (1 ≤ nA, nB ≤ 100000, 0 ≤ m ≤ 200000).
+The first line contains three integers **nA**, **nB**, and **m** (1 ≤ nA, nB ≤ 100000, 0 ≤ m ≤ 800000).
 Each of the next **m** lines contains two integers **a** and **b** (1 ≤ a ≤ nA, 1 ≤ b ≤ nB): a friendship between campus-A user a and campus-B user b. No connection is listed twice.
 
 ## Output

@@ -1,0 +1,37 @@
+import sys
+
+def operational_shift_distribution():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u, v = int(data[index]), int(data[index+1])
+        conflicts[u].append(v)
+        conflicts[v].append(u)
+        index += 2
+    
+    def is_valid_assignment(assignment):
+        for i in range(1, n + 1):
+            shift = assignment[i - 1]
+            for j in conflicts[i]:
+                if assignment[j - 1] == shift:
+                    return False
+        return True
+    
+    from itertools import permutations
+    
+    shifts = [1, 2, 3]
+    for perm in permutations(shifts * (n // 3 + 1), n):
+        if is_valid_assignment(perm):
+            print("YES")
+            print(' '.join(map(str, perm)))
+            return
+    print("NO")
+
+if __name__ == "__main__":
+    operational_shift_distribution()

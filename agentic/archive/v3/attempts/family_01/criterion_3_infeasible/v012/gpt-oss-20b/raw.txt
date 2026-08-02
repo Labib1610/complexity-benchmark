@@ -1,0 +1,77 @@
+<think>
+We need to find lexicographically smallest triangle in an undirected graph with up to n=2000, m up to 200k. We can do adjacency matrix boolean 2001x2001. Then iterate over a from 1..n: for each b > a that adjacent to a; for each c > b that adjacent to a and b. For lexicographic minimal: we iterate a ascending, then b ascending, then c ascending. As soon as we find first triple, output and exit. Complexity: O(n^3) worst-case if dense but n=2000, worst-case edges ~2e5, triangles not many. But we need efficient search. Use adjacency bitsets to speed intersection.
+
+Simpler: For each a, gather neighbors greater than a. For each pair (b,c) from that list, check if b-c edge exists. If list size k, we check all pairs O(k^2) per a. Sum over a. In worst-case complete graph: n=2000, for each a, k = n-a. Sum_k^2 ~ O(n^3/3) ~ 2.6e9 too big. But m limited 200k, so graph sparse. For each a, deg(a) <= m. Sum over a of deg(a)^2 <=? Using Cauchy, sum of squares <= m * max_deg. max_deg <= n-1 ~2000. So worst-case 200k*2000=4e8 still high. But actual m 200k, but worst-case deg distribution could be high. Need better.
+
+We can use adjacency bitsets of 2000 bits (~32 64-bit ints). For each a, iterate b> a adjacent to a. For each c> b, check if a-b and a-c and b-c. We can precompute bitset adjacency per node. Then for each a, for each b> a where edge exists, compute intersection of neighbors of a and b greater than b. Use bitset intersection and find lowest set bit. Complexity: For each edge (a,b) with a<b, we intersect bitsets of size 2000/wordsize=32. So O(m * 32). That's fine. Implementation: Use Python ints as bitsets. For node i, create bitmask of neighbors > i? Actually we need neighbor set with all nodes. We'll use bitset of all neighbors. For lexicographic: iterate a from 1..n. For each b > a where edge. Compute mask = adjacency[a] & adjacency[b] & mask_greater_than_b. But we need c > b. We can precompute mask_gt[i] = bits for nodes > i. Then mask = adjacency[a] & adjacency[b] & mask_gt[b]. If mask != 0: get lowest set bit via mask.bit_length() etc. But we need smallest c > b. For lexicographic minimal, we need smallest c. The lowest set bit gives smallest index. So we can find c = (mask & -mask). Then compute index via bit_length. Then output a,b,c. That will be minimal for given a,b; but we also need iterate b ascending, so we find minimal c for that pair. And we need minimal b for given a. So iterate b ascending. For each a, for b ascending, find if exists c. The first found triple overall is lexicographically minimal a,b,c. Because we iterate a ascending, then b ascending; for each b we find minimal c. So that works.
+
+Implementation details: n up to 2000, we use zero-based indices? We'll use 1-based to match output. For bitmask: bit i corresponds to node i. We'll shift 1 << (i-1) because 0 bit unused. But Python int can handle. We'll precompute adjacency bitmask for each node.
+
+We'll also precompute mask_gt[i] where i from 1..n: bits for nodes > i. For i=n, mask=0.
+
+Edge reading: For each pair u,v, set adjacency[u] |= 1<<(v-1); adjacency[v] |= 1<<(u-1).
+
+Iteration: for a in range(1,n+1):
+    neigh_a = adjacency[a]
+    # iterate b > a with edge: we can iterate bits in neigh_a that are > a. We can get mask = neigh_a & mask_gt[a]. Then iterate set bits in ascending order.
+    mask_ab = neigh_a & mask_gt[a]
+    while mask_ab:
+        b_bit = mask_ab & -mask_ab
+        b = (b_bit.bit_length())  # gives position index (1-based)
+        # compute intersection
+        mask = adjacency[a] & adjacency[b] & mask_gt[b]
+        if mask:
+            c_bit = mask & -mask
+            c = c_bit.bit_length()
+            print(a,b,c)
+            return
+        mask_ab -= b_bit
+
+Need to ensure bit_length gives position index: For 1<<k (k zero-based), bit_length() returns k+1. Since we used shift with (i-1), bit_length gives i. Good.
+
+Complexities fine.
+
+Edge cases: ensure we handle reading large input fast. Use sys.stdin.buffer.read.
+
+Return answer.
+</think>
+```python
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+
+    # precompute mask of nodes greater than i
+    mask_gt = [0] * (n + 2)  # mask_gt[n] = 0
+    accum = 0
+    for i in range(n, 0, -1):
+        mask_gt[i] = accum
+        accum |= 1 << (i - 1)
+
+    for a in range(1, n + 1):
+        mask_ab = adj[a] & mask_gt[a]
+        while mask_ab:
+            b_bit = mask_ab & -mask_ab
+            b = b_bit.bit_length()  # node index
+            mask = adj[a] & adj[b] & mask_gt[b]
+            if mask:
+                c_bit = mask & -mask
+                c = c_bit.bit_length()
+                print(a, b, c)
+                return
+            mask_ab -= b_bit
+
+if __name__ == "__main__":
+    solve()
+```

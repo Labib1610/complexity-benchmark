@@ -1,0 +1,172 @@
+<think>
+We need to assign 3 colors to up to 40 nodes such that no edge has same color. That's graph 3-coloring problem up to 40 nodes. Need lexicographically smallest assignment.
+
+We can do backtracking with pruning and branch ordering: assign nodes in order 1..n. For each node, try colors 1..3, check constraints with already assigned neighbors. Since n up to 40, worst-case 3^40 impossible. Need clever pruning: maybe use DSATUR algorithm? But we also need lexicographically minimal assignment. That suggests we must try color 1 for node 1, if fails, then color 2, etc. But we need to find any solution, but lexicographically smallest among all solutions. We could use backtracking with pruning and symmetry breaking. With n=40, but edges may reduce possibilities. However worst-case graph could be complete graph of 40 nodes, which is 3-colorable only if n<=3? But for n>3, impossible. So many impossible quickly. But there might be graphs that are 3-colorable but still large. 3-coloring is NP-hard; n=40 is small enough for backtracking with pruning maybe using DSATUR or using bitmasks.
+
+We can use a recursive search with heuristic: choose next node with most constraints among uncolored (like DSATUR). However to guarantee lexicographic minimality, we need to consider order 1..n for the final assignment. But we can still search in order but use heuristics to prune. Actually to get lexicographically minimal assignment, we must consider assignments in lex order: assign node 1 minimal color that leads to some solution, else next color. So we can do backtracking that respects node order. But we can prune using forward-checking: for each uncolored node, maintain possible colors set; if any becomes empty, backtrack.
+
+We can maintain domain for each node. Initially all {1,2,3}. When we assign node i color c, for each neighbor j not colored yet, remove c from its domain. If domain becomes empty, backtrack. Use recursion.
+
+We also need efficient representation. n <= 40, small. Use adjacency list bitmask: for each node, bitmask of neighbors.
+
+We can store color array of size n, 0 uncolored.
+
+We need to maintain domains: for each node, a 3-bit mask of available colors. Initially 0b111.
+
+When assign color c to node i: color[i] = c. For each neighbor j not colored, we need to modify domain[j] by removing c. We need to track changes to revert on backtrack. We'll maintain a stack of changes: for each change, record (j, old_domain). But we can also store previous domain per node. Since n small, we can copy array each recursion? That would be O(n) per recursion; depth up to 40, total 40*40=1600 operations, fine. So we can just copy domain array each recursion.
+
+Simpler: recursion function dfs(pos). We maintain color array and domain array. At each step, we choose the node with smallest index among uncolored? But to maintain lexicographic minimal, we must process nodes in order 1..n. So pos is next node index to assign. But we might skip nodes already colored? But we color sequentially; no node is colored before its index. So just assign node pos each recursion. But we need to consider neighbor constraints with earlier nodes only; later nodes not yet colored. That's fine.
+
+When we assign node pos, we do check with already colored neighbors: they cannot have same color. Since we only assign new node after earlier nodes, we can just check that none of its neighbors have the same color. If conflict, skip color.
+
+But we also need forward checking: remove color from neighbor domains; but we only need to check if any remaining uncolored neighbor has domain empty after removal. But since we haven't assigned them yet, we could maintain domain; but we might not need domain if we just check conflict when assigning. However that might lead to exploring many dead branches. But n=40, maybe okay.
+
+But worst-case graph with many constraints might still be okay. Let's estimate: worst-case 3^40 too big. But typical backtracking with forward-checking reduces drastically.
+
+But we can implement simple backtracking with heuristics: choose next node with smallest domain among uncolored (MRV). This can lead to not lexicographic minimal though. But we can still enforce lexicographic minimal by exploring colors in order, but choose node order adaptively? The lexicographic minimal is defined relative to node indices, not assignment order. That is, we need s_1 minimal first. So we must ensure node 1 gets smallest possible color among all solutions. So we cannot reorder node assignments arbitrarily. Instead we must assign node 1 first, then 2, etc. That's required to minimize lex order.
+
+Thus we cannot use MRV ordering. But we can still use forward-checking.
+
+Ok.
+
+We can implement recursion:
+
+def dfs(k):
+    if k==n: solution found
+    for c in 1..3:
+        if any neighbor of k has color c: continue
+        # assign
+        color[k]=c
+        # forward-check: for each neighbor j>k (uncolored), remove c from its domain; if any domain becomes empty, revert and continue
+        record changes
+        if all domains nonempty:
+            if dfs(k+1): return True
+        revert changes, color[k]=0
+
+Return False.
+
+We need to maintain domains: array of 3-bit masks for each node. Initially all 0b111. When we assign color c to node k, we set domain[k]=1<<(c-1) maybe or 0? Actually node k is colored, domain not needed. We'll just set color[k]=c and domain[k]=0.
+
+For neighbor j>k: if not colored, we remove c from domain[j] by AND with complement. We'll record old domain[j] to restore.
+
+But we need to know which neighbors are uncolored. Use adjacency bitmask.
+
+Implementation details:
+
+- Use 0-indexed nodes.
+- adjacency as list of bitmask neighbors.
+
+- color array length n, 0 uncolored.
+
+- domain array length n, integer bits.
+
+- recursion function returns bool.
+
+We need to implement forward-checking: For each neighbor j where color[j]==0, we do old=domain[j]; new=old & (~(1<<(c-1))); if new==0: fail; else set domain[j]=new and push (j, old) onto stack. After recursion, restore by iterating stack in reverse.
+
+We also need to handle propagation: when domain reduces to single color, we might propagate? But not necessary; we can just keep domain.
+
+But we can also propagate: if any uncolored node's domain has only one color, we might set it automatically to reduce search. But that may conflict with lex order? Actually setting automatically might assign colors to later nodes earlier; but still lex order unaffected because those later nodes will get that color. But we must ensure we don't skip exploring other possibilities for earlier nodes. Since we only assign nodes sequentially, if we propagate later nodes, we might assign them before we reach them in recursion. That changes order but still final assignment order same. But we must ensure we don't violate lex minimal property: Suppose node 3 has domain {1} forced by propagation after assigning node1=1. But if node1 could be 2 also leading to solution with node3=1, that would produce lexicographically smaller? Actually lex order considers node1 first. So if node1=1 leads to solution, it's lexicographically smaller than any solution with node1=2. So we can propagate; doesn't affect lex minimal.
+
+Thus we can implement forward-checking with propagation: after removal, if any domain becomes zero -> backtrack. If domain becomes single color, we could consider assigning that node immediately? But that might branch earlier. But we can postpone until recursion reaches that node.
+
+Simpler: don't propagate automatically; just record domain.
+
+Given n=40, recursion depth 40, each step iterates over neighbors (~40). Complexity manageable.
+
+Edge cases: need to read input, build adjacency bitmask.
+
+Let's code.
+
+We also need to check adjacency duplicates? Input may contain duplicate edges; we can ignore.
+
+We need to handle m up to n(n-1)/2.
+
+Testing with examples.
+
+Let's implement.
+
+Potential optimization: precompute neighbor list for each node to avoid bit operations inside loops.
+
+Also maintain list of neighbors.
+
+Let's write.
+
+Also we need to store solution color array once found.
+
+Ok.
+
+Let's produce final code.
+</think>
+#!/usr/bin/env python3
+import sys
+sys.setrecursionlimit(10000)
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    neigh = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        neigh[u].add(v)
+        neigh[v].add(u)
+
+    color = [0] * n          # 0 = uncolored, 1-3 = color
+    domain = [0b111] * n     # bitmask of possible colors for each node
+
+    solution = None
+
+    def dfs(k):
+        nonlocal solution
+        if k == n:
+            solution = color[:]
+            return True
+        # try colors 1..3
+        for c in (1, 2, 3):
+            # check conflict with already colored neighbors
+            conflict = False
+            for nb in neigh[k]:
+                if color[nb] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            # assign
+            color[k] = c
+            changes = []
+            fail = False
+            # forward-checking: update domains of uncolored neighbors
+            for nb in neigh[k]:
+                if color[nb] == 0:
+                    old = domain[nb]
+                    new = old & (~(1 << (c - 1)))
+                    if new == 0:
+                        fail = True
+                        break
+                    if new != old:
+                        changes.append((nb, old))
+                        domain[nb] = new
+            if not fail:
+                if dfs(k + 1):
+                    return True
+            # revert
+            for nb, old in reversed(changes):
+                domain[nb] = old
+            color[k] = 0
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(x) for x in solution))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

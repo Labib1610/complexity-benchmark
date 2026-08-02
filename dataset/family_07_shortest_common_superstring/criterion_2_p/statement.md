@@ -12,7 +12,7 @@ Among all strings of the shortest possible length that contain both fragments, o
 
 The first line contains the first fragment.
 The second line contains the second fragment.
-Each fragment is a non-empty string of lowercase English letters of length at most 100000.
+Each fragment is a non-empty string of lowercase English letters of length at most 500000.
 
 ## Output
 

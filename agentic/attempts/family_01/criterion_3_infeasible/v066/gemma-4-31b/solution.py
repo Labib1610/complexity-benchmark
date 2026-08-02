@@ -1,0 +1,69 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use adjacency lists to store the graph
+    # To optimize for lexicographical order, we store neighbors in sorted order
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    for i in range(1, n + 1):
+        adj[i].sort()
+
+    # We need the lexicographically smallest (a, b, c) with a < b < c.
+    # This means we should iterate a from 1 to n, then b from a+1 to n, then c from b+1 to n.
+    # To optimize, for a fixed 'a', we only consider neighbors of 'a' that are > a.
+    # Let these neighbors be S_a. We look for an edge (b, c) where b, c are in S_a and b < c.
+    
+    # To check for edge existence quickly, we can use a bitset or a boolean matrix.
+    # Given n=2000, a boolean matrix takes 2000*2000 = 4*10^6 elements, which fits in memory.
+    # In Python, a list of sets or a bitset (using large integers) is often faster.
+    
+    # Using bitsets (large integers in Python) for fast intersection
+    bit_adj = [0] * (n + 1)
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            bit_adj[u] |= (1 << v)
+
+    for a in range(1, n - 2 + 1):
+        # Neighbors of a that are greater than a
+        neighbors_a = [v for v in adj[a] if v > a]
+        
+        # We want to find the smallest b in neighbors_a, then the smallest c in neighbors_a
+        # such that b < c and (b, c) is an edge.
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # We need c > b and c is a neighbor of both a and b.
+            # Neighbors of a that are > b are the elements of neighbors_a from index i+1 onwards.
+            # Intersection of neighbors of a and neighbors of b:
+            common = bit_adj[a] & bit_adj[b]
+            
+            # We need the smallest c in common such that c > b.
+            # Instead of iterating all c, we can mask out bits <= b.
+            # Mask for bits > b: ~((1 << (b + 1)) - 1)
+            mask = ~((1 << (b + 1)) - 1)
+            candidates = common & mask
+            
+            if candidates:
+                # Find the lowest set bit in candidates
+                # candidates.bit_length() - 1 is the highest, we need the lowest.
+                # (candidates & -candidates).bit_length() - 1 gives the index of the lowest set bit.
+                c = (candidates & -candidates).bit_length() - 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

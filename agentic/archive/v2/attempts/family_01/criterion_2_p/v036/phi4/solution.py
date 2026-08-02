@@ -1,0 +1,44 @@
+from sys import stdin
+
+def main():
+    n, m = map(int, stdin.readline().split())
+    G = [set() for _ in range(n)]
+    
+    for _ in range(m):
+        u, v = map(lambda x: int(x) - 1, stdin.readline().split())
+        G[u].add(v)
+        G[v].add(u)
+
+    ans = [-1] * n
+    for i in range(n):
+        if ans[i] == -1:
+            q = [i]
+            t = set()
+            while q:
+                v = q.pop(0)
+                if ans[v] == -1:
+                    t.add(v)
+                    ans[v] = 1
+                    for u in G[v]:
+                        if ans[u] != -1 and ans[u] == ans[v]:
+                            print('NO')
+                            return
+                        elif ans[u] == -1:
+                            q.append(u)
+
+            if len(t) > 2:
+                print('NO')
+                return
+            
+            t = sorted(list(t))
+            for x in t:
+                ans[x] = 1
+            for j in range(n):
+                if ans[j] == -1:
+                    ans[j] = 2
+
+    print('YES')
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    main()

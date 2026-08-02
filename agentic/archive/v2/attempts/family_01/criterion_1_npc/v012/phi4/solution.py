@@ -1,0 +1,58 @@
+import sys
+from itertools import combinations
+
+def find_schedule(n, m, restrictions):
+    # Create adjacency list for the graph
+    adj = [[] for _ in range(n)]
+    for u, v in restrictions:
+        adj[u-1].append(v-1)
+        adj[v-1].append(u-1)
+
+    # Initialize slots as 0 (unassigned), and a valid flag
+    slots = [0] * n
+
+    def is_valid_assignment():
+        for i in range(n):
+            if slots[i] == 0:
+                return True
+        for i in range(n):
+            for j in adj[i]:
+                if slots[i] == slots[j]:
+                    return False
+        return True
+
+    # Try to assign slots lexicographically
+    def assign_slots(pos):
+        if pos == n:
+            return is_valid_assignment()
+        
+        for slot in [1, 2, 3]:  # Lexicographical order: try 1 first, then 2, then 3
+            slots[pos] = slot
+            if all(slots[j] != slot for j in adj[pos]):
+                if assign_slots(pos + 1):
+                    return True
+        
+        slots[pos] = 0  # Reset to unassigned state before backtracking
+        return False
+
+    if assign_slots(0):
+        print("YES")
+        print(' '.join(map(str, slots)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    restrictions = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        restrictions.append((u, v))
+        index += 2
+    
+    find_schedule(n, m, restrictions)

@@ -1,0 +1,55 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use adjacency sets for fast lookups
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        edges.append((u, v))
+        idx += 2
+        
+    # Sort edges to help find the lexicographically smallest triple
+    # (a, b, c) with a < b < c.
+    # We iterate through all potential 'a' values.
+    # For a fixed 'a', we look for pairs (b, c) such that
+    # b is in adj[a], c is in adj[a], and c is in adj[b].
+    
+    # Optimization: Iterate 'a' from 1 to n.
+    # For a fixed 'a', look at all neighbors 'b' of 'a' where b > a.
+    # Then look at all neighbors 'c' of 'a' where c > b.
+    # Check if 'c' is also a neighbor of 'b'.
+    
+    # Sort neighbors for each node to ensure we check in order
+    sorted_adj = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        neighbors_a = sorted_adj[a]
+        # Filter neighbors > a
+        nodes_a = [x for x in neighbors_a if x > a]
+        
+        # For each pair (b, c) in neighbors of 'a', check if (b, c) is an edge.
+        for i in range(len(nodes_a)):
+            b = nodes_a[i]
+            for j in range(i + 1, len(nodes_a)):
+                c = nodes_a[j]
+                # Check if edge (b, c) exists
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

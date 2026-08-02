@@ -1,0 +1,58 @@
+import sys
+from collections import defaultdict
+
+def network_frequency_configuration():
+    # Reading input
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    constraints = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        constraints.append((u, v))
+        index += 2
+    
+    # Build the graph and degree count
+    adj_list = defaultdict(list)
+    degrees = [0] * (n + 1)
+    
+    for u, v in constraints:
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        degrees[u] += 1
+        degrees[v] += 1
+    
+    # Determine the smallest valid configuration using a greedy approach
+    freq = [0] * (n + 1)
+    
+    for station in range(1, n + 1):
+        if not adj_list[station]:
+            continue
+        
+        possible_freqs = {1, 2}
+        
+        for neighbor in adj_list[station]:
+            if freq[neighbor] in possible_freqs:
+                possible_freqs.remove(freq[neighbor])
+                
+        if not possible_freqs:
+            print("NO")
+            return
+        
+        freq[station] = min(possible_freqs)
+    
+    # Ensure that all stations have a frequency assigned
+    for station in range(1, n + 1):
+        if freq[station] == 0:
+            freq[station] = 1
+    
+    print("YES")
+    print(' '.join(map(str, freq[1:])))
+
+# Call the function (Note: This will work when reading from standard input)
+network_frequency_configuration()

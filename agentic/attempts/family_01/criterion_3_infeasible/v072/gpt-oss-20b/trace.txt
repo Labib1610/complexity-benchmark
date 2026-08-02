@@ -1,0 +1,155 @@
+We need to find lexicographically smallest triangle in undirected graph up to n=2000, m up to 200k.
+
+Brute force O(n^3) too big. We can do adjacency bitsets or adjacency lists. Since n <=2000, we can use bitset of length n for each node (Python int bitmask) maybe efficient. 2000 bits ~ 32 64-bit words; Python int bit operations efficient.
+
+Goal: find smallest triple (a,b,c). Lexicographic: min a; for each a, min b; for each a,b, min c.
+
+We can iterate a from 1..n-1, b from a+1..n, c from b+1..n. But we need efficient test of edges.
+
+We can use adjacency bitsets: for each node u, store bitset of neighbors > u? maybe all neighbors.
+
+Then to find triangles lexicographically, we can loop a from 1..n-2:
+- For each b > a that is neighbor of a: we need c > b that is neighbor of a and neighbor of b.
+We can compute intersection of adjacency sets of a and b, and then find smallest c > b.
+
+We can store adjacency bitset: bits 1..n. For each a, we maintain adjacency mask as int.
+
+Then for each a:
+- neighbors = adjacency[a] & mask_{>a} maybe? But we need b > a, but we can just iterate b in sorted neighbor list.
+
+We could precompute neighbor lists sorted ascending for each node.
+
+Given a, for each b in neighbors[a] where b > a:
+- intersection = adjacency[a] & adjacency[b]
+- we need minimal c > b that is set in intersection.
+We can mask intersection with bits > b: intersection & mask_gt_b. And then find least significant set bit.
+
+We need ability to compute least significant set bit index. We can use (x & -x) to get lowest set bit value then bit_length-1? Actually if we want index (1-based). Suppose we have bitset where bit i corresponds to node i. We can use (x & -x) to get lowest power-of-two. Then we can compute index as (lsb.bit_length() - 1). Since bits are 0-indexed? Let's map node 1 to bit 0. So we should shift accordingly.
+
+Let's map node i to bit (i-1). So mask for node i is 1 << (i-1). Then when we find lsb, index = lsb.bit_length() - 1 -> gives 0-based index, add 1 for node number.
+
+Ok.
+
+We need mask_gt_b: we can precompute an array of masks for each b: mask_gt_b = ((1 << n) - 1) ^ ((1 << b) - 1) = mask of bits from b+1 to n. If n up to 2000, 1 << n may be huge (2^2000) cannot store as int? Python int can handle arbitrary size, but 1 << 2000 is huge but still okay memory wise? It's about 2^2000 bits ~ 2000 bits -> 250 bytes. So fine.
+
+So we can precompute mask_gt array: for i from 0 to n: mask_gt[i] = ((1 << n) - 1) ^ ((1 << i) - 1). For i from 0..n: mask_gt[i] has bits > i. For i=n, 0.
+
+We'll use adjacency mask for each node.
+
+Algorithm:
+
+- read n,m
+- adjacency = [0]*(n+1)
+- For each edge u,v: set bit for v in adjacency[u], and u in adjacency[v].
+- Precompute mask_gt array of length n+2 maybe.
+
+- For a in range(1, n-1):
+    # iterate b in sorted neighbors of a that > a
+    neighbors_of_a = adjacency[a]
+    # we can get list of neighbors > a by iterating through bits. But we can just iterate over possible b > a? That would be O(n^2). Instead we can precompute sorted neighbor list for each node.
+
+We can build neighbor lists: For each node, list of neighbors sorted ascending.
+
+- For each b in neighbor_list[a]:
+    if b <= a: continue
+    # intersection
+    inter = adjacency[a] & adjacency[b]
+    # mask intersection with > b
+    inter_gt = inter & mask_gt[b]
+    if inter_gt:
+        # get smallest c
+        lsb = inter_gt & -inter_gt
+        c = (lsb.bit_length() - 1) + 1
+        # output a,b,c
+        print(a,b,c)
+        return
+
+Edge case: Guarantee at least one triangle, so will return.
+
+Complexity: For each edge a-b we compute intersection bitset. There can be up to m edges ~200k. Each intersection is bitwise AND of big ints (~2000 bits). That's fine.
+
+We need mask_gt array: compute (1 << n) -1 once.
+
+Implementation details:
+
+- adjacency as int: adjacency[u] = 0 initially
+- For each edge u,v: adjacency[u]|=1<<(v-1); adjacency[v]|=1<<(u-1)
+
+- neighbor_list: for each u, we can create list of neighbors by iterating over bits: while bits: lsb = bits & -bits; v = lsb.bit_length(); but we need 1-based indices. lsb.bit_length() gives position of highest bit? Actually for power of two, bit_length gives index+1. So lsb.bit_length() -1 gives 0-based index. Then v = lsb.bit_length() -1 +1 = lsb.bit_length(). So we can compute neighbor list by iterating bits.
+
+But we may have to build this for each node. Complexity O(n * deg). sum deg = 2m <= 400k. fine.
+
+Alternatively, we can just iterate over neighbor_list[u] with sorted ascending.
+
+Implementation of neighbor list building:
+
+for u in 1..n:
+    bits = adjacency[u]
+    lst = []
+    while bits:
+        lsb = bits & -bits
+        v = lsb.bit_length()
+        lst.append(v)
+        bits -= lsb
+    neighbor_list[u] = lst
+
+Now neighbor_list[u] sorted ascending because bits extraction yields increasing order? Actually the lsb extraction yields bits in increasing order of node index? Let's think: Starting bits as all set bits. While bits: lsb = bits & -bits gives the lowest set bit (least significant). So we will get nodes in increasing order. So list will be sorted ascending. Good.
+
+Now in loops, we only need to consider b > a.
+
+Now compute mask_gt array:
+
+max_mask = (1 << n) - 1
+mask_gt = [0]*(n+2)
+for i in range(n+1):
+    mask_gt[i] = max_mask ^ ((1 << i) - 1)
+
+But careful: (1 << i) for i up to n could be large but fine.
+
+Simplify: mask_gt[i] = ((1 << n) - 1) << i? Wait we want bits > i. Suppose bits represented from 0 to n-1. Bits > i means indices i+1...n-1. So mask_gt[i] = ((1 << n) - 1) & ~((1 << (i+1)) - 1). Equivalent: max_mask ^ ((1 << (i+1)) - 1). But earlier we used ^ ((1 << i) -1). Let's test: For i=0, mask_gt[0] should have bits 1..n-1 set. So we want mask of bits >0: indices 1..n-1. Our formula mask_gt[i] = max_mask ^ ((1 << (i+1)) - 1). Because (1 << (i+1)) -1 has bits 0..i set. So XOR with max_mask flips them off. For i=0: (1 <<1)-1=1 -> bits 0 only; XOR with max_mask will set bits 1..n-1. Good.
+
+For i=n-1: mask_gt[n-1] should only have bit n-1? Wait > i means indices > n-1 i.e. none, so zero. (1 << n)-1 has bits 0..n-1. (1 << n)-1 ^ ((1 << n) -1) = 0. Good.
+
+So formula: mask_gt[i] = max_mask ^ ((1 << (i+1)) - 1). We'll compute for i from 0 to n-1 maybe.
+
+But we need mask_gt[b] where b is node number 1..n. But our bit indices are 0-based. So bit index of node b is b-1. So we need mask of bits > b-1? That is indices >= b. So we can use mask_gt[b-1] = max_mask ^ ((1 << b) - 1). Since b-1 +1 = b.
+
+Thus we compute mask_gt array length n. For i from 0 to n-1: mask_gt[i] = max_mask ^ ((1 << (i+1)) -1). Then for node b, we use mask_gt[b-1].
+
+Simpler: compute mask_gt_node[b] directly: mask_gt_node[b] = max_mask ^ ((1 << b) - 1). Node b 1-based. We'll compute array of size n+1.
+
+Implementation:
+
+max_mask = (1 << n) - 1
+mask_gt_node = [0]*(n+1)
+for b in range(1, n+1):
+    mask_gt_node[b] = max_mask ^ ((1 << b) - 1)
+
+Now inside loop:
+
+inter_gt = inter & mask_gt_node[b]
+
+But we also need to ensure c > b. Since mask_gt_node[b] includes bits >= b? Wait mask_gt_node[b] removes bits 0..b-1. So leaves bits b..n-1. But we want > b, so we need to remove bit index b-1 as well. In mask_gt_node[b], bit b-1 is removed because we removed bits 0..b-1 inclusive? Wait (1 << b) - 1 has bits 0..b-1 set. So XOR with max_mask flips those off. So bits from 0..b-1 are 0, bits b..n-1 are 1. That means indices >= b. But we want bits > b-1, i.e., indices >= b. So that is correct. For node b, we want c > b, which corresponds to index >= b (since index b-1 is b). Wait node b index is b-1. We want c > b. So indices > b-1. That means indices >= b. So mask_gt_node[b] includes indices >= b. Good.
+
+So we can use mask_gt_node[b].
+
+Now find lsb of inter_gt.
+
+c_index0 = (lsb.bit_length() - 1)
+c = c_index0 + 1
+
+Return.
+
+Edge Cases: When inter_gt may have some bits but we want the smallest > b. Since we masked with mask_gt_node[b], the lsb will be minimal index >= b. But we must ensure c > b. Since b's index is b-1, mask_gt_node[b] excludes index b-1, so minimal index is >= b. So c >= b+1? Wait if index >= b, node index = index+1. If index=b, node = b+1. So indeed c > b. Good.
+
+Now complexity: reading edges.
+
+Let's implement.
+
+Testing with sample.
+
+Edge Cases: big n 2000, memory fine.
+
+We need to ensure we handle the case where adjacency masks may large but fine.
+
+Let's produce code.

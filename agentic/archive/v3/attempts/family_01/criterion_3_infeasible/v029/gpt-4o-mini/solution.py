@@ -1,0 +1,25 @@
+def find_conflict_triplet(n, m, conflicts):
+    from collections import defaultdict
+    
+    graph = defaultdict(set)
+    
+    for u, v in conflicts:
+        graph[u].add(v)
+        graph[v].add(u)
+    
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            if b in graph[a]:
+                for c in range(b + 1, n + 1):
+                    if c in graph[a] and c in graph[b]:
+                        return a, b, c
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+conflicts = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+result = find_conflict_triplet(n, m, conflicts)
+print(*result)

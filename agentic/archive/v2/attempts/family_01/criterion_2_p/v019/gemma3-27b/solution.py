@@ -1,0 +1,42 @@
+def solve():
+    n, m = map(int, input().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+    
+    def is_valid(assignment):
+        for u, v in edges:
+            if assignment[u-1] == assignment[v-1]:
+                return False
+        return True
+    
+    def find_lexicographically_smallest_assignment():
+        assignment = [0] * n
+        
+        def backtrack(index):
+            if index == n:
+                if is_valid(assignment):
+                    return assignment
+                else:
+                    return None
+            
+            for freq in [1, 2]:
+                assignment[index] = freq
+                result = backtrack(index + 1)
+                if result:
+                    return result
+            
+            return None
+        
+        return backtrack(0)
+    
+    assignment = find_lexicographically_smallest_assignment()
+    
+    if assignment:
+        print("YES")
+        print(*assignment)
+    else:
+        print("NO")
+
+solve()

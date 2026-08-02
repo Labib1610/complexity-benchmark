@@ -1,0 +1,39 @@
+def solve():
+    n, m = map(int, input().split())
+    interferences = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        interferences.append((u, v))
+    
+    def is_valid(assignment):
+        for u, v in interferences:
+            if assignment[u-1] == assignment[v-1]:
+                return False
+        return True
+
+    def find_smallest_assignment(index, current_assignment):
+        if index == n:
+            if is_valid(current_assignment):
+                return current_assignment
+            else:
+                return None
+        
+        for channel in range(1, 4):
+            new_assignment = current_assignment[:]
+            new_assignment[index] = channel
+            
+            result = find_smallest_assignment(index + 1, new_assignment)
+            if result:
+                return result
+        
+        return None
+
+    assignment = find_smallest_assignment(0, [0] * n)
+    
+    if assignment:
+        print("YES")
+        print(*assignment)
+    else:
+        print("NO")
+
+solve()

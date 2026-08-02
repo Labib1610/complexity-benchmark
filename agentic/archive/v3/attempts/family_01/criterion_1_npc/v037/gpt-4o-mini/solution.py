@@ -1,0 +1,54 @@
+def can_assign_shifts(n, m, conflicts):
+    from collections import defaultdict, deque
+    
+    graph = defaultdict(list)
+    for u, v in conflicts:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    shift = [0] * (n + 1)
+
+    def bfs(start):
+        queue = deque([start])
+        shift[start] = 1
+        
+        while queue:
+            current = queue.popleft()
+            current_shift = shift[current]
+            next_shift = 1 if current_shift == 3 else current_shift + 1
+            
+            for neighbor in graph[current]:
+                if shift[neighbor] == 0:
+                    shift[neighbor] = next_shift
+                    queue.append(neighbor)
+                elif shift[neighbor] == current_shift:
+                    return False
+        return True
+
+    for worker in range(1, n + 1):
+        if shift[worker] == 0:
+            if not bfs(worker):
+                return "NO"
+    
+    # Adjusting shifts to be in {1, 2, 3} and lexicographically smallest
+    for i in range(1, n + 1):
+        if shift[i] == 0:
+            shift[i] = 1
+        elif shift[i] > 3:
+            return "NO"
+    
+    return "YES", shift[1:]
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+conflicts = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+result = can_assign_shifts(n, m, conflicts)
+if result == "NO":
+    print(result)
+else:
+    print(result[0])
+    print(" ".join(map(str, result[1])))

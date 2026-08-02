@@ -1,0 +1,44 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj_mask = [0] * n  # bitmask of neighbors for each node
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj_mask[u] |= 1 << v
+        adj_mask[v] |= 1 << u
+
+    color = [0] * n  # assigned color, 0 if unassigned
+    color_masks = [0, 0, 0, 0]  # index by color 1..3, bitmask of nodes with that color
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        u = idx
+        for c in (1, 2, 3):
+            if (adj_mask[u] & color_masks[c]) == 0:  # no neighbor with same color
+                # assign
+                color[u] = c
+                color_masks[c] ^= 1 << u
+                if dfs(idx + 1):
+                    return True
+                # backtrack
+                color_masks[c] ^= 1 << u
+                color[u] = 0
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(color[i]) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

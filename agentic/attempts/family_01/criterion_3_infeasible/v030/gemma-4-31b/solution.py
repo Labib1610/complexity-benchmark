@@ -1,0 +1,55 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # We iterate a from 1 to n.
+    # For a fixed a, we look for b > a such that (a, b) is an edge.
+    # Then we look for c > b such that (a, c) and (b, c) are edges.
+    
+    # Pre-sort adjacency lists to iterate in increasing order
+    adj_sorted = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    # Optimization: We only need to check neighbors of 'a' that are greater than 'a'
+    # and neighbors of 'b' that are greater than 'b'.
+    for a in range(1, n - 1):
+        # Get all neighbors of a that are > a
+        neighbors_a = [v for v in adj_sorted[a] if v > a]
+        if len(neighbors_a) < 2:
+            continue
+        
+        # To efficiently check if c is a neighbor of b, we use the set adj[b]
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # We need c > b. Since neighbors_a is sorted, 
+            # we only check elements in neighbors_a after index i.
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                # Now we just need to check if (b, c) is an edge
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

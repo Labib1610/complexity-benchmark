@@ -1,0 +1,261 @@
+import sys
+
+def solve():
+    # Increase recursion depth for safety, though n=40 is small
+    sys.setrecursionlimit(2000)
+    
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+
+    # colors[i] stores the vault assigned to artifact i (0 means unassigned)
+    colors = [0] * (n + 1)
+
+    def is_safe(v, c):
+        for neighbor in adj[v]:
+            if colors[neighbor] == c:
+                return False
+        return True
+
+    def can_color(start_node):
+        """
+        Check if the remaining unassigned nodes can be 3-colored.
+        Since n is small (40), we use a backtracking approach with 
+        basic pruning to check feasibility.
+        """
+        # Find first unassigned node
+        u = -1
+        for i in range(start_node, n + 1):
+            if colors[i] == 0:
+                u = i
+                break
+        
+        if u == -1:
+            return True
+        
+        # Try colors 1, 2, 3 for node u
+        for c in [1, 2, 3]:
+            if is_safe(u, c):
+                colors[u] = c
+                if can_color(u + 1):
+                    return True
+                colors[u] = 0
+        return False
+
+    # To find the lexicographically smallest sequence, we try assigning 
+    # the smallest possible vault number to each artifact in order.
+    # After assigning a color to artifact i, we must check if a valid 
+    # 3-coloring still exists for the remaining artifacts.
+    
+    final_colors = [0] * (n + 1)
+    
+    def find_lex_smallest(node):
+        if node > n:
+            return True
+        
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                colors[node] = c
+                # Check if the remaining graph is 3-colorable
+                # We copy current colors to a temporary list to avoid corrupting the state
+                temp_colors = list(colors)
+                
+                # Optimization: Use a separate check function that doesn't 
+                # modify the main 'colors' array permanently
+                if check_feasibility(node + 1):
+                    if find_lex_smallest(node + 1):
+                        return True
+                
+                colors[node] = 0
+        return False
+
+    def check_feasibility(start_node):
+        # Use a local copy of colors to avoid mutating the outer state
+        local_colors = list(colors)
+        
+        def backtrack(u):
+            # Find next unassigned node
+            while u <= n and local_colors[u] != 0:
+                u += 1
+            if u > n:
+                return True
+            
+            # Heuristic: try to color the most constrained node first (MRV)
+            # For n=40, simple backtracking might be too slow, but 
+            # we only need a "True/False" for feasibility.
+            
+            # Simple backtracking for feasibility check
+            for c in [1, 2, 3]:
+                safe = True
+                for neighbor in adj[u]:
+                    if local_colors[neighbor] == c:
+                        safe = False
+                        break
+                if safe:
+                    local_colors[u] = c
+                    if backtrack(u + 1):
+                        return True
+                    local_colors[u] = 0
+            return False
+
+        return backtrack(start_node)
+
+    # The check_feasibility inside find_lex_smallest might be slow.
+    # Let's refine the approach: we only need to verify if a 3-coloring exists.
+    # Since n is small, we can use a more efficient backtracking for feasibility.
+    
+    # To ensure it runs within 2s, we use a slightly optimized check.
+    def solve_recursive():
+        # We want lexicographically smallest, so we iterate 1..n and try 1, 2, 3.
+        current_colors = [0] * (n + 1)
+        
+        def is_possible(node):
+            # Try to complete the coloring from 'node' onwards
+            # To speed up, we can use a simple backtracking
+            # but for n=40, the search space can be large.
+            # However, the constraints on 3-coloring are tight.
+            
+            # Find node with minimum remaining values (MRV)
+            best_node = -1
+            min_options = 4
+            
+            for i in range(node, n + 1):
+                if current_colors[i] == 0:
+                    options = 0
+                    for c in [1, 2, 3]:
+                        possible = True
+                        for neighbor in adj[i]:
+                            if current_colors[neighbor] == c:
+                                possible = False
+                                break
+                        if possible:
+                            options += 1
+                    if options < min_options:
+                        min_options = options
+                        best_node = i
+                    if options == 0: return False
+            
+            if best_node == -1: return True
+            
+            u = best_node
+            # Try colors for u
+            for c in [1, 2, 3]:
+                possible = True
+                for neighbor in adj[u]:
+                    if current_colors[neighbor] == c:
+                        possible = False
+                        break
+                if possible:
+                    current_colors[u] = c
+                    if is_possible(node): # Note: node doesn't change, but current_colors does
+                        return True
+                    current_colors[u] = 0
+            return False
+
+        # This is tricky because is_possible needs to be called frequently.
+        # Let's use a simpler backtracking for the whole problem.
+        
+        res = [0] * (n + 1)
+        def backtrack_main(node):
+            if node > n:
+                return True
+            
+            for c in [1, 2, 3]:
+                # Check if color c is valid for node
+                safe = True
+                for neighbor in adj[node]:
+                    if neighbor < node and res[neighbor] == c:
+                        safe = False
+                        break
+                if not safe: continue
+                
+                res[node] = c
+                # Now check if the remaining graph can be 3-colored
+                # To avoid TLE, we use a very fast feasibility check
+                if check_feasibility_fast(node + 1, res):
+                    if backtrack_main(node + 1):
+                        return True
+                res[node] = 0
+            return False
+        
+        return backtrack_main(1), res
+
+    def check_feasibility_fast(start_node, fixed_colors):
+        # Simple backtracking with MRV to check if 3-coloring exists
+        temp_colors = list(fixed_colors)
+        
+        def solve_fast(u_idx):
+            # Find node with fewest options
+            best_u = -1
+            min_opts = 4
+            for i in range(start_node, n + 1):
+                if temp_colors[i] == 0:
+                    opts = 0
+                    for c in [1, 2, 3]:
+                        ok = True
+                        for v in adj[i]:
+                            if temp_colors[v] == c:
+                                ok = False
+                                break
+                        if ok: opts += 1
+                    if opts < min_opts:
+                        min_opts = opts
+                        best_u = i
+                    if opts == 0: return False
+            
+            if best_u == -1: return True
+            
+            u = best_u
+            for c in [1, 2, 3]:
+                ok = True
+                for v in adj[u]:
+                    if temp_colors[v] == c:
+                        ok = False
+                        break
+                if ok:
+                    temp_colors[u] = c
+                    if solve_fast(u_idx): return True
+                    temp_colors[u] = 0
+            return False
+        
+        return solve_fast(start_node)
+
+    # Re-implementing the main logic to be more efficient
+    final_res = [0] * (n + 1)
+    def final_backtrack(node):
+        if node > n:
+            return True
+        for c in [1, 2, 3]:
+            safe = True
+            for neighbor in adj[node]:
+                if neighbor < node and final_res[neighbor] == c:
+                    safe = False
+                    break
+            if safe:
+                final_res[node] = c
+                if check_feasibility_fast(node + 1, final_res):
+                    if final_backtrack(node + 1):
+                        return True
+                final_res[node] = 0
+        return False
+
+    if final_backtrack(1):
+        print("YES")
+        print(*(final_res[1:]))
+    else:
+        print("NO")
+
+solve()

@@ -1,0 +1,212 @@
+We need to solve 3-coloring of graph with n <= 40. Need lexicographically smallest assignment among all valid 3-colorings. Lexicographic smallest meaning choose for node 1 minimal color possible, then node 2 minimal given previous, etc. Equivalent to backtracking with pruning, exploring colors in order 1,2,3, and stopping at first solution. Since n <= 40, backtracking worst-case 3^40 huge but with constraints maybe okay? But we need efficient algorithm. Could use DFS with branch and bound using adjacency lists and bitmask representation. n <= 40, we can use bitmask for each color's assigned nodes. Lexicographic minimal ensures we explore colors in increasing order. We can prune by checking if remaining nodes can be colored given current partial assignment with constraints: we need to check if graph has 3-coloring; but we can use DSATUR or backtracking. Since n small, typical backtracking with heuristics might work. But worst-case might be tough but given n <= 40, maybe okay. But we must ensure time limit 2s.
+
+We can use algorithm for 3-coloring using bitmasks and recursion. Use adjacency bitmask for each node. Use recursion with ordering of nodes. Lexicographic order requires we process nodes in order 1..n. So we cannot reorder to speed up. But we can still prune using simple forward checking: for each uncolored node, check if it has a neighbor in each color? If a node has neighbors in all 3 colors, impossible. But that is still not strong.
+
+Better: Use graph coloring with backtracking and using bitset to keep track of available colors for each node. Since n <= 40, we can maintain for each node a 3-bit mask of allowed colors. Initially all 111. When assign color c to node i, we remove c from allowed of all uncolored neighbors. If any neighbor's allowed becomes 0, backtrack. Use recursion. This is typical constraint propagation.
+
+We need lexicographically smallest: we process nodes in order, try colors 1..3, propagate. That ensures first found solution is lexicographically smallest.
+
+Implement recursion:
+
+- arrays color[n] initialized 0.
+- allowed[n] as integer 0b111.
+- adjacency list as list of neighbors.
+
+We need to propagate changes efficiently: when assigning color c to node i, for each neighbor j not colored, we need to remove bit c from allowed[j]. We need to record previous allowed for backtracking. We can maintain stack of changes: list of (j, old_allowed). Also maintain count of nodes colored.
+
+If any neighbor's allowed becomes 0, fail.
+
+Also we can check early: if any uncolored node has allowed 0, fail.
+
+Potential optimization: at each step, choose next node with minimal allowed options? But lexicographic order requires i fixed order. So we cannot reorder. So we just iterate i from 0 to n-1 and find first uncolored node. That ensures lexicographic minimal.
+
+Thus recursion depth <= n.
+
+Check complexity: each assignment modifies at most deg(i) neighbors. Sum of degrees <= 2m <= n(n-1). So total modifications ~ n^2. 3^n worst-case but pruning reduces.
+
+Given n <= 40, this should be fine.
+
+Edgecases: m up to n(n-1)/2. fully connected graph: cannot 3-color if n>3. Our algorithm will attempt and fail quickly.
+
+Implementation details:
+
+- adjacency bitmask: we can store neighbor list list of ints.
+
+- allowed array length n, each int 7.
+
+- recursion function dfs(pos): find first index i >= pos that color[i]==0. If none, solution found. else try colors 1..3:
+
+  For color val, check if val allowed for i: (allowed[i] >> (val-1)) & 1 == 1. If yes, assign color[i] = val.
+
+  Then propagate: for each neighbor j of i, if color[j]==0:
+      old = allowed[j]
+      new = old & ~(1 << (val-1))
+      if new == 0: fail
+      allowed[j] = new
+      push change (j, old)
+
+  After propagation, call dfs(i+1). If returns True, propagate up. Else backtrack: revert changes: for each changed (j, old) in reverse order, allowed[j] = old. color[i]=0. Continue to next color.
+
+Return False if none.
+
+We need to limit recursion depth to avoid recursion limit? n <= 40 fine.
+
+Let's test with example.
+
+Edge Cases: Suppose some node already has allowed=0 from earlier assignments, we should detect fail earlier. We will detect when we attempt to assign color to node i that has allowed 0. But we also check after propagation if any neighbor's allowed gets 0. That's fine.
+
+Also we need to check if allowed[i] mask has bits; if not, fail.
+
+Let's test quickly mentally.
+
+Also we must consider that after assignment we propagate to neighbors; but we also need to propagate to neighbors of neighbors? Not necessary because only color assignments change allowed sets, but neighbors of neighbors may be affected indirectly through neighbor's allowed sets. But when you remove a color from neighbor, it may reduce neighbor's allowed to 0 but we check. So propagation is local.
+
+The algorithm essentially does forward checking. Might still fail for some unsatisfiable instances but should succeed.
+
+Potential issue: Suppose allowed[i] has multiple colors. We choose 1 and propagate. But we might need to choose 2 to satisfy later. Backtracking will revert.
+
+Ok.
+
+Let's code.
+
+We need to parse input. Output accordingly.
+
+Check memory: allowed array 40 ints fine.
+
+At each recursion, we maintain list of changes. We'll implement iterative recursion with global arrays.
+
+Pseudo:
+
+def dfs():
+    # find first uncolored
+    for i in range(n):
+        if color[i]==0:
+            break
+    else:
+        return True
+    for val in range(1,4):
+        if not (allowed[i] & (1<<(val-1))):
+            continue
+        color[i]=val
+        changes=[]
+        ok=True
+        for j in adj[i]:
+            if color[j]==0:
+                old=allowed[j]
+                new=old & ~(1<<(val-1))
+                if new==0:
+                    ok=False
+                    break
+                if new!=old:
+                    changes.append((j,old))
+                    allowed[j]=new
+        if ok:
+            if dfs():
+                return True
+        # backtrack
+        for j,old in reversed(changes):
+            allowed[j]=old
+        color[i]=0
+    return False
+
+But we also need to check if allowed[i] has any bits left before trying values? We skip if not allowed for that value. But if allowed[i]==0, the loop will skip all values and return False.
+
+This is fine.
+
+Potential race: When we assign color[i], we didn't check if allowed[i] had bits left for some color; if allowed[i]==0, the for loop will skip all val and return False.
+
+Ok.
+
+Edge: We need to ensure we don't assign color to node i if it's already colored (shouldn't happen). But we set color[i]==0 when we find first uncolored.
+
+Complexities fine.
+
+Let's test example 1:
+
+n=4 adjacency; run algorithm.
+
+Should produce [1,2,3,3] (maybe). Let's confirm.
+
+Will assign node1 color1. propagate to neighbors 2,3,4 removing color1 from their allowed. Node2 allowed becomes 110 (bits 2,3). Node3 allowed 110. Node4 allowed 110. Next uncolored node2: try color1? not allowed. Try color2: allowed. assign node2 color2. propagate to neighbors 1,3,4. Node1 colored skip. Node3 remove color2: allowed becomes 100 (color3). Node4 remove color2: allowed becomes 100 (color3). Next node3: allowed 100 only color3. assign 3. propagate to neighbors 1,2,4 remove color3: Node4 allowed becomes 0 -> fail. So backtrack from node3. Backtrack changes: Node4 allowed set back to 100 (color3). Node3 color=0. Now try color? only 3, but we already tried 3 and failed. So backtrack node2: revert changes: Node3 allowed back to 110, Node4 allowed back to 110. Node2 color=0. Try color3 for node2: allowed? Node2 allowed at that point: 110 (colors2,3). So color3 allowed. assign node2 color3. propagate to neighbors 1,3,4: Node3 remove color3 -> allowed becomes 110? Wait Node3 had 110 before. Remove color3 -> new=110 (since color3 bit 3? Actually bit 3 is 4). So new=110? Let's compute: old=110 (6). Removing bit 3 (value 4) -> new=110 & ~100 = 110 & 011 = 010 (color2). So Node3 allowed becomes 010 (color2). Node4 remove color3 -> new allowed 010 (color2). Next node3: allowed 010 only color2. assign 2. propagate: neighbors 1,2,4 remove color2 -> Node4 allowed becomes 000 -> fail. Backtrack node3: revert Node4 allowed 010. Node3 color=0. Backtrack node2: revert Node3 allowed 110, Node4 110. Node2 color=0. No more colors for node2. So backtrack node1? Wait node1 assigned color1. We didn't backtrack node1 yet. We need to try next color for node1. After node1 color1 fails, we revert changes: Node2 allowed 111? Actually after node1 assignment, we removed color1 from neighbors. On backtrack we need to revert those changes. Implementation will revert changes after failing all colors for node1. That will restore allowed to 111 for all nodes 2-4. Now try color2 for node1. assign 2. propagate: Node2 remove color2 -> allowed 101 (1,3). Node3 remove color2 -> 101. Node4 remove color2 -> 101. Node2: try color1? allowed has bit1. assign 1. propagate: Node3 remove color1 -> allowed 001 (only color3). Node4 remove color1 -> 001. Node3: try color1? not allowed. color2? not allowed. color3 allowed. assign 3. propagate: Node4 remove color3 -> allowed becomes 000 -> fail. Backtrack node3: revert Node4 allowed 001. Node3 color=0. try other colors? none. backtrack node2: revert changes to Node3 101, Node4 101. Node2 color=0. try color3 for node2: allowed 101 includes color3? yes. assign 3. propagate: Node3 remove color3 -> allowed 001? Wait Node3 allowed 101 remove color3 -> 001 (color1). Node4 remove color3 -> 001. Node3: try color1 -> allowed 001 -> assign 1. propagate: Node4 remove color1 -> allowed 000 -> fail. Backtrack node3: revert Node4 allowed 001. Node3 color=0. No more colors for node2. Backtrack node1: revert changes. Try color3 for node1: assign 3. propagate: Node2 remove3 -> allowed 011 (color1,2). Node3 remove3 -> 011. Node4 remove3 -> 011. Node2: try color1 assign. propagate Node3 remove1 -> allowed 010 (color2). Node4 remove1 -> allowed 010. Node3: try color2 assign. propagate Node4 remove2 -> allowed 000 -> fail. Backtrack node3: revert Node4 allowed 010. Node3 color=0. try other colors? none. Backtrack node2: revert Node3 011, Node4 011. Node2 color=0. try color2 assign. propagate Node3 remove2 -> allowed 001 (color1). Node4 remove2 -> allowed 001. Node3: try color1 assign -> propagate Node4 remove1 -> allowed 000 fail. Backtrack node3: revert Node4 allowed 001. Node3 color=0. No more colors. Backtrack node2: revert Node3 011, Node4 011. Node2 color=0. fail. Backtrack node1: revert all. No more colors. So algorithm fails? But there is a solution. Did we miss some combination? Let's analyze: The solution from example is 1 2 3 3. Let's see if algorithm would find it.
+
+We started with node1 color1 leading to failure? But solution uses node1=1, node2=2, node3=3, node4=3. Let's see why algorithm failed at node3 or node4 earlier.
+
+In earlier branch where node1=1, node2=2, node3=3, node4=3. Let's simulate:
+
+After node1=1, allowed of 2,3,4: 110.
+
+Assign node2=2: propagate remove 2 from 3,4: 3 allowed -> 100, 4 allowed -> 100.
+
+Assign node3=3: propagate remove 3 from 4: 4 allowed becomes 0 -> fail. Wait but solution has node4=3, not 1 or 2. At that point, node4 allowed 100 after removal of 2. So only color3 allowed. But removing color3 from 4 due to node3=3 would make allowed 0, implying conflict between node3 and node4. But they are incompatible? Let's check edges: In example: edges (1,2),(1,3),(2,3),(1,4),(2,4). No edge between 3 and 4. So node3 and node4 are not incompatible. But our adjacency wrong: We removed color3 from 4 because node3=3 and node4 is neighbor? Wait adjacency: 3's neighbors are 1 and 2 only. So 4 is not neighbor of 3. In our propagation, we only removed color from neighbors. So we shouldn't remove from 4. Let's recalc: after node1=1, node2=2, node3=3. Node3's neighbors: 1,2. So we propagate removal of color3 from 1 and 2, but they are colored already. So no change to 4. So node4 allowed remains 100 after node2 removal of 2. So allowed 3 only. So assign node4=3. Works. So algorithm would find solution. My earlier simulation had error: I incorrectly propagated node3 removal to node4. So algorithm works.
+
+Thus algorithm should find solution.
+
+Edge Cases: Graph may have isolated nodes; allowed remains 111. Our algorithm will try color1 for each and succeed.
+
+We need to ensure we don't exceed recursion depth; but 40 fine.
+
+Let's implement.
+
+Potential optimization: Use bit operations for adjacency? Not needed.
+
+Implementation details:
+
+global n,m,adj,allowed,color
+
+def dfs():
+    # find first uncolored
+    for i in range(n):
+        if color[i]==0:
+            break
+    else:
+        return True
+    for val in range(1,4):
+        if not (allowed[i] & (1<<(val-1))):
+            continue
+        color[i]=val
+        changes=[]
+        ok=True
+        for j in adj[i]:
+            if color[j]==0:
+                old=allowed[j]
+                new=old & ~(1<<(val-1))
+                if new==0:
+                    ok=False
+                    break
+                if new!=old:
+                    changes.append((j,old))
+                    allowed[j]=new
+        if ok:
+            if dfs():
+                return True
+        # backtrack
+        for j,old in reversed(changes):
+            allowed[j]=old
+        color[i]=0
+    return False
+
+We need to ensure we don't modify allowed of node i itself after assignment? Not necessary.
+
+Edge: After we assign color[i], we don't need to modify allowed[i] since it's colored.
+
+But we may want to set allowed[i] to 0 or keep; not used.
+
+Ok.
+
+Let's test with fully connected graph of 4 nodes. It should output NO.
+
+Simulate quickly: node1=1. propagate removal from neighbors 2,3,4 -> allowed 110 each. node2=1 not allowed; try 2: allowed 110 -> assign 2. propagate removal from neighbors 1,3,4: Node3 allowed 100, Node4 allowed 100. node3=1 not allowed; try 2 not allowed; try 3 allowed. assign 3. propagate removal from neighbors 1,2,4: Node4 allowed becomes 000 -> fail. backtrack node3: revert Node4 allowed 100. node3 no other colors. backtrack node2: revert Node3 110, Node4 110. node2 try 3: allowed 110? yes. assign 3. propagate removal from neighbors 1,3,4: Node3 allowed 100, Node4 allowed 100. node3=1 not allowed; try 2 allowed? Node3 allowed 100? Wait Node3 allowed 100 only color3 after removal of 1? Actually after node2=3, Node3 allowed 110 remove color3 -> 100. So only color1. But color1 not allowed due to node1=1? Node3 allowed 100 color3. So no color. Backtrack node2: revert Node3,4. node2 no more colors. backtrack node1: revert changes. node1 try 2: symmetrical fail. node1 try 3: fail. So NO. Good.
+
+So algorithm works.
+
+Complexity should be fine.
+
+Let's code.
+
+We need to read input: use sys.stdin.read() split.
+
+Ok.
+
+Return output accordingly.
+
+Let's produce final code.

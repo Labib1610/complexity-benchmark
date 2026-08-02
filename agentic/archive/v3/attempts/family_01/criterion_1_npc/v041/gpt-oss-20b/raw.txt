@@ -1,0 +1,218 @@
+<think>
+We need to solve graph coloring with 3 colors, n up to 40. We need lexicographically smallest assignment. We can use backtracking with pruning using graph adjacency. Since n=40, 3^40 huge. Need efficient search. However 3-coloring decision for up to 40 vertices is NP-hard, but small n. We can use branch and bound with ordering. Since 3 colors, we can use DSATUR or similar. But we must find lexicographically smallest assignment among all valid. That means we want to assign colors to vertices in order 1..n, with minimal lexicographic sequence. That is essentially we want first color 1 at vertex 1 if possible; else color 2; else 3; but we must ensure global solvability. So we can backtrack in order, trying colors in increasing order. Use recursion with early termination on first solution found. That will produce lexicographically smallest. Complexity may be high but n=40 maybe manageable with pruning.
+
+We need efficient pruning: use graph coloring heuristics: When assigning vertex i, we need to consider conflicts with already colored vertices. Also we can use remaining color counts? Not needed.
+
+We also can use forward checking: For each uncolored vertex, maintain available colors based on colored neighbors. If any uncolored vertex has zero available colors, prune.
+
+Implement adjacency list or bitmask representation. Since n <= 40, we can use bitmasks per color to track which vertices assigned each color. But we also need adjacency conflict.
+
+We can use adjacency bitmask list: adjacency[i] bitmask of neighbors.
+
+During recursion, we maintain colors array size n, with 0 unassigned, else 1-3.
+
+We can also maintain for each vertex the set of available colors computed on the fly: For vertex v, check neighbors that are already colored; if neighbor has color c, then c not allowed.
+
+Forward checking: After assigning color to vertex cur, we could check for all uncolored vertices if any has no available colors. But that would be O(n^2) per step.
+
+We can precompute adjacency lists for each vertex. For each uncolored vertex, we can quickly compute used colors by scanning its neighbors (maybe up to degree). That's okay.
+
+To speed, we can maintain for each vertex a bitmask of used colors by colored neighbors. We can update incrementally when assigning and unassigning. That means we need arrays used_color_mask[v] (bits 1-3). Initially 0. When color c assigned to vertex u, for each neighbor v of u, we set used_color_mask[v] |= 1 << c. When unassign, clear that bit. But careful: if multiple neighbors of same color, we need reference counting; but we just set bit; on unassign we cannot clear if another neighbor still colored same color. So we need counts or we recompute each time. Since n small, we can recompute each time on the fly.
+
+Simpler: on each step, for uncolored vertex v, we compute available colors via scanning neighbors. Complexity: each vertex neighbor scan O(deg). Total per recursion depth: sum of degrees of uncolored vertices. In worst case, each vertex has degree n-1; so O(n^2) per depth. Depth up to 40, so 1600 operations, fine.
+
+Thus implement recursion:
+
+def dfs(idx):
+    if idx==n: solution found -> return True
+    v = idx
+    for color in 1..3:
+        if all neighbors of v that are colored have color != color:
+            assign color
+            if dfs(idx+1): return True
+            unassign
+    return False
+
+This backtracking will find lexicographically smallest because we try colors in increasing order for each vertex in order 1..n.
+
+But we must consider that if some vertex later cannot be colored due to earlier choices, recursion will backtrack and try next color.
+
+This is simple and should work for n<=40.
+
+Time complexity worst-case 3^n but pruning reduces drastically. For graphs up to 40, may still be large but hopefully okay given constraints? Might be borderline.
+
+We can improve by ordering vertices differently: but we need lexicographic order fixed by vertex index. So can't reorder.
+
+But we can use some pruning: For each uncolored vertex, we can compute available colors; if any has zero, prune early before deeper recursion. We can implement this after assigning color to idx.
+
+Specifically, after assignment, we can loop over all uncolored vertices j>idx (since earlier ones already colored). For each j, check if there is at least one color available. If any fails, backtrack.
+
+We can also precompute neighbor list for each vertex.
+
+Let's analyze worst-case: Complete graph K40 for 3 colors cannot be colored (since requires 40 colors). Our algorithm will explore many possibilities before concluding no solution. But we can prune early: For first vertex, color 1. For second vertex, color 2. Third vertex must be 3. Fourth vertex cannot be any color because all 3 colors used by neighbors. So after coloring 3 vertices, we detect conflict for fourth and backtrack. So search limited.
+
+Thus worst-case maybe still manageable.
+
+Edge case: m=0, no conflicts. Then algorithm will assign all 1's, trivially.
+
+Thus implement recursion with early pruning.
+
+Implementation details:
+
+n,m read. adjacency list: list of lists of ints.
+
+colors = [0]*n
+
+def dfs(i):
+    if i==n:
+        return True
+    v = i
+    # compute neighbor colors
+    for color in (1,2,3):
+        conflict = False
+        for nb in adj[v]:
+            if colors[nb]==color:
+                conflict = True
+                break
+        if conflict: continue
+        colors[v] = color
+        # early pruning: check all uncolored vertices
+        ok = True
+        for j in range(i+1, n):
+            if colors[j]==0:
+                # check if any color available
+                avail = False
+                for col in (1,2,3):
+                    bad = False
+                    for nb in adj[j]:
+                        if colors[nb]==col:
+                            bad = True
+                            break
+                    if not bad:
+                        avail = True
+                        break
+                if not avail:
+                    ok = False
+                    break
+        if ok:
+            if dfs(i+1):
+                return True
+        colors[v] = 0
+    return False
+
+This algorithm should produce lexicographically smallest.
+
+Potential optimization: compute neighbor list as sets; scanning still fine.
+
+We should guard recursion depth: n <= 40, fine.
+
+Return yes and assignment.
+
+Let's test mentally with example 1.
+
+n=4.
+
+adj:
+
+1: [2,3,4]
+2: [1,3,4]
+3: [1,2]
+4: [1,2]
+
+DFS:
+
+i=0 vertex1: try color1. assign 1. early prune: check vertex2: neighbors 1 colored 1 -> color1 invalid; colors 2,3 available. So ok. vertex3: neighbor 1 color1 -> color1 invalid; colors 2,3 available. vertex4: neighbor 1 color1 -> color1 invalid; colors 2,3 available. ok.
+
+dfs i=1 vertex2: try color1 -> conflict with 1. skip. color2: assign. early prune: vertex3: neighbor 1(1) not 2, neighbor2(2) -> color2 invalid; colors 1,3 available. vertex4: neighbor1(1), neighbor2(2)-> color1 invalid, color2 invalid, color3 available. ok.
+
+dfs i=2 vertex3: try color1 -> conflict with 1. skip. color2 -> conflict with 2. skip. color3: assign. early prune: vertex4: neighbor1(1) not 3, neighbor2(2) not 3 -> color3 available. ok.
+
+dfs i=3 vertex4: try color1 conflict with 1. skip. color2 conflict with 2. skip. color3: assign. ok -> solution found: 1 2 3 3. Works.
+
+Edge case: example 2: full K4. Let's trace: vertex1: color1. vertex2: color1 conflict; color2. vertex3: color1 conflict; color2 conflict; color3. vertex4: check colors: color1 conflict with 1; color2 conflict with 2; color3 conflict with 3; no colors available -> backtrack. Backtrack vertex3: try none; backtrack vertex2: color3? Try color3: vertex3: color1 conflict? neighbor 1 colored1; color2 conflict? neighbor2 colored3; color3 conflict with 3? Wait vertex3 neighbor 2 colored3 so color3 conflict; so no colors; backtrack vertex2: no more. backtrack vertex1: color2? Then similar fails. So no solution.
+
+Thus algorithm returns NO.
+
+Complexities fine.
+
+Potential improvement: Use bitmasks for adjacency to check conflict quickly. For each vertex, we can store adjacency bitmask of neighbors. When checking conflict for color, we can iterate over neighbors list.
+
+Ok.
+
+Let's implement. Input reading: use sys.stdin.read().split().
+
+Edge: large m reading.
+
+Return print accordingly.
+
+We must ensure recursion depth not too deep: 40 fine.
+
+Let's produce final code.
+</think>
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    colors = [0] * n  # 0 unassigned, 1-3 assigned
+
+    def dfs(idx):
+        if idx == n:
+            return True
+        v = idx
+        for col in (1, 2, 3):
+            # check conflict with already colored neighbors
+            conflict = False
+            for nb in adj[v]:
+                if colors[nb] == col:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            colors[v] = col
+
+            # early pruning: ensure every later uncolored vertex has at least one available color
+            ok = True
+            for j in range(idx + 1, n):
+                if colors[j] == 0:
+                    has = False
+                    for c in (1, 2, 3):
+                        bad = False
+                        for nb in adj[j]:
+                            if colors[nb] == c:
+                                bad = True
+                                break
+                        if not bad:
+                            has = True
+                            break
+                    if not has:
+                        ok = False
+                        break
+            if ok:
+                if dfs(idx + 1):
+                    return True
+            colors[v] = 0
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(map(str, colors)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

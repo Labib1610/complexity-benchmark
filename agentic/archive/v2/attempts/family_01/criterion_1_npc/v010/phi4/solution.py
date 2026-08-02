@@ -1,0 +1,36 @@
+import sys
+from itertools import product
+
+def can_assign_channels(n, edges):
+    channels = [0] * n
+    
+    def is_valid(assignment):
+        for u, v in edges:
+            if assignment[u - 1] == assignment[v - 1]:
+                return False
+        return True
+
+    for assignment in product(range(1, 4), repeat=n):
+        if is_valid(assignment):
+            return "YES\n" + ' '.join(map(str, assignment))
+    
+    return "NO"
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    n = int(data[0])
+    m = int(data[1])
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
+        index += 2
+    
+    result = can_assign_channels(n, edges)
+    print(result)
+
+if __name__ == "__main__":
+    main()

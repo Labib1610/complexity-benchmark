@@ -1,0 +1,39 @@
+from sys import stdin
+
+def read_input():
+    return map(int, stdin.read().split())
+
+# Read input
+n, m = next(read_input())
+interference_conditions = [tuple(next(read_input())) for _ in range(m)]
+
+transmitter_graph = [[] for _ in range(n)]
+for u, v in interference_conditions:
+    transmitter_graph[u - 1].append(v - 1)
+    transmitter_graph[v - 1].append(u - 1)
+
+# Initialize the result array with '0' to indicate unassigned channels
+result = [0] * n
+
+try:
+    # Assign Channel 1 to the first transmitter and start DFS/BFS traversal
+    result[0] = 1
+    stack = [(0, 1)]
+    
+    while stack:
+        current, channel = stack.pop()
+        
+        for neighbor in transmitter_graph[current]:
+            if result[neighbor] == 0:
+                # Assign the opposite channel to the neighbor
+                new_channel = 3 - channel
+                result[neighbor] = new_channel
+                stack.append((neighbor, new_channel))
+            elif result[neighbor] == channel:
+                # If a neighbor has the same channel as current, it's impossible
+                raise ValueError
+
+    print('YES')
+    print(*result)
+except:
+    print('NO')

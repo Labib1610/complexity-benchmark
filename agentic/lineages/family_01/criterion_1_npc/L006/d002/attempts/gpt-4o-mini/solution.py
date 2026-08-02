@@ -1,0 +1,39 @@
+def solve():
+    import sys
+    from collections import defaultdict
+
+    input = sys.stdin.read
+    data = input().splitlines()
+
+    n, m = map(int, data[0].split())
+    edges = defaultdict(list)
+
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        edges[u].append(v)
+        edges[v].append(u)
+
+    # To hold the assigned security tiers for each personnel
+    tier_assignments = [0] * (n + 1)
+
+    def dfs(personnel, tier):
+        if tier_assignments[personnel] != 0:
+            return tier_assignments[personnel] == tier
+        
+        tier_assignments[personnel] = tier
+        
+        for neighbor in edges[personnel]:
+            if not dfs(neighbor, 4 - tier):  # Switch between 1, 2, 3
+                return False
+        return True
+
+    for i in range(1, n + 1):
+        if tier_assignments[i] == 0:  # Not assigned yet
+            if not dfs(i, 1):
+                print("NO")
+                return
+
+    # Check if we have the valid tiers assigned
+    print("YES")
+    # Since we need to output from 1 to n, we slice the list from 1 to n (ignoring index 0)
+    print(" ".join(map(str, tier_assignments[1:n + 1])))

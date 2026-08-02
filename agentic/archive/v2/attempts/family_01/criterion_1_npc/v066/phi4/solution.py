@@ -1,0 +1,56 @@
+def radio_spectrum_allocation():
+    import sys
+    input = sys.stdin.read
+    
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    interference_graph = [[] for _ in range(n)]
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        interference_graph[u].append(v)
+        interference_graph[v].append(u)
+        index += 2
+    
+    from itertools import permutations
+    
+    def is_valid_assignment(assignment):
+        for i in range(n):
+            freq_i = assignment[i]
+            for j in interference_graph[i]:
+                if assignment[j] == freq_i:
+                    return False
+        return True
+    
+    frequencies = [1, 2, 3]
+    
+    min_assignment = None
+    
+    def backtrack(index, current_assignment):
+        nonlocal min_assignment
+        
+        if index == n:
+            if is_valid_assignment(current_assignment):
+                if (min_assignment is None or 
+                    current_assignment < min_assignment):
+                    min_assignment = list(current_assignment)
+            return
+        
+        for freq in frequencies:
+            current_assignment[index] = freq
+            backtrack(index + 1, current_assignment)
+    
+    backtrack(0, [-1] * n)
+    
+    if min_assignment is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, min_assignment)))
+
+radio_spectrum_allocation()

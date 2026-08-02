@@ -1,0 +1,50 @@
+from sys import stdin
+
+def assign_shifts(n, m, conflicts):
+    from itertools import permutations
+    
+    # Create adjacency list for conflicts
+    adj = [[] for _ in range(n + 1)]
+    
+    for u, v in conflicts:
+        adj[u].append(v)
+        adj[v].append(u)
+
+    def is_valid_assignment(assignment):
+        for i in range(1, n + 1):
+            for j in adj[i]:
+                if assignment[i - 1] == assignment[j - 1]:
+                    return False
+        return True
+
+    # Try all permutations of shifts [1, 2, 3]
+    best_assignment = None
+    
+    for perm in permutations([1, 2, 3], n):
+        assignment = list(perm)
+        
+        if is_valid_assignment(assignment):
+            if best_assignment is None or assignment < best_assignment:
+                best_assignment = assignment
+
+    if best_assignment is None:
+        return "NO"
+    
+    return "YES\n" + ' '.join(map(str, best_assignment))
+
+# Read input
+input_data = stdin.read().strip().split()
+n = int(input_data[0])
+m = int(input_data[1])
+
+conflicts = []
+index = 2
+for _ in range(m):
+    u = int(input_data[index])
+    v = int(input_data[index + 1])
+    conflicts.append((u, v))
+    index += 2
+
+# Get result and print it
+result = assign_shifts(n, m, conflicts)
+print(result)

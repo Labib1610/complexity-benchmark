@@ -17,7 +17,7 @@ Determine whether such an assignment exists, and if so report one.
 
 ## Input
 
-The first line contains two integers **k** and **e** (1 ≤ k ≤ 1000, 0 ≤ e ≤ 100000): the number of workers/tasks and the number of allowed pairs.
+The first line contains two integers **k** and **e** (1 ≤ k ≤ 1200, 0 ≤ e ≤ 800000): the number of workers/tasks and the number of allowed pairs.
 Each of the next **e** lines contains two integers **x** and **y** (1 ≤ x, y ≤ k), meaning worker x is allowed to do task y. No pair is listed more than once.
 
 ## Output

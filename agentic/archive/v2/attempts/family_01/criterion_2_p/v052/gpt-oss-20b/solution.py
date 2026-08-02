@@ -1,0 +1,56 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * (n + 1)  # 0 or 1
+
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS for component
+        q = deque([start])
+        color[start] = 0
+        comp_nodes = [start]
+        ok = True
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    q.append(v)
+                    comp_nodes.append(v)
+                elif color[v] == cu:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            print("NO")
+            return
+        # Ensure lexicographically minimal: first node of component should be 1
+        if color[start] == 1:  # means currently 2, need to flip whole component
+            for node in comp_nodes:
+                color[node] ^= 1
+
+    # Prepare answer
+    ans = [str(color[i] + 1) for i in range(1, n + 1)]
+    print("YES")
+    print(' '.join(ans))
+
+if __name__ == "__main__":
+    solve()

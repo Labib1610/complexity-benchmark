@@ -13,7 +13,7 @@ Determine whether a valid delivery route exists. If one exists, output the lexic
 
 ## Input
 
-The first line contains two integers **n** and **m** (1 ≤ n ≤ 18, 0 ≤ m ≤ n·(n−1)/2).  
+The first line contains two integers **n** and **m** (1 ≤ n ≤ 20, 0 ≤ m ≤ n·(n−1)/2).  
 Each of the next **m** lines contains two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v) describing a bidirectional road between location u and location v.  
 No road appears more than once. No self-loops.
 

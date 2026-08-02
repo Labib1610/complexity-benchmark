@@ -14,9 +14,9 @@ Schedule all operations so that the time at which the **last** operation finishe
 
 ## Input
 
-The first line contains two integers **j** and **m** (1 ≤ j ≤ 6, 1 ≤ m ≤ 10).
+The first line contains two integers **j** and **m** (1 ≤ j ≤ 10, 1 ≤ m ≤ 10).
 Each of the next **j** lines describes one job: an integer **o** (the number of operations) followed by **o** pairs of integers `machine duration` (1 ≤ machine ≤ m, 1 ≤ duration ≤ 1000), listing the job's operations in order.
-The total number of operations across all jobs is at most 18.
+The total number of operations across all jobs is at most 50.
 
 ## Output
 

@@ -1,0 +1,996 @@
+The problem asks us to find the lexicographically smallest triple of workers $(a, b, c)$ such that $a < b < c$ and there are conflicts between $(a, b)$, $(a, c)$, and $(b, c)$. In graph theory terms, we are looking for a triangle (a $K_3$ subgraph) in a given graph with $n$ vertices and $m$ edges, such that the vertices are lexicographically smallest. The constraints are $n \le 2000$ and $m \le 2 \cdot 10^5$.
+
+Since we need the lexicographically smallest triple, we should try to find the smallest possible $a$, then the smallest possible $b$ (where $b > a$ and edge $(a, b)$ exists), and then the smallest possible $c$ (where $c > b$ and edges $(a, c)$ and $(b, c)$ exist).
+
+Let's denote the adjacency list of the graph as $G$.
+We can iterate through all possible vertices $a$ from $1$ to $n$.
+For a fixed $a$, we iterate through all neighbors $b$ of $a$ such that $b > a$.
+Then, for a fixed pair $(a, b)$, we need to find a neighbor $c$ of $a$ such that $c > b$ and $c$ is also a neighbor of $b$.
+If we find such a $c$, then $(a, b, c)$ is a valid triangle. Since we iterate $a$ in increasing order, and for each $a$ iterate $b$ in increasing order, the first valid $c$ we find will yield the lexicographically smallest triple $(a, b, c)$.
+
+Let's analyze the complexity.
+The outer loop runs for $a$ from $1$ to $n$.
+The middle loop runs for neighbors $b$ of $a$ with $b > a$.
+The inner check requires finding a common neighbor $c > b$.
+A naive check would iterate over neighbors of $a$, check if $c > b$, and check if $(b, c)$ exists.
+Checking if $(b, c)$ exists takes $O(1)$ if we use an adjacency matrix or hash set, or $O(\deg(b))$ or $O(\deg(a))$ with adjacency lists.
+
+Let's refine the algorithm.
+Since $n \le 2000$, an $O(n^2)$ solution is acceptable. $2000^2 = 4 \cdot 10^6$, which is well within the 2-second time limit.
+We can use an adjacency matrix for $O(1)$ edge lookup. However, $2000 \times 2000$ integers is about 4 MB, which fits easily in memory.
+Wait, $m$ can be up to $2 \cdot 10^5$, so the graph is sparse compared to a complete graph, but dense enough that iterating neighbors is better than iterating all vertices if we use adjacency lists. But checking intersection of neighbors is the key.
+
+Algorithm:
+1. Read $n, m$.
+2. Store the graph. An adjacency list `adj` where `adj[u]` contains a list of neighbors of `u`. Also an adjacency matrix `has_edge[u][v]` or a set of edges for $O(1)$ lookup. Since $n \le 2000$, a 2D array `adj_mat[2001][2001]` of booleans is feasible.
+3. Iterate $a$ from $1$ to $n$.
+4. Iterate $b$ in `adj[a]` such that $b > a$.
+5. We need to find $c \in \text{adj}[a] \cap \text{adj}[b]$ such that $c > b$.
+   To do this efficiently:
+   Iterate through neighbors $c$ in `adj[a]`. If $c > b$ and `has_edge[b][c]` is true, we found a solution $(a, b, c)$.
+   Since we want the smallest $c$, we should check neighbors of $a$ in increasing order, or sort the adjacency lists.
+   Actually, sorting adjacency lists takes $O(m \log n)$ or $O(n \cdot n \log n)$ which is fine.
+   Alternatively, iterate $c$ in `adj[b]` such that $c > b$ and `has_edge[a][c]` is true. Since we want smallest $c$, iterating the smaller degree neighbor's list is usually faster for intersection, but since we just need the first valid $c$ for the specific pair $(a, b)$, any order works as long as we find the smallest $c$.
+   However, the outer loops fix $a$ and $b$. We want the smallest $c$. So we should check candidates for $c$ in increasing order.
+   We can pre-sort `adj[u]` for all $u$.
+   Then for a fixed $a$, iterate $b$ in `adj[a]` (sorted).
+   Then we need smallest $c \in \text{adj}[a] \cap \text{adj}[b]$ with $c > b$.
+   We can iterate through `adj[b]` and check if the element is in `adj[a]` and $> b$. To ensure we find the smallest $c$, we should iterate `adj[b]` sorted. If we find a match, since `adj[b]` is sorted, the first match will be the smallest $c$.
+   
+   Wait, is it guaranteed that the first $c$ found is the smallest for the pair $(a, b)$? Yes, if we iterate sorted lists.
+   Is it guaranteed that the first solution found by iterating $a$, then $b$, then $c$ is the lexicographically smallest triple?
+   Yes. The order of checking triples is $(1, 2, 3), (1, 2, 4), \dots, (1, 3, 4), \dots$. This matches the lexicographical order.
+   
+   Complexity:
+   Sorting all adjacency lists: $O(m \log n)$.
+   Outer loops: Iterate $a$ from $1$ to $n$.
+   Inner loop: Iterate $b \in \text{adj}[a]$ with $b > a$.
+   Innermost check: Iterate $c \in \text{adj}[b]$ with $c > b$. Check if $(a, c)$ exists.
+   
+   Total complexity is roughly proportional to the number of wedges (paths of length 2). In the worst case (dense graph), this is $O(n^3)$. With $n=2000$, $n^3 = 8 \cdot 10^9$, which is too slow.
+   However, we only check $c$ if it is a neighbor of $b$.
+   The check `has_edge[a][c]` is $O(1)$.
+   So the complexity is $\sum_{a} \sum_{b \in N(a)} \deg(b)$. This is $\sum_{(a,b) \in E} \deg(b)$.
+   In the worst case, sum of degrees is $2m$. But here we sum degrees of neighbors. This is bounded by $O(m \cdot n)$ in worst case (star graph center connected to all, checking paths through center). Wait, if center is $a$, neighbors are $1 \dots n$. For each neighbor $b$, we check neighbors of $b$. If $b$ has high degree, it's slow.
+   Actually, worst case is a complete graph. Then $\sum_{a} \sum_{b} (n-1) \approx n \cdot n \cdot n = O(n^3)$.
+   With $n=2000$, $O(n^3)$ is definitely too slow for 2 seconds. We need something faster or optimized.
+   
+   However, notice the constraint $m \le 2 \cdot 10^5$. The graph is not necessarily complete.
+   Actually, for $n=2000$, a complete graph has $m \approx 2 \cdot 10^6$. The constraint says $m \le 2 \cdot 10^5$. So the graph is sparse.
+   The worst case for the complexity $\sum_{(a,b) \in E} \deg(b)$ is when we have a dense subgraph, but $m$ is limited.
+   Actually, the sum of degrees is $2m$.
+   The quantity $\sum_{(a,b) \in E} \deg(b)$ can be rewritten as $\sum_{v} \deg(v)^2$.
+   Since $\sum \deg(v) = 2m$, the maximum value of $\sum \deg(v)^2$ occurs when degrees are as uneven as possible. But even then, $\sum \deg(v)^2 \le (\sum \deg(v)) \cdot \max(\deg(v)) = 2m \cdot n$.
+   With $m = 2 \cdot 10^5$ and $n = 2000$, $2m \cdot n = 4 \cdot 10^5 \cdot 2000 = 8 \cdot 10^8$. This is slightly high for 2 seconds (typically $10^8$ ops per second). Python might be too slow for $8 \cdot 10^8$ operations.
+   We need to optimize.
+   
+   Optimization:
+   We want to find a triangle.
+   The standard algorithm to find a triangle in $O(m^{1.5})$ or $O(m \sqrt{m})$ is to orient edges $u \to v$ if $\deg(u) < \deg(v)$ or ($\deg(u) == \deg(v)$ and $u < v$). This creates a DAG. Then we only look for paths of length 2 in this DAG.
+   The number of paths of length 2 in this DAG is bounded by $O(m \sqrt{m})$.
+   Why? Because for any node $u$, its out-degree in the DAG is at most $\sqrt{2m}$.
+   Proof: If $\deg_{out}(u) > \sqrt{2m}$, then $u$ has more than $\sqrt{2m}$ neighbors $v$ such that $u \to v$. By orientation rules, this implies $\deg(v) \ge \deg(u) > \sqrt{2m}$. So there are more than $\sqrt{2m}$ vertices with degree $> \sqrt{2m}$. The sum of degrees would be $> \sqrt{2m} \cdot \sqrt{2m} = 2m$, which contradicts $\sum \deg = 2m$.
+   So the DAG has max out-degree $\sqrt{2m}$.
+   Then we can iterate over edges $u \to v$ in the DAG, and for each, iterate over out-neighbors $w$ of $v$. If $u \to w$ exists (which we can check with adjacency matrix/hash set), then $(u, v, w)$ is a triangle.
+   This approach takes $O(m \sqrt{m})$ time.
+   With $m = 2 \cdot 10^5$, $m \sqrt{m} \approx 2 \cdot 10^5 \cdot 450 \approx 9 \cdot 10^7$. This is well within limits, even for Python.
+   
+   However, we need the lexicographically smallest triangle $(a, b, c)$ with $a < b < c$.
+   The standard triangle finding algorithm doesn't guarantee finding the smallest one first. It just finds *a* triangle.
+   But we can adapt it.
+   We still need to iterate candidates for $a, b, c$ in lexicographical order.
+   The lexicographical order is primarily determined by $a$, then $b$, then $c$.
+   So we should iterate $a$ from $1$ to $n$.
+   Then iterate $b$ from $a+1$ to $n$.
+   If edge $(a, b)$ exists, we need to find smallest $c > b$ such that $(a, c)$ and $(b, c)$ exist.
+   
+   The issue with the naive iteration is that checking if $c$ exists for all $b$ can be slow if many $b$'s are neighbors of $a$.
+   However, we only need to find the *first* valid $c$ for a specific $a, b$.
+   If we iterate $a$ from $1$ to $n$:
+     For each neighbor $b$ of $a$ with $b > a$:
+       We need to find smallest $c > b$ in $N(a) \cap N(b)$.
+   
+   Let's consider the "intersection" approach.
+   For a fixed $a$, we have a list of neighbors $N(a)$. We sort $N(a)$.
+   We iterate $b \in N(a)$ with $b > a$.
+   Then we need to intersect $N(a)$ and $N(b)$.
+   Since we want the smallest $c > b$, we can iterate through the sorted list of $N(b)$ and check if the element is in $N(a)$ (using a boolean array or bitset) and $> b$.
+   To speed up, we can iterate over the smaller of $N(a)$ and $N(b)$? No, we need to check existence in the other.
+   Since we need the smallest $c$, iterating sorted $N(b)$ is good.
+   The number of pairs $(a, b)$ is $m$. For each pair, we do work proportional to $\min(\deg(a), \deg(b))$ roughly (using bitset or hash set for intersection).
+   Actually, iterating over the neighbors of $b$ and checking if they are neighbors of $a$ takes $O(\deg(b))$.
+   Total time $\sum_{(a,b) \in E} \deg(b)$. This is the $O(m \cdot n)$ worst case again.
+   
+   Can we use the DAG orientation to speed up the search?
+   The DAG orientation ensures $\sum \deg_{out}(v)^2$ is small, or rather sum of out-degrees is $m$ and max out-degree is $\sqrt{2m}$.
+   But the DAG orientation changes the structure of edges. We need to find a triangle in the original graph.
+   A triangle in original graph corresponds to 3 vertices $u, v, w$. In the DAG, there are 3 edges among these 3 vertices. Since it's a tournament (or DAG based on degrees), there must be a path of length 2 or a cycle? No, a DAG cannot have a cycle. So among any 3 vertices in a DAG, there is a specific structure.
+   Actually, for any triangle $\{u, v, w\}$, there is at least one vertex in the triangle that has outgoing edges to the other two in the DAG. Let's call it the "source" of the triangle in the DAG.
+   Specifically, if we orient edges $u \to v$ if $u < v$ (lexicographical order), then for a triangle $a < b < c$, we have edges $(a, b), (b, c), (a, c)$. In this orientation, $a \to b$, $a \to c$, $b \to c$. So $a$ has outgoing edges to both $b$ and $c$.
+   Wait, the standard heuristic orientation is based on degree. The problem asks for lexicographical smallest triple.
+   If we use the standard degree-based orientation, we can find *all* triangles efficiently.
+   Algorithm to find all triangles:
+   1. Orient edges $u \to v$ if $\deg(u) < \deg(v)$ or ($\deg(u) == \deg(v)$ and $u < v$).
+   2. For each $u$, for each pair of out-neighbors $v, w$ of $u$: check if $v$ and $w$ are connected.
+      Wait, checking if $v, w$ connected takes $O(1)$ with adj matrix.
+      The number of pairs of out-neighbors is $\sum \binom{\deg_{out}(u)}{2}$.
+      Since $\deg_{out}(u) \le \sqrt{2m}$, the total work is $O(m \sqrt{m})$.
+   
+   But we need the lexicographically smallest triple $(a, b, c)$.
+   With the standard orientation, a triangle $\{a, b, c\}$ will be detected when we process the vertex $u$ that has the highest rank in the orientation order among the three.
+   Let's see. If we use orientation based on $(\deg(u), u)$, then for any triangle $\{x, y, z\}$, there is a unique vertex $u$ such that $u \to v$ and $u \to w$ for the other two $v, w$.
+   Wait, is it unique?
+   The orientation is a tournament (complete directed graph) on the subset of vertices involved in the triangle. Since it's a DAG, there is a sink, a source, etc.
+   Actually, for any 3 vertices, the edges between them form a transitive triple in the DAG (since it's a DAG and transitive closure isn't enforced, but the orientation is consistent with a total ordering of (deg, id)).
+   Wait, the orientation $u \to v$ based on $(\deg(u), u)$ defines a strict total order on vertices if we consider the pair as a tuple.
+   Let's check transitivity. If $(\deg(a), a) < (\deg(b), b)$ and $(\deg(b), b) < (\deg(c), c)$, then $(\deg(a), a) < (\deg(c), c)$.
+   So the orientation is consistent with the total ordering of vertices by (degree, id).
+   So for any triangle $\{a, b, c\}$, there is a vertex $u$ that is "smallest" in this ordering.
+   This vertex $u$ will have outgoing edges to both $v$ and $w$.
+   So we can iterate $u$ from 1 to $n$ (in the sorted order of (deg, id)).
+   For each $u$, iterate pairs of neighbors $v, w$ such that $u \to v$ and $u \to w$.
+   Check if $v, w$ connected.
+   If connected, we found a triangle $\{u, v, w\}$.
+   To find the lexicographically smallest triple $(a, b, c)$ (where $a < b < c$ in terms of vertex labels), we can generate all triangles and filter/store them, then sort.
+   But generating all triangles might be too many?
+   The max number of triangles in a graph with $m$ edges is $O(m^{1.5})$. With $m=2 \cdot 10^5$, $m^{1.5} \approx 9 \cdot 10^7$. Storing and sorting $10^8$ tuples is too much memory and time.
+   However, we only need the *smallest* one.
+   
+   Let's reconsider the constraint $a < b < c$.
+   We want to minimize $a$.
+   So we should check $a=1$, then if no triangle with 1, check $a=2$, etc.
+   For a fixed $a$, we want to minimize $b$.
+   Then minimize $c$.
+   
+   The bottleneck is finding if there is a triangle involving $a$.
+   If we iterate $a$ from $1$ to $n$:
+     We need to find $b, c$ such that $a < b < c$ and edges $(a, b), (a, c), (b, c)$ exist.
+     This is equivalent to finding a triangle in the subgraph induced by neighbors of $a$ that are $> a$.
+     Let $S_a = \{ v \in N(a) \mid v > a \}$.
+     We need to find an edge $(b, c)$ in the subgraph induced by $S_a$ such that $b < c$. The triple would be $(a, b, c)$.
+     To minimize $b$, we should look at vertices in $S_a$ in increasing order.
+     Let $S_a$ be sorted. Iterate $b \in S_a$.
+     Then we need to find $c \in S_a$ such that $c > b$ and $(b, c) \in E$.
+     This is checking if any neighbor of $b$ in $S_a$ is $> b$.
+     Since we want smallest $b$, we iterate $b$ in increasing order.
+     For a fixed $b$, we want smallest $c \in S_a \cap N(b)$ with $c > b$.
+     
+     If we use the adjacency matrix for $O(1)$ lookups:
+     For a fixed $a$:
+       Construct $S_a$. Sort $S_a$.
+       Iterate $b \in S_a$:
+         Iterate $c \in S_a$: (Wait, iterating all pairs in $S_a$ is $O(|S_a|^2)$).
+         If we just want to find *if* there is a triangle, checking $S_a$ for edges is enough.
+         But we need the lexicographically smallest $b$ and $c$.
+         So for fixed $a$, we iterate $b \in S_a$ (sorted).
+         Then we need the smallest $c \in S_a$ such that $c > b$ and $(b, c) \in E$.
+         We can iterate $c \in N(b)$ (sorted). If $c \in S_a$ and $c > b$, we found our answer $(a, b, c)$.
+         Since we want the smallest $b$, and for that $b$ the smallest $c$, we can just return immediately.
+         
+     Complexity analysis again:
+     Outer loop $a$: $n$ iterations.
+     Inside:
+       $S_a$ size is $\deg(a)$.
+       Iterate $b \in S_a$.
+       Iterate $c \in N(b)$. Check if $c \in S_a$ (which means $(a, c) \in E$) and $c > b$.
+       Total complexity: $\sum_{a} \sum_{b \in N(a), b > a} \deg(b)$.
+       This is $\sum_{(a, b) \in E, a < b} \deg(b)$.
+       This is bounded by $\sum_{v} \deg(v)^2$.
+       As discussed, this can be $O(m \cdot n)$ in worst case (e.g. star graph where center is $a$, neighbors are $b$'s, and $b$'s have high degree? No, if center is $a$, $b$'s are leaves, $\deg(b)=1$. Sum is $\sum \deg(b) = 2m$. Fast).
+       The worst case is when we have a dense subgraph.
+       If we have a clique of size $k$, then for each $a$ in clique, $S_a$ has size $k-1-a$.
+       We iterate $b \in S_a$, then $c \in N(b)$.
+       In a clique, $N(b)$ has size $k$.
+       Sum is $\sum_{a=1}^{k} \sum_{b=a+1}^{k} (k) \approx k^3/2$.
+       If $k \approx \sqrt{m}$, then $k^3 \approx m^{1.5}$.
+       If $k$ is large, say $k \approx n$, then $m \approx n^2$. But $m$ is limited to $2 \cdot 10^5$.
+       So $k$ is at most $\sqrt{2m} \approx 630$.
+       So if the graph is a clique, $n$ is small ($\le 630$), complexity is $O(n^3) \approx 2 \cdot 10^8$.
+       Wait, if $n=2000$ and $m=2 \cdot 10^5$, we cannot have a clique of size 2000.
+       The maximum size of a clique is bounded by $\sqrt{2m} \approx 632$.
+       So even in the worst case (dense subgraph), the complexity is bounded by $O(m \sqrt{m})$.
+       Why?
+       $\sum_{(a,b) \in E} \deg(b) \le \sum_{(a,b) \in E} \sqrt{2m} = m \sqrt{2m}$.
+       Wait, this assumes $\deg(b) \le \sqrt{2m}$ for all $b$.
+       But $\deg(b)$ can be up to $n=2000$.
+       However, if $\deg(b)$ is large, then $b$ is connected to many nodes.
+       The sum $\sum_{v} \deg(v)^2$ is maximized when degrees are uneven.
+       But we sum $\deg(b)$ for each edge $(a, b)$.
+       This sum is equal to $\sum_{v} \deg(v) \cdot \text{in-degree}(v \text{ in undirected sense}) \cdot \text{something?}$
+       No, it is simply $\sum_{v} \deg(v)^2$.
+       The maximum of $\sum \deg(v)^2$ subject to $\sum \deg(v) = 2m$ occurs when one vertex has degree $n-1$ and others have small degrees?
+       If one vertex has degree $n-1$, then $\sum \deg^2 \approx (n-1)^2 + (n-1) \cdot 1^2 \approx n^2$.
+       With $n=2000$, $n^2 = 4 \cdot 10^6$.
+       This is very fast.
+       Wait, why did I think it could be $O(m \cdot n)$?
+       Ah, if we have a star graph, center has degree $n-1$, leaves have degree 1.
+       $\sum \deg(v)^2 \approx (n-1)^2 + (n-1) \cdot 1 \approx n^2$.
+       This is small.
+       What if we have many vertices with high degree?
+       Suppose we have $k$ vertices with degree $d$. Then $k \cdot d \approx 2m$. So $k \approx 2m/d$.
+       Sum of squares $\approx k \cdot d^2 = (2m/d) \cdot d^2 = 2md$.
+       To maximize this, we want $d$ as large as possible.
+       Max $d = n$.
+       So sum is bounded by $2mn$.
+       With $m=2 \cdot 10^5, n=2000$, $2mn = 8 \cdot 10^8$.
+       This is the bound I was worried about.
+       However, this worst case requires a graph where vertices have degree $\approx n$.
+       If vertices have degree $\approx n$, then $m$ must be $\approx n^2 / 2$.
+       But $m$ is limited to $2 \cdot 10^5$.
+       If $n=2000$, max $m$ for dense graph is $2 \cdot 10^6$.
+       Here $m$ is smaller, so the graph cannot be very dense.
+       Specifically, average degree is $2m/n = 400000/2000 = 200$.
+       So most vertices have degree around 200.
+       If all vertices have degree 200, then $\sum \deg^2 = n \cdot 200^2 = 2000 \cdot 40000 = 8 \cdot 10^7$.
+       This is acceptable.
+       If there are some high degree vertices, say one vertex has degree 2000, then others must have low degree to keep sum of degrees $2m$.
+       If one vertex has degree 2000, it uses up $2000$ edges. Remaining $m-2000$ edges distributed among others.
+       The term $\sum \deg(v)^2$ is dominated by the high degree vertex.
+       Actually, $\sum \deg(v)^2 \le (\max \deg) \cdot \sum \deg(v) = n \cdot 2m = 4 \cdot 10^8$.
+       This is the upper bound.
+       With $n=2000$, $m=2 \cdot 10^5$, the worst case is indeed around $4 \cdot 10^8$ operations.
+       In Python, $4 \cdot 10^8$ simple operations might take 4-5 seconds, which is too slow for 2s limit.
+       We need to be more careful or use the optimized approach.
+       
+       The optimized approach (DAG orientation) guarantees $O(m \sqrt{m})$ time.
+       With $m=2 \cdot 10^5$, $m \sqrt{m} \approx 9 \cdot 10^7$.
+       This is much safer.
+       But we need to find the *lexicographically smallest* triangle.
+       The DAG orientation finds triangles efficiently but doesn't order them.
+       However, we can run the DAG orientation algorithm to find *all* triangles? No, too many.
+       But we can iterate $a$ from $1$ to $n$ and try to find a triangle starting with $a$.
+       If we find one, we can stop and output.
+       For a fixed $a$, we want to find $b, c$ ($a < b < c$) forming a triangle.
+       We can restrict our search to the subgraph induced by neighbors of $a$ (with index $> a$).
+       Let $G'$ be the subgraph induced by $N(a) \cap \{a+1, \dots, n\}$.
+       We want to find the lexicographically smallest edge $(b, c)$ in $G'$.
+       To do this efficiently:
+       1. Identify $S_a = N(a) \cap \{a+1, \dots, n\}$.
+       2. We need to find $b \in S_a$ such that $b$ has a neighbor $c \in S_a$ with $c > b$, minimizing $b$ then $c$.
+       3. We can iterate $b \in S_a$ in increasing order.
+       4. For each $b$, check neighbors of $b$ that are in $S_a$ and $> b$.
+       5. To speed up step 4, instead of iterating all neighbors of $b$, we can use the DAG orientation restricted to $S_a$.
+          Wait, the DAG orientation is global.
+          We can use the global DAG edges.
+          For a fixed $a$, we are interested in triangles $\{a, b, c\}$.
+          In the DAG, these 3 vertices must form a specific structure.
+          Since we iterate $a$ from $1$ to $n$, $a$ is the smallest index.
+          This doesn't mean $a$ is the "source" in the DAG (which depends on degree).
+          
+          Let's combine the ideas.
+          We iterate $a$ from $1$ to $n$.
+          We want to find if there is a triangle containing $a$ with other vertices $> a$.
+          If yes, find the lexicographically smallest such $b, c$.
+          
+          Algorithm:
+          1. Precompute adjacency lists `adj` and adjacency matrix `adj_mat` (or set).
+             Since $n \le 2000$, `adj_mat` is $2000 \times 2000$ bools. Memory $\approx 4$ MB. Fast access.
+          2. Iterate $a$ from $1$ to $n$.
+          3. Collect neighbors of $a$ that are $> a$. Let this list be `cands`. Sort `cands`.
+          4. Iterate $b$ in `cands`.
+          5. We need to find $c \in \text{cands}$ such that $c > b$ and $(b, c)$ is an edge.
+             To find the smallest $c$, we can iterate through `cands` starting from `cands.index(b) + 1`.
+             Wait, iterating `cands` is $O(\deg(a))$.
+             Checking if $(b, c)$ exists is $O(1)$.
+             So for a fixed $a$, we iterate $b \in \text{cands}$.
+             Then iterate $c \in \text{cands}$ with $c > b$.
+             If $(b, c)$ exists, we found $(a, b, c)$. Since we iterate $b$ in increasing order and $c$ in increasing order, this is the lexicographically smallest for this $a$.
+             Since we iterate $a$ in increasing order, the first triangle found is the global lexicographically smallest.
+             
+          Complexity of this approach:
+          For each $a$, we iterate pairs $(b, c)$ in $S_a$.
+          Number of pairs is $\binom{|S_a|}{2}$.
+          Total complexity $\sum_{a} \binom{\deg(a)}{2} \approx \sum \deg(a)^2$.
+          As analyzed, this can be up to $4 \cdot 10^8$.
+          Is it really?
+          If $\sum \deg(a)^2$ is large, it means many vertices have high degree.
+          But $\sum \deg(a) = 2m$.
+          With $m=200,000$, average degree is 200.
+          If degrees are uniform, sum is $2000 \times 200^2 = 8 \cdot 10^7$.
+          This is acceptable.
+          If degrees are non-uniform, say one node has degree 2000, others have degree 0 (not possible since $m$ large).
+          Suppose we have $k$ nodes with degree $D$. $kD = 2m$.
+          Sum squares = $k D^2 = 2m D$.
+          Max $D$ is $n=2000$.
+          So max sum squares = $2(2 \cdot 10^5)(2000) = 8 \cdot 10^8$.
+          This worst case happens if we have a graph like a star plus some edges?
+          No, if we have a star, center degree $n-1$, leaves degree 1.
+          Sum squares $\approx (n-1)^2 + (n-1) \cdot 1 \approx n^2 = 4 \cdot 10^6$. Very fast.
+          The worst case for $\sum \deg(v)^2$ given $\sum \deg(v) = 2m$ is when we have as many vertices as possible with degree $n$.
+          Wait, if we have $k$ vertices with degree $n-1$, then $m \approx k n / 2$.
+          Then sum squares $\approx k n^2 = (2m/n) n^2 = 2mn$.
+          This requires $m \approx k n / 2$.
+          If $m = 2 \cdot 10^5$ and $n = 2000$, then $k \approx 200$.
+          So if we have 200 vertices connected to all other 2000 vertices (approx), then $m \approx 200 \times 2000 / 2 = 200,000$.
+          In this case, we have a bipartite-like structure or a dense core.
+          If we have 200 vertices with high degree, then for each of these vertices, we iterate $\binom{2000}{2} \approx 2 \cdot 10^6$ pairs.
+          $200 \times 2 \cdot 10^6 = 4 \cdot 10^8$.
+          This is the bottleneck.
+          However, note that if we have 200 vertices with degree 2000, the graph is very dense.
+          Finding a triangle in such a graph is easy?
+          If there are 200 vertices with high degree, they likely form a clique or share many neighbors.
+          Actually, if we have 200 vertices with degree $\approx 2000$, they are almost connected to everyone.
+          The probability of finding a triangle is very high.
+          We will find it very quickly.
+          The worst case for the *algorithm* is when we check many pairs $(b, c)$ and find no edges $(b, c)$ (so we don't stop early).
+          This happens when $S_a$ is large but contains no edges (independent set).
+          If $S_a$ is an independent set, we iterate all pairs and check `adj_mat[b][c]`, finding false every time.
+          So we need to handle the case where $S_a$ is large but sparse.
+          If $S_a$ is large, $\deg(a)$ is large.
+          If $S_a$ is an independent set, then no triangle contains $a$.
+          We must verify this efficiently.
+          Checking all pairs in $S_a$ is $O(\deg(a)^2)$.
+          If $\deg(a)$ is large, this is bad if we do it for many $a$.
+          But if $\deg(a)$ is large and $S_a$ is independent, then $a$ is not part of any triangle.
+          We need to skip $a$ faster.
+          
+          Optimization:
+          Instead of iterating all pairs in $S_a$, we can iterate over edges in the subgraph induced by $S_a$.
+          To do this, we can use the DAG orientation idea.
+          For the subgraph $S_a$, we only need to check edges $(b, c)$ where $b, c \in S_a$.
+          If we orient edges in the original graph, we can restrict to edges where both endpoints are in $S_a$.
+          Or simpler:
+          Iterate $b \in S_a$.
+          Iterate $c \in N(b)$.
+          Check if $c \in S_a$ and $c > b$.
+          This is the $\sum \deg(b)$ approach.
+          Which led to $O(m \cdot n)$ worst case.
+          
+          Let's combine:
+          We want to find a triangle.
+          We can use the "meet-in-the-middle" or simply the fact that if we process vertices in order $1 \dots n$, we just need to check if $a$ is part of a triangle with $b, c > a$.
+          If $\deg(a)$ is small, $O(\deg(a)^2)$ is fast.
+          If $\deg(a)$ is large, then $a$ has many neighbors.
+          If $a$ is part of a triangle, then among neighbors of $a$, there must be an edge.
+          We can check if the subgraph induced by neighbors of $a$ has any edges.
+          To do this efficiently:
+          Iterate neighbors $b$ of $a$.
+          For each neighbor $b$, iterate neighbors $c$ of $b$.
+          If $c \in N(a)$ and $c > a$, we found a triangle.
+          We need the lexicographically smallest.
+          So for fixed $a$, we want smallest $b \in N(a)$ ($b>a$).
+          Then smallest $c \in N(a) \cap N(b)$ ($c>b$).
+          
+          To ensure efficiency when $\deg(a)$ is large:
+          We can iterate $b \in N(a)$ ($b > a$) in increasing order.
+          For a fixed $b$, we need to find smallest $c \in N(b) \cap N(a)$ with $c > b$.
+          Instead of iterating all $c \in N(b)$, we can intersect $N(a)$ and $N(b)$.
+          Since we want smallest $c$, we should iterate the smaller list? Or just iterate $N(b)$ sorted and check membership in $N(a)$.
+          Checking membership in $N(a)$ is $O(1)$ with adjacency matrix.
+          So for fixed $a, b$:
+            Iterate $c \in N(b)$ (sorted).
+            If $c > b$ and $c \in N(a)$, return $(a, b, c)$.
+          
+          This is the same as before.
+          The complexity is $\sum_{(a, b) \in E, a < b} \deg(b)$.
+          We established this can be $O(m \cdot n)$.
+          Is there a way to prune?
+          We are looking for the *first* triangle.
+          If we find one, we stop.
+          So we only do work until we find a triangle.
+          If the graph has many triangles, we find one quickly?
+          Not necessarily. The lexicographically smallest triangle might involve vertices with indices $1000, 1001, 1002$.
+          We might check $a=1, \dots, 999$ and find no triangles.
+          For each $a$, we might iterate many neighbors.
+          However, if $a$ has no triangle, it means $N(a)$ is an independent set (for vertices $> a$).
+          If $N(a)$ is an independent set, we check all pairs? No, we check pairs $(b, c)$ where $b \in N(a)$ and $c \in N(b) \cap N(a)$.
+          If $N(a)$ is independent, then for any $b \in N(a)$, $N(b) \cap N(a) = \emptyset$.
+          So we iterate $b \in N(a)$, then $c \in N(b)$.
+          The work is $\sum_{b \in N(a)} \deg(b)$.
+          If $N(a)$ is large, this is large.
+          But if $N(a)$ is large and independent, $a$ is not part of any triangle.
+          Can we detect that $N(a)$ is independent faster?
+          Maybe not easily without checking edges.
+          
+          However, notice the constraint $m \le 2 \cdot 10^5$.
+          If $\deg(a)$ is large, say $> \sqrt{2m} \approx 450$.
+          If we have many such $a$'s, say $k$ of them.
+          Then $\sum \deg(a) \ge k \cdot 450 \le 2m$.
+          So $k \le 2m / 450 \approx 4000 / 2 \approx 1000$? No $400000 / 450 \approx 888$.
+          So at most 888 vertices have degree $> 450$.
+          For a vertex $a$ with $\deg(a) \le 450$, the work $\sum_{b \in N(a)} \deg(b)$ is bounded by $\deg(a) \cdot n \approx 450 \cdot 2000 = 9 \cdot 10^5$.
+          Summing over all such $a$: $2000 \times 9 \cdot 10^5 \approx 1.8 \cdot 10^9$? No.
+          Sum over $a$ with small degree: $\sum_{a: \deg(a) \le B} \deg(a) \cdot n \le n \sum \deg(a) = n \cdot 2m = 4 \cdot 10^8$.
+          This is the bound again.
+          But for a vertex $a$ with small degree, the work is $\sum_{b \in N(a)} \deg(b)$.
+          This is bounded by $\deg(a) \cdot \max(\deg)$.
+          If $\deg(a)$ is small, this is small.
+          The large contribution comes from vertices with large degree.
+          If $\deg(a)$ is large, then $\deg(b)$ might also be large.
+          But we established $\sum \deg(a)^2 \le 2mn$.
+          The worst case is indeed $O(mn)$.
+          However, with $m=2 \cdot 10^5$, $mn = 4 \cdot 10^8$.
+          In C++, $4 \cdot 10^8$ simple ops (array lookups) takes $\approx 0.5$s.
+          In Python, it might take 2-4s.
+          We need to optimize for Python.
+          Using `sys.stdin.read` and efficient data structures is key.
+          Adjacency matrix as a list of sets or list of lists?
+          List of lists with boolean check?
+          `adj_mat = [[False] * (n + 1) for _ in range(n + 1)]`
+          Access is fast.
+          
+          Can we optimize the inner loop?
+          For fixed $a$, we iterate $b \in N(a)$.
+          We need $c \in N(a) \cap N(b)$ with $c > b$.
+          We can iterate $c \in N(b)$ and check `adj_mat[a][c]`.
+          To speed up, we can sort `N(a)` and `N(b)`.
+          Intersection of two sorted lists can be done in linear time.
+          But we want the first element $c > b$.
+          So we can iterate $N(b)$ and check.
+          Is there a case where we do too much work?
+          If `adj_mat[a][c]` is false often, we iterate many $c$.
+          This happens if $N(b)$ is large but few neighbors are in $N(a)$.
+          
+          Wait, we can use the property: we want the *smallest* triple.
+          So we check $a=1$. If we find a triangle, we are done.
+          If not, $a=2$.
+          This means we only compute work for $a$ that do *not* participate in a triangle with smaller indices.
+          In the worst case, no triangle exists with $a=1, \dots, k$.
+          This implies for all $i \le k$, $N(i) \cap \{i+1, \dots, n\}$ is an independent set.
+          This means there are no edges between neighbors of $1$ (that are $>1$).
+          So $1$ is connected to an independent set.
+          This implies the graph is somewhat sparse or structured.
+          If $N(1)$ is an independent set, then no edges exist among $N(1)$.
+          This means for all $b \in N(1)$, $N(b)$ contains no other vertex from $N(1)$.
+          So when we process $b \in N(1)$, we check $c \in N(b)$.
+          We only care if $c \in N(1)$.
+          But if $N(1)$ is independent, then no $c \in N(b)$ will be in $N(1)$.
+          So we iterate $c \in N(b)$ and check `adj_mat[1][c]`.
+          If `adj_mat[1][c]` is false for all $c$, we do $\sum_{b \in N(1)} \deg(b)$ work.
+          This is exactly $\sum_{b \in N(1)} \deg(b)$.
+          If $N(1)$ is independent, this sum can be large.
+          However, if $N(1)$ is independent, then no edges exist between vertices in $N(1)$.
+          So the edges incident to $N(1)$ must go to vertices outside $N(1) \cup \{1\}$.
+          This implies the graph has a specific structure.
+          The total number of edges $m$ bounds this sum.
+          $\sum_{b \in N(1)} \deg(b) = \sum_{b \in N(1)} ( \text{edges in } N(1) + \text{edges out} )$.
+          Since $N(1)$ is independent, edges in $N(1)$ is 0.
+          So sum is $\sum_{b \in N(1)} \text{edges out of } N(1)$.
+          This is bounded by $m$.
+          Wait, $\sum_{b \in N(1)} \deg(b)$ counts edges incident to $N(1)$.
+          Since $N(1)$ is independent, all edges incident to $N(1)$ connect $N(1)$ to $V \setminus N(1)$.
+          The number of such edges is $\sum_{b \in N(1)} \deg(b)$.
+          This number is at most $m$.
+          So for $a=1$, the work is at most $O(m)$.
+          If we do this for $a=1, \dots, k$, and for each $a$, $N(a)$ is independent.
+          Then for each $a$, we do work bounded by $m$ (roughly, or rather sum of degrees of neighbors).
+          Wait, sum of degrees of neighbors of $a$ is $\sum_{b \in N(a)} \deg(b)$.
+          This counts edges incident to $N(a)$.
+          If $N(a)$ is independent, these edges are distinct from edges within $N(a)$ (which are 0).
+          But edges incident to different $N(a)$'s might overlap?
+          Yes, a vertex $b$ can be a neighbor of multiple $a$'s.
+          However, if we process $a$ in order, and for each $a$ we check neighbors $b > a$.
+          The edges $(a, b)$ are distinct for different $a$.
+          So we are summing $\deg(b)$ over edges $(a, b)$ where $a$ is processed and $N(a)$ is independent.
+          This is $\sum_{(a, b) \in E, a \text{ processed}} \deg(b)$.
+          If we process many $a$'s, this sum can exceed $m$.
+          It is $\sum_{b} \deg(b) \cdot (\text{number of neighbors } a < b \text{ processed})$.
+          If all $a < b$ are processed (because no triangle found yet), then we sum $\sum_{b} \deg(b)^2$.
+          This brings us back to $O(mn)$ or $O(\sum \deg^2)$.
+          
+          So the worst case is indeed when we have a graph with no triangles (or triangles only at high indices), and degrees are skewed.
+          But we are guaranteed that a triangle exists.
+          So we will stop eventually.
+          Is it possible that we process many $a$'s before finding a triangle?
+          Yes, e.g. triangle is $(100, 101, 102)$.
+          We process $1 \dots 99$.
+          For each $a \in 1 \dots 99$, we check neighbors.
+          If the graph is a bipartite graph plus one triangle at the end.
+          In a bipartite graph, no triangles.
+          We can have a bipartite graph with $m$ edges.
+          We process $a$ from 1 to $n/2$.
+          For each $a$, $N(a)$ is in the other partition.
+          $N(a)$ is an independent set.
+          Work for $a$: $\sum_{b \in N(a)} \deg(b)$.
+          Sum over all $a$: $\sum_{a} \sum_{b \in N(a)} \deg(b)$.
+          In bipartite graph, this is $\sum_{(a, b) \in E} \deg(b)$.
+          In a regular bipartite graph, $\deg(b) = d$. Sum is $m \cdot d$.
+          If $d \approx \sqrt{m}$, then $m \sqrt{m}$.
+          If $d \approx n$, then $m \cdot n$.
+          So yes, we can have $O(mn)$ work.
+          
+          Given the constraints and Python, $O(mn)$ is risky.
+          We should use the DAG optimization for the inner check.
+          Instead of iterating all neighbors $c$ of $b$, we only iterate neighbors $c$ of $b$ such that $b \to c$ in DAG.
+          The number of such neighbors is $\le \sqrt{2m}$.
+          So for each edge $(a, b)$, we do $O(\sqrt{m})$ work.
+          Total work $O(m \sqrt{m})$.
+          This is $9 \cdot 10^7$, which is safe.
+          
+          How to integrate DAG with lexicographical requirement?
+          Algorithm:
+          1. Build DAG: $u \to v$ if $\deg(u) < \deg(v)$ or ($\deg(u) == \deg(v)$ and $u < v$).
+          2. We want to find smallest $a < b < c$ forming a triangle.
+          3. Iterate $a$ from $1$ to $n$.
+          4. We need to find $b, c$ such that $a < b < c$ and edges exist.
+          5. In the DAG, for a triangle $\{a, b, c\}$, there is a vertex $u$ that has outgoing edges to the other two.
+             Let this vertex be $u$.
+             Note that $u$ is the "source" in the DAG restricted to the triangle.
+             Also, for the triangle to be $(a, b, c)$ with $a < b < c$, $u$ can be any of them.
+             But we want to find the triple $(a, b, c)$.
+             If we iterate $u$ from $1$ to $n$:
+               Find all pairs of out-neighbors $v, w$ of $u$.
+               Check if $v, w$ connected.
+               If connected, we have a triangle $\{u, v, w\}$.
+               We want to minimize $(a, b, c)$ lexicographically.
+               This approach finds triangles, but not necessarily in lexicographical order of vertices.
+               However, we can store all found triangles and sort them? No, too many.
+               But we only need the best one.
+               We can maintain `best_triple` initialized to infinity.
+               Iterate $u$ from $1$ to $n$.
+               Iterate pairs $v, w$ of out-neighbors of $u$.
+               If $v, w$ connected, let triple be sorted $(x, y, z)$.
+               Update `best_triple` if $(x, y, z) < best_triple$.
+               But iterating all pairs of out-neighbors is $O(m \sqrt{m})$.
+               Sorting and updating `best_triple` is cheap.
+               Wait, we need to be careful. The number of pairs is sum of $\binom{\deg_{out}(u)}{2}$.
+               This is bounded by $O(m \sqrt{m})$.
+               With $m=2 \cdot 10^5$, $m \sqrt{m} \approx 9 \cdot 10^7$.
+               In Python, iterating $10^8$ operations might be slow (10 seconds).
+               We need to be faster.
+               
+               Is there a way to find the lexicographically smallest one directly?
+               We want to minimize $a$.
+               So we check $a=1$. If there is a triangle with $1$, we find the smallest $b, c$.
+               Then $a=2$, etc.
+               But checking if $a$ is part of a triangle efficiently is the issue.
+               For a fixed $a$, we want to find $b, c > a$.
+               This means we want an edge $(b, c)$ in the subgraph induced by $N(a) \cap \{a+1, \dots, n\}$.
+               To find the lexicographically smallest edge $(b, c)$ in this subgraph:
+               We iterate $b \in N(a)$ with $b > a$ (sorted).
+               We need smallest $c \in N(a) \cap N(b)$ with $c > b$.
+               We can intersect $N(a)$ and $N(b)$.
+               To speed up intersection, we can use the DAG orientation.
+               For a fixed $a$, consider the subgraph induced by $N(a)$.
+               We want an edge in this subgraph.
+               Edges in this subgraph are either "forward" or "backward" in DAG.
+               If we use the DAG, for any edge $(u, v)$ in graph, it is oriented $u \to v$ or $v \to u$.
+               So in the induced subgraph, edges are directed.
+               If we find a directed edge $b \to c$ in the induced subgraph, then $\{a, b, c\}$ is a triangle.
+               Also if we find $c \to b$, then $\{a, c, b\}$ is a triangle.
+               So we just need to find any edge in the induced subgraph $N(a)$.
+               Wait, we want lexicographically smallest $b, c$.
+               So we iterate $b \in N(a)$ ($b > a$) in increasing order.
+               We check if $b$ has any neighbor $c \in N(a)$ with $c > b$.
+               This is equivalent to finding an outgoing edge from $b$ to some $c \in N(a)$ with $c > b$.
+               Or an incoming edge from some $c \in N(a)$ with $c > b$ and $c \to b$.
+               Wait, if $c \to b$, then edge is $(c, b)$. Since we want $b < c$, this edge is between $b$ and $c$.
+               So we just need to check if there is *any* edge between $b$ and $N(a) \cap \{b+1, \dots, n\}$.
+               Let $S = N(a) \cap \{a+1, \dots, n\}$.
+               We iterate $b \in S$ (sorted).
+               We need to know if $b$ is connected to any $c \in S$ with $c > b$.
+               This is checking if $N(b) \cap S$ contains any element $> b$.
+               To do this efficiently:
+               We can iterate over out-neighbors of $b$ in DAG.
+               Let $N_{out}(b)$ be the neighbors $v$ such that $b \to v$.
+               If any $v \in N_{out}(b)$ is in $S$ and $v > b$, then we found a pair.
+               Since $b \to v$ implies $(\deg(b), b) < (\deg(v), v)$.
+               This does not guarantee $v > b$.
+               But we require $v \in S$, which means $v \in N(a)$ and $v > a$.
+               Also we require $v > b$.
+               So if $b \to v$ and $v \in S$ and $v > b$, we have a triangle $(a, b, v)$.
+               Since we iterate $b$ in increasing order, the first such $v$ we find will give the smallest $b$.
+               For a fixed $b$, we want the smallest $v$.
+               So we should check $v \in N_{out}(b)$ in increasing order of $v$.
+               Wait, $N_{out}(b)$ might not be sorted. We can sort it.
+               Size of $N_{out}(b)$ is small ($\le \sqrt{2m}$).
+               So for each $b \in S$, we iterate $v \in N_{out}(b)$ (sorted).
+               If $v \in S$ and $v > b$, we found our answer.
+               Wait, what if the edge is $v \to b$ with $v \in S, v > b$?
+               Then we have triangle $\{a, b, v\}$.
+               In this case, $v$ is the "source" in DAG.
+               But we are iterating $b$.
+               If we find such $v$, we have a triangle.
+               We need to check both directions?
+               Actually, if we iterate $b \in S$, we want to know if $b$ is part of an edge within $S$.
+               The edges within $S$ are either $b \to c$ or $c \to b$.
+               If $b \to c$ with $c \in S, c > b$: found.
+               If $c \to b$ with $c \in S, c > b$: found.
+               So we need to check if $N_{out}(b) \cap S$ has any element $> b$ OR $N_{in}(b) \cap S$ has any element $> b$.
+               Actually, simpler:
+               Just check if there is any edge between $b$ and $S \cap \{b+1, \dots, n\}$.
+               The edges incident to $b$ can be checked via DAG.
+               Out-neighbors of $b$: check if any is in $S$ and $> b$.
+               In-neighbors of $b$: check if any is in $S$ and $> b$.
+               Wait, if $c \to b$ and $c \in S$, then $c$ is an in-neighbor.
+               Since we iterate $b$ in increasing order, we might encounter $b$ before $c$ (if $b < c$).
+               But we need $c > b$.
+               So if there is an edge $(b, c)$ with $b, c \in S$ and $b < c$.
+               In DAG, either $b \to c$ or $c \to b$.
+               If $b \to c$: $b$ is source. We check out-neighbors of $b$.
+               If $c \to b$: $c$ is source. We check in-neighbors of $b$.
+               But we don't have in-neighbors list easily (unless we build it).
+               Building in-neighbors list is $O(m)$.
+               So for each $b \in S$:
+                 Check $v \in N_{out}(b)$: if $v \in S$ and $v > b$, return $(a, b, v)$.
+                 Check $v \in N_{in}(b)$: if $v \in S$ and $v > b$, return $(a, b, v)$.
+               Wait, if we iterate $b \in S$ sorted, the first time we find any such neighbor, we have the smallest $b$.
+               For the smallest $b$, we need the smallest $c > b$.
+               So we should check neighbors in increasing order.
+               
+               Refined Algorithm:
+               1. Read input, build `adj`, `adj_mat`. Compute degrees.
+               2. Build DAG adjacency lists `dag_adj` (out-neighbors) and `dag_adj_rev` (in-neighbors).
+                  Orient $u \to v$ if $\deg(u) < \deg(v)$ or ($\deg(u) == \deg(v)$ and $u < v$).
+               3. Iterate $a$ from $1$ to $n$.
+               4. Construct $S = \{ v \in \text{adj}[a] \mid v > a \}$.
+                  Since we need to check membership in $S$ efficiently, we can mark vertices in $S$ in a boolean array `in_S` (reset for each $a$).
+                  Sort $S$.
+               5. Iterate $b \in S$ (in increasing order).
+               6. We need smallest $c \in S$ with $c > b$ and $(b, c) \in E$.
+                  Candidates for $c$ are in $N_{out}(b) \cup N_{in}(b)$.
+                  We collect all such $v$ that are in $S$ and $v > b$.
+                  To find the smallest $c$, we can merge the sorted lists of valid candidates from $N_{out}(b)$ and $N_{in}(b)$.
+                  Or simply iterate through sorted $N_{out}(b) \cup N_{in}(b)$ and check conditions.
+                  Since $|N_{out}(b)| + |N_{in}(b)| = \deg(b)$, this could be $O(n)$.
+                  Wait, we need to check if $v \in S$. Checking `in_S[v]` is $O(1)$.
+                  So for fixed $b$, we iterate all neighbors of $b$ in DAG (out and in).
+                  Filter those in $S$ and $> b$.
+                  Find min.
+                  If we find one, we have the smallest $c$ for this $b$.
+                  Since we iterate $b$ in increasing order, the first valid triple we find is the answer.
+               
+               Complexity:
+               Outer loop $a$: $n$.
+               Step 4: $O(\deg(a))$.
+               Step 5: Iterate $b \in S$. Size $\deg(a)$.
+               Step 6: Iterate neighbors of $b$ in DAG. Size $\deg(b)$.
+               Total: $\sum_{a} \sum_{b \in S_a} \deg(b)$.
+               This is the same as before! $\sum_{(a, b) \in E, a < b} \deg(b)$.
+               The DAG doesn't reduce the number of neighbors we check, it just orders them.
+               Wait, the DAG optimization for triangle finding relies on the fact that we only iterate *out-neighbors* in the DAG.
+               In the standard DAG triangle finding:
+                 Iterate $u$. Iterate $v \in N_{out}(u)$. Iterate $w \in N_{out}(v)$. Check $u \to w$.
+                 This ensures each triangle is checked once.
+                 Here we are fixing $a$ and looking for edges in $N(a)$.
+                 If we use the DAG property:
+                 For a triangle $\{a, b, c\}$ with $a < b < c$.
+                 In DAG, edges are oriented.
+                 Case 1: $a \to b, a \to c, b \to c$.
+                   Then $a$ has out-neighbors $b, c$. $b$ has out-neighbor $c$.
+                   When we process $a$, we see $b \in S$. We check neighbors of $b$.
+                   We need to find $c$.
+                   If we only check *out-neighbors* of $b$ in DAG:
+                   $b \to c$ exists. So $c \in N_{out}(b)$.
+                   We check if $c \in S$.
+                   So if the orientation is consistent with the order $a \to b \to c$, we find it.
+                 Case 2: $a \to b, c \to b, c \to a$?
+                   Impossible since $a < b < c$.
+                   If $a \to c$ and $c \to b$ and $b \to a$? Cycle. No.
+                   DAG is acyclic.
+                   So edges must be consistent with a total order.
+                   The order is $(\deg, id)$.
+                   So for triangle $\{a, b, c\}$, there is a unique source $u$ in DAG.
+                   If $u=a$, then $a \to b, a \to c$.
+                   If $u=b$, then $b \to a, b \to c$.
+                   If $u=c$, then $c \to a, c \to b$.
+                   
+                   We iterate $a$ from $1$ to $n$.
+                   We want to find $b, c > a$.
+                   If $u=a$: $a \to b, a \to c$. Also need edge $(b, c)$.
+                     In DAG, either $b \to c$ or $c \to b$.
+                     If $b \to c$: When processing $a$, we see $b \in N_{out}(a)$.
+                     We check $c \in N_{out}(b)$. If $c \in N_{out}(a)$ (which is true since $a \to c$), then we found it.
+                     If $c \to b$: When processing $a$, we see $b \in N_{out}(a)$.
+                     We check $c \in N_{out}(b)$? No, $c \to b$ means $c$ is in $N_{in}(b)$.
+                     So we need to check $N_{in}(b)$ as well.
+                     But checking $N_{in}(b)$ makes it $O(\deg(b))$.
+                   
+                   However, note that if we find a triangle, we want the lexicographically smallest $a$.
+                   So we stop at the first $a$ that works.
+                   If for a given $a$, we find *any* triangle $\{a, b, c\}$ with $b, c > a$, we are good.
+                   To find *any* such triangle efficiently:
+                   We need to check if there is an edge between $b, c \in N(a) \cap \{a+1, \dots, n\}$.
+                   Let $S_a = N(a) \cap \{a+1, \dots, n\}$.
+                   We want to know if induced subgraph on $S_a$ has edges.
+                   We can iterate $b \in S_a$.
+                   Check if $b$ has any neighbor in $S_a$.
+                   We can use the DAG edges.
+                   For each $b \in S_a$, check $N_{out}(b) \cap S_a$.
+                   If non-empty, we found an edge $b \to c$ with $c \in S_a$.
+                   Since $b \in S_a$, $b > a$. Since $c \in S_a$, $c > a$.
+                   Also $b \to c$ implies $b < c$ in DAG order? No.
+                   But we need $b < c$ (vertex index) for lexicographical?
+                   No, we just need *some* $b, c$.
+                   Wait, if we find an edge $b \to c$ in DAG within $S_a$:
+                   Then $\{a, b, c\}$ is a triangle.
+                   The indices are $a, b, c$.
+                   We need to output sorted indices.
+                   If we find such a triangle, is it the one with smallest $a$?
+                   Yes, because we iterate $a$ from $1$.
+                   Is it the one with smallest $b$?
+                   Not necessarily. We might find a triangle with $a=1, b=100, c=101$ before $a=1, b=2, c=3$.
+                   So we need to find the smallest $b$ for the current $a$.
+                   
+                   So for fixed $a$, we iterate $b \in S_a$ in increasing order of vertex index.
+                   We want to find smallest $c > b$ such that $\{a, b, c\}$ is a triangle.
+                   This means $c \in S_a$ and $(b, c) \in E$.
+                   We can check this by intersecting $N(b)$ and $S_a$.
+                   To do this fast, we can check $N_{out}(b) \cap S_a$ AND $N_{in}(b) \cap S_a$.
+                   Wait, if we use DAG, we only need to check one direction if we are careful?
+                   No, an edge $(b, c)$ is either $b \to c$ or $c \to b$.
+                   If $b \to c$: $c \in N_{out}(b)$.
+                   If $c \to b$: $c \in N_{in}(b)$.
+                   So we need to check both.
+                   But checking both is $O(\deg(b))$.
+                   So we are back to $O(\sum \deg(b))$.
+                   
+                   Is there any way to avoid $O(\deg(b))$?
+                   Yes, if we only check $N_{out}(b)$.
+                   This works if we ensure that for every edge $(b, c)$ with $b, c \in S_a$, we check it when processing the "source" vertex in DAG.
+                   But we iterate $b$ in increasing order of index, not DAG order.
+                   If we iterate $b$ in DAG order?
+                   The DAG order depends on degree. It's not $1 \dots n$.
+                   But we want to minimize index $b$.
+                   So we must iterate $b$ in index order.
+                   
+                   Wait, if we iterate $b \in S_a$ in index order.
+                   We want smallest $c \in S_a, c > b$ connected to $b$.
+                   If we only check $c \in N_{out}(b)$, we miss edges $c \to b$.
+                   But if there is an edge $c \to b$, then $c$ is "larger" in DAG order.
+                   Does this help?
+                   Maybe we can just check $N_{out}(b)$.
+                   If we find $c \in N_{out}(b) \cap S_a$, then we have triangle $\{a, b, c\}$.
+                   Since $c \in N_{out}(b)$, we have $c$ as a neighbor.
+                   We need to check if $c > b$ for the output triple $(a, b, c)$ to be sorted?
+                   No, we output sorted $a, b, c$.
+                   If we find $c \in S_a$, then $c > a$.
+                   So we have $\{a, b, c\}$.
+                   We need to ensure we find the lexicographically smallest triple.
+                   If we find a triangle with $a$, we want to minimize $b$, then $c$.
+                   If we iterate $b \in S_a$ (sorted by index), the first $b$ that has a neighbor in $S_a$ gives the smallest $b$.
+                   For this $b$, we want smallest $c \in S_a$ connected to $b$.
+                   If we only check $N_{out}(b)$, we might miss $c$ where $c \to b$.
+                   But if $c \to b$, then $c$ is connected to $b$.
+                   So we must check $N_{in}(b)$ as well.
+                   However, if $c \to b$, then $c$ is an in-neighbor.
+                   Note that if we process $a$ and find $b$, we want to find $c$.
+                   If we use the property that we only need to find *one* triangle to stop? No, we need smallest.
+                   
+                   Actually, $O(m \sqrt{m})$ is achievable if we just find *any* triangle.
+                   But we need smallest.
+                   Given $N \le 2000$, $O(N^3)$ is too slow, but $O(N^2)$ is fine.
+                   Wait, $N^2 = 4 \cdot 10^6$.
+                   Can we do $O(N^2)$?
+                   Iterate $a$ from $1$ to $n$.
+                   Iterate $b$ from $a+1$ to $n$.
+                   If $(a, b)$ exists:
+                     Check if there exists $c > b$ such that $(a, c)$ and $(b, c)$ exist.
+                     To check this fast:
+                     We can precompute for each pair $(a, b)$ if they share a neighbor.
+                     But there are $O(N^2)$ pairs.
+                     Intersection of adjacency lists.
+                     If we use bitsets, intersection is $O(N/64)$.
+                     $N^2 \cdot N/64 \approx 8 \cdot 10^7$.
+                     This is very fast!
+                     In Python, integers act as bitsets.
+                     We can represent adjacency list of each vertex as an integer (bitmask).
+                     `adj_mask[u]` has bit $v$ set if $u, v$ connected.
+                     Then intersection of $N(a)$ and $N(b)$ is `adj_mask[a] & adj_mask[b]`.
+                     We need to find the smallest bit $c$ in this intersection such that $c > b$.
+                     We can iterate bits.
+                     Since we want smallest $c > b$, we can check bits starting from $b+1$.
+                     But iterating bits is slow.
+                     However, we only need to do this for edges $(a, b)$.
+                     Number of edges is $m$.
+                     For each edge $(a, b)$, we compute `mask = adj_mask[a] & adj_mask[b]`.
+                     We need smallest bit $c > b$ in `mask`.
+                     This can be done efficiently?
+                     In Python, `(mask >> (b + 1)).bit_length()` tells us the position of the highest bit.
+                     We want the lowest bit.
+                     `mask & -mask` gives the lowest bit.
+                     But we need lowest bit $> b$.
+                     We can shift `mask` right by `b + 1`, find lowest bit, then shift back.
+                     Let `common = adj_mask[a] & adj_mask[b]`.
+                     `common_shifted = common >> (b + 1)`.
+                     If `common_shifted == 0`, no $c > b$.
+                     Else `low_bit = common_shifted & -common_shifted`.
+                     `c = low_bit.bit_length() - 1 + b + 1`.
+                     This is $O(1)$ (effectively, bit operations are fast).
+                     Total complexity: $O(m)$.
+                     $m = 2 \cdot 10^5$.
+                     This is extremely fast!
+                     Wait, is `adj_mask[u]` efficient to construct?
+                     Yes, $O(m)$.
+                     Bitwise operations on large integers (2000 bits) are efficient in Python?
+                     Yes, they are implemented in C. 2000 bits is small (32 words).
+                     So intersection is very fast.
+                     This approach is $O(m)$ time (plus overhead).
+                     This fits perfectly within 2 seconds.
+                     
+                     Algorithm using Bitmasks:
+                     1. Read $n, m$.
+                     2. Initialize `adj_mask` array of size $n+1$ with 0.
+                     3. Read edges. For each $u, v$:
+                        `adj_mask[u] |= (1 << v)`
+                        `adj_mask[v] |= (1 << u)`
+                     4. Iterate $a$ from $1$ to $n$.
+                     5. Iterate $b$ from $a+1$ to $n$.
+                        Check if edge $(a, b)$ exists.
+                        We can check this by `(adj_mask[a] >> b) & 1`.
+                        If not edge, continue.
+                        If edge exists:
+                          We need smallest $c > b$ such that $(a, c)$ and $(b, c)$ exist.
+                          `common = adj_mask[a] & adj_mask[b]`
+                          `common >>= (b + 1)`
+                          If `common > 0`:
+                            `low_bit = common & -common`
+                            `c = low_bit.bit_length()` (Wait, bit_length of 1 is 1, so 0? No, bit_length of 1 is 1. `log2(1) + 1`? No.)
+                            If `low_bit` is $2^k$, then bit is at index $k$.
+                            `c = low_bit.bit_length()`?
+                            Example: `low_bit = 1` ($2^0$). `bit_length` is 1. Index is 0.
+                            So `c` (0-based) is `bit_length - 1`.
+                            Here vertices are 1-based.
+                            So if we shift by `b+1`, the bit at position 0 corresponds to vertex `b+1`.
+                            So `c = (low_bit.bit_length() - 1) + b + 1`.
+                            Wait, `bit_length` of 1 is 1. So `1-1 + b+1 = b+1`. Correct.
+                            Return `a, b, c`.
+                     6. If loops finish without return, return something (but guaranteed to exist).
+                     
+                     Wait, one detail:
+                     We iterate $a$ from $1$ to $n$.
+                     We iterate $b$ from $a+1$ to $n$.
+                     This ensures $a < b$.
+                     Then we find smallest $c > b$.
+                     This ensures $a < b < c$.
+                     And since we iterate $a$ then $b$, we find lexicographically smallest triple.
+                     
+                     Is checking `(adj_mask[a] >> b) & 1` fast?
+                     Shift and AND is fast.
+                     But looping $b$ from $a+1$ to $n$ takes $O(n^2)$.
+                     $n^2 = 4 \cdot 10^6$.
+                     Inside loop:
+                       Check edge: fast.
+                       If edge:
+                         Intersection: fast.
+                         Find lowest bit: fast.
+                     Total time $O(n^2)$.
+                     With $n=2000$, $4 \cdot 10^6$ ops.
+                     Even with Python overhead, this is well within 2s.
+                     Python can do $\approx 10^7-10^8$ ops/sec.
+                     $4 \cdot 10^6$ is safe.
+                     Wait, we only do intersection if edge exists.
+                     Number of edges is $m$.
+                     So we do intersection $m$ times.
+                     Checking edge exists $O(1)$.
+                     But we iterate $b$ from $a+1$ to $n$.
+                     So we do $n^2/2$ checks.
+                     $2000^2 / 2 = 2 \cdot 10^6$.
+                     This is perfectly fine.
+                     
+                     Wait, constructing `adj_mask`:
+                     $u, v$ up to 2000.
+                     `1 << 2000` is a large integer.
+                     Python handles arbitrary precision integers.
+                     Bitwise ops on 2000-bit integers are fast enough?
+                     Yes, it's basically array of 32 64-bit words.
+                     
+                     One optimization:
+                     Instead of iterating $b$ from $a+1$ to $n$, we can iterate over neighbors of $a$ that are $> a$.
+                     We can store `adj[u]` as a list.
+                     Sort `adj[u]`.
+                     Iterate $b$ in `adj[a]` such that $b > a$.
+                     This avoids iterating non-edges.
+                     Complexity $O(m \cdot \text{cost of intersection})$.
+                     Cost of intersection is $O(n/64)$.
+                     So $O(m \cdot n/64)$.
+                     $2 \cdot 10^5 \cdot 32 \approx 6.4 \cdot 10^6$.
+                     This is even faster.
+                     But we need to check edge existence efficiently to find neighbors?
+                     We have `adj` list.
+                     So:
+                     1. Build `adj_mask` and `adj` list.
+                     2. Sort `adj[u]` for all $u$.
+                     3. Iterate $a$ from $1$ to $n$.
+                     4. Iterate $b$ in `adj[a]`. If $b > a$:
+                          `common = adj_mask[a] & adj_mask[b]`
+                          `common >>= (b + 1)`
+                          If `common > 0`:
+                            `low_bit = common & -common`
+                            `c = low_bit.bit_length() + b`  (Wait, need to verify bit_length formula)
+                            If `low_bit` is $2^k$, index is $k$.
+                            We shifted by $b+1$.
+                            So original index was $k + b + 1$.
+                            `c = (low_bit.bit_length() - 1) + b + 1`.
+                            Example: $b=2$. Shift by 3.
+                            If bit 5 is set ($2^5$). `common` has bit 2 set ($2^2$).
+                            `low_bit` is $4$ ($2^2$). `bit_length` is 3.
+                            `c = 3 - 1 + 2 + 1 = 5`. Correct.
+                            Return `a, b, c`.
+                            
+                     This approach is $O(m \cdot n/64)$ effectively.
+                     With $m=200000$, $n=2000$.
+                     $200000 \times 32 \approx 6.4 \cdot 10^6$ bit ops.
+                     This is extremely efficient.
+                     
+                     Wait, is `bit_length()` of a large integer fast?
+                     It iterates words from most significant.
+                     But `common` can have bits up to $n$.
+                     So it takes $O(n/64)$.
+                     So total time is indeed $O(m \cdot n/64)$.
+                     
+                     Let's double check if $m$ can be up to $n(n-1)/2$.
+                     If $n=2000$, $m \approx 2 \cdot 10^6$.
+                     Then $m \cdot n/64 \approx 2 \cdot 10^6 \cdot 32 = 6.4 \cdot 10^7$.
+                     This is still well within 2 seconds.
+                     The problem statement says $m \le 2 \cdot 10^5$.
+                     So it's even faster.
+                     
+                     One edge case: $u, v$ are 1-based.
+                     Bitmask should handle 1 to $n$.
+                     `1 << v` is correct.
+                     
+                     Implementation details:
+                     Use `sys.stdin.read().split()` for fast I/O.
+                     Parse integers.
+                     Build `adj_mask` and `adj`.
+                     Sort `adj`.
+                     Loops.
+                     Print and exit.
+                     
+                     Wait, `common & -common` works for positive integers.
+                     `common` is positive if `> 0`.
+                     
+                     Correctness check:
+                     Example 1:
+                     4 5
+                     1 2
+                     1 3
+                     2 3
+                     2 4
+                     3 4
+                     
+                     Masks (bits 1..4):
+                     1: 1110 (2,3,4) -> binary 1110 (8+4+2=14) ? No, 1<<2, 1<<3, 1<<4.
+                     1: bits {2, 3}. (4 is not neighbor)
+                     2: bits {1, 3, 4}.
+                     3: bits {1, 2, 4}.
+                     4: bits {2, 3}.
+                     
+                     a=1.
+                     adj[1] = [2, 3].
+                     b=2.
+                     common = mask[1] & mask[2] = {2,3} & {1,3,4} = {3}.
+                     Shift by b+1 = 3.
+                     common has bit 3 set. `common >> 3` has bit 0 set (since 3-3=0).
+                     `common >> 3` = 1.
+                     `low_bit` = 1. `bit_length` = 1.
+                     `c = 1 - 1 + 2 + 1 = 3`.
+                     Triple (1, 2, 3). Correct.
+                     
+                     Wait, `adj[1]` contains neighbors > 1.
+                     So `b` iterates 2, 3.
+                     If we find (1, 2, 3), we return.
+                     Since we want smallest $a$, then smallest $b$, then smallest $c$.
+                     Iterating $a$ then $b$ then finding smallest $c$ guarantees this.
+                     
+                     Wait, `adj[1]` should be sorted.
+                     `adj[1] = [2, 3]`.
+                     If we had `1-4` edge, `adj[1]` would be `[2, 3, 4]`.
+                     We check `b=2`. Find `c=3`. Return.
+                     This is correct.
+                     
+                     Wait, what if `c` found is not the smallest valid `c`?
+                     We compute `common >> (b + 1)`.
+                     This removes bits $\le b$.
+                     So we are looking for bits $> b$.
+                     `low_bit` gives the smallest set bit in the shifted mask.
+                     This corresponds to the smallest index $> b$.
+                     So yes, it finds the smallest `c`.
+                     
+                     One detail: `bit_length` of 0 is 0.
+                     We check `if common > 0` before.
+                     So `common` has at least one bit.
+                     `low_bit` will be non-zero.
+                     
+                     Wait, `adj_mask` initialization.
+                     `adj_mask = [0] * (n + 1)`
+                     Input $u, v$.
+                     `adj_mask[u] |= (1 << v)`
+                     `adj_mask[v] |= (1 << u)`
+                     `adj[u].append(v)`
+                     `adj[v].append(u)`
+                     
+                     After reading all, sort `adj[u]`.
+                     
+                     Seems solid.

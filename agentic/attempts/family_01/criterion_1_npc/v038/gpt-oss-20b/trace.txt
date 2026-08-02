@@ -1,0 +1,387 @@
+We need to solve 3-coloring of graph up to n=40. Lexicographically smallest assignment (sequence of colors). We need to output any 3-coloring with smallest lexicographic sequence. Since n <= 40, we can use backtracking with pruning, maybe with graph coloring heuristics. But we also need lexicographic minimality: we need to assign colors to nodes 1..n in order and choose smallest possible color for each node that leads to a feasible completion. Greedy backtracking with recursion will produce lexicographically smallest if we try colors 1..3 in order and stop once we find a solution. But we must ensure that we skip impossible branches early.
+
+We can add ordering: assign nodes in order 1..n. But that might cause exponential blowup? n=40, branching 3^40 worst-case huge. Need pruning using graph constraints.
+
+We could use DSATUR or backtracking with pruning using remaining colors: but we need lexicographic minimal. We can still assign in order 1..n, but use heuristics for remaining nodes: we can use forward-checking: maintain for each uncolored node, set of available colors. If any node has 0 available colors -> backtrack.
+
+Also we can use graph coloring algorithm with recursion but we can also perform a maximum clique detection to see if graph is 3-colorable. But n small, we can use meet-in-the-middle? Actually for n=40, 3-coloring is NP-hard but small. We can use bitmask DP: For each subset, check if it is independent set. Then we can solve 3-coloring as partition into 3 independent sets: We need to partition vertices into 3 independent sets. That's like 3-coloring. We can solve via DP over subsets: For each subset S, check if S is independent. Then we want to find if the whole set can be partitioned into 3 independent sets. We can do DP: dp[S] = minimal number of colors needed to color S (1..3). We can compute dp[S] = min over non-empty independent subset I of S: dp[S-I] + 1. With n=40, 2^40 is impossible. So no.
+
+Thus backtracking may be okay with pruning due to n=40 moderate. Graph may be dense. But worst-case maybe 3^40 impossible. However typical constraints may allow. Need a smarter approach.
+
+We can use graph coloring using bitmask DP with 3-coloring by splitting vertices into two halves of 20 each, using meet-in-the-middle: We can assign colors to first half and compute compatibility with second half. But lexicographic minimality adds complexity.
+
+Alternate: Use BFS with bitmask for color assignments? Not feasible.
+
+Maybe we can use SAT solver? Not.
+
+We must produce a solution that works within 2s for n=40. 3-coloring with backtracking with MRV heuristic is usually fine for n=40 dense graphs. Use DSATUR ordering: choose next vertex with maximum saturation (different colors used by neighbors) and ties by degree. But we need lexicographic minimality. Lexicographic minimal means we want smallest color for vertex 1, then 2, etc. So we cannot reorder vertices arbitrarily. However we can still do backtracking but at each vertex i, we try color 1..3 in order. But we can incorporate heuristics for remaining vertices to prune. The search tree will still explore all possibilities where early vertices are colored with minimal colors that lead to solution.
+
+Since n=40, branching factor 3, depth 40, but pruning from constraints will reduce drastically. For dense graphs, many branches will be pruned early. For sparse graphs, many solutions exist; but we will find first with lexicographic order quickly.
+
+Worst-case? Graph with no edges, then any coloring works. Lexicographically smallest assignment: all 1's. Our backtracking will assign 1 to all nodes and succeed immediately. So fine.
+
+Worst-case if graph is 3-colorable but requires specific assignments that cause many backtracks? Eg bipartite graph? For bipartite, many assignments. But lexicographically smallest is all 1's? Wait bipartite graph may not allow all 1's because edges conflict. But we could color with 1's and 2's. Lexicographic minimal: choose color 1 for node 1 if possible. Since graph bipartite, we can color with 1 and 2. The algorithm will assign 1 to node 1, 1 to node 2? conflict. So will backtrack. It may explore many combinations? But still manageable.
+
+But worst-case might be 3-colorable but requiring many backtracks? Eg graph of 40 vertices with edges such that many colorings, but lexicographically minimal assignment may require exploring many branches? Hmm.
+
+Consider a graph that forces a specific color for vertex 1 (maybe 2). But we will try 1 fails quickly if conflict with neighbors that are colored later? Wait conflict arises when we color later nodes. But at node 1, we don't know neighbors yet. So color 1 may still be possible; we may color later nodes and realize conflict, backtrack. So many possibilities may be explored.
+
+But we can use forward-checking: maintain available colors for each uncolored vertex. When assigning a color to a vertex, we remove that color from its uncolored neighbors' available sets. If any neighbor's set becomes empty, we backtrack.
+
+This pruning will reduce search.
+
+Additionally, we can use connectivity: if graph is disconnected, we can solve components independently but still lexicographic order across components matters: earlier vertices may belong to a component that doesn't interact with later components, so we can solve each component sequentially.
+
+We can exploit that: For each component, we can find lexicographically smallest coloring for that component given that earlier vertices are already colored. Since components independent, we can color them in order of smallest vertex index. That will produce lexicographically minimal overall.
+
+Thus we can process components sorted by min vertex index. For each component, we need to color all its vertices. But within component, we need lexicographically minimal assignment for its vertices given that earlier vertices may be colored already. Since earlier components are independent, the lexicographic minimal overall is achieved by coloring each component in order, using minimal choices. So we can treat each component separately.
+
+So we can handle each component: Suppose component vertices indices set C. We need to assign colors to them such that no conflicts within component, and colors for earlier components are fixed. For lexicographic minimal, we need to assign colors to vertices in C in increasing index order, trying colors 1..3 in order, with forward-checking. Since components are independent, this yields global lexicographically minimal.
+
+Thus we just need to color each component in isolation, but we cannot change colors of earlier vertices (none). So we can just color each component with lexicographically minimal assignment for its vertices.
+
+If graph has many components (like 40 isolated vertices), each component of size 1: assignment all 1's. So trivial.
+
+Thus algorithm: find connected components via DFS. Sort components by min index ascending. For each component, perform backtracking with forward-checking to assign colors to its vertices in order of increasing index. Use recursion.
+
+We need efficient data structures: adjacency list. For forward-checking, we maintain list of available colors per vertex as bitmask 0b111. When we assign color c to vertex v, for each neighbor u uncolored, we remove color c from available[u]; if becomes 0, backtrack. We need to restore on backtrack: we can keep stack of changes.
+
+Implement recursive function that takes index list of vertices to color (in order). We'll maintain arrays color[n+1], avail[n+1] (bitmask). Initially avail all 0b111.
+
+During recursion, pick next vertex v (according to order). For each color c in 1..3: check if avail[v] has bit c. If yes, assign and update neighbors. Use stack to record changes: For each neighbor u uncolored, if avail[u] had bit c, we set avail[u] ^= bit. We push (u, bit) onto stack. Also push (v, 0) to record we will set color. On backtrack, revert changes.
+
+We also need to detect neighbor already colored: if neighbor colored with same color, conflict -> skip.
+
+Thus algorithm:
+
+- Build adjacency list.
+- Find components via DFS. For each component, gather list of vertices sorted ascending.
+- For each component:
+
+    - Initialize color array for component to 0.
+    - avail array for component to 0b111.
+    - recursion index 0.
+
+    - In recursion, if idx==len(vertices): success return True.
+
+    - v=vertices[idx].
+
+    - For color c in 1..3:
+        if avail[v] & (1 << (c-1)):
+            conflict=False
+            changes=[]
+            for u in adj[v]:
+                if color[u]!=0:
+                    if color[u]==c:
+                        conflict=True
+                        break
+                else:
+                    if avail[u] & (1 << (c-1)):
+                        avail[u] ^= (1 << (c-1))
+                        changes.append(u)
+            if conflict:
+                # restore changes
+                for u in changes:
+                    avail[u] ^= (1 << (c-1))
+                continue
+            color[v]=c
+            if dfs(idx+1): return True
+            color[v]=0
+            # restore changes
+            for u in changes:
+                avail[u] ^= (1 << (c-1))
+    - return False
+
+But careful: avail[u] is bitmask; we need to record previous mask? Since we only toggle one bit each time, we can restore by toggling again. But if multiple colors removed from same neighbor across different assignments, we need to maintain stack of changes per recursion.
+
+But we are only removing color c from neighbor u; that bit may have been already removed earlier by other neighbors colored earlier? Wait, when we color vertex v, we remove color c from its neighbors that are uncolored. For a given neighbor u, its avail[u] may have multiple colors removed by multiple colored neighbors. When we color another neighbor later, we might remove another color from u. On backtrack from the first neighbor, we should restore only the removal we did. Since we toggle bit twice, it will restore to previous state if we had removed it earlier? Suppose avail[u] had bit c1 and c2. If we remove c1, toggle bit c1 off. Then later, we remove c2. On backtracking from second neighbor, we toggle bit c2 off again -> bit c2 on. Now when we backtrack from first neighbor, we toggle bit c1 off again -> bit c1 on. That works.
+
+But if we later color another vertex that also removes color c1 from u again? That would double-remove? But we wouldn't remove same bit twice because we only remove when neighbor uncolored and color c is available. If we had removed c1 earlier, avail[u] no longer has c1 bit, so we won't remove again. So toggling works.
+
+Thus we can use toggle.
+
+Edge case: we also need to check if avail[v] has color c after previous removals. We check before assignment.
+
+Also we need efficient neighbor iteration. n <= 40, adjacency list small.
+
+Complexity: worst-case might still be high but manageable.
+
+We also need to compute lexicographically minimal global assignment. Since we process components in order of min vertex, and inside each component we assign colors in ascending vertex order and try colors 1..3, we will get minimal sequence.
+
+Proof: For globally lexicographically minimal, at the earliest vertex where solutions differ, we want minimal color. Since we process vertices in increasing index, we ensure minimal color for earliest vertex that can be colored with 1, else 2, else 3. For later vertices, earlier choices affect feasibility; but our algorithm will backtrack if later assignments impossible, then try next color for earlier vertex. This ensures minimal global sequence.
+
+So algorithm stands.
+
+Now implement.
+
+Implementation details:
+
+- Read n, m.
+- Build adjacency list: list of sets or lists. Use list of list for speed.
+
+- Find components: visited array. For each i from 1..n, if not visited, DFS to collect component vertices sorted ascending. Append component list.
+
+- Sort components by min vertex.
+
+- Initialize global answer array ans[1..n] = 0.
+
+- For each component:
+
+    - vertices = component list sorted ascending.
+
+    - local color array: we can reuse ans array but only for those vertices. We'll treat ans as global color assignment.
+
+    - local avail array: size n+1, initialize all 0b111. But we also need to adjust avail for vertices not in component? They remain unchanged; but we only use avail for vertices in component. For safety, we can pass avail as dictionary for component only.
+
+    Simplify: we use arrays of length n+1; for vertices not in component, we set avail[u] = 0; but they are already colored from previous components, so we don't modify them. We will not iterate over neighbors of current component that are in previous component because those neighbors are already colored; we only check color conflict. So we don't need avail for them.
+
+    So we can use arrays for all vertices.
+
+    We'll maintain avail = [0b111]* (n+1). But we will change avail[u] for all vertices, but for colored vertices we don't rely on avail; but we may inadvertently toggle bits for colored neighbors when coloring vertex v? In recursion, we iterate neighbors u; if color[u]==0 we modify avail[u]; if color[u]!=0 we only check conflict. So colored neighbors are unaffected.
+
+    So avail for colored vertices may stay 0b111 but not used.
+
+    We'll also need to restore avail changes when backtracking.
+
+    Use recursion.
+
+- Implementation: define recursive function dfs(idx):
+
+    if idx==len(vertices): return True
+
+    v=vertices[idx]
+
+    for c in 1..3:
+
+        if avail[v] & (1 << (c-1)):
+
+            conflict=False
+
+            changes=[]
+
+            for u in adj[v]:
+
+                if ans[u]!=0:  # colored
+
+                    if ans[u]==c: conflict=True; break
+
+                else:
+
+                    bit = 1 << (c-1)
+
+                    if avail[u] & bit:
+
+                        avail[u] ^= bit
+
+                        changes.append(u)
+
+            if conflict:
+
+                # restore changes
+
+                for u in changes:
+
+                    avail[u] ^= (1 << (c-1))
+
+                continue
+
+            ans[v]=c
+
+            if dfs(idx+1):
+
+                return True
+
+            ans[v]=0
+
+            # restore changes
+
+            for u in changes:
+
+                avail[u] ^= (1 << (c-1))
+
+    return False
+
+- After all components, if any component fails, output NO.
+
+Edge Cases: For component of size 1, we will assign color 1 (since avail[vertex]==111). Works.
+
+We should also handle m=0: all vertices disconnected; each component size 1; all get color 1.
+
+We must ensure recursion depth <= 40, fine.
+
+Time complexity: For each component, we may explore many branches but should be fine.
+
+Test with sample.
+
+Let's implement and test mentally.
+
+Example 1: n=4, edges: 1-2,1-3,2-3,1-4,2-4. Graph: component all 4 vertices. Process vertices [1,2,3,4].
+
+- avail all 111.
+
+dfs idx=0 v=1:
+
+c=1 avail[1] has bit 1. conflict? neighbors 2,3,4 uncolored.
+
+- for u=2: avail[2] ^= 1 => 110; changes [2]
+- u=3: avail[3] ^=1 => 110; changes [2,3]
+- u=4: avail[4] ^=1 => 110; changes [2,3,4]
+assign ans[1]=1
+
+dfs idx=1 v=2:
+
+avail[2] now 110 (bits 2,3). c=1 not available. c=2 avail[2] bit 2 set.
+
+neighbors: 1 colored=1 no conflict; 3 uncolored avail[3] 110 -> remove bit2 -> avail[3] 100; changes [3]; 4 uncolored avail[4] 110 -> remove bit2 -> avail[4] 100; changes [3,4]
+assign ans[2]=2
+
+dfs idx=2 v=3:
+
+avail[3] now 100 (bit3). c=1 not avail; c=2 not avail; c=3 avail.
+
+neighbors: 1 colored=1 no conflict; 2 colored=2 no conflict; 4 uncolored avail[4] 100 -> remove bit3 -> avail[4] 000; changes [4]
+assign ans[3]=3
+
+dfs idx=3 v=4:
+
+avail[4] now 000. No colors available -> backtrack.
+
+Thus backtrack from v=3: restore changes: avail[4] ^= bit3 -> avail[4] 100.
+
+Now at v=3, try next color? none. So backtrack from v=2: restore changes: avail[3] ^= bit2 -> avail[3] 110; avail[4] ^= bit2 -> avail[4] 110. ans[2]=0.
+
+Now at v=2, try next color? c=3 avail[2] bit3 set? avail[2] currently 110, bit3 not set. So no. Backtrack from v=1: restore changes: avail[2] ^= bit1 -> avail[2] 111; avail[3] ^= bit1 -> 111; avail[4] ^= bit1 -> 111. ans[1]=0.
+
+Now at v=1, try c=2: avail[1] bit2 set. neighbors: 2 avail 111 -> remove bit2 -> 101; 3 avail 111 -> remove bit2 -> 101; 4 avail 111 -> remove bit2 -> 101. assign ans[1]=2.
+
+dfs idx=1 v=2: avail[2] 101 (bits 1,3). c=1 avail.
+
+neighbors: 1 colored=2 no conflict; 3 uncolored avail[3] 101 -> remove bit1 -> 100; 4 uncolored avail[4] 101 -> remove bit1 -> 100. assign ans[2]=1.
+
+dfs idx=2 v=3: avail[3] 100 (bit3). c=3 avail.
+
+neighbors:1 colored2 no conflict;2 colored1 no conflict;4 uncolored avail[4] 100 -> remove bit3 -> 000. assign ans[3]=3.
+
+dfs idx=3 v=4: avail[4] 000 -> backtrack.
+
+Backtrack ans[3]. restore avail[4] ^= bit3 -> 100. ans[3]=0.
+
+At v=3, try next color? none. Backtrack ans[2] restore avail[3] ^= bit1 -> 101; avail[4] ^= bit1 -> 101; ans[2]=0.
+
+At v=2, try c=3 avail? avail[2] 101 bit3 not set. So backtrack ans[1] restore avail[2] ^= bit2 -> 111; avail[3] ^= bit2 -> 111; avail[4] ^= bit2 -> 111; ans[1]=0.
+
+Now at v=1, try c=3: avail[1] bit3 set. neighbors: 2 avail 111 -> remove bit3 -> 110; 3 avail 111 -> remove bit3 -> 110; 4 avail 111 -> remove bit3 -> 110. assign ans[1]=3.
+
+dfs idx=1 v=2: avail[2] 110 bits 2,3. c=2 avail.
+
+neighbors:1 colored3 no conflict;3 uncolored avail[3] 110 -> remove bit2 -> 100; 4 uncolored avail[4] 110 -> remove bit2 -> 100. assign ans[2]=2.
+
+dfs idx=2 v=3: avail[3] 100 (bit3). c=3 avail.
+
+neighbors:1 colored3 conflict -> conflict -> restore changes: avail[4] ^= bit2 -> 110; avail[3] ^= bit2 -> 110. continue.
+
+c=2 not avail; c=1 not avail. Backtrack ans[2] restore changes: avail[3] ^= bit2 -> 111; avail[4] ^= bit2 -> 111; ans[2]=0.
+
+At v=2, try c=3 avail? avail[2] 110 bit3 not set. Backtrack ans[1] restore avail[2] ^= bit3 -> 111; avail[3] ^= bit3 -> 111; avail[4] ^= bit3 -> 111; ans[1]=0.
+
+Thus no solution? But we know there is solution 1 2 3 3. Did we miss? Let's examine earlier path: when v=1 color 1, we failed. v=1 color 2 also failed. v=1 color 3 also failed. But there is solution 1 2 3 3. That solution has v=1 color1. Wait earlier we had backtracking from v=1 color1, after exploring all possibilities, we found no solution? Let's trace again: after backtracking from v=1 color1, we tried color2 and 3 and found none. But we missed solution 1 2 3 3 because earlier we had v=1 color1, v=2 color2, v=3 color3, v=4 color3. But we backtracked from v=4 because avail[4] became 000 after removing color3 from neighbor 3. Wait avail[4] became 000 because of removal of color3 from neighbor 3. Let's analyze: In that branch, v=1=1, v=2=2, v=3=3. When we colored v=3, we removed color3 from neighbor 4 (uncolored). So avail[4] lost bit3, leaving bits1,2? Actually avail[4] originally 111. After v=1, we removed color1 from 4: avail[4] 110. After v=2, we removed color2 from 4: avail[4] 100. After v=3, we remove color3 from 4: avail[4] 000. So 4 cannot be colored with 1,2,3. But in solution, 4 is color3. But 3 is already used by vertex3, but 4 and 3 are incompatible? Edge 3-4? In graph, 3-4 not an edge. Wait edges: 1-2,1-3,2-3,1-4,2-4. Edge 3-4 is not present. So 4 can be color3. But why we removed color3 from 4? Because we incorrectly removed color3 from neighbor 4 when v=3 colored 3, but 4 is not neighbor of 3. Let's check adjacency: 3 neighbors: 1 and 2 only. So we should not remove from 4. In our earlier simulation, we incorrectly considered 4 as neighbor of 3. That's mistake. So algorithm would produce correct solution.
+
+Thus algorithm works.
+
+Edge Cases: Should we use recursion with Python recursion limit? Depth <= 40, safe.
+
+We must ensure we use bit operations quickly.
+
+Let's implement.
+
+We need adjacency list: list of sets or lists. Use list of lists.
+
+Implementation details:
+
+- ans = [0]*(n+1)
+- avail = [0b111]*(n+1)
+
+- components: list of list.
+
+- For each component, we call dfs_component(idx). We'll use closure capturing vertices and avail, ans.
+
+But avail is global; we need to maintain avail for all vertices; but we will restore changes at each recursion.
+
+We need to pass idx.
+
+We must be careful that avail for vertices not in component may be modified? We only modify avail for neighbors u that are uncolored (i.e., ans[u]==0). Since vertices from previous components are colored, we do not modify them.
+
+Thus avail for colored vertices may remain 111 but not used.
+
+Now complexity: Each recursion step iterates over neighbors of v. Each edge considered many times. Acceptable.
+
+Let's test quickly with sample.
+
+Edge Cases: Graph not 3-colorable: algorithm will backtrack all possibilities and eventually fail. Complexity may blow up for dense 4-clique? 4-clique not 3-colorable. For n=40 dense, backtracking may explore many possibilities. But we can prune earlier: For clique of size 4, the algorithm will try assignments; but for vertex 1: try color1, vertex 2: try color2? Actually 2 can't be color1; will try color2; vertex3: can't be color1 or 2; try color3; vertex4: can't be any color because all colors used by neighbors. So backtrack at vertex4 quickly. Then backtrack from vertex3, try color2? but neighbor 1 color1, 2 color2 -> color2 not available? Actually 3 can't be color1 or 2, only 3 available; after backtrack, no other, backtrack from vertex2, etc. So search may explore limited combos. So fine.
+
+Worst-case might be bipartite graph with many choices for each vertex, causing many assignments. But lexicographic minimal will be found quickly: For bipartite, earliest vertex maybe color1; if bipartite, we can color 1 with 1, then vertex2 cannot be 1, so must be 2; etc. So few branches.
+
+Thus algorithm likely passes.
+
+Let's implement code.
+
+We need to ensure recursion uses closure capturing component vertices. We'll implement function `solve_component(vertices)` returning bool.
+
+Implementation:
+
+def solve_component(vertices):
+    nonlocal ans, avail
+    L = len(vertices)
+    def dfs(idx):
+        if idx==L:
+            return True
+        v = vertices[idx]
+        for c in (1,2,3):
+            bit = 1 << (c-1)
+            if not (avail[v] & bit):
+                continue
+            conflict=False
+            changes=[]
+            for u in adj[v]:
+                if ans[u]!=0:
+                    if ans[u]==c:
+                        conflict=True
+                        break
+                else:
+                    if avail[u] & bit:
+                        avail[u] ^= bit
+                        changes.append(u)
+            if conflict:
+                for u in changes:
+                    avail[u] ^= bit
+                continue
+            ans[v]=c
+            if dfs(idx+1):
+                return True
+            ans[v]=0
+            for u in changes:
+                avail[u] ^= bit
+        return False
+    return dfs(0)
+
+After processing all components, if any fails, print NO else YES and ans[1:].
+
+Let's test mentally sample 1.
+
+Ok.
+
+Let's test sample 2: complete graph of 4 nodes (K4). Can't color with 3 colors. Our algorithm will eventually fail.
+
+Let's analyze runtime: For K4, our algorithm will try assignments: v1=1, v2=2, v3=3, v4 fails; backtrack; v3 other colors none; backtrack v2 etc. Should finish quickly.
+
+Edge Cases: Graph with isolated vertices: each component size 1; algorithm will assign color1 to each.
+
+Large n=40, but graph may be 3-colorable and maybe branches large. But still fine.
+
+Let's implement final code.
+
+Potential improvements: Use iterative stack to avoid recursion? Not necessary.
+
+We must set recursionlimit high enough: sys.setrecursionlimit(1000000).
+
+Let's produce final code.

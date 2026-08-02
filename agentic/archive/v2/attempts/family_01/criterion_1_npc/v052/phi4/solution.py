@@ -1,0 +1,41 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    constraints = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        constraints.append((u, v))
+        index += 2
+    
+    from itertools import permutations
+    
+    channels = [1, 2, 3]
+    
+    def is_valid(assignment):
+        for u, v in constraints:
+            if assignment[u] == assignment[v]:
+                return False
+        return True
+
+    min_assignment = None
+    
+    for perm in permutations(channels * (n // 3 + 1), n):
+        if len(set(perm[:n])) != 3:  # Ensure all channels are used at least once
+            continue
+        
+        if is_valid(perm):
+            if min_assignment is None or perm < min_assignment:
+                min_assignment = perm
+    
+    if min_assignment is None:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, min_assignment)))

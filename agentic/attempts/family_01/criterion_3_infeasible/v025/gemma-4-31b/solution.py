@@ -1,0 +1,67 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use adjacency lists and adjacency sets (or bitsets)
+    # Given n=2000, an adjacency matrix using bitsets is efficient in Python
+    # using integers as bitsets.
+    adj_bitset = [0] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        
+        # Store adjacency for bitset operations
+        adj_bitset[u] |= (1 << v)
+        adj_bitset[v] |= (1 << u)
+        
+        # Store sorted adjacency lists for lexicographical search
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # To find the lexicographically smallest (a, b, c):
+    # We iterate a from 1 to n, then b from a+1 to n, then c from b+1 to n.
+    # To optimize, we only check b that are neighbors of a.
+    for a in range(1, n + 1):
+        # Only consider neighbors of a that are > a
+        neighbors_a = [v for v in adj_list[a] if v > a]
+        
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            
+            # We need c > b such that c is connected to both a and b.
+            # This is equivalent to finding the smallest bit set in 
+            # (adj_bitset[a] & adj_bitset[b]) that is > b.
+            
+            common = adj_bitset[a] & adj_bitset[b]
+            if common:
+                # Mask out bits <= b
+                # (1 << (b + 1)) - 1 creates a mask of bits 0 to b.
+                # Using ~ mask will keep bits > b.
+                mask = ~((1 << (b + 1)) - 1)
+                candidates = common & mask
+                
+                if candidates:
+                    # Find the lowest set bit (which is the smallest c > b)
+                    # LSB is (candidates & -candidates). 
+                    # To get the index: (candidates & -candidates).bit_length() - 1
+                    lsb = candidates & -candidates
+                    c = lsb.bit_length() - 1
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

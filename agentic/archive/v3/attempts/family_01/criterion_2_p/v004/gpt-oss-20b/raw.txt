@@ -1,0 +1,136 @@
+<think>
+We need bipartite graph check, lexicographically smallest assignment vector of 1/2. We need to choose assignments to minimize lexicographically: s1 as small as possible, then s2, etc. Since values only 1 or 2, lexicographic smallest means we try to set s_i=1 if possible, else 2. However, assignments must be consistent with bipartite constraints. We can perform bipartite check and coloring.
+
+Idea: For each component, we have two possible colorings (swap). We need to choose one per component to minimize overall sequence. Greedy: process vertices 1...n. For each vertex, if not colored yet, we need to decide coloring for its component that yields minimal lexicographic for the component's vertices that are <= next vertices? Actually we can decide component's coloring when first encountering any vertex of that component; we want to assign color 1 to the smallest index vertex of the component if possible. Because lexicographic order depends on earliest vertex indices. So if we color component such that the smallest vertex in component gets color 1, that will minimize lexicographically. But careful: what if component has more than one vertex, and earliest vertex gets 1 in one coloring, but other vertices may get 2 or 1 accordingly. That seems correct: choose orientation that sets smallest vertex to 1. That is always possible because swapping colors flips all. So we can compute bipartite components and assign orientation accordingly.
+
+Implementation: Standard BFS/DFS to check bipartiteness and record component vertices and their parity relative to root. For each component, we find min vertex index. Let parity of that vertex relative to root be p (0 or 1). If we color root with 1, then vertex gets color 1 if parity 0 else 2. If we color root with 2, then vertex gets 2 if parity 0 else 1. We want the assignment where min vertex gets 1. So if parity==0, we color root with 1; else color root with 2. That ensures min vertex gets 1. Then other vertices get colors accordingly.
+
+We need efficient memory: adjacency list.
+
+Complexities fine.
+
+Edge case: isolated vertex: component size 1, min vertex is itself. parity 0. So root color 1. Good.
+
+Return YES then sequence.
+
+Check bipartite: if conflict, NO.
+
+Let's test example1: edges 1-2,2-3,3-4,1-4 forms cycle even length 4. Component min vertex=1 parity 0 root 1, color: 1:1,2:2,3:1,4:2 => matches.
+
+Example2: triangle 1-2-3-1 odd cycle, conflict -> NO.
+
+All good.
+
+Need to read up to 2e5 edges, use sys.stdin.
+
+Implementation details:
+
+- n,m
+- adj list: list of lists size n+1
+- color array size n+1, 0=uncolored, 1 or 2. We also may store parity relative to root? We can store color directly as 1 or 2 with orientation chosen later. But we need parity to decide orientation. Approach: during BFS, assign parity 0/1 relative to root; store parity array. After component processed, decide orientation. Then set final colors accordingly.
+
+Simplify: during BFS, compute parity array (0/1). Keep list of vertices in component. After BFS, compute orientation: if parity of min vertex==0 -> root color 1; else root color 2. Then for each vertex v: final color = (parity[v]==0? rootcolor : 3-rootcolor). Because if parity=0 same as root, else opposite.
+
+We can store final colors directly.
+
+Implementation steps:
+
+- Initialize color array with 0 meaning unvisited.
+- For each vertex i from 1..n if color[i]==0:
+    - BFS/DFS stack.
+    - set parity[vertex]=0 for root.
+    - maintain list comp.
+    - while stack:
+        - pop v
+        - for nb in adj[v]:
+            if parity[nb]==-1: parity[nb]=1-parity[v]; push
+            else if parity[nb]==parity[v]: conflict -> NO
+    - After component done, find min vertex in comp. Let p=parity[min].
+    - If p==0: rootcolor=1 else rootcolor=2.
+    - For each v in comp: finalcolor[v] = rootcolor if parity[v]==0 else 3-rootcolor
+    - set color[v] = finalcolor[v]
+
+We need parity array of size n+1, initialized to -1.
+
+Alternatively we can store parity in same array as color? But color final is 1 or 2. We'll use separate arrays.
+
+Edge: large recursion depth; use iterative BFS.
+
+Complexities fine.
+
+Let's code.
+
+Check for memory: adjacency list of 2e5 edges *2 ~ 4e5 ints. fine.
+
+Return output accordingly.
+
+Let's test quickly.
+
+Edge case: If m=0, all isolated. For each vertex, min vertex is itself parity 0, rootcolor=1 => all 1. Lexicographically smallest: all 1. Good.
+
+Edge case: component with vertices 2 and 3 connected. min vertex 2 parity 0 rootcolor=1 => 2:1,3:2. But if we tried to set 2:2 3:1, lexicographically 2:2 would be larger than 1. So our choice is minimal. Good.
+
+Edge case: Suppose component vertices 1,4,5 with edges 1-4,4-5. min vertex 1 parity 0 rootcolor 1 -> 1:1,4:2,5:1. Good.
+
+Edge case: Suppose component vertices 2,3 with edge 2-3. min vertex 2 parity 0 rootcolor 1 -> 2:1,3:2. Lexicographically smaller than opposite.
+
+Ok.
+
+Let's produce final code.
+</think>
+```python
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    parity = [-1] * (n + 1)   # -1 unvisited, 0 or 1 relative to component root
+    final_color = [0] * (n + 1)  # 1 or 2
+    for start in range(1, n + 1):
+        if parity[start] != -1:
+            continue
+        # BFS to process component
+        q = deque([start])
+        parity[start] = 0
+        comp = [start]
+        ok = True
+        while q:
+            v = q.popleft()
+            for nb in adj[v]:
+                if parity[nb] == -1:
+                    parity[nb] = 1 - parity[v]
+                    q.append(nb)
+                    comp.append(nb)
+                elif parity[nb] == parity[v]:
+                    ok = False
+                    break
+            if not ok:
+                break
+        if not ok:
+            sys.stdout.write("NO")
+            return
+        # Determine orientation
+        min_vertex = min(comp)
+        p = parity[min_vertex]
+        root_color = 1 if p == 0 else 2
+        for v in comp:
+            final_color[v] = root_color if parity[v] == 0 else 3 - root_color
+
+    out_lines = ["YES", " ".join(str(final_color[i]) for i in range(1, n + 1))]
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()
+```

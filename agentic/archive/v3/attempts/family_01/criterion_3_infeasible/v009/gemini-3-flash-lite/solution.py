@@ -1,0 +1,45 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # Convert sets to sorted lists for deterministic processing
+    adj_list = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    # We want lexicographically smallest (a, b, c) with a < b < c
+    # Iterate a from 1 to n
+    for a in range(1, n + 1):
+        neighbors_a = adj_list[a]
+        # Iterate b from neighbors of a
+        for b in neighbors_a:
+            if b <= a:
+                continue
+            
+            # Now we need c > b such that c is in adj[a] and c is in adj[b]
+            # Since both adj_list are sorted, we can find intersection efficiently
+            # However, for n=2000, simply checking intersection is fine
+            set_b = adj[b]
+            for c in neighbors_a:
+                if c <= b:
+                    continue
+                if c in set_b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

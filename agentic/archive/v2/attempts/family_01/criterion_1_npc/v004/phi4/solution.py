@@ -1,0 +1,51 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    restrictions = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        restrictions.append((u - 1, v - 1))
+        index += 2
+    
+    # Initialize shifts with -1 (unassigned)
+    shifts = [-1] * n
+    
+    def is_valid(shifts, worker, shift):
+        for u, v in restrictions:
+            if worker == u and shifts[v] == shift:
+                return False
+            if worker == v and shifts[u] == shift:
+                return False
+        return True
+
+    # Try to assign shifts starting from the lowest lexicographical order
+    def backtrack(worker):
+        if worker == n:
+            print("YES")
+            print(" ".join(map(str, [s + 1 for s in shifts])))
+            sys.exit(0)
+        
+        for shift in range(3):  # Shifts are 0, 1, 2 (internally), corresponding to 1, 2, 3
+            if is_valid(shifts, worker, shift):
+                shifts[worker] = shift
+                backtrack(worker + 1)
+                shifts[worker] = -1
+        
+        return False
+
+    # Start the backtracking process from the first worker
+    result = backtrack(0)
+    
+    if not result:
+        print("NO")
+
+# The solve function will be called automatically when this script is executed
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,34 @@
+def find_mutual_interference(n, m, pairs):
+    from collections import defaultdict
+    
+    # Create an adjacency list for the interference pairs
+    adjacency = defaultdict(set)
+    for u, v in pairs:
+        adjacency[u].add(v)
+        adjacency[v].add(u)
+
+    # We will iterate through each node as the first node of the triplet
+    for a in range(1, n + 1):
+        # We will now check all pairs of neighbors of 'a'
+        neighbors = list(adjacency[a])
+        neighbor_count = len(neighbors)
+        
+        # We need to find pairs (b, c) from neighbors of a
+        for i in range(neighbor_count):
+            b = neighbors[i]
+            for j in range(i + 1, neighbor_count):
+                c = neighbors[j]
+                # Check if b and c interfere with each other
+                if c in adjacency[b]:
+                    return (a, b, c)
+
+# Input reading
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+n, m = map(int, data[0].split())
+pairs = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+# Find and print the result
+result = find_mutual_interference(n, m, pairs)
+print(*result)

@@ -1,0 +1,1881 @@
+<think>
+The problem asks us to find the lexicographically smallest triplet of vertices $(a, b, c)$ such that $1 \le a < b < c \le n$ and there are edges between all pairs: $(a, b)$, $(a, c)$, and $(b, c)$. In graph theory terms, we are looking for the lexicographically smallest triangle in a graph. The graph is undirected.
+
+The constraints are:
+$n \le 2000$
+$m \le \min(n(n-1)/2, 2 \cdot 10^5)$
+Time limit: 2.0 seconds.
+
+A naive solution would be to iterate through all triplets $(a, b, c)$ and check if they form a triangle. There are $O(n^3)$ triplets, which is roughly $8 \cdot 10^9$ for $n=2000$, far too slow.
+We can optimize the search. We want the smallest $a$, then smallest $b$, then smallest $c$.
+This suggests iterating $a$ from $1$ to $n$, then $b$ from $a+1$ to $n$, and then $c$ from $b+1$ to $n$. If we find a triangle, we can immediately stop because we are iterating in lexicographical order.
+
+However, checking if $(b, c)$ exists for a fixed pair $(a, b)$ takes some time. If we use an adjacency matrix, lookup is $O(1)$. The complexity would be roughly $O(n^3)$ in the worst case (if there are many edges but no triangle, or if the triangle is near the end). But since we need the *lexicographically smallest* triangle, we might find it early. But worst case, we might have to scan a lot.
+
+Wait, the constraints allow $m$ up to $2 \cdot 10^5$. The graph is relatively sparse compared to $n^2/2$ if $n=2000$, since $n^2/2 = 2 \cdot 10^6$. The density is low.
+If we iterate $a$ from $1$ to $n$, and for each $a$, we iterate over its neighbors $b$ such that $b > a$. Then for each pair $(a, b)$, we look for a common neighbor $c$ such that $c > b$.
+This approach is related to finding triangles in a graph.
+Standard triangle finding algorithms:
+1. Adjacency matrix: $O(n^3)$ or $O(m \cdot n)$ depending on implementation.
+2. Iterating over edges $(u, v)$ and checking common neighbors. If we process edges carefully, it can be faster.
+3. Using bitsets. $O(n^3 / 64)$. With $n=2000$, $n^3/64 \approx 1.2 \cdot 10^8$, which fits easily in 2 seconds.
+
+However, we specifically need the *lexicographically smallest* triangle.
+Let's refine the search order.
+We want to find $(a, b, c)$ with $a < b < c$.
+We can iterate $a$ from $1$ to $n$.
+Inside, we iterate $b$ from $a+1$ to $n$.
+If edge $(a, b)$ exists, we need to find the smallest $c > b$ such that edge $(a, c)$ and $(b, c)$ exist.
+If we maintain adjacency lists, finding the intersection of neighbors of $a$ and neighbors of $b$ can be done efficiently.
+Since we need the *smallest* $c > b$, we just need to check $c$ in increasing order.
+Actually, if we iterate $a$ and $b$, we are checking if $(a, b)$ is an edge. If it is, we want to find a common neighbor $c$ of $a$ and $b$ with $c > b$.
+To ensure lexicographical minimality, we should prioritize smaller $a$, then smaller $b$, then smaller $c$.
+So iterating $a$ from $1 \dots n$, then $b$ from $a+1 \dots n$ works. If we find an edge $(a, b)$, we search for the smallest $c > b$ connected to both.
+
+Is this fast enough?
+In the worst case, we iterate all pairs $(a, b)$ that are edges. For each edge, we check for a common neighbor.
+If we simply iterate all $c > b$ and check adjacency, that's $O(n)$ per edge. Total time $O(m \cdot n)$.
+With $m=2 \cdot 10^5$ and $n=2000$, $m \cdot n = 4 \cdot 10^8$. This might be a bit tight for 2 seconds in Python, though in C++ it would be fine. Python is slower.
+Let's optimize the common neighbor check.
+We can use bitsets. Represent the adjacency matrix as a list of sets or bitmasks.
+Since $n \le 2000$, we can use integers as bitmasks in Python (arbitrary precision integers support bitwise ops).
+Let `adj[u]` be a bitmask where the $k$-th bit is 1 if there is an edge between $u$ and $k$.
+Then `(adj[a] & adj[b])` gives a bitmask of common neighbors.
+We need the smallest bit set in this result that is greater than $b$.
+Wait, we need $c > b$. The condition $a < b < c$ is enforced by loop order.
+So if we iterate $a$ from $1$ to $n$, $b$ from $a+1$ to $n$:
+If edge $(a, b)$ exists:
+  compute $C = \text{adj}[a] \& \text{adj}[b]$
+  find smallest set bit $k$ in $C$ such that $k > b$.
+  If such $k$ exists, output $a, b, k$ and exit.
+
+Complexity of this approach:
+We iterate pairs $(a, b)$. There are at most $m$ pairs that have an edge.
+For each pair, we do a bitwise AND of two integers of size $n$ (roughly $n/64$ words or just proportional to $n$ bits).
+In Python, bitwise operations on large integers take time proportional to the number of bits. So $O(n)$ or $O(n/64)$.
+Total complexity $O(m \cdot n / \text{word\_size})$.
+With $m=2 \cdot 10^5, n=2000$, $m \cdot n \approx 4 \cdot 10^8$. Dividing by 64 gives $\approx 6 \cdot 10^6$ operations. This is very fast.
+Even without word size optimization, Python handles large ints efficiently, but creating them takes $O(n)$.
+Wait, constructing the bitmasks initially takes $O(m)$.
+Then we iterate edges.
+Wait, if we iterate *all* pairs $(a, b)$, that is $O(n^2)$.
+If $m$ is small, $O(m \cdot n)$ is better.
+If $m$ is large (dense), $O(n^2)$ dominates. Here $m \le 2 \cdot 10^5$, $n=2000$, so $n^2 = 4 \cdot 10^6$.
+So iterating all pairs $(a, b)$ is $4 \cdot 10^6$. Inside the loop, checking `if (a, b)` exists takes $O(1)$ if using a set or boolean matrix. Then doing bitset AND takes $O(n/64)$.
+Total ops: $\approx 4 \cdot 10^6 \times 30 \approx 1.2 \cdot 10^8$. This might be slightly slow for Python in 2 seconds.
+But wait, we only need to iterate over *existing edges* $(a, b)$ to save time.
+We can iterate $a$ from $1$ to $n$, then iterate $b$ in `adj[a]` such that $b > a$.
+This ensures we only process existing edges.
+Total edges $m$. For each edge, we do bitwise AND.
+Cost: $O(m \cdot n / \text{word\_size})$.
+$2 \cdot 10^5 \times 2000 / 64 \approx 6.25 \cdot 10^6$ operations. This is extremely fast.
+
+Wait, extracting the smallest bit $> b$ from the result of `adj[a] & adj[b]` needs to be efficient.
+Finding the position of the least significant bit (LSB) in a bitmask in Python can be done using `(mask & -mask).bit_length() - 1`.
+However, we need the smallest bit $> b$.
+The mask `common = adj[a] & adj[b]` contains all common neighbors.
+We need the smallest set bit $c$ in `common` such that $c > b$.
+Since `common` has $n$ bits, we can't easily search it.
+But we can iterate $c$ from $b+1$ to $n$.
+No, that would make it $O(m \cdot n)$ again.
+Wait, if we use bitsets, finding the smallest bit $> b$ requires checking bits.
+However, since we want the *lexicographically smallest* triangle, we iterate $a$ then $b$.
+If we find a common neighbor $c > b$, is it necessarily the smallest $c$?
+No. The bitwise AND gives us *all* common neighbors.
+The integer `common` has bits set for all $c$ connected to both $a$ and $b$.
+We want the smallest $c$ such that bit $c$ is 1 and $c > b$.
+Since we want smallest $c$, we should check $c = b+1, b+2, \dots$ until we find a set bit.
+But that check is slow if we do it naively.
+However, note that $n$ is up to 2000.
+We can just check `if (common >> c) & 1`.
+Is there a faster way?
+Maybe we don't need to iterate $c$.
+Wait, if we iterate $a$ then $b$, we are guaranteed to find the lexicographically smallest triangle *if* we find the smallest $c$ for each $(a, b)$.
+But we don't need to find the smallest $c$ for *every* pair $(a, b)$. We just need to find the first pair $(a, b)$ and $c$ that forms a triangle.
+Actually, the outer loops define the order of checking $(a, b)$.
+For a fixed $(a, b)$, we need the smallest $c > b$.
+If we find such a $c$, then $(a, b, c)$ is a candidate. Since we iterate $(a, b)$ in lexicographical order, the first valid triangle we find with the smallest valid $c$ for that pair is the answer?
+Yes.
+Wait.
+Suppose we have edges $(1, 2), (1, 3), (2, 3)$ and $(1, 4), (2, 4), (1, 4)$? No, simple graph.
+Suppose triangles are $(1, 2, 5)$ and $(1, 2, 3)$.
+We iterate $a=1$.
+$b$ iterates. Edges from 1 are $(1, 2), (1, 3), (1, 4), (1, 5) \dots$
+So we encounter $b=2$.
+We look for $c > 2$ connected to both 1 and 2.
+If neighbors of 1 are $\{2, 3, 5, \dots\}$ and neighbors of 2 are $\{1, 3, 5, \dots\}$ (since undirected).
+Common neighbors $> 2$ are $\{3, 5\}$.
+The smallest is 3. So triangle $(1, 2, 3)$.
+If we iterate $b$ in increasing order of neighbors of $a$?
+Wait, $b$ must be $> a$.
+We need to iterate $b \in \text{neighbors}(a)$ such that $b > a$.
+And we need to process these $b$ in increasing order.
+If we iterate $b$ in increasing order, then for the first $b$ that has a common neighbor $c > b$, we must pick the smallest such $c$.
+If we find $(1, 2, 3)$, is it better than $(1, 2, 5)$? Yes.
+Is it better than $(1, 4, \dots)$? Yes, because $b=2 < 4$.
+So the strategy:
+1. For $a = 1 \dots n$:
+2.   For each neighbor $b$ of $a$ with $b > a$, in increasing order:
+3.     Find smallest neighbor $c$ of $a$ such that $c > b$ and $c$ is also neighbor of $b$.
+4.     If found, return $(a, b, c)$.
+
+Wait, inside step 3, do we need to find the smallest $c$? Yes.
+How to find smallest $c$ efficiently?
+We need intersection of `adj[a]` and `adj[b]`.
+Let's represent `adj` as a list of sorted lists (for iteration) or sets (for lookup) or bitsets (for intersection).
+Since we need intersection, bitsets are good.
+However, finding the *smallest* bit in the intersection that is $> b$ might still be costly if we do it naively.
+Wait, if we iterate $b$ in increasing order, maybe we can optimize.
+But actually, if we iterate $a$ then $b$ then $c$, that is standard $O(n^3)$ logic.
+With bitsets, we can check existence of $c$.
+Is it possible that for a fixed $(a, b)$, the smallest $c$ is large, but for a larger $b'$, we find a triangle $(a, b', c')$ with small $c'$?
+No, lexicographical order means $(a, b, c) < (a, b', c')$ if $b < b'$. So we prioritize smaller $b$.
+And for fixed $(a, b)$, we prioritize smaller $c$.
+So we must find the smallest $c$ for the first valid $(a, b)$.
+
+Let's refine the bitset approach.
+`adj[i]` is a bitmask.
+For a fixed $a$, we iterate $b$ in sorted order of neighbors of $a$ with $b > a$.
+Then we compute `common = adj[a] & adj[b]`.
+We need the smallest bit in `common` that is $> b$.
+Let's look at the structure of integers in Python.
+`common` is an integer.
+We can check if `(common & ((1 << (b + 1)) - 1))` is 0? No, that checks bits $\le b$.
+We need smallest bit $> b$.
+We can do `common >> (b + 1)`. This shifts bits so that bit $b+1$ becomes bit 0.
+Then we can find the least significant bit of this shifted value.
+`lsb = (shifted_common & -shifted_common).bit_length() - 1`?
+Wait, `(x & -x).bit_length() - 1` gives the index of the lowest set bit (0-based) in $x$.
+So if `shifted_common = common >> (b + 1)`, then the index of the lowest set bit in `shifted_common` corresponds to the index of the lowest set bit in `common` which is $\ge b+1$.
+Let $k$ be the index. Then the actual bit index in `common` is $k + b + 1$.
+So the smallest $c$ is $k + b + 1$.
+This operation is very fast.
+Complexity:
+Constructing bitmasks: $O(m)$.
+Iterating $a$ from $1$ to $n$.
+  Iterating $b$ in `neighbors[a]` where $b > a$.
+    Bitwise AND: $O(n/64)$ (Python integer implementation).
+    Shift and LSB extraction: $O(n/64)$ or $O(1)$ effectively (depends on bit length).
+    If found, return.
+Total complexity: $O(m \cdot n / \text{word\_size})$.
+With $m=200,000, n=2000$, operations $\approx 6 \cdot 10^6$.
+This is well within 2 seconds.
+
+Let's double check constraints and edge cases.
+$n$ up to 2000.
+$m$ up to $2 \cdot 10^5$.
+Bitmasks of size 2000 bits are small.
+Python integers are arbitrary precision.
+Operations on 2000-bit integers are fast.
+The number of pairs $(a, b)$ processed is exactly $m$ (since we iterate neighbors $b$ of $a$ with $b > a$).
+Wait, iterating neighbors of $a$ with $b > a$ covers each edge exactly once (since we only consider $b > a$). So yes, $m$ iterations.
+In each iteration, we do bitwise operations on integers of size $N$ bits.
+Python handles this in $O(N/30)$ or similar word operations.
+So $2 \cdot 10^5 \times 2000 \approx 4 \cdot 10^8$ bits processed.
+This is roughly $50$ MB of data processing. Very fast.
+Wait, $4 \cdot 10^8$ bits is not operations. It's bits.
+In Python, bitwise AND of two 2000-bit integers takes time proportional to number of bits / 64 (assuming 64-bit words).
+$2000 / 64 \approx 32$ operations.
+$2 \cdot 10^5 \times 32 \approx 6.4 \cdot 10^6$ machine instructions.
+This is negligible. Even with Python overhead, it will pass easily.
+
+Algorithm details:
+1. Read $n, m$.
+2. Initialize `adj` as list of 0s.
+3. Store adjacency lists `adj_list` as lists of sorted integers for iteration.
+   Wait, to iterate $b$ in sorted order, we need `adj_list[a]` to be sorted.
+   We can sort each `adj_list[a]` after reading.
+   Or just sort the edges.
+   Actually, `adj_list[a]` stores neighbors. We only care about $b > a$.
+   So when iterating neighbors, we filter $b > a$.
+   Since we want to check $b$ in increasing order, we should sort `adj_list[a]`.
+4. For each edge $(u, v)$, add $v$ to `adj[u]` and $u$ to `adj[v]`. Update bitmasks.
+   Since input is given as edges, we can just populate.
+   Note: $u, v$ are 1-based. Let's convert to 0-based for bitmask (shift by 1). Or keep 1-based.
+   Let's use 1-based indexing for convenience in output.
+   Bitmask `adj[i]` will have $k$-th bit set if edge $(i, k)$ exists.
+   Since $n \le 2000$, bit $k$ corresponds to module $k$.
+   We can use a mask $1 \ll k$.
+5. Loop $a$ from $1$ to $n$.
+   Loop $b$ in `adj_list[a]`:
+     If $b \le a$: continue (we only want $b > a$ to avoid duplicates and ensure order $a < b$).
+     Actually, if we sort `adj_list[a]`, we can just start iterating from the first element $> a$.
+     Since we want lexicographically smallest $b$, we must process $b$ in increasing order.
+     Inside loop for $b$:
+       Compute `common = adj[a] & adj[b]`.
+       We need smallest $c$ such that $c > b$ and bit $c$ is set in `common`.
+       Check `cand = common >> (b + 1)`.
+       If `cand != 0`:
+         We found a valid $c$. The smallest one is the LSB of `cand`.
+         Find index of LSB.
+         In Python, `(cand & -cand).bit_length() - 1` gives 0-based index of lowest bit.
+         Let this be `idx`. Then $c = idx + b + 1$.
+         Print $a, b, c$.
+         Exit.
+6. If loop finishes without finding, something is wrong (guaranteed to exist).
+
+Example 1:
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+
+adj_list:
+1: [2, 3]
+2: [1, 3, 4]
+3: [1, 2, 4]
+4: [2, 3]
+Sorted adj_list: same.
+
+a=1.
+  Neighbors > 1: 2, 3.
+  b=2.
+    adj[1] has bits 2, 3.
+    adj[2] has bits 1, 3, 4.
+    common = bits {2, 3} & {1, 3, 4} = {3}.
+    Wait, bit 2 is not in adj[2]? No, adj[2] has edge (2,1), (2,3), (2,4).
+    Wait, self loops or indices?
+    Let's assume bit $k$ is set if connected to $k$.
+    adj[1]: bit 2, bit 3 set.
+    adj[2]: bit 1, bit 3, bit 4 set.
+    common: bit 3 is set.
+    We need $c > b=2$.
+    common has bit 3. 3 > 2.
+    Shift: `common >> 3`.
+    bit 3 becomes bit 0.
+    `cand` has bit 0 set.
+    idx = 0.
+    c = 0 + 2 + 1 = 3.
+    Found 1 2 3. Correct.
+
+Wait, the indices.
+If I use bit $k$ to represent node $k$.
+`adj[a]` has bit $v$ set if $(a, v)$ is edge.
+`adj[a] & adj[b]` has bit $c$ set if $(a, c)$ and $(b, c)$ are edges.
+We need $c > b$.
+So we look at bits $> b$.
+`common >> (b + 1)` shifts bit $b+1$ to position 0.
+If result is non-zero, the lowest set bit corresponds to smallest $c \ge b+1$.
+Let index be $i$ (0-based). Then $c = (b + 1) + i$.
+Correct.
+
+Wait, input size. $m$ up to $2 \cdot 10^5$.
+Reading input efficiently. `sys.stdin.read().split()` is best.
+Python recursion depth is not an issue here.
+Memory usage:
+`adj` list of integers (bitmasks). 2000 integers. Each ~300 bytes. Negligible.
+`adj_list` list of lists. 2000 lists. Total $2m$ integers. $4 \cdot 10^5$ integers. $\approx 3-4$ MB.
+Total memory well within 256MB.
+
+Wait, is sorting `adj_list` necessary?
+Yes, to iterate $b$ in increasing order.
+The time to sort all lists: $\sum \text{deg}(i) \log \text{deg}(i)$.
+Max degree $n$. Sum of degrees $2m$.
+Worst case $O(m \log n)$. $2 \cdot 10^5 \cdot 11 \approx 2.2 \cdot 10^6$. Fast.
+
+One edge case: $m$ is large, $n$ is large.
+Is it possible that $a, b$ are such that common neighbors are many?
+We stop at the first valid $(a, b, c)$.
+So we don't process all edges if we find a triangle early.
+The worst case is when no triangle exists until the very end, or the graph is triangle-free (but problem guarantees at least one).
+Wait, if we have a graph where the only triangle is $(n-2, n-1, n)$, we will iterate many pairs.
+But we stop as soon as we find one.
+The order is strictly lexicographical.
+So we will definitely find the answer.
+The complexity depends on the position of the lexicographically first triangle.
+Worst case is triangle at the very end.
+But we established the cost is $O(m \cdot n / 64)$.
+Wait, is it $O(m \cdot n / 64)$ or $O(n \cdot n / 64)$?
+We iterate over existing edges $(a, b)$ with $a < b$.
+So we iterate $m$ pairs.
+For each pair, we do bitwise AND.
+So $O(m \cdot n / 64)$.
+Wait, the bitset AND operation cost is proportional to number of bits, which is $n$.
+Yes.
+Is it possible to have $m \approx n^2/2$? Yes, if dense.
+Then $m \approx 2 \cdot 10^6$.
+Then $m \cdot n / 64 \approx 2 \cdot 10^6 \cdot 2000 / 64 \approx 6 \cdot 10^7$.
+Still fast.
+Wait, if $n=2000$, $m$ can be up to $2 \cdot 10^5$ only?
+Problem says $m \le \min(n(n-1)/2, 2 \cdot 10^5)$.
+Ah, so $m$ is limited to $2 \cdot 10^5$ regardless of $n$ (unless $n$ is small).
+So $m$ is relatively small compared to $n^2$ for $n=2000$.
+So $m \cdot n \approx 4 \cdot 10^8$.
+Divided by 64 is $6 \cdot 10^6$.
+This is extremely safe.
+
+Wait, I should verify the time limit.
+2 seconds.
+Python might be slower with large integer arithmetic than C++.
+But 6 million bitwise ops is nothing.
+Input parsing might be slow if not careful. Use `sys.stdin.read`.
+
+Is there any case where `adj[a] & adj[b]` is expensive?
+Only if $n$ is large. Here $n=2000$.
+Bitwise operations on 2000 bits take very little time.
+The logic holds.
+
+Let's double check the "lexicographically smallest" requirement.
+We want smallest $a$, then smallest $b$, then smallest $c$.
+My loops:
+$a$ from 1 to $n$.
+$b$ from neighbors of $a$ sorted increasingly.
+Inside, find smallest $c > b$.
+Since we iterate $a$ increasingly, we find smallest $a$ first.
+Since for a fixed $a$, we iterate $b$ increasingly, we find smallest $b$ for that $a$ first.
+Since for fixed $a, b$, we find smallest $c$, we find smallest $c$ first.
+Thus the first triangle found is the lexicographically smallest.
+Wait.
+Is it possible that for a fixed $a$, we encounter a $b$ which has a common neighbor $c$, but there was another $b' < b$ (also neighbor of $a$) which also has a common neighbor $c'$?
+Yes. Since we iterate $b$ in increasing order, we will encounter $b'$ before $b$.
+So we will check $(a, b')$ before $(a, b)$.
+If $(a, b')$ yields a triangle $(a, b', c')$, we return it.
+If not, we proceed to $b$.
+This correctly finds the smallest $b$ for the fixed $a$.
+Wait.
+Is it guaranteed that if a triangle $(a, b, c)$ exists, we will find it?
+Yes.
+But we want the smallest triple.
+Suppose the smallest triple is $(a^*, b^*, c^*)$.
+We will reach $a=a^*$ before any other $a$.
+Then we will reach $b=b^*$ before any other $b$ (since we sort neighbors).
+Then we will find $c=c^*$ (smallest common neighbor $> b^*$).
+Is it possible that we find a triangle $(a^*, b^*, c)$ with $c > c^*$ before $(a^*, b^*, c^*)$?
+No, because we check all common neighbors of $a^*, b^*$ and pick the smallest.
+Wait, do we check *all* common neighbors?
+Yes, `adj[a] & adj[b]` gives all common neighbors.
+We pick the smallest $c > b$.
+This is the smallest $c$ for the pair $(a^*, b^*)$.
+Is it possible there is a triangle $(a^*, b', c')$ with $b' < b^*$?
+If so, that would be lexicographically smaller than $(a^*, b^*, c^*)$.
+But we assumed $(a^*, b^*, c^*)$ is the smallest.
+So we iterate $b$ in increasing order. We will see $b'$ first.
+If $(a^*, b', c')$ exists, we return it.
+So the logic is sound.
+
+Wait, one detail.
+The bit manipulation `(cand & -cand).bit_length() - 1` finds the index of the LSB.
+Example: `cand = 4 (100 binary)`. `cand & -cand` is 4. `bit_length` is 3. Index is 2.
+`cand = 3 (011 binary)`. `cand & -cand` is 1. `bit_length` is 1. Index is 0.
+Correct.
+Wait, `bit_length` of 0 is 0.
+If `cand` is 0, we do nothing.
+My logic:
+`cand = common >> (b + 1)`
+If `cand == 0`: no common neighbor $> b$.
+Else: find LSB.
+Correct.
+
+Wait, is it possible that `common` has bits set for indices $\le b$?
+Yes. `adj[a]` and `adj[b]` might both have bit $a$ set (since $a < b$ and edge $(a, b)$ exists).
+Actually, `adj[b]` will have bit $a$ set. `adj[a]` will have bit $b$ set.
+The intersection will definitely have ... wait.
+If edge $(a, b)$ exists:
+`adj[a]` has bit $b$.
+`adj[b]` has bit $a$.
+So bit $a$ is in `adj[b]`, bit $b$ is in `adj[a]`.
+But intersection `adj[a] & adj[b]` checks common neighbors.
+Bit $a$ is in `adj[a]`? No, usually simple graphs don't have self loops.
+But `adj[a]` contains neighbors of $a$. $a$ is not a neighbor of $a$.
+So bit $a$ is NOT in `adj[a]`.
+Bit $b$ is in `adj[a]`. Bit $b$ is NOT in `adj[b]`.
+So neither $a$ nor $b$ will be in the intersection.
+So intersection only contains $c \neq a, c \neq b$.
+However, we filter $c > b$.
+So we don't care about $c < b$.
+Wait, if `common` contains some bits $< b$, they are ignored by shifting.
+Correct.
+
+Wait, is it possible that `cand` has LSB corresponding to $c < b$?
+No, because we shifted right by $b+1$.
+So bit 0 of `cand` corresponds to bit $b+1$ of `common`.
+Bit $k$ of `cand` corresponds to bit $b+1+k$ of `common`.
+If LSB of `cand` is at index $k$, then the bit set in `common` is at index $b+1+k$.
+Since $k \ge 0$, index $\ge b+1 > b$.
+So we are guaranteed $c > b$.
+And we pick the smallest such $c$ (LSB).
+Correct.
+
+Corner case: $n=3$, edges (1,2), (2,3), (1,3).
+$a=1$.
+$b=2$ (neighbor of 1).
+`adj[1]` has {2, 3}. `adj[2]` has {1, 3}.
+`common` = {3}.
+`common >> 3` -> `common` has bit 3 set. Shift by 3 (b+1=3).
+Bit 3 becomes bit 0. `cand` = 1.
+`cand & -cand` = 1. `bit_length` = 1. Index = 0.
+$c = 0 + 3 = 3$.
+Output 1 2 3. Correct.
+
+Wait, indices.
+If I use 0-based indexing for bit positions but 1-based for output?
+Input is 1-based.
+Let's stick to 1-based bit positions.
+So bit $k$ corresponds to node $k$.
+`adj[u]` has bit $v$ set.
+This works.
+
+Wait, `bit_length` is a method of int.
+`x.bit_length()` returns the number of bits required to represent an integer in binary, excluding the sign and leading zeros.
+For `x=1` (binary 1), `bit_length` is 1.
+For `x=0`, `bit_length` is 0.
+For `x=4` (binary 100), `bit_length` is 3.
+The index of the LSB (0-based) is `bit_length(x & -x) - 1`.
+Example:
+x=1 (1), x&-x = 1. bit_length=1. 1-1=0. Correct.
+x=4 (100), x&-x = 4. bit_length=3. 3-1=2. Correct.
+x=0. x&-x=0. bit_length=0. 0-1=-1.
+Wait, if `cand` is 0, we shouldn't call this.
+My logic: `if cand != 0`.
+So it's safe.
+
+The bit mask size.
+If $n=2000$, we need bits up to 2000.
+Python integers handle this automatically.
+
+One optimization:
+Instead of `adj_list` being a list of lists, we can just iterate `adj[a]` which is a bitmask?
+No, iterating bits in a bitmask is not efficient in Python if we need to do it in order.
+We need to iterate $b$ in increasing order.
+So `adj_list` (list of lists) is better.
+Or simply sort the edges or adjacency lists.
+Since $m$ is small, sorting is fast.
+We can store `adj` as a list of lists of integers.
+Populate it.
+Sort each list.
+Then iterate.
+Wait, do we need `adj` as bitmasks AND lists?
+Yes.
+Lists for iteration order.
+Bitmasks for intersection.
+We can build both.
+
+Wait, constructing the bitmask from the list of lists?
+We can build the bitmask directly while reading input.
+For each edge $(u, v)$:
+`adj_mask[u] |= (1 << v)`
+`adj_mask[v] |= (1 << u)`
+`adj_list[u].append(v)`
+`adj_list[v].append(u)`
+After reading all edges, sort each `adj_list[i]`.
+This takes $O(m \log n)$ or $O(m \log m)$?
+Sum of degrees is $2m$. Sorting takes $\sum d_i \log d_i$.
+Max $d_i \le n$.
+So $O(m \log n)$. With $m=2 \cdot 10^5, n=2000$, $\log n \approx 11$.
+$2.2 \cdot 10^6$ ops. Fast.
+
+Wait, memory limit 256MB.
+$2000$ lists.
+Total integers in lists $400,000$.
+Each integer object in Python is 28 bytes.
+$400,000 \times 28 \approx 11$ MB.
+Plus list overheads.
+Bitmasks: 2000 integers.
+This is well within limits.
+
+Wait, I should be careful about `sys.setrecursionlimit`? Not needed.
+Just straightforward code.
+
+Wait, what if $a$ has no neighbors?
+Loop `for b in adj_list[a]:` will not execute.
+Correct.
+
+Wait, input reading.
+`input().split()` might be slow for many lines.
+Use `sys.stdin.read().split()`.
+Iterator over tokens.
+`data = sys.stdin.read().split()`
+`it = iter(data)`
+`n = int(next(it))`
+`m = int(next(it))`
+Loop $m$ times.
+
+One small thing:
+The problem says $3 \le n$.
+$3 \le m$.
+Guaranteed that at least one triple exists.
+So we don't need to handle "no solution".
+
+Wait, is it faster to use `sys.stdin.readline` or `read().split()`?
+`read().split()` creates a list of all tokens.
+For $2 \cdot 10^5$ lines, that's $4 \cdot 10^5$ integers.
+List of strings.
+Memory for list of strings: $400,000 \times 50$ bytes $\approx 20$ MB.
+Totally fine.
+Parsing ints takes time.
+Using `map(int, sys.stdin.read().split())` is efficient.
+Or just `sys.stdin.read().split()` and convert on the fly.
+
+Wait, the constraints say $m \le 2 \cdot 10^5$.
+So total tokens $\approx 400,000$.
+Parsing is fast enough.
+
+Let's check the constraints again.
+Memory limit 256 MB.
+Time limit 2s.
+Python 3.
+
+One optimization for the intersection:
+Instead of `adj_mask[a] & adj_mask[b]`, can we do better?
+Not really.
+Actually, since we iterate $b$ in increasing order, maybe we can maintain something?
+No, the intersection depends on $b$.
+The bitset approach is standard and efficient enough.
+
+Wait, checking `(cand & -cand).bit_length() - 1` is efficient?
+Yes.
+
+One potential issue:
+If $n$ is very small, say 3.
+Bitmasks are small.
+If $n$ is large, bitmasks are large.
+It works for both.
+
+Let's double check if there are any duplicate edges in input.
+"No unordered pair of modules is listed more than once."
+So simple graph.
+$u \neq v$.
+So no self loops.
+
+Is it possible to have multiple valid triples?
+Yes, we need the lexicographically smallest.
+
+Wait, what if the graph is a star graph? No triangle.
+But guaranteed at least one.
+
+Let's write the solution structure.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj_list = [[] for _ in range(n + 1)]
+    adj_mask = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    for a in range(1, n + 1):
+        # We need to iterate neighbors b of a such that b > a
+        # Since adj_list[a] is sorted, we can just iterate and check b > a
+        # But to be faster, maybe find start index?
+        # Since we iterate a from 1, we likely check many b's.
+        # Iterating whole list and filtering is O(deg(a)).
+        # Total complexity is sum of degrees = 2m.
+        # So iterating all is fine.
+        
+        for b in adj_list[a]:
+            if b <= a:
+                continue
+            
+            # Check for common neighbor c > b
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need smallest bit set in common that is > b
+            # Shift right by b+1
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # Find LSB
+                # (shifted & -shifted) isolates LSB
+                lsb = shifted & -shifted
+                # bit_length of lsb gives index + 1
+                # index = bit_length - 1
+                c_idx = lsb.bit_length() - 1
+                c = c_idx + b + 1
+                
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, `adj_list[a]` contains all neighbors.
+If `adj_list` is sorted, `b` will come in increasing order.
+However, `adj_list[a]` might contain elements $\le a$.
+We skip them.
+Is it efficient?
+Yes, `if b <= a: continue`.
+Since `adj_list[a]` is sorted, if we encounter $b > a$, all subsequent $b$'s will be $> a$.
+So we can find the starting point using `bisect` or just iterate.
+Iterating is fine since total iterations over all $a$ is $2m$.
+Wait, we only need to iterate $b \in \text{neighbors}(a)$ with $b > a$.
+If we iterate all, we process $2m$ checks.
+Wait, inside the loop we do bitwise AND.
+So total complexity is $O(2m \cdot n/64)$.
+$2 \cdot 2 \cdot 10^5 \cdot 30 \approx 1.2 \cdot 10^7$.
+Very fast.
+
+Wait, `adj_list` stores $v$ for edge $u, v$.
+The order is sorted.
+Is it possible that `b` is not in increasing order if we don't sort?
+Yes. So sorting is necessary.
+Sorting takes $O(m \log n)$ which is small.
+
+Wait, I should check if there are any performance pitfalls.
+Bitwise operations in Python:
+`adj_mask[a]` is an integer.
+`common` is an integer.
+`shifted` is an integer.
+`lsb` is an integer.
+`bit_length` is fast.
+Seems optimal.
+
+Let's double check the constraints again.
+$n \le 2000$.
+$m \le 2 \cdot 10^5$.
+The time limit is 2s.
+My solution is roughly $O(m \cdot n / 64)$.
+Even with Python overhead, $10^7$ ops is safe.
+Usually Python can do $\sim 10^7-10^8$ simple ops per second.
+Bitwise ops are "simple" in C but interpreted in Python.
+However, the integers are objects.
+Creating the large integers takes some time?
+No, we create them once.
+The loop does bitwise AND on existing integers.
+The result is a new integer.
+Allocating new integers might be costly if done $2 \cdot 10^5$ times.
+Each integer is ~300 bytes.
+$2 \cdot 10^5 \times 300$ bytes $\approx 60$ MB allocation over time.
+Garbage collector will handle it.
+It should be fine.
+Actually, we only allocate if we find a valid $b$.
+Wait, we iterate $b$ for all neighbors.
+So we allocate `common` for every edge $(a, b)$ with $a < b$.
+Number of such edges is $m$.
+So $m$ allocations.
+This is perfectly fine.
+
+Wait, $c = c\_idx + b + 1$.
+Is `c_idx` guaranteed to be correct?
+`lsb` has exactly one bit set.
+If `lsb` corresponds to bit $k$ (value $2^k$), then `bit_length` is $k+1$.
+So `bit_length - 1` is $k$.
+The bit index in `common` was $b + 1 + k$.
+So $c = b + 1 + k$.
+Correct.
+
+Wait, is it possible that `common` has multiple bits set?
+Yes. We only care about the smallest $c > b$.
+`shifted` has bits corresponding to $c > b$.
+The LSB of `shifted` corresponds to the smallest such $c$.
+Because `shifted` has bits at positions $c - (b + 1)$.
+Smallest $c$ means smallest position in `shifted`.
+Yes.
+
+Let's do a sanity check on the example 2.
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+
+Edges: (1,2), (1,4), (2,4), (3,4), (3,5), (4,5).
+Triangles:
+(1,2,4) -> edges (1,2), (1,4), (2,4) exist.
+(3,4,5) -> edges (3,4), (3,5), (4,5) exist.
+Lexicographically: (1,2,4) comes before (3,4,5).
+Output should be 1 2 4.
+
+Trace:
+a=1.
+Neighbors: 2, 4.
+b=2.
+adj[1] has {2, 4}.
+adj[2] has {1, 4}.
+common = {2, 4} & {1, 4} = {4}.
+shifted = common >> 3.
+common has bit 4 set.
+shifted has bit $4-3=1$ set? No.
+Wait. `b=2`. `b+1=3`.
+common has bit 4 set.
+`common >> 3`. Bit 4 moves to position 1.
+`shifted` has bit 1 set.
+`lsb` = `shifted & -shifted` = `1 << 1` = 2.
+`bit_length` of 2 is 2.
+`c_idx` = 2 - 1 = 1.
+`c` = 1 + 2 + 1 = 4.
+Output 1 2 4.
+Correct.
+
+Wait, if `common` had bit 2 set?
+Bit 2 is not in `adj[2]`. `adj[2]` has {1, 4}.
+So bit 2 is not in intersection.
+Wait, `adj[2]` has bit 1 (node 1) and bit 4 (node 4).
+`adj[1]` has bit 2 (node 2) and bit 4 (node 4).
+Intersection is {4}.
+Wait, does `adj[2]` have bit 2? No.
+Does `adj[1]` have bit 1? No.
+So intersection doesn't contain 1 or 2.
+Wait, node indices are 1-based.
+`adj[1]` mask has bits at positions corresponding to neighbors.
+Neighbors of 1: 2, 4.
+Mask `adj[1]` has bit 2 set (value $2^2=4$) and bit 4 set ($2^4=16$).
+Mask `adj[2]` has bit 1 set ($2^1=2$) and bit 4 set ($2^4=16$).
+Intersection: bit 4 set.
+$b=2$. $b+1=3$.
+`shifted = common >> 3`.
+Bit 4 becomes bit 1.
+LSB is bit 1. Index 1.
+$c = 1 + 3 = 4$.
+Correct.
+
+Wait, example 1 again.
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+
+Triangles:
+(1, 2, 3)
+(2, 3, 4)
+Smallest is (1, 2, 3).
+Trace:
+a=1.
+Neighbors: 2, 3.
+b=2.
+adj[1] has {2, 3}.
+adj[2] has {1, 3, 4}.
+Intersection: {3}.
+$b=2$. $b+1=3$.
+common has bit 3 set.
+`shifted = common >> 3`.
+Bit 3 becomes bit 0.
+LSB bit 0. Index 0.
+$c = 0 + 3 = 3$.
+Output 1 2 3.
+Correct.
+
+Looks robust.
+
+Wait, is there any case where $c$ calculation is wrong?
+If `shifted` is 0, no $c$ found.
+If `shifted` > 0, LSB gives smallest index.
+Since we want smallest $c$, and $c$ corresponds to bit index in `common`.
+Bit index in `common` is $b + 1 + \text{index in shifted}$.
+Since we want smallest $c$, we want smallest index in shifted.
+LSB gives smallest index.
+So yes, correct.
+
+Wait, `lsb.bit_length()` for `lsb = 1 << k`.
+`bit_length` returns $k+1$.
+So index is `bit_length - 1`.
+Example $k=0$, `bit_length`=1, index=0.
+Example $k=1$, `bit_length`=2, index=1.
+Correct.
+
+Is there any import needed? `sys`.
+Standard stuff.
+I'll wrap it in `solve()` function.
+
+One detail: memory limit is 256MB.
+The `adj_list` will store integers.
+$2000$ lists.
+Total elements $2m$.
+$400,000$ integers.
+Python integers are objects.
+But small integers are cached?
+Maybe not all.
+But 400k is small.
+Wait, if $n$ is large, `adj_list` might be large if $m$ is large.
+But $m$ is limited.
+The problem says $m \le \min(n(n-1)/2, 2 \cdot 10^5)$.
+So $m$ is at most $2 \cdot 10^5$.
+Wait, if $n$ is small, say $n=100$, $m$ can be up to $\approx 5000$.
+If $n=2000$, $m$ up to $200,000$.
+So $m$ is always $\le 200,000$.
+So memory is fine.
+
+Double check time complexity again.
+$O(m \cdot n / 64)$.
+Max $m=2 \cdot 10^5$, $n=2000$.
+Ops $\approx 6 \cdot 10^6$.
+Even if $m$ was larger (up to $2 \cdot 10^6$), it would be $6 \cdot 10^7$.
+Still fine.
+
+Is there any optimization for `adj_list`?
+We can use `sys.stdin.read().split()` to get all tokens.
+Then iterate.
+This is faster than loop with `input()`.
+
+Wait, the constraints on $u, v$ are $1 \le u, v \le n$.
+My code uses 1-based indexing for `adj_mask` and `adj_list` size $n+1$.
+This is correct.
+
+One small check: `adj_list[i].sort()`.
+Does `sort()` take time?
+Yes, but as calculated, it's fast.
+
+Can we optimize the loop condition `if b <= a: continue`?
+We can use `bisect` to find the index where `b > a`.
+Since `adj_list[a]` is sorted, we can do `bisect_right`.
+But since we iterate through the list, skipping is also fast.
+Actually, since we process each edge $(u, v)$ with $u < v$ exactly once (when $a=u, b=v$), we can just iterate the list.
+Wait, `adj_list[a]` contains both neighbors smaller and larger than $a$.
+If we iterate the whole list, we check `b <= a`.
+Total checks is $2m$.
+Inside the loop, we do bitwise AND.
+If we do bitwise AND only when `b > a`, we save time.
+We only do bitwise AND for edges $(a, b)$ where $a < b$.
+There are $m$ such edges.
+So we perform exactly $m$ bitwise ANDs.
+Wait, no.
+In `for b in adj_list[a]`, we iterate all neighbors.
+If we check `if b <= a: continue`, we skip the bitwise op.
+So we do bitwise op only when `b > a`.
+Since for each edge $(u, v)$ it appears in `adj_list[u]` and `adj_list[v]`.
+If $u < v$, it appears in `adj_list[u]` as $v$ (where $b=v > a=u$) and in `adj_list[v]` as $u$ (where $b=u < a=v$).
+So we process the edge exactly once in the `b > a` branch.
+So total bitwise ANDs is exactly $m$.
+This is optimal.
+We don't do any redundant work.
+
+Wait, `adj_list` construction.
+`adj_list[u].append(v)`.
+If input has duplicates? Problem says no.
+So `adj_list` will have unique neighbors.
+Wait, if I append to list, order is insertion order.
+Sorting fixes it.
+So `adj_list[a]` is sorted.
+Correct.
+
+Final check on output format.
+"Print three space-separated integers".
+Code does `print(f"{a} {b} {c}")`.
+Correct.
+
+The solution seems complete and correct.
+
+```python
+import sys
+
+# Increase recursion depth just in case, though not used here
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for iteration order
+    adj_list = [[] for _ in range(n + 1)]
+    # Adjacency masks for bitwise intersection
+    adj_mask = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        # Set the bits corresponding to the nodes
+        # Node k corresponds to bit k
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure we iterate neighbors in increasing order
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate to find the lexicographically smallest triangle
+    # We want smallest a, then smallest b, then smallest c
+    for a in range(1, n + 1):
+        for b in adj_list[a]:
+            # We only consider b > a to maintain order a < b < c
+            # and to avoid duplicate checks (since graph is undirected)
+            if b <= a:
+                continue
+            
+            # Find common neighbors of a and b
+            # Using bitwise AND on the masks
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need the smallest common neighbor c such that c > b
+            # The bits in 'common' represent all common neighbors.
+            # We are interested in bits corresponding to indices > b.
+            # We shift the mask right by (b + 1) to align bit b+1 to position 0.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # shifted is non-zero, meaning there is at least one common neighbor > b
+                # We need the smallest such neighbor, which corresponds to the LSB of 'shifted'
+                # The bit at position k (0-indexed) in 'shifted' corresponds to node (b + 1 + k)
+                # in 'common'.
+                
+                # Isolate the LSB
+                lsb = shifted & -shifted
+                
+                # Find the index of the LSB (0-based)
+                # lsb is a power of 2, e.g., 1, 2, 4, 8...
+                # bit_length of 2^k is k + 1. So index is bit_length - 1.
+                c_idx = lsb.bit_length() - 1
+                
+                c = c_idx + b + 1
+                
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, `sys.setrecursionlimit` is not needed since no recursion.
+I'll remove it to keep code clean.
+Also `try-except` block is a bit extra but safe.
+I'll use a simpler structure.
+Reading input: `sys.stdin.read().split()` is safe.
+The constraints $N, M$ are guaranteed.
+So `next(iterator)` won't fail.
+
+One thing: `lsb = shifted & -shifted` works for positive integers.
+`shifted` is positive (since `shifted` is non-zero and we assume valid input).
+If `shifted` was 0, we skip.
+Python handles large integers correctly.
+Negative numbers in two's complement?
+In Python `-x` is `~x + 1`.
+If `x` is positive, `-x` is negative.
+`x & -x` gives the lowest set bit.
+Example `x=6 (110)`. `-x` (in infinite bits) is `...111010`.
+`110 & ...111010` = `010` (2). Correct.
+So `& -` is standard trick.
+
+Is there any performance issue with creating `adj_mask`?
+`1 << v` where `v` up to 2000.
+This creates a large integer.
+We do this $2m$ times.
+$4 \cdot 10^5$ times.
+Creating a 2000-bit integer is fast.
+It's basically allocating memory.
+Should be fine.
+Actually, we can construct `adj_mask` from `adj_list` after sorting?
+No, constructing from list is $O(m)$.
+Constructing on the fly is $O(m)$.
+It's the same.
+If we construct from list, we iterate `adj_list` which has duplicates if we build it first?
+We build `adj_list` while reading.
+Actually, if we use `adj_list` to build `adj_mask` at the end, we avoid bit shifting during input reading?
+Bit shifting is cheap.
+Wait, `1 << v` inside the loop.
+If we have many edges, we do many shifts.
+Is it faster to do `adj_mask[u] |= (1 << v)`?
+Yes.
+Alternative:
+Store edges as `(u, v)` tuples.
+After reading, build `adj_list` and `adj_mask`.
+But `adj_mask` needs to be built efficiently.
+Iterating `adj_list` and setting bits:
+For each $u$, for each $v$ in `adj_list[u]`: `adj_mask[u] |= (1 << v)`.
+This takes $\sum \text{deg}(u) = 2m$ ops.
+Same complexity.
+Doing it during input is fine.
+
+One small detail: `adj_mask` initialization. `[0] * (n + 1)`.
+Correct.
+The input size $N$ is small enough.
+
+Is there any case where `common` is large?
+Yes, up to $N$ bits.
+But $N=2000$ is small.
+The complexity analysis holds.
+
+One edge case: `common >> (b + 1)` where `b+1` is large.
+If `b` is close to $N$, shift is large.
+Python handles shifting of large integers efficiently (it's a shift of the bit array).
+Time complexity $O(\text{num\_words})$.
+So still fast.
+
+Final check on imports.
+Only `sys` needed.
+
+```python
+import sys
+
+# Set recursion depth just in case, though not strictly needed
+sys.setrecursionlimit(2000)
+
+def main():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list to store neighbors for iteration
+    # Using 1-based indexing for convenience
+    adj_list = [[] for _ in range(n + 1)]
+    
+    # Adjacency bitmasks for fast intersection
+    # adj_mask[u] has the k-th bit set if there is an edge (u, k)
+    adj_mask = [0] * (n + 1)
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        # Update bitmasks
+        # We use 1 << v because v is up to n. 
+        # Python handles arbitrarily large integers.
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure we check neighbors in increasing order.
+    # This is crucial for finding the lexicographically smallest triple (a, b, c).
+    # We want smallest 'a', then smallest 'b', then smallest 'c'.
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate through all possible 'a'
+    for a in range(1, n + 1):
+        # Iterate through neighbors 'b' of 'a'
+        for b in adj_list[a]:
+            # We enforce a < b < c.
+            # Since we iterate 'a' in increasing order, we just need to ensure b > a.
+            # If b <= a, it would be a duplicate pair (since graph is undirected)
+            # or an order violation.
+            if b <= a:
+                continue
+            
+            # Check for a common neighbor 'c' such that c > b.
+            # Intersection of neighbors of a and b gives all common neighbors.
+            # Using bitmasks, this is a bitwise AND operation.
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need the smallest bit set in 'common' that is at a position > b.
+            # Bits in 'common' correspond to node indices.
+            # We shift the mask right by (b + 1) to discard bits <= b.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # If shifted is non-zero, there is at least one common neighbor c > b.
+                # We want the smallest such c.
+                # In 'shifted', the least significant bit (LSB) corresponds to the smallest c > b.
+                # The position of the LSB in 'shifted' (0-indexed) corresponds to c - (b + 1).
+                
+                # Isolate the LSB
+                lsb = shifted & -shifted
+                
+                # Find the index of the LSB. 
+                # For a power of 2, bit_length() - 1 gives the 0-based index.
+                c_idx = lsb.bit_length() - 1
+                
+                # Reconstruct the node index c
+                c = c_idx + b + 1
+                
+                # Since we iterate 'a' and 'b' in lexicographical order,
+                # the first valid triangle we find is the lexicographically smallest.
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    main()
+```
+The logic seems flawless.
+One detail: in the loop `for b in adj_list[a]`, if `adj_list[a]` contains `b` where `b <= a`, we `continue`.
+Since `adj_list[a]` is sorted, once we encounter `b > a`, all subsequent `b` will be `> a`.
+We could optimize by using `bisect` to find the start index, but since iterating is fast ($O(m)$ total), `continue` is fine.
+Actually, iterating through all elements of `adj_list[a]` takes time proportional to degree of `a`.
+Sum of degrees is $2m$. So total iterations is $2m$.
+This is perfectly fine.
+
+Is it possible that `shifted` calculation is slow if `common` is very large?
+`common` is at most $2^{2001}$.
+Shifting by `b+1` (up to 2000) takes time proportional to number of words.
+This is $O(n/64)$.
+Total time $O(m \cdot n/64)$.
+With $m=2 \cdot 10^5, n=2000$, this is $\approx 6 \cdot 10^6$ ops.
+Very safe.
+
+One minor point: `lsb.bit_length()`.
+`lsb` is an integer. `bit_length()` is a method.
+This is fast.
+
+Looks good.
+
+One final check: the problem statement guarantees at least one valid triple exists.
+So `return` will always be reached inside the loop.
+
+I will remove comments to make the code cleaner, but keep essential logic explanations if needed. The prompt asks for "only one Python 3 code block". I should provide the code inside.
+
+Wait, should I optimize the input reading?
+`sys.stdin.read().split()` loads everything into memory.
+With $M=200,000$, input size is approx $200,000 \times 10$ bytes $\approx 2$ MB.
+This is very small.
+Memory limit 256MB.
+So `read().split()` is safe and fast.
+
+I'm confident.
+
+One edge case: $N=3$, $M=3$, edges (1,2), (2,3), (1,3).
+Output 1 2 3.
+Code trace:
+a=1.
+b=2.
+common = adj[1] & adj[2].
+adj[1] bits {2, 3}. adj[2] bits {1, 3}.
+common bit 3.
+shifted = common >> 3.
+bit 3 becomes bit 0.
+lsb = 1. bit_length=1. c_idx=0. c=3.
+Output 1 2 3.
+Correct.
+
+Double check bit indexing.
+If node indices are $1, \dots, n$.
+We use bit $k$ for node $k$.
+So bit 1 for node 1, bit $n$ for node $n$.
+Max bit index $n$.
+`common` will have bits up to $n$.
+`shifted = common >> (b+1)`.
+If $b=n$, shift by $n+1$. `common` is 0 (since neighbors $\le n$).
+Wait, if $b=n$, then $b+1 = n+1$.
+If `common` has bits up to $n$, `common >> (n+1)` is 0.
+Correct, because we need $c > b = n$, which is impossible.
+So loop continues or finishes.
+Wait, if $b=n$, we can't have $c > n$.
+So we don't need to check.
+The code handles it correctly (shifted becomes 0).
+
+Wait, if $b=n-1$, shift by $n$.
+If $c=n$, bit $n$ is set in `common`.
+`common >> n`. Bit $n$ moves to position 0.
+`shifted` has bit 0 set.
+`lsb` is 1. `bit_length` 1. `c_idx` 0.
+`c = 0 + n = n`.
+Wait, $c = c\_idx + b + 1 = 0 + (n-1) + 1 = n$.
+Correct.
+
+The logic holds.
+
+One small thing: `adj_mask[u] |= (1 << v)`.
+If $v=n$, $1 << n$ is bit $n$.
+If we use 0-based indexing for bits (i.e. node $k$ uses bit $k-1$), we would need to shift by $k-1$.
+If we use 1-based indexing for bits (node $k$ uses bit $k$), we shift by $k$.
+My code uses `1 << v`. So node $v$ uses bit $v$.
+This means bit 0 is unused.
+This is fine.
+It just means bitmasks have an extra bit.
+Max bit index is $n$.
+This works perfectly.
+
+Final Code Structure:
+Imports.
+Function `solve`.
+Read input.
+Build structures.
+Iterate and find.
+Print and exit.
+
+```python
+import sys
+
+# Increase recursion depth is not needed but harmless
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Efficiently read all input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # adj_list stores neighbors for each node
+    # adj_mask stores adjacency as bitmasks
+    adj_list = [[] for _ in range(n + 1)]
+    adj_mask = [0] * (n + 1)
+    
+    # Read edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort neighbor lists to process in lexicographical order
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate to find the lexicographically smallest triangle
+    for a in range(1, n + 1):
+        for b in adj_list[a]:
+            # We need a < b < c. 
+            # Since we iterate 'a' from 1 upwards, we just need b > a.
+            if b <= a:
+                continue
+            
+            # Find common neighbors of a and b
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need a common neighbor c > b.
+            # Shift the mask to align bit b+1 to position 0.
+            # Bits in 'common' correspond to node indices.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # shifted has at least one bit set.
+                # The LSB of shifted corresponds to the smallest c > b.
+                lsb = shifted & -shifted
+                # bit_length() - 1 gives the 0-based index of the LSB
+                c_idx = lsb.bit_length() - 1
+                c = c_idx + b + 1
+                
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+Looks perfect.
+
+Wait, `adj_mask` initialization.
+`adj_mask = [0] * (n + 1)`
+Indices 0 to n.
+We access up to `n`.
+Correct.
+
+The problem statement guarantees $n \ge 3$.
+And at least one triple exists.
+So we don't need to handle the case where no triple is found.
+
+One final check: Time limit.
+Python's `int` operations are optimized in C.
+The loop runs $m$ times.
+Inside loop: bitwise AND, shift, bitwise AND, bit_length.
+All very fast.
+Should pass comfortably.
+
+Double check indentation and syntax.
+Seems correct.
+
+One minor optimization: `adj_list` iteration.
+Since `adj_list[a]` is sorted, we can skip elements $\le a$.
+If we iterate `for b in adj_list[a]:` and `if b <= a: continue`, we check every neighbor.
+If `adj_list` has many small neighbors (e.g. connected to 1), and we are at `a=1000`, we iterate all neighbors of 1000.
+If 1000 is connected to 1, 2, ..., 1000 (dense locally), we iterate many.
+But we only process `b > a`.
+Since `adj_list[a]` contains neighbors, sum of lengths is $2m$.
+So we perform $2m$ checks.
+This is $O(m)$.
+This is optimal.
+
+Wait, if `adj_list[a]` has neighbors $< a$, we do `continue`.
+We do NOT do the expensive bitwise op.
+So we only do bitwise op $m$ times (for pairs $a < b$).
+Wait, for each edge $(u, v)$ with $u < v$, it appears in `adj_list[u]` as $v$ (where $b=v > a=u$) -> op performed.
+It appears in `adj_list[v]` as $u$ (where $b=u < a=v$) -> `continue`.
+So yes, bitwise op performed exactly $m$ times.
+Very efficient.
+
+I'm ready.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from standard input at once
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list to store neighbors for iteration order
+    # We use 1-based indexing for nodes
+    adj_list = [[] for _ in range(n + 1)]
+    
+    # Adjacency bitmasks for fast intersection
+    # adj_mask[u] has the k-th bit set if there is an edge (u, k)
+    adj_mask = [0] * (n + 1)
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        # Update bitmasks
+        # Node k corresponds to bit k
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure we check neighbors in increasing order.
+    # This is crucial for finding the lexicographically smallest triple (a, b, c).
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate to find the lexicographically smallest triangle
+    # We want smallest 'a', then smallest 'b', then smallest 'c'.
+    for a in range(1, n + 1):
+        for b in adj_list[a]:
+            # We enforce a < b < c.
+            # Since we iterate 'a' in increasing order, we just need to ensure b > a.
+            if b <= a:
+                continue
+            
+            # Check for a common neighbor 'c' such that c > b.
+            # Intersection of neighbors of a and b gives all common neighbors.
+            # Using bitmasks, this is a bitwise AND operation.
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need the smallest bit set in 'common' that is at a position > b.
+            # Bits in 'common' correspond to node indices.
+            # We shift the mask right by (b + 1) to discard bits <= b.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # If shifted is non-zero, there is at least one common neighbor c > b.
+                # We want the smallest such c.
+                # In 'shifted', the least significant bit (LSB) corresponds to the smallest c > b.
+                
+                # Isolate the LSB
+                lsb = shifted & -shifted
+                
+                # Find the index of the LSB (0-indexed)
+                # For a power of 2, bit_length() - 1 gives the 0-based index.
+                c_idx = lsb.bit_length() - 1
+                
+                # Reconstruct the node index c
+                c = c_idx + b + 1
+                
+                # Since we iterate 'a' and 'b' in lexicographical order,
+                # the first valid triangle we find is the lexicographically smallest.
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+I'll output this.
+
+Wait, should I put `sys.setrecursionlimit`?
+It's not needed. I will remove it to be cleaner.
+Also `try-except` is not strictly necessary given problem constraints, but `iterator` usage is safe.
+I'll just use `next(iterator)` directly.
+
+Final check on the constraints and types.
+$n, m$ are integers.
+Output format: space separated integers.
+The code prints exactly that.
+Memory usage is low.
+Time complexity is good.
+
+One small check: `c_idx = lsb.bit_length() - 1`.
+If `lsb` is 1 (binary 1), `bit_length` is 1. `c_idx` is 0. `c` is `b+1`.
+If `lsb` is 2 (binary 10), `bit_length` is 2. `c_idx` is 1. `c` is `b+2`.
+Correct.
+
+The code is ready.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj_list = [[] for _ in range(n + 1)]
+    adj_mask = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    for a in range(1, n + 1):
+        for b in adj_list[a]:
+            if b <= a:
+                continue
+            
+            common = adj_mask[a] & adj_mask[b]
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                lsb = shifted & -shifted
+                c_idx = lsb.bit_length() - 1
+                c = c_idx + b + 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+This is concise and correct.
+
+Wait, `lsb.bit_length() - 1` works for `lsb` being a power of 2.
+`shifted & -shifted` is guaranteed to be a power of 2 if `shifted` is non-zero.
+Yes.
+And `shifted` is non-zero in the `if` block.
+So it is correct.
+
+I will provide this code.
+
+One more thing. `sys.setrecursionlimit` is not needed.
+The code is efficient.
+The constraints are satisfied.
+The example cases pass manually.
+
+```python
+import sys
+
+# Set recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def main():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list to store neighbors for iteration order
+    # Using 1-based indexing for convenience
+    adj_list = [[] for _ in range(n + 1)]
+    
+    # Adjacency bitmasks for fast intersection
+    # adj_mask[u] has the k-th bit set if there is an edge (u, k)
+    adj_mask = [0] * (n + 1)
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        # Update bitmasks
+        # We use 1 << v because v is up to n. 
+        # Python handles arbitrarily large integers.
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure we check neighbors in increasing order.
+    # This is crucial for finding the lexicographically smallest triple (a, b, c).
+    # We want smallest 'a', then smallest 'b', then smallest 'c'.
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate through all possible 'a'
+    for a in range(1, n + 1):
+        # Iterate through neighbors 'b' of 'a'
+        for b in adj_list[a]:
+            # We enforce a < b < c.
+            # Since we iterate 'a' in increasing order, we just need to ensure b > a.
+            # If b <= a, it would be a duplicate pair (since graph is undirected)
+            # or an order violation.
+            if b <= a:
+                continue
+            
+            # Check for a common neighbor 'c' such that c > b.
+            # Intersection of neighbors of a and b gives all common neighbors.
+            # Using bitmasks, this is a bitwise AND operation.
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need the smallest bit set in 'common' that is at a position > b.
+            # Bits in 'common' correspond to node indices.
+            # We shift the mask right by (b + 1) to discard bits <= b.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # If shifted is non-zero, there is at least one common neighbor c > b.
+                # We want the smallest such c.
+                # In 'shifted', the least significant bit (LSB) corresponds to the smallest c > b.
+                # The position of the LSB in 'shifted' (0-indexed) corresponds to c - (b + 1).
+                
+                # Isolate the LSB
+                lsb = shifted & -shifted
+                
+                # Find the index of the LSB. 
+                # For a power of 2, bit_length() - 1 gives the 0-based index.
+                c_idx = lsb.bit_length() - 1
+                
+                # Reconstruct the node index c
+                c = c_idx + b + 1
+                
+                # Since we iterate 'a' and 'b' in lexicographical order,
+                # the first valid triangle we find is the lexicographically smallest.
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    main()
+```
+I'll strip the recursion limit setting to keep it clean, it's not needed.
+Also, the try-except block handles potential empty input gracefully, though constraints say valid input.
+I will use the cleaner version.
+
+Wait, I should check if `sys` is imported. Yes.
+The solution is solid.
+
+One tiny thing:
+`adj_mask[u] |= (1 << v)`
+If $v$ is large, this is a large integer.
+Max $v=2000$.
+$2^{2000}$ is roughly $10^{600}$.
+Python handles this easily.
+The bitwise AND is efficient.
+
+I'll output the solution.
+
+One final check on `c_idx + b + 1`.
+If `shifted` has LSB at index 0, `c_idx` = 0. `c` = `b + 1`.
+Correct.
+If `shifted` has LSB at index 1, `c_idx` = 1. `c` = `b + 2`.
+Correct.
+
+The code is correct.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list to store neighbors for iteration order
+    # Using 1-based indexing for convenience
+    adj_list = [[] for _ in range(n + 1)]
+    
+    # Adjacency bitmasks for fast intersection
+    # adj_mask[u] has the k-th bit set if there is an edge (u, k)
+    adj_mask = [0] * (n + 1)
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        # Update bitmasks
+        # We use 1 << v because v is up to n. 
+        # Python handles arbitrarily large integers.
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure we check neighbors in increasing order.
+    # This is crucial for finding the lexicographically smallest triple (a, b, c).
+    # We want smallest 'a', then smallest 'b', then smallest 'c'.
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate through all possible 'a'
+    for a in range(1, n + 1):
+        # Iterate through neighbors 'b' of 'a'
+        for b in adj_list[a]:
+            # We enforce a < b < c.
+            # Since we iterate 'a' in increasing order, we just need to ensure b > a.
+            # If b <= a, it would be a duplicate pair (since graph is undirected)
+            # or an order violation.
+            if b <= a:
+                continue
+            
+            # Check for a common neighbor 'c' such that c > b.
+            # Intersection of neighbors of a and b gives all common neighbors.
+            # Using bitmasks, this is a bitwise AND operation.
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need the smallest bit set in 'common' that is at a position > b.
+            # Bits in 'common' correspond to node indices.
+            # We shift the mask right by (b + 1) to discard bits <= b.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # If shifted is non-zero, there is at least one common neighbor c > b.
+                # We want the smallest such c.
+                # In 'shifted', the least significant bit (LSB) corresponds to the smallest c > b.
+                # The position of the LSB in 'shifted' (0-indexed) corresponds to c - (b + 1).
+                
+                # Isolate the LSB
+                lsb = shifted & -shifted
+                
+                # Find the index of the LSB. 
+                # For a power of 2, bit_length() - 1 gives the 0-based index.
+                c_idx = lsb.bit_length() - 1
+                
+                # Reconstruct the node index c
+                c = c_idx + b + 1
+                
+                # Since we iterate 'a' and 'b' in lexicographical order,
+                # the first valid triangle we find is the lexicographically smallest.
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+I will remove the comments to make it more compact if needed, but comments are helpful.
+The prompt asks for "only one Python 3 code block".
+Comments are allowed.
+The constraints are well handled.
+
+Wait, I should verify the memory limit again.
+256 MB.
+The `adj_list` takes roughly $2m$ integers.
+$2 \cdot 10^5$ integers.
+Python list overhead is small.
+`adj_mask` is 2000 integers.
+Input data is stored in `input_data` list.
+$4 \cdot 10^5$ strings.
+This is around 20-30 MB.
+Total memory usage is well under 256 MB.
+
+Time limit 2.0s.
+Operations count is low.
+Should pass.
+
+One detail: `sys.setrecursionlimit` is not needed since no recursion.
+I'll remove it.
+
+Final code.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj_list = [[] for _ in range(n + 1)]
+    adj_mask = [0] * (n + 1)
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    for a in range(1, n + 1):
+        for b in adj_list[a]:
+            if b <= a:
+                continue
+            
+            common = adj_mask[a] & adj_mask[b]
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                lsb = shifted & -shifted
+                c_idx = lsb.bit_length() - 1
+                c = c_idx + b + 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```
+This is clean and efficient.
+</think>
+```python
+import sys
+
+# Increase recursion depth just in case, though not strictly needed here
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from standard input efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list to store neighbors for iteration order
+    # Using 1-based indexing for convenience
+    adj_list = [[] for _ in range(n + 1)]
+    
+    # Adjacency bitmasks for fast intersection
+    # adj_mask[u] has the k-th bit set if there is an edge (u, k)
+    adj_mask = [0] * (n + 1)
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        
+        # Update bitmasks
+        # We use 1 << v because v is up to n. 
+        # Python handles arbitrarily large integers efficiently.
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure we check neighbors in increasing order.
+    # This is crucial for finding the lexicographically smallest triple (a, b, c).
+    # We want smallest 'a', then smallest 'b', then smallest 'c'.
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+        
+    # Iterate through all possible 'a'
+    for a in range(1, n + 1):
+        # Iterate through neighbors 'b' of 'a'
+        for b in adj_list[a]:
+            # We enforce a < b < c.
+            # Since we iterate 'a' in increasing order, we just need to ensure b > a.
+            # If b <= a, it would be a duplicate pair (since graph is undirected)
+            # or an order violation.
+            if b <= a:
+                continue
+            
+            # Check for a common neighbor 'c' such that c > b.
+            # Intersection of neighbors of a and b gives all common neighbors.
+            # Using bitmasks, this is a bitwise AND operation.
+            common = adj_mask[a] & adj_mask[b]
+            
+            # We need the smallest bit set in 'common' that is at a position > b.
+            # Bits in 'common' correspond to node indices.
+            # We shift the mask right by (b + 1) to discard bits <= b.
+            shifted = common >> (b + 1)
+            
+            if shifted:
+                # If shifted is non-zero, there is at least one common neighbor c > b.
+                # We want the smallest such c.
+                # In 'shifted', the least significant bit (LSB) corresponds to the smallest c > b.
+                # The position of the LSB in 'shifted' (0-indexed) corresponds to c - (b + 1).
+                
+                # Isolate the LSB
+                lsb = shifted & -shifted
+                
+                # Find the index of the LSB. 
+                # For a power of 2, bit_length() - 1 gives the 0-based index.
+                c_idx = lsb.bit_length() - 1
+                
+                # Reconstruct the node index c
+                c = c_idx + b + 1
+                
+                # Since we iterate 'a' and 'b' in lexicographical order,
+                # the first valid triangle we find is the lexicographically smallest.
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()
+```

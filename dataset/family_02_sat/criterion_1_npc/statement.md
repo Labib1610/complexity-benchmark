@@ -12,7 +12,7 @@ Decide whether it is possible to assign every task a state so that all requireme
 are satisfied. If yes, output the lexicographically smallest valid assignment.
 
 ## Input
-The first line contains two integers n and m (1 ≤ n ≤ 40, 0 ≤ m ≤ 200).
+The first line contains two integers n and m (1 ≤ n ≤ 90, 0 ≤ m ≤ 400).
 Each of the next m lines contains three non-zero signed integers l1 l2 l3,
 with |li| ≤ n. At least one of the three stated conditions must hold.
 

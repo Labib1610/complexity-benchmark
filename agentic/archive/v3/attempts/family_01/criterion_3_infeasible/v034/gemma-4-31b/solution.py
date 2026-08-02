@@ -1,0 +1,59 @@
+import sys
+
+def solve():
+    # Increase recursion depth for deep graphs, though not needed for this iterative approach
+    sys.setrecursionlimit(2000)
+    
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+        idx += 2
+
+    # To find the lexicographically smallest triple (a, b, c) where a < b < c:
+    # We iterate through all possible 'a' from 1 to n.
+    # For a fixed 'a', we look for pairs (b, c) such that a < b < c and b, c are neighbors of a.
+    # To ensure lexicographical order, we should iterate a from 1..n, then b from a+1..n, then c from b+1..n.
+    # However, checking all triples is O(n^3), which is too slow for n=2000.
+    # Instead, for a fixed 'a', we only check neighbors of 'a' that are greater than 'a'.
+    
+    # Pre-sort adjacency lists to help with lexicographical order
+    sorted_adj = [sorted(list(adj[i])) for i in range(n + 1)]
+
+    for a in range(1, n + 1):
+        # Neighbors of a that are > a
+        neighbors_a = [v for v in sorted_adj[a] if v > a]
+        
+        # If a has fewer than 2 neighbors > a, it can't be the smallest element of a triangle
+        if len(neighbors_a) < 2:
+            continue
+            
+        # To find the smallest b and then smallest c:
+        # We iterate through the sorted neighbors of a.
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                # Check if b and c are connected
+                # Using a set for O(1) lookup
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

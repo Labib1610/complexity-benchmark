@@ -1,0 +1,50 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use adjacency sets for O(1) lookup
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate a from 1 to n-2
+    # Iterate b from a+1 to n-1
+    # Check if there exists c > b such that c is in adj[a] and adj[b]
+    
+    for a in range(1, n + 1):
+        # We only care about neighbors of 'a' that are > a
+        neighbors_a = [x for x in adj[a] if x > a]
+        neighbors_a.sort()
+        
+        for b in neighbors_a:
+            # We need a c such that b < c, c in adj[a], and c in adj[b]
+            # This is equivalent to finding the smallest element in the intersection
+            # of neighbors_a (filtered for > b) and neighbors_b (filtered for > b)
+            
+            # Optimization: only check neighbors of b that are > b
+            neighbors_b = adj[b]
+            
+            # Intersection of neighbors_a and neighbors_b
+            # Since we want the smallest c, just iterate through sorted neighbors_a
+            for c in neighbors_a:
+                if c <= b:
+                    continue
+                if c in neighbors_b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

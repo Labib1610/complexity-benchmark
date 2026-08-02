@@ -1,0 +1,41 @@
+def wireless_frequency_allocation():
+    import sys
+    from collections import defaultdict, deque
+
+    input = sys.stdin.read
+    data = input().splitlines()
+    
+    n, m = map(int, data[0].split())
+    graph = defaultdict(list)
+    
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 means uncolored, 1 means channel 1, 2 means channel 2
+
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 1  # Start coloring with channel 1
+        
+        while queue:
+            node = queue.popleft()
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:  # Not colored yet
+                    color[neighbor] = 3 - color[node]  # Alternate colors
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:  # Conflict detected
+                    return False
+        return True
+
+    for station in range(1, n + 1):
+        if color[station] == 0:  # Not colored
+            if not bfs(station):
+                print("NO")
+                return
+    
+    print("YES")
+    print(" ".join(map(str, color[1:])))
+    
+wireless_frequency_allocation()

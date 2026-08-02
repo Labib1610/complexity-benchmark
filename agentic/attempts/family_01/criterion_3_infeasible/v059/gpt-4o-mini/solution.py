@@ -1,0 +1,28 @@
+def find_conflicting_triplet(n, m, conflicts):
+    from collections import defaultdict
+
+    conflict_graph = defaultdict(set)
+
+    for u, v in conflicts:
+        conflict_graph[u].add(v)
+        conflict_graph[v].add(u)
+
+    # We will check all combinations of three staff members
+    for a in range(1, n + 1):
+        for b in conflict_graph[a]:
+            if b <= a:  # Ensure b > a to avoid duplicates
+                continue
+            for c in conflict_graph[b]:
+                if c <= b or c not in conflict_graph[a]:  # Ensure c > b and (a, c) conflict
+                    continue
+                return a, b, c
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+conflicts = [tuple(map(int, line.split())) for line in data[1:m+1]]
+
+result = find_conflicting_triplet(n, m, conflicts)
+print(*result)

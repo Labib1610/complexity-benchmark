@@ -1,0 +1,62 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use bitsets (represented as integers in Python) to store adjacency
+    # adj[u] will have the v-th bit set if u and v interfere
+    adj = [0] * (n + 1)
+    edges = []
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+        edges.append((min(u, v), max(u, v)))
+    
+    # Sort edges to help find the lexicographically smallest triple
+    # A triple (a, b, c) with a < b < c is formed if (a, b), (a, c), and (b, c) exist
+    # We iterate a from 1 to n-2
+    for a in range(1, n + 1):
+        # Candidates for b are neighbors of a such that b > a
+        # Candidates for c are neighbors of a such that c > b
+        # AND c must also be a neighbor of b
+        
+        # Get all neighbors of a that are greater than a
+        neighbors_a = []
+        bitmask_a = adj[a]
+        for b in range(a + 1, n + 1):
+            if (bitmask_a >> b) & 1:
+                neighbors_a.append(b)
+        
+        # Sort neighbors to ensure we check b in increasing order
+        neighbors_a.sort()
+        
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # Now find c > b such that c is a neighbor of both a and b
+            # This is (adj[a] & adj[b])
+            common = adj[a] & adj[b]
+            # We only care about bits > b
+            # Mask to clear bits <= b
+            mask = ~((1 << (b + 1)) - 1)
+            common &= mask
+            
+            if common > 0:
+                # Find the smallest bit set in common
+                # bit_length() gives the position of the highest bit,
+                # but we need the lowest. (x & -x).bit_length() - 1 works.
+                c = (common & -common).bit_length() - 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,41 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        idx += 2
+        
+    # We need to find the lexicographically smallest (a, b, c) with a < b < c
+    # such that {a, b}, {a, c}, {b, c} are all edges.
+    # Iterate a from 1 to n-2
+    for a in range(1, n + 1):
+        # Candidates for b must be > a and connected to a
+        neighbors_a = sorted([x for x in adj[a] if x > a])
+        
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # Candidates for c must be > b and connected to both a and b
+            # We want the smallest c, so we check neighbors of b that are also > b
+            # and verify if they are in adj[a]
+            neighbors_b = sorted([x for x in adj[b] if x > b])
+            
+            for c in neighbors_b:
+                if c in adj[a]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

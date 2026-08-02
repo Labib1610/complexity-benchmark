@@ -1,0 +1,27 @@
+def find_triangle(n, m, edges):
+    from collections import defaultdict
+    
+    # Create a graph using an adjacency list
+    graph = defaultdict(set)
+    for u, v in edges:
+        graph[u].add(v)
+        graph[v].add(u)
+    
+    # We will check each pair of nodes for a third node that connects to both
+    for a in range(1, n + 1):
+        for b in graph[a]:
+            if b > a:  # Ensure a < b
+                # Check for a common connection with a and b
+                for c in graph[a].intersection(graph[b]):
+                    if c > b:  # Ensure b < c
+                        return a, b, c
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+edges = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+a, b, c = find_triangle(n, m, edges)
+print(a, b, c)

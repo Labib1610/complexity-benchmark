@@ -1,0 +1,66 @@
+import sys
+
+# Increase recursion depth for deep graphs
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        ptr += 2
+        
+    # color[i] will be 0 (unvisited), 1 or 2
+    color = [0] * (n + 1)
+    
+    # To get the lexicographically smallest assignment, we process 
+    # components in order of their smallest member.
+    # For each component, we try assigning 1 to the smallest member.
+    # If that's possible, we check if that leads to a lexicographically
+    # smaller result than assigning 2 to the smallest member.
+    # Actually, since we want the smallest sequence s_1, s_2, ..., s_n,
+    # for the first unassigned node i, we MUST try s_i = 1 first.
+    # If s_i = 1 leads to a valid 2-coloring of the component, we take it.
+    # Because s_i is the most significant position, s_i = 1 is always 
+    # better than s_i = 2 regardless of what happens to s_{i+1}...s_n.
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start BFS/DFS to color the component
+            # We force color[i] = 1 to minimize the sequence lexicographically
+            stack = [i]
+            color[i] = 1
+            component = [i]
+            
+            # Using iterative DFS to avoid recursion depth issues
+            visited_in_comp = {i}
+            idx = 0
+            # We use a simple queue/list for BFS to find all nodes in component
+            queue = [i]
+            while idx < len(queue):
+                u = queue[idx]
+                idx += 1
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+            
+    print("YES")
+    print(*(color[i] for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

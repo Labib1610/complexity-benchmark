@@ -1,0 +1,41 @@
+def solve():
+    import sys
+    from collections import defaultdict
+
+    input = sys.stdin.read
+    data = input().splitlines()
+    
+    n, m = map(int, data[0].split())
+    graph = defaultdict(list)
+    
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        graph[u].append(v)
+        graph[v].append(u)
+
+    # Using backtracking to assign pressures
+    pressures = [0] * (n + 1)  # 1-indexed
+
+    def is_valid(chamber, pressure):
+        for neighbor in graph[chamber]:
+            if pressures[neighbor] == pressure:
+                return False
+        return True
+
+    def assign_pressure(chamber):
+        if chamber > n:
+            return True
+        
+        for pressure in range(1, 4):
+            if is_valid(chamber, pressure):
+                pressures[chamber] = pressure
+                if assign_pressure(chamber + 1):
+                    return True
+                pressures[chamber] = 0  # Backtrack
+        return False
+
+    if assign_pressure(1):
+        print("YES")
+        print(" ".join(map(str, pressures[1:])))
+    else:
+        print("NO")

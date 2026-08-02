@@ -1,0 +1,113 @@
+We need bipartite graph with lexicographically minimal assignment over 1/2. n up to 2e5, m similar. We need to check bipartite. If not, NO.
+
+If bipartite, we can choose orientation per component. Each component has two possible colorings (swap 1/2). We need to pick one per component to minimize lexicographic sequence of whole array.
+
+We need to assign colors to nodes in order 1..n. Lexicographic minimal means for each i, we want s_i as small as possible given earlier decisions.
+
+Observation: For each component, we can choose coloring (original vs swapped). Since components are disjoint, earlier nodes may be in same component or later. For lexicographic minimal, we can process nodes in increasing index, and when encountering a node of new component, choose the coloring that gives smaller color for that node (1 if possible). But must ensure consistency for other nodes inside component.
+
+Thus algorithm: perform DFS/BFS to get components and initial coloring (say 0/1). For each component, we will decide later whether to flip. We can store list of nodes in component. For lexicographic minimal, iterate i=1..n: if node i's component not decided yet, decide: if its current color (0/1) is 0, then we want to assign mode 1 to it. So we set component's chosen flip: if current color 0 -> keep (no flip). If current color 1 -> we need to flip to make it 0. In both cases result color = 0. So we set component flip accordingly. Then for all nodes in component we will later set s = 1 + (color XOR flip). So we also need to set flip for component. After setting, we continue. For nodes already decided, we just output color XOR flip.
+
+This ensures lexicographic minimal because at first occurrence of each component we choose assignment that gives mode 1 if possible. But is there any scenario where choosing 1 now would later force higher mode for earlier node? No earlier nodes already set. So lexicographic minimal.
+
+Edge case: component may have all nodes after current i; but first occurrence is earliest node. So algorithm works.
+
+Implementation: Build adjacency list. Use iterative stack. Keep arrays color[n+1] (0/1), comp_id[n+1], visited. For each component, gather nodes in list comps[comp_id] to later set flip? We can store component nodes list. But n up to 2e5, fine.
+
+During BFS, assign color 0 to start. If conflict occurs, NO.
+
+After building comps, we have comp_flip array initialized to -1 meaning undecided.
+
+Then build result array ans[n+1]. For i in 1..n: if comp_flip[comp_id[i]]==-1: decide. Let c = color[i]. If c==0: flip=0 else flip=1. comp_flip[comp_id[i]] = flip. Then ans[i] = 1 + (c ^ flip). For later nodes, just compute similarly.
+
+But we need to compute ans for all nodes. Instead we can after component decisions, compute ans for all i: ans[i] = 1 + (color[i] ^ comp_flip[comp_id[i]]). But we need comp_flip determined before. We can determine comp_flip on the fly; but we may need to ensure that when we process later nodes, comp_flip is already set. Since we iterate in order, when we encounter first node of component, we set flip. Later nodes same component will have flip set.
+
+Thus we can just compute ans[i] after setting flip. So code: for i in range(1,n+1):
+
+if comp_flip[comp_id[i]]==-1: 
+   c=color[i]
+   comp_flip[comp_id[i]] = 0 if c==0 else 1
+
+ans[i] = 1 + (c ^ comp_flip[comp_id[i]])
+
+But careful: For later nodes, we need c = color[i]. So we compute ans accordingly.
+
+Thus complexity O(n+m).
+
+Let's test quickly. Example 1: edges 1-2,2-3,3-4,1-4 forms cycle of even length 4. Graph bipartite. Suppose BFS order: start 1 color 0, 2 color1, 3 color0, 4 color1. Component has nodes [1,2,3,4]. Process i=1: comp_flip=-1, c=0 -> flip=0. ans[1] = 1 + (0^0) =1. i=2: comp_flip=0, ans=1+(1^0)=2. i=3: ans=1+(0^0)=1. i=4: ans=1+(1^0)=2. Works.
+
+Example 2: triangle. BFS 1 color0, 2 color1, 3 neighbor to 1 color0 conflict? 3 adjacent to 1 and 2: 1 is color0, 3 must be 1. But 3 also adjacent to 2 which is color1, conflict. So NO.
+
+Edge Cases: disconnected components: early component may start at later index. If component has first node at i=5, earlier indices are empty. For i=1..4, comp_flip is -1 but nodes not present, we just skip. But our loop for i=1..n will process all nodes; if node i's comp_flip already set earlier, fine; else if node i is such that comp_flip not set, we set. So no problem.
+
+But we also need to handle node with no edges: component of size 1. BFS will assign color 0. Process i: comp_flip==-1, c=0 -> flip=0. ans=1.
+
+Thus lexicographic minimal: all 1 if possible. Good.
+
+Implementation details: Use sys.stdin.read to parse ints fast. Build adjacency list list of lists. BFS with stack or deque.
+
+We need to store comp_id per node. comp_counter increments per component.
+
+We also need comps list maybe to store nodes? Not necessary if we compute ans on the fly using comp_flip. But we must set comp_flip when encountering first node. So we don't need to store component nodes list.
+
+Thus BFS: assign color and comp_id. For each node visited, we set color and comp_id. Use stack.
+
+Edge detection: if neighbor already visited and color[neighbor]==color[node], conflict -> NO.
+
+Implementation:
+
+import sys
+from collections import deque
+
+def solve():
+    data=list(map(int, sys.stdin.buffer.read().split()))
+    if not data: return
+    it=iter(data)
+    n=next(it); m=next(it)
+    adj=[[] for _ in range(n+1)]
+    for _ in range(m):
+        u=next(it); v=next(it)
+        adj[u].append(v)
+        adj[v].append(u)
+    color=[-1]*(n+1)
+    comp_id=[-1]*(n+1)
+    comp_counter=0
+    from collections import deque
+    for start in range(1,n+1):
+        if color[start]==-1:
+            comp_counter+=1
+            dq=deque([start])
+            color[start]=0
+            comp_id[start]=comp_counter
+            while dq:
+                u=dq.popleft()
+                for w in adj[u]:
+                    if color[w]==-1:
+                        color[w]=color[u]^1
+                        comp_id[w]=comp_counter
+                        dq.append(w)
+                    else:
+                        if color[w]==color[u]:
+                            print("NO")
+                            return
+    # all components bipartite
+    comp_flip=[-1]*(comp_counter+1)
+    ans=[0]*(n+1)
+    for i in range(1,n+1):
+        cid=comp_id[i]
+        if comp_flip[cid]==-1:
+            c=color[i]
+            comp_flip[cid]=0 if c==0 else 1
+        ans[i]=1 + (color[i] ^ comp_flip[cid])
+    print("YES")
+    print(' '.join(map(str, ans[1:])))
+
+Edge: comp_counter may be 0 if n=0? but n>=1. So fine.
+
+Let's test quickly mentally.
+
+Also need to ensure BFS uses deque; but adjacency list may be large, but fine.
+
+Complexities fine.
+
+Let's produce final code.

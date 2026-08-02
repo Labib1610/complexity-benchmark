@@ -1,0 +1,37 @@
+def can_schedule(n, m, edges):
+    from itertools import product
+
+    # Create an adjacency list for the friction pairs
+    friction = [[] for _ in range(n)]
+    for u, v in edges:
+        friction[u - 1].append(v - 1)
+        friction[v - 1].append(u - 1)
+
+    # Try all possible combinations of shifts
+    for shifts in product(range(1, 4), repeat=n):
+        valid = True
+        for u in range(n):
+            for v in friction[u]:
+                if shifts[u] == shifts[v]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        if valid:
+            return shifts
+    return None
+
+import sys
+input = sys.stdin.read
+
+data = input().strip().splitlines()
+n, m = map(int, data[0].split())
+edges = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+result = can_schedule(n, m, edges)
+
+if result is None:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(map(str, result)))

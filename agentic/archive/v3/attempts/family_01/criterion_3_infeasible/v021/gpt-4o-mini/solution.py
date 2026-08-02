@@ -1,0 +1,26 @@
+import sys
+from collections import defaultdict
+
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+edges = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+# Create an adjacency list to store interference relations
+adj = defaultdict(set)
+for u, v in edges:
+    adj[u].add(v)
+    adj[v].add(u)
+
+# Find the lexicographically smallest triplet (a, b, c)
+for a in range(1, n + 1):
+    for b in sorted(adj[a]):
+        if b <= a:
+            continue
+        for c in sorted(adj[b]):
+            if c <= b or c not in adj[a]:
+                continue
+            # If we reach here, we have found (a, b, c)
+            print(a, b, c)
+            sys.exit()

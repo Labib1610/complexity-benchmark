@@ -1,0 +1,2081 @@
+The problem asks us to assign one of three shifts (1, 2, or 3) to each of $n$ workers ($1, \dots, n$) such that no two workers with a conflict constraint are assigned the same shift. We need to output the lexicographically smallest valid assignment sequence $s_1, s_2, \dots, s_n$. If no valid assignment exists, we output "NO".
+
+The constraints are $n \le 40$. This is small enough that we might think of backtracking or recursion, but $3^{40}$ is way too large for a naive search. However, the problem statement specifies a specific greedy priority protocol: "workers are evaluated in ascending order of their IDs (worker 1, then worker 2, up to worker $n$), with each worker assigned to the lowest numbered shift (1, then 2, then 3) that produces a globally valid schedule."
+
+Wait, let me re-read the priority protocol carefully.
+"This policy ensures that among all feasible conflict-free assignments, the chosen shift sequence $s_1, s_2, \dots, s_n$ is lexicographically as small as possible."
+And "each worker assigned to the lowest numbered shift (1, then 2, then 3) that produces a globally valid schedule."
+
+Actually, this wording implies a specific algorithm:
+For worker $i$ from 1 to $n$:
+  Try shift 1.
+  If assigning shift 1 to worker $i$ allows for a valid completion of the schedule for workers $i+1, \dots, n$, then assign shift 1.
+  Else, try shift 2.
+  If assigning shift 2 to worker $i$ allows for a valid completion...
+  Else, try shift 3.
+  If none allow a valid completion, then no solution exists.
+
+Is this interpretation correct? "produces a globally valid schedule" suggests looking ahead. If we interpret it as a simple greedy strategy where we just check conflicts with already assigned workers, that would be "lexicographically first valid coloring" if the graph is 3-colorable? No, simple greedy coloring doesn't guarantee finding a solution even if one exists, but the problem statement says "the chosen shift sequence... is lexicographically as small as possible". This usually implies we want the smallest $s_1$, then smallest $s_2$, etc.
+
+Let's re-read: "workers are evaluated in ascending order of their IDs... with each worker assigned to the lowest numbered shift... that produces a globally valid schedule."
+This means for worker 1, we pick the smallest $k \in \{1, 2, 3\}$ such that there exists *some* valid assignment for workers $2, \dots, n$ given worker 1 takes shift $k$. Then for worker 2, given worker 1's assignment, we pick the smallest valid shift for worker 2, and so on. This is exactly the lexicographically smallest solution.
+
+So the problem reduces to: Find the lexicographically smallest valid 3-coloring of the graph defined by the conflicts.
+Since $n$ is up to 40, we can't check all $3^{40}$ possibilities. However, checking if a partial assignment can be extended is a subgraph 3-coloring problem.
+The graph has $n$ vertices. We want to check if the induced subgraph on uncolored vertices can be 3-colored, given the constraints from already colored vertices (which act as pre-colored vertices).
+Actually, since we just need to check if *any* valid extension exists, this is equivalent to checking if the graph formed by the uncolored vertices plus the constraints from colored neighbors is 3-colorable.
+
+Wait, if $n$ is small (40), maybe the graph structure allows for an efficient check.
+Actually, 3-coloring is NP-complete. But $n=40$ is still quite small for exact exponential algorithms if the base is small. $3^{40}$ is huge. However, we are building the solution greedily (lexicographically).
+Is it possible that simple backtracking works?
+In the worst case, checking if a graph is 3-colorable is hard. But maybe the constraints here are loose enough or the specific greedy nature helps?
+Actually, wait. The problem asks for the *lexicographically smallest* valid schedule. The description says "workers are evaluated... assigned to the lowest numbered shift ... that produces a globally valid schedule". This confirms we need the lexicographically first valid coloring.
+Since we need to find *one* valid schedule, if one exists, and specifically the lexicographically first one.
+
+Let's consider the complexity. $N \le 40$.
+Checking if a graph is 3-colorable is generally hard. However, $N=40$ might be solvable with some pruning or specific algorithms (like backtracking with heuristics, or using SAT solvers, or simple backtracking if the graph is sparse).
+Wait, the time limit is 2 seconds. This is generous.
+Is it possible that we don't need to solve 3-coloring from scratch?
+Let's look at the constraints again.
+The greedy strategy described is:
+For $i = 1$ to $n$:
+  For $c = 1$ to 3:
+    Assign $s_i = c$.
+    Check if the graph formed by vertices $\{i+1, \dots, n\}$ with pre-colored neighbors in $\{1, \dots, i\}$ having specific colors is 3-colorable.
+    If yes, keep $s_i = c$ and break (move to $i+1$).
+    If no, backtrack $s_i$ (try next $c$).
+If no $c$ works, return NO.
+
+Wait, the "check" step is essentially asking: "Is there a valid coloring for the remaining nodes".
+Since we need to do this $N \times 3$ times, and each check is a 3-coloring problem on up to 40 vertices, this seems hard.
+However, notice that the "remaining nodes" are just nodes $i+1 \dots n$. The edges are those between them, plus edges connecting them to $1 \dots i$.
+The edges to $1 \dots i$ are fixed constraints. For example, if node $k > i$ is connected to node 1 with shift 1, then node $k$ cannot be 1.
+So effectively, we are checking if a graph with some vertices pre-colored is 3-colorable.
+This is still 3-coloring.
+
+Wait, $N \le 40$ is small, but not small enough for $O(2^N)$ or similar if the constant factor is high.
+However, maybe we don't need to solve 3-coloring from scratch.
+Actually, is it possible that a simple DFS backtracking (without lookahead checks) is sufficient?
+No, the problem says "assigned to the lowest numbered shift ... that produces a globally valid schedule".
+If we just assign greedily without lookahead (e.g. assign 1 if valid with respect to $1 \dots i-1$), we might get stuck.
+Example: 1-2, 1-3, 2-3, 3-4, 4-5, ...
+If the greedy strategy fails to find a solution when one exists, it contradicts the problem statement's description of the process.
+The problem statement *defines* the process: "this policy ensures that ... the chosen shift sequence is lexicographically as small as possible". This implies we must find the lexicographically first valid coloring.
+If the problem meant "Greedy coloring", it would say "assign lowest valid shift possible". But it says "that produces a globally valid schedule". This implies lookahead.
+
+Wait, if $N=40$, checking 3-colorability for every step is expensive.
+Is there a property of this specific problem?
+Or maybe we can optimize the check.
+Actually, maybe I can just implement a backtracking search that finds the lexicographically first solution.
+We can maintain the current state.
+Function `solve(worker_index)`:
+  Iterate `shift` from 1 to 3:
+    If `shift` is valid for `worker_index` (no conflicts with already assigned $1 \dots i-1$):
+      Assign `shift` to `worker_index`.
+      `solve(worker_index + 1)`
+      If `solve` returns true, return true.
+      Backtrack.
+  Return false.
+
+This finds the lexicographically first solution.
+The complexity is $O(3^N)$. With $N=40$, this is too slow.
+However, maybe the graph is not a worst-case graph for 3-coloring?
+The problem doesn't guarantee sparse graphs or specific structures.
+Wait, is it possible to use recursion with bitmask DP?
+$N=40$ is too large for $2^N$ DP.
+However, we can check if the graph is a "split graph" or something? No.
+Maybe we can use the fact that we only have 3 colors.
+For 3-coloring, there are algorithms faster than $3^N$.
+But implementing a fast 3-coloring algorithm from scratch in a contest setting is hard.
+
+Let's reconsider the problem constraints and time limit. $N=40$ is somewhat specific.
+Usually $N=40$ suggests something like $O(2^{N/2})$ or $O(1.2^N)$ or maybe it's a specific type of graph.
+Wait, is it possible that the "check" for validity can be done efficiently?
+Actually, 3-coloring is NP-complete. If there's a general algorithm that solves it for $N=40$ in 2 seconds, it would be a significant result.
+Is it possible that the constraints on $M$ (edges) matter? $M \le N(N-1)/2$.
+Maybe the problem implies that a solution usually exists or the graph is sparse? No, Example 2 is a complete graph $K_4$ (wait, $N=4, M=6$ is $K_4$). $K_4$ is not 3-colorable.
+Wait, $K_4$ is 4-colorable but not 3-colorable.
+The example 2 output is NO.
+So we need to detect unsatisfiable instances.
+
+Is it possible that the intended solution is simply backtracking with pruning?
+If we use simple backtracking (DFS) to find the first solution, we might hit the worst case.
+But wait, maybe the "lexicographically first" requirement is a hint?
+The problem statement says "workers are evaluated... assigned to the lowest numbered shift... that produces a globally valid schedule".
+This is exactly equivalent to finding the lexicographically first valid coloring.
+Is it possible the test cases are weak or the graph has structure?
+Or maybe we can use a heuristic?
+Wait, 3-coloring can be solved efficiently for many inputs using backtracking with degree heuristic or similar.
+Here, the order is fixed (1 to $N$).
+Maybe we can optimize the check.
+Actually, for $N=40$, maybe we can use the fact that we only need to check if *any* extension is possible.
+Is there a faster way to check 3-colorability?
+Not generally.
+However, maybe the problem is designed such that we don't need full 3-coloring power.
+Wait, let's look at the constraints again. $N \le 40$.
+Usually, $N \le 20$ allows $O(2^N)$. $N \le 40$ allows $O(1.2^N)$ or something.
+Or maybe it's related to Max-Cut or something?
+Wait, 3-coloring is equivalent to finding a homomorphism to $K_3$.
+Maybe we can use a randomized approach? No, competitive programming usually requires deterministic.
+
+Let's think about the specific structure.
+We process nodes $1 \dots N$.
+Suppose we are at node $i$. We have fixed colors for $1 \dots i-1$. We need to check if nodes $i \dots N$ can be colored.
+This is a 3-coloring problem on the subgraph of vertices $\{i, \dots, N\}$ where some vertices might have forbidden colors (neighbors in $1 \dots i-1$).
+Wait, the neighbors in $1 \dots i-1$ impose constraints on $i \dots N$.
+Specifically, if $u \in \{i \dots N\}$ is connected to $v \in \{1 \dots i-1\}$, and $v$ has color $c$, then $u$ cannot have color $c$.
+So effectively, for each node $u \in \{i \dots N\}$, we have a set of allowed colors (initially $\{1, 2, 3\}$, minus any colors of neighbors in $1 \dots i-1$).
+We need to assign a color to each $u$ from its allowed set such that no two adjacent nodes in $\{i \dots N\}$ have the same color.
+This is the "List Coloring" problem, specifically 3-List Coloring (since lists are subsets of $\{1, 2, 3\}$).
+List Coloring is also NP-complete.
+However, the lists are very specific. They are subsets of size 1, 2, or 3.
+If a list has size 1, the color is fixed.
+If a list has size 0, impossible.
+If size 2, it's like a 2-SAT or something?
+Actually, 3-list-coloring is equivalent to 3-coloring if we consider the auxiliary graph.
+Wait, if we fix the colors of $1 \dots i-1$ such that they are all compatible (which they are by construction), the problem for the remaining nodes is to color them.
+But wait, we are building the solution greedily.
+So we need to check feasibility.
+If $N$ is up to 40, and time limit 2s.
+Maybe we can use a simple backtracking with some optimizations?
+The standard backtracking for 3-coloring (like `solve()` above) is usually fast enough for random graphs or graphs with low density.
+For dense graphs, it might be slow.
+But for dense graphs, 3-coloring is often easier to detect as impossible (e.g. if a clique of size 4 exists).
+Wait, if we have a clique of size 4, we immediately say NO.
+We can check for cliques.
+Also, if the graph is dense, we can use the fact that we only have 3 colors.
+Actually, maybe the constraint is small enough for a optimized backtracking.
+Let's consider the maximum depth.
+We can implement a recursive solver. To speed it up:
+1. Check for immediate conflicts (degree constraints). If any node has 3 neighbors already assigned distinct colors, it can't be colored.
+2. Propagate constraints? If a node has only 1 allowed color, assign it and recurse. This is Unit Propagation.
+3. Use MRV (Minimum Remaining Values) heuristic? But the order is fixed by the problem (lexicographically first).
+Wait, we must follow the order $1 \dots N$ to get lexicographically first?
+Actually, the problem says "workers are evaluated in ascending order...".
+However, to check if a partial assignment can be extended, we can use the structure of the remaining graph.
+But we need to output the solution in the order $1 \dots N$.
+If we use MRV to check feasibility, we might explore the search space differently.
+But since we need the lexicographically first solution, we are forced to try shifts for 1, then 2, etc.
+However, for the *check* step, we can use any algorithm to see if a solution exists.
+Wait, if we just use simple backtracking for the *check*, it's $O(3^{N-i})$. Summing over $i$, it's roughly $O(3^N)$.
+With $N=40$, $3^{20} \approx 3.5 \times 10^9$, which is too much for 2 seconds.
+We need something better.
+
+Is there a property that allows us to solve this faster?
+Wait, maybe the graph is bipartite? No, 3 colors.
+Maybe the constraints on edges are sparse? No guarantee.
+Let's check the constraints again. $N \le 40$.
+This is the "4-coloring" problem for planar graphs? No.
+Wait, maybe I can use a meet-in-the-middle approach?
+Split vertices into two sets of size 20.
+But the edges cross the partition.
+This is the "partition" method for 3-coloring.
+But we need lexicographically first.
+Actually, maybe the intended solution is just a well-optimized backtracking.
+Common optimizations for graph coloring:
+1. Degree heuristic (not applicable for fixed order).
+2. Forward checking (look ahead).
+3. Arc consistency (not easy to maintain).
+4. Constraint propagation (if a node has only 1 candidate color, force it).
+In our case, since we are checking if *any* valid coloring exists for the remaining nodes, we can use constraint propagation (like unit propagation in SAT).
+If a node in the remaining set has only 1 valid color left (due to neighbors in $1 \dots i-1$), we must pick it. If picking it leads to a conflict, then no solution.
+If a node has 0 valid colors, no solution.
+This propagation can be done efficiently.
+This is essentially solving 3-SAT (or List Coloring) using backtracking with propagation.
+For $N=40$, this might be fast enough.
+Also, we can check for cliques. If the remaining subgraph has a clique of size $> 3$, return False.
+Actually, finding max clique is hard, but checking for $K_4$ is easy (brute force or $O(N^4)$).
+Wait, $N=40$, $O(N^4)$ is $2.5 \times 10^6$, which is fast.
+So we can check if the remaining graph contains a $K_4$. If so, return False immediately.
+This is a very strong pruning.
+Also, if the remaining graph has a vertex with degree $> 2$ in the remaining graph? No, that doesn't imply anything for 3-coloring.
+Wait, if a vertex has 3 neighbors in the remaining graph that form a triangle, then the vertex cannot be colored? No, it just needs a color different from them.
+If the remaining graph is a complete graph $K_4$, impossible.
+So checking for $K_4$ in the remaining subgraph is a necessary condition.
+Is it sufficient? No.
+But it prunes hard cases.
+
+Another optimization:
+If the graph is 3-colorable, we can try to find a solution using backtracking.
+Since we need the lexicographically first, we iterate $s_i \in \{1, 2, 3\}$.
+For the check, we need to solve 3-coloring for the rest.
+Let's write a function `can_color(mask)`? No, mask is too big.
+But we can implement a recursive `solve_remaining(current_node, allowed_colors)`.
+To handle the "allowed_colors" (which come from neighbors $1 \dots i-1$), we can maintain an array `forbidden[node]`.
+Initially `forbidden` is empty.
+When we assign $s_i$, we update `forbidden` for neighbors $j > i$.
+When checking feasibility for $i+1 \dots N$:
+We have a set of `forbidden` colors for each node.
+We need to assign colors $c_{i+1}, \dots, c_N$ such that $c_k \ne forbidden[k]$ and $c_u \ne c_v$ for edges $(u, v)$.
+This is exactly 3-coloring with lists.
+We can use backtracking with propagation.
+Algorithm `check(k, forbidden)`:
+  If all nodes $k \dots N$ colored, return True.
+  Pick a node $u \in \{k \dots N\}$ with minimum remaining options (MRV).
+  If options(u) == 0, return False.
+  If options(u) == 1, let $c$ be the option. Check if $c$ conflicts with neighbors $v > u$.
+    Actually, neighbors $v > u$ might also be uncolored.
+    If we assign $c$ to $u$, it restricts neighbors.
+    We can propagate this.
+    If propagation leads to conflict, return False.
+    Recurse.
+  If options(u) == 3, try all.
+  If options(u) == 2, try all.
+  Wait, MRV is good for finding *a* solution, but here we just need to know *if* one exists.
+  However, since we are embedded in a loop over $s_i \in \{1, 2, 3\}$, we need the check to be fast.
+  The "check" function might be called many times.
+  Actually, for $N=40$, simple backtracking with MRV is usually very fast for random instances.
+  For adversarial instances, it might be slow.
+  But given the 2s time limit, maybe it's acceptable.
+
+Wait, is there a simpler approach?
+What if we just run the greedy strategy (assign smallest valid shift) without lookahead?
+The problem says "assigned to the lowest numbered shift ... that produces a globally valid schedule".
+This implies if we pick shift 1 for worker 1, there *must* exist a valid completion.
+If we pick shift 1 and it turns out we can't complete, we must try shift 2.
+This is exactly finding the lexicographically first valid coloring.
+So we DO need lookahead.
+However, maybe the lookahead doesn't need to be complete 3-coloring.
+Is it possible that the graph is a "cograph" or something? No.
+Let's assume we need to solve 3-coloring efficiently.
+A simple recursive backtracking with pruning should work.
+We need to handle the "lexicographically first" requirement.
+This means we iterate $s_1 \in \{1, 2, 3\}$, check if valid. If yes, fix $s_1$ and recurse to $s_2$.
+Wait, if we fix $s_1$, we don't need to check $s_1$ again.
+So the algorithm is:
+`solve(index)`:
+  if index > n: return True
+  for color in 1..3:
+    if color is valid for `index` (no conflict with $1 \dots index-1$):
+      assign `index` = color
+      if `can_complete(index + 1)`:
+         return True
+      unassign `index`
+  return False
+
+The bottleneck is `can_complete(index + 1)`.
+`can_complete` checks if the subgraph on vertices $index+1 \dots n$ is 3-colorable given the constraints from $1 \dots index$.
+Wait, if we use the same recursive structure for `can_complete`, it might be slow because we explore the whole tree.
+But we can optimize `can_complete`.
+Actually, `can_complete` just needs to return True/False.
+We can use a standard 3-coloring solver for this.
+Since $N \le 40$, a standard backtracking with ordering heuristics (like Degree or MRV) is usually sufficient.
+Wait, MRV requires checking remaining degrees.
+In `can_complete`, we can pick the uncolored node with the fewest available colors.
+Let's refine the solver.
+We have a state: `current_assignment` for $1 \dots index-1$.
+We want to color $index \dots n$.
+We can maintain `forbidden` sets for each node.
+Initially `forbidden[u] = {c | exists v < u, s_v = c, (u, v) in E}`.
+For $u \ge index$, `forbidden[u]` might grow as we color nodes $< u$ (which are already colored) or as we color nodes $\ge index$ during the check.
+Actually, in `can_complete`, we start with the current `forbidden` sets.
+Then we pick a node $u$ with min remaining options.
+Try colors.
+Recursively check.
+This is a standard backtracking solver.
+To make it fast:
+1. Maintain available colors for each node.
+2. Pick node with min available colors.
+3. If 0, backtrack.
+4. If 1, force it.
+5. If > 1, try colors.
+Since we need to do this check potentially 3 times per level of the main recursion, total complexity could be high.
+But note that in the main recursion, once we find a valid color for $s_i$, we don't backtrack on $s_i$ unless we fail later.
+Wait, the main recursion *is* the search for the lexicographically first solution.
+So the structure is:
+`main_solve(i)`:
+  for c in 1..3:
+    if valid(i, c):
+      assign(i, c)
+      if `check(i+1)`:
+         return True
+      assign(i, 0) # backtrack
+  return False
+
+`check(k)`:
+  # Check if nodes k..n can be colored given current assignment of 1..k-1
+  # We can use a helper function `search(k)` that tries to color k..n
+  return `search(k)`
+
+`search(k)`:
+  if k > n: return True
+  # Pick uncolored node u >= k with min remaining options
+  # To optimize, we can just pick u = k, or use MRV.
+  # If we use MRV, we need to find the best u.
+  # Since we are just checking existence, MRV is good.
+  # But we need to be careful not to change the global state or do expensive work.
+  # However, `search` is a sub-problem.
+  # Let's just use a simple DFS with MRV.
+
+Wait, if we use MRV in `search`, we might color nodes in an order different from $k \dots n$.
+That's fine, because the goal is just to find *if* a coloring exists.
+We don't need to output the coloring inside `search` (except to verify validity).
+Wait, `search` needs to return True/False.
+So inside `search`, we can permute the order of coloring.
+This is a significant optimization.
+The main constraint is that we must output the solution $s_1 \dots s_n$ which is lexicographically first.
+The main recursion `main_solve` fixes $s_1, s_2, \dots$ in order and checks feasibility.
+The feasibility check `check(k)` uses a generic 3-coloring solver on the remaining graph.
+This seems correct and efficient enough.
+For $N=40$, a generic 3-coloring solver with MRV is usually very fast (often polynomial time on many graphs, exponential on worst cases).
+Given 2s, it should pass.
+One detail: `search` should not modify the global assignment permanently if it fails.
+So we need to backtrack properly.
+
+Wait, is there a case where `check(k)` is slow?
+If the graph is a disjoint union of many cliques?
+Or a random graph.
+With $N=40$, it's fine.
+
+Let's implement this.
+Data structures:
+Adjacency list.
+`assigned` array (0 if unassigned).
+`forbidden` array? Or just check conflicts on the fly.
+Checking conflicts on the fly is $O(\text{deg}(u))$.
+Since degree can be up to 40, it's small.
+In `search`, we can pick $u$ with min available colors.
+Available colors for $u$: $\{1, 2, 3\} \setminus \{ \text{color}(v) \mid v \in \text{neighbors}(u), \text{assigned}(v) \ne 0 \}$.
+We can precompute or compute on the fly.
+Since we need to backtrack, we can store the changes.
+Given $N=40$, copying state or using a stack is fine.
+But to be fast, we should avoid copying large structures.
+We can use a global `assigned` array and a `history` stack to revert changes.
+
+Wait, the `main_solve` also needs `check`.
+Actually, `main_solve` is just a specialized `search` where the order of nodes is fixed $1 \dots n$.
+Wait, no. The problem requires the sequence $s_1, s_2, \dots$ to be lexicographically first.
+This means we *must* decide $s_1$ first, then $s_2$, etc.
+So `main_solve` iterates $s_1 \in \{1, 2, 3\}$.
+Inside the loop, we need to know if *there exists* a valid assignment for $2 \dots n$.
+This is `check(2)`.
+`check(k)` is a solver for the subgraph $k \dots n$ with pre-colored neighbors in $1 \dots k-1$.
+This sub-solver can use any node ordering (MRV).
+So we have two functions:
+1. `main_solve(k)`: decides $s_k$ in order $1 \dots n$.
+   Iterates $c \in \{1, 2, 3\}$.
+   If $s_k$ can be $c$ (no conflict with $1 \dots k-1$), set $s_k=c$.
+   Then call `feasible(k+1)`.
+   If `feasible(k+1)` is True, return True.
+   Else, unassign $s_k$ and try next $c$.
+   
+2. `feasible(k)`: checks if nodes $k \dots n$ can be colored.
+   Uses a recursive `solve_sub(u)` which picks the best uncolored node.
+   `solve_sub(u)`:
+     If all colored, return True.
+     Pick uncolored $v \in \{k \dots n\}$ with min available colors.
+     If available colors == 0, return False.
+     For each color $c$ in available:
+       Assign $v = c$.
+       If `solve_sub(...)` returns True, return True.
+       Unassign $v$.
+     Return False.
+
+Wait, `feasible` is called from `main_solve`.
+`main_solve` is called recursively.
+Wait, `main_solve` *is* `solve_sub` but with a fixed order constraint?
+No. `main_solve` fixes the order to satisfy the lexicographical requirement.
+But `feasible` just needs to find *any* valid coloring for the rest.
+Wait, if `feasible(k)` finds a valid coloring, does that guarantee that we can extend it to a full valid schedule?
+Yes, because `main_solve` fixes $s_k$ and then asks if $s_{k+1} \dots s_n$ can be valid.
+Wait, if `feasible(k+1)` returns True, it means there exists *some* valid assignment for $k+1 \dots n$.
+Let that assignment be $A$.
+Then we can set $s_{k+1} \dots s_n$ according to $A$.
+But we need to be careful.
+When we move to `main_solve(k+1)`, we will again iterate $s_{k+1} \in \{1, 2, 3\}$.
+If we just rely on `feasible(k+1)` being True, we might pick $s_{k+1}$ that is part of the solution found by `feasible`, but `feasible` might have picked a different $s_{k+1}$ (if it used MRV).
+Wait, if `feasible(k+1)` returns True, it means *there exists* a valid completion.
+It does NOT mean that *any* choice of $s_{k+1}$ (valid locally) leads to a completion.
+But `main_solve` iterates $s_{k+1} \in \{1, 2, 3\}$ and calls `feasible(k+2)`.
+So `main_solve` is effectively doing the same thing as `feasible`, but it enforces the order $1 \dots n$.
+Wait, this suggests `main_solve` and `feasible` are the same algorithm, just with different node selection strategies?
+No.
+`main_solve` enforces: $s_1$ is minimized, then $s_2$ minimized, etc.
+`feasible` just checks existence.
+However, notice that `main_solve` *must* find the lexicographically first solution.
+So `main_solve` is the one that builds the solution.
+When `main_solve` is at node $i$, it tries $c=1$.
+It needs to know: "If I set $s_i=1$, can I complete the rest?"
+This is exactly `check(i+1)`.
+`check(i+1)` needs to determine if the graph $i+1 \dots n$ is colorable.
+If `check(i+1)` returns True, then we commit to $s_i=1$ and move to `main_solve(i+1)`.
+Wait, `main_solve(i+1)` will then try $s_{i+1}=1$, check `check(i+2)`, etc.
+This works.
+The only issue is efficiency.
+`check(i+1)` might take a long time if called many times.
+But `check(i+1)` is only called if `main_solve` is trying to decide $s_i$.
+Once `main_solve` commits to $s_i$, it never backtracks on $s_i$ (unless the whole branch fails, but we stop at the first valid leaf).
+Wait, if `check(i+1)` returns False, we try $s_i=2$.
+So for each node $i$, we might call `check(i+1)` up to 3 times.
+Total calls to `check` is $O(N)$.
+Inside `check(k)`, we run a backtracking solver.
+This solver explores the space of colorings for $k \dots n$.
+If the graph is 3-colorable, it will find one.
+If not, it might explore a lot.
+But we are guaranteed that if we are at `check(i+1)` inside `main_solve`, we are in a branch where $1 \dots i-1$ are fixed.
+Wait, `main_solve` finds the *lexicographically first* solution.
+This means we only explore the path of the solution.
+Wait, no. `main_solve` tries $s_i=1$. Checks feasibility.
+If feasible, it takes $s_i=1$ and proceeds to $s_{i+1}$.
+It does NOT backtrack on $s_i$ unless the recursive call to `main_solve(i+1)` eventually fails (which shouldn't happen if `check(i+1)` was correct).
+Wait, if `check(i+1)` says "Yes, there exists a valid coloring", then `main_solve(i+1)` will definitely find *some* valid coloring (since one exists).
+So `main_solve` will never backtrack on $s_i$ if `check(i+1)` returned True.
+So the complexity is basically:
+$\sum_{i=1}^n (\text{cost of check}(i+1))$.
+Wait, we might try $s_i=1$, check returns False. Try $s_i=2$, check returns False. Try $s_i=3$, check returns True.
+So we call `check` multiple times.
+But once `check` returns True, we move to $i+1$ and don't come back.
+So we only pay for the checks that return False, plus the final checks that return True.
+Most checks will return True (except maybe at the end or if no solution exists).
+Actually, if a solution exists, `check(i+1)` will likely return True for the chosen $s_i$.
+If no solution exists, all checks might return False (and we might explore deep).
+But if no solution exists, we might explore $3^N$.
+However, if no solution exists, we can detect it faster (e.g. graph is not 3-colorable).
+Wait, if no solution exists, we need to output NO.
+In that case, we try $s_1=1$, `check(2)` returns False. Try $s_1=2$, `check(2)` returns False. Try $s_1=3$, `check(2)` returns False.
+Then we output NO.
+Inside `check(2)`, we search for a coloring of $2 \dots N$. If none exists, it explores the whole space (or pruned).
+So the critical case is when the graph is NOT 3-colorable, or when we are forced to branch deeply.
+But we need to output NO correctly.
+With $N=40$, if the graph is not 3-colorable, `check` might take too long.
+Is it possible to detect non-3-colorability faster?
+Yes, using the clique check ($K_4$).
+Also, we can use the fact that we only have 3 colors.
+Maybe we can use a randomized algorithm? No.
+Actually, there is a specialized algorithm for 3-coloring called "Schaefer's algorithm" or similar, but it's complex.
+However, for $N=40$, maybe simple backtracking with pruning is enough.
+The $K_4$ check is a good heuristic.
+Also, if any node has degree $> 2$ in the remaining graph? No.
+But if a node has 3 neighbors already colored with 3 distinct colors, it's impossible.
+We should check this.
+Also, if a node has 2 neighbors colored with 2 distinct colors, it has 1 option.
+We can propagate this.
+This is Unit Propagation.
+With Unit Propagation, 3-coloring solvers are very efficient.
+I will implement `check` with Unit Propagation and MRV.
+
+Wait, one small thing. The problem says "print YES ... lexicographically smallest".
+If multiple valid schedules exist, output the one.
+My logic:
+`main_solve(i)`:
+  for c in 1..3:
+    if valid(i, c):
+      assign(i, c)
+      if `check(i+1)`:
+         return True
+      unassign(i)
+  return False
+
+This ensures lexicographically first because we try $c=1$ first. If it works, we take it.
+We only try $c=2$ if $c=1$ doesn't lead to a solution.
+This is correct.
+
+Wait, `check(i+1)` needs to return True if *any* valid coloring exists for $i+1 \dots n$.
+It does not need to return the coloring.
+So `check` can use MRV which might color nodes in an arbitrary order.
+This is fine.
+
+Implementation details:
+- Adjacency list `adj`.
+- `color` array of size $n+1$, 0 for unassigned.
+- `check(start_node)` function.
+  - It should not modify `color` permanently.
+  - It can use a stack or temporary assignment.
+  - Since we need to backtrack, we can use a list of changes.
+  - Or just a global `color` array and revert.
+  - To avoid overhead, maybe pass `color` as a parameter? No, copying is slow.
+  - Use a global array and a history stack.
+  - `history` stores tuples `(node, old_color)`.
+  - When assigning `u` to `c`, if `old` was 0, push `(u, 0)`. If `old` was non-zero, push `(u, old)`.
+  - Wait, `color` is global.
+  - `check` will call a recursive `dfs`.
+  - `dfs(u)`:
+    - Find uncolored node $v$ with min available colors.
+    - If none, return True (all colored).
+    - If available == 0, return False.
+    - For each color $c$ in available:
+      - Assign $v = c$.
+      - If `dfs` returns True, return True.
+      - Unassign $v$.
+    - Return False.
+
+Wait, finding the node with min available colors takes $O(N)$ or $O(N^2)$ per step.
+With $N=40$, $N^2$ is small.
+We can optimize finding the node.
+Just iterate all uncolored nodes in range `start_node` to `n`.
+Wait, `check` is called with a specific range of uncolored nodes?
+Actually, the `color` array has $1 \dots start\_node-1$ colored.
+The nodes $start\_node \dots n$ are uncolored (except neighbors constraints).
+But wait, neighbors in $1 \dots start\_node-1$ impose constraints.
+So `color` array has values for $1 \dots start\_node-1$.
+Nodes $start\_node \dots n$ have 0 in `color`.
+But their available colors are determined by neighbors.
+So we need to compute available colors on the fly.
+This is $O(\text{deg})$.
+So picking min available colors is $O(N \cdot \text{deg}) \approx O(N^2)$.
+Total complexity of `check` is roughly $O(3^{N/2} \cdot N^2)$ in worst case?
+Actually with Unit Propagation (forced moves), it is much faster.
+If available == 1, we MUST pick it.
+If available == 2, we branch.
+If available == 3, we branch.
+This is efficient.
+
+Wait, I should check `check` logic again.
+`check(start_node)`:
+  Calls `search()`.
+  `search()`:
+    If all nodes in `start_node...n` colored, return True.
+    Pick node $u$ in `start_node...n` with min available colors.
+    If `available(u)` is empty, return False.
+    If `available(u)` has 1 color, let it be $c$. Assign $u=c$. `search()`. If True return True. Else backtrack (unassign).
+    If `available(u)` has 2 or 3 colors, try all.
+    
+    Wait, if we use global `color` array, we need to be careful.
+    `check` is called from `main_solve`. `main_solve` has fixed colors for $1 \dots i-1$.
+    `check` needs to work on $i \dots n$.
+    But `main_solve` will modify `color` for $i$.
+    So `check` should work on the current state.
+    Wait, `main_solve` calls `check(i+1)`. At this point `color[1...i]` are set.
+    `check` should verify if `color[i+1...n]` can be completed.
+    So `check` operates on the graph with pre-colored nodes.
+    The `search` function inside `check` should treat $1 \dots i$ as fixed.
+    It should only pick nodes from $i+1 \dots n$.
+    Wait, `search` should pick *any* uncolored node from $1 \dots n$?
+    No, $1 \dots i$ are already colored. We shouldn't recolor them.
+    So `search` picks from uncolored nodes.
+    This is correct.
+
+One optimization:
+If `check` returns False, we backtrack in `main_solve`.
+But `check` might modify `color` array during its internal recursion.
+We must ensure `color` array is restored to the state before `check` (i.e., $1 \dots i$ colored, rest 0).
+So `check` must be stateless or use a stack to restore.
+Using a stack to save changes is best.
+When `check` modifies `color[u]`, it saves `(u, old_val)` on stack.
+When backtracking, it restores.
+After `check` finishes (returns True/False), the stack should be empty (or we pop everything).
+Actually, if `check` returns True, we don't need to restore inside `check` because `main_solve` will overwrite `color` for the next step.
+Wait, `main_solve` sets `color[i]`. Then calls `check(i+1)`.
+`check` might set `color[k]` for some $k > i$.
+If `check` returns True, `main_solve` proceeds to `main_solve(i+1)`.
+Inside `main_solve(i+1)`, it sets `color[i+1]`.
+If `check` returned True but left some nodes colored, does it matter?
+No, `main_solve` will overwrite them.
+However, if `check` returns False, `main_solve` backtracks and unsets `color[i]`.
+If `check` left some nodes colored, `main_solve` needs to know they are colored?
+No, `main_solve` assumes `color` is 0 for unassigned nodes.
+So `check` MUST restore the state of unassigned nodes to 0.
+So `check` must ensure that on return, all $j > i$ are 0.
+So `check` must backtrack completely.
+So we use a history stack and pop everything upon return.
+Or better: `check` doesn't modify global state permanently.
+It can use a local `temp_color` array?
+Copying array of size 40 is very fast ($40$ integers).
+Doing this at each step of recursion might be slow if recursion depth is large.
+But depth is at most 40.
+Copying 40 ints 3^40 times is bad.
+But with pruning, we don't visit 3^40 nodes.
+However, copying is safer and easier to implement.
+Wait, time limit 2s.
+Copying 40 ints is negligible.
+But we do it at each node of the search tree.
+If the tree is large, this adds up.
+But 40 is small.
+Actually, I can just use a global array and a `history` list.
+When `check` returns, I can iterate and clear the changes.
+But I don't know which nodes were changed easily without tracking.
+So `history` list is good.
+When `check` finishes, I just pop all changes from history.
+Wait, `history` is shared?
+No, `check` creates its own history or uses a global one with save/restore.
+Since `check` is recursive, it's better to have a local history or manage a global one.
+Given the structure, `main_solve` calls `check`.
+`check` calls `search`.
+`search` is recursive.
+So I can use a single global `history` list.
+When `check` starts, I note the current `history` size.
+When `check` ends, I pop elements until that size.
+This ensures `color` is restored.
+Wait, `main_solve` also modifies `color`.
+`main_solve` sets `color[i]`.
+Then calls `check`.
+`check` modifies `color` for $j > i$.
+If `check` restores `color[j]` to 0, then `main_solve` can proceed.
+Yes.
+So:
+Global `color` array.
+Global `history` (list of `(node, old_color)`).
+
+Wait, `main_solve` is the one that builds the solution.
+`main_solve(i)`:
+  for c in 1..3:
+    if valid(i, c):
+      assign(i, c) # push to history
+      if check(i+1):
+         return True
+      restore(i, old_color) # pop from history
+  return False
+
+`check(start)`:
+  save_history_level = len(history)
+  res = search(start)
+  restore_to(save_history_level)
+  return res
+
+`search(start)`:
+  # Find uncolored node u >= start (actually any uncolored node is fine, but we know 1..start-1 are colored)
+  # Wait, `search` is inside `check`.
+  # The `start` parameter is just to indicate which nodes are pre-colored?
+  # No, `check` is called with `i+1`.
+  # The nodes $1 \dots i$ are colored.
+  # The nodes $i+1 \dots n$ are uncolored.
+  # `search` should pick from uncolored nodes.
+  
+  # Optimization:
+  # If we pick a node $u$, we assign it a color.
+  # We check constraints with neighbors.
+  # Neighbors can be in $1 \dots i$ (colored) or $i+1 \dots n$ (uncolored).
+  
+  # Implementation of `search`:
+  # 1. Find uncolored node $u$ with min available colors.
+  #    Available colors = {1, 2, 3} \ {color[v] for v in adj[u] if color[v] != 0}.
+  #    Note: color[v] is only non-zero if v is already colored.
+  #    If v is uncolored, it doesn't restrict u yet.
+  # 2. If no uncolored nodes, return True.
+  # 3. If min_available == 0, return False.
+  # 4. If min_available == 1, let c be the color. Assign u=c.
+  #    Check if this creates a conflict with *uncolored* neighbors?
+  #    No, we just need to ensure it's valid w.r.t already colored neighbors.
+  #    Once assigned, it restricts uncolored neighbors.
+  #    Recurse.
+  #    If recurse returns False, unassign u.
+  # 5. If min_available > 1, try all colors.
+  
+  # Wait, checking conflicts with uncolored neighbors is not needed during assignment check,
+  # but it affects available colors of neighbors.
+  # So we just need to ensure `color[u]` != `color[v]` for all colored `v`.
+  
+  # This is standard backtracking.
+
+Wait, `main_solve` iterates $s_i \in \{1, 2, 3\}$.
+`check(i+1)` verifies feasibility.
+If `check` returns True, `main_solve` commits $s_i$.
+But wait, if `check` returns True, it means *some* valid completion exists.
+Does `main_solve` need to know *what* that completion is?
+Yes, because `main_solve(i+1)` will decide $s_{i+1}$.
+If `check` found a valid coloring, that coloring *is* a valid completion.
+But `main_solve` will *re-evaluate* $s_{i+1}$ from scratch.
+It will try $s_{i+1}=1$.
+If $s_{i+1}=1$ is compatible with $1 \dots i$, it calls `check(i+2)`.
+Since we know *some* valid completion exists (from `check(i+1)`), does that guarantee `check(i+2)` will return True for the correct $s_{i+1}$?
+Yes. If there is a valid coloring $C$, then $C_{i+1}$ is a valid shift for $i+1$.
+So when `main_solve` tries $c = C_{i+1}$, `check(i+2)` will return True.
+Since `main_solve` tries $1, 2, 3$, it will eventually try $C_{i+1}$ (or a smaller valid one).
+So it works.
+The `check` function is just a feasibility oracle.
+
+One detail: `search` should pick nodes from $start \dots n$.
+But wait, `search` is called inside `check(start)`.
+The nodes $1 \dots start-1$ are already colored.
+The nodes $start \dots n$ are uncolored.
+So `search` should only consider nodes in $start \dots n$.
+Also, `search` needs to handle the constraints from $1 \dots start-1$.
+This is handled by checking `color[v]` for neighbors.
+So `search` logic is correct.
+
+Wait, what if `search` picks a node $u < start$?
+No, $u < start$ are colored.
+So we only pick uncolored nodes.
+The set of uncolored nodes is exactly $start \dots n$.
+So we iterate $u$ from $start$ to $n$.
+Wait, is it possible that a node $u < start$ becomes uncolored? No.
+So `search` iterates over uncolored nodes.
+To optimize, we can maintain a list of uncolored nodes.
+But with $N=40$, iterating $1 \dots n$ and checking `color[u] == 0` is fast enough.
+
+Wait, one edge case.
+If `check(i+1)` returns True, we proceed to `main_solve(i+1)`.
+But `check` might have left some nodes colored?
+No, `check` restores state.
+So when `main_solve` calls `check(i+1)`, `color` has $1 \dots i$ set, others 0.
+`check` runs, restores others to 0.
+Then `main_solve` calls `main_solve(i+1)`.
+Wait, `main_solve(i+1)` will try to set $s_{i+1}$.
+It needs `color` to have $1 \dots i$ set.
+Yes, `main_solve` sets $s_i$ before calling `check`.
+Wait, `main_solve` structure:
+```python
+def solve(i):
+    if i > n: return True
+    # Try shifts for worker i
+    for c in 1..3:
+        if valid(i, c): # check conflicts with 1..i-1
+            color[i] = c
+            if check(i+1): # check if rest can be colored
+                return True
+            color[i] = 0
+    return False
+```
+Wait, `check(i+1)` checks if $i+1 \dots n$ can be colored given $1 \dots i$.
+If `check` returns True, then there exists a valid assignment for $i+1 \dots n$.
+But `solve(i+1)` will then try to set $s_{i+1}$.
+It will try $c=1$. If valid, it calls `check(i+2)`.
+This seems redundant.
+If `check(i+1)` returns True, it means *some* assignment for $i+1 \dots n$ exists.
+But it doesn't tell us which one.
+However, since we want the lexicographically first solution, we *must* try $s_{i+1}=1$ first.
+We don't know if $s_{i+1}=1$ is part of the solution found by `check(i+1)`.
+So we must try it.
+So the recursion is correct.
+The only concern is performance.
+`check(i+1)` is called for each $s_i$ try.
+If `check` is slow, we TLE.
+But `check` is only called when we are *not* sure if a solution exists for the rest.
+Wait, if `check` returns True, we don't call it again for the same node?
+No, `check` is called inside `solve(i)`.
+Inside `solve(i+1)`, we call `check(i+2)`.
+So we call `check` at each level.
+Total calls to `check` is $O(N)$.
+Each `check` runs a search.
+If the search is fast, we are good.
+With $N=40$, simple backtracking is usually fast enough.
+
+I should also implement the "K4" check as a quick fail.
+In `search`, before branching, check if the current uncolored nodes form a K4.
+Actually, checking K4 is $O(N^4)$.
+We can do this once at the beginning of `check`?
+Or inside `search`?
+Inside `search` might be too slow if done often.
+But maybe we can just check for K4 in the whole graph initially?
+No, K4 check is for the *remaining* subgraph.
+The remaining subgraph changes as we color nodes.
+Actually, if the graph contains a K4, it's not 3-colorable.
+We can check if the graph contains a K4 initially.
+If yes, output NO immediately.
+Wait, Example 2: 4 nodes, 6 edges (K4). Output NO.
+So checking for K4 initially is a good optimization.
+But K4 is just one obstruction. There are others.
+But K4 is easy to check.
+For $N=40$, $O(N^4)$ is fine.
+We can check for K4 in the whole graph.
+Wait, is it sufficient? No.
+But it helps.
+Actually, I will just rely on the backtracking solver. It should be fast enough.
+Wait, if I use MRV, it's very fast.
+I'll implement the MRV solver.
+
+Wait, one more thing.
+The problem says "lexicographically smallest".
+My `solve` function tries $1, 2, 3$ in order.
+This guarantees lexicographically smallest *shift assignment*.
+The output format requires printing the shifts.
+I need to store the result.
+I can use a global `result` array.
+Or just print at the end.
+Since I need to output YES/NO, I can run `solve(1)`.
+If it returns True, print YES and the shifts.
+Else NO.
+
+Wait, `solve` modifies `color`.
+If `solve(1)` returns True, `color` contains the solution.
+So I can just print `color`.
+
+Wait, the time limit is 2s.
+Python might be slow.
+$N=40$ with recursion depth 40.
+Each step tries 3 branches.
+With MRV, it's much better.
+I need to make sure the Python code is efficient.
+Avoid global lookups if possible.
+Use local variables.
+Fast I/O.
+
+One optimization for `check`:
+If `check` is called, we know that $1 \dots i$ are colored.
+We can pass `forbidden` sets to `search` to avoid recomputing available colors.
+But recomputing takes $O(\text{deg})$.
+Computing `forbidden` takes $O(N^2)$ initially.
+Inside `search`, updating `forbidden` takes $O(\text{deg})$.
+This is standard.
+I'll implement a class or closures to keep state.
+Actually, flat functions with global arrays are fastest in Python.
+
+Let's refine the `search` function.
+It needs to pick the node with min available colors.
+I can iterate all nodes $u$ from $i+1$ to $n$ (where $i$ is the `start` for `check`).
+Wait, `check(start)` is called. The uncolored nodes are `start` to `n`.
+So iterate $u$ in `range(start, n+1)`.
+If `color[u] == 0`:
+  calculate `available`.
+  track min.
+If min == 0, return False.
+If min == 1, force it.
+Else try all.
+Wait, if I force it, I need to update `color` and recurse.
+If I try all, I loop.
+To avoid recomputing available colors for neighbors after assignment, I can just recompute them when picking the next node.
+Since $N$ is small, recomputing is fine.
+
+One detail: `check` is called from `solve`.
+`solve` sets `color[i]`.
+`check(i+1)` is called.
+Inside `check`, we need to know that `1..i` are fixed.
+The `search` function should not pick nodes from `1..i`.
+So `search` should only consider uncolored nodes.
+The `color` array naturally handles this (0 means uncolored).
+So `search` just picks `u` with `color[u] == 0`.
+But wait, we want to prioritize nodes that are constrained?
+MRV does that.
+But we also want to ensure we don't pick nodes $< i+1$.
+Since `color[u] != 0` for $u < i+1$, they won't be picked.
+So it's fine.
+
+Wait, what if `solve` backtracks?
+`solve` unsets `color[i]`.
+Then `check` is called again.
+So `color` must be restored.
+My `history` approach handles this.
+But `check` also uses `history`.
+I need to be careful not to overwrite `history` state.
+`solve` pushes `(i, 0)`.
+Then calls `check`.
+`check` saves `len(history)`.
+`check` runs `search`.
+`search` pushes changes.
+`check` restores to `len(history)`.
+Then `solve` continues.
+This works.
+
+Wait, `search` might find a solution and return True.
+Does it need to be stateless?
+If `search` returns True, `check` returns True.
+`solve` returns True.
+We don't need the assignment found by `search`.
+`solve` will find the assignment itself when it proceeds to `solve(i+1)`.
+So `search` just needs to return boolean.
+So `search` doesn't need to record the solution.
+This is good.
+
+One small optimization:
+If `check(i+1)` returns True, we don't need to search for the solution inside `check`.
+We just need to know *if* it exists.
+So `search` can stop as soon as it finds *one* valid coloring.
+It doesn't need to find all.
+This is standard backtracking.
+
+Wait, if `check` returns True, `solve` proceeds to `solve(i+1)`.
+`solve(i+1)` will set `color[i+1]` and call `check(i+2)`.
+This is correct.
+
+Wait, is it possible that `search` inside `check` takes too long to find *one* solution?
+If the graph is 3-colorable, finding one solution is usually fast.
+If it's not, it might take long.
+But if it's not 3-colorable, we output NO.
+If it's not 3-colorable, `solve` will try all 3 shifts for $s_1$, all 3 for $s_2$...
+Actually, if the graph is not 3-colorable, `solve` will eventually explore the whole space.
+But with $N=40$, this is risky.
+However, if the graph is not 3-colorable, it usually contains a K4 or similar.
+Checking for K4 initially might save us.
+Also, if `check` detects impossibility early (e.g. node with 0 options), it returns False quickly.
+The hard case is when we have to explore many nodes before finding out it's impossible.
+But 3-coloring on random graphs is easy.
+On adversarial graphs, it's hard.
+But usually competitive programming problems have test cases where backtracking works or there's a specific trick.
+Given the constraints and problem type, backtracking with pruning is the intended solution.
+I'll add the K4 check as a pre-check.
+Actually, finding max clique is NP-hard, but finding K4 is $O(N^4)$.
+For $N=40$, $40^4 = 2.56 \times 10^6$. This is very fast.
+So I can check if the graph contains a K4.
+If it does, output NO.
+This handles the case like Example 2.
+Is it sufficient? No, but it helps.
+Wait, if the graph has a K4, it's not 3-colorable.
+So if I find a K4, I can immediately say NO.
+This is a valid necessary condition.
+So I will include it.
+
+Wait, what if the graph is 3-colorable but `check` takes too long?
+With MRV and Unit Propagation, it should be fast.
+Unit Propagation is: if a node has only 1 available color, assign it.
+This propagates constraints.
+I should implement this in `search`.
+In `search`, after picking a node $u$ and assigning $c$, I can check neighbors.
+If any neighbor has only 1 available color, assign it?
+This is a heuristic.
+Actually, if I just pick the node with min available colors, and if it has 1, I assign it.
+This is effectively doing 1-step propagation.
+If I want deeper propagation, I can loop.
+But simple MRV is usually enough.
+
+Wait, one more thing.
+The problem says "print YES on the first line".
+"print n space-separated integers".
+If no valid assignment, "NO".
+I need to handle the output format correctly.
+
+Let's write the code structure.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read input
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # Check for K4 (complete graph of 4 nodes)
+    # If K4 exists, impossible to 3-color
+    # O(N^4) is fine for N=40
+    has_k4 = False
+    for i in range(1, n + 1):
+        for j in adj[i]:
+            if j > i: # avoid duplicates
+                # Check if i and j share two neighbors
+                # Neighbors of i: adj[i]
+                # Neighbors of j: adj[j]
+                # Intersection size >= 2
+                # Actually, we need a set of 4 nodes all connected.
+                # Just check all pairs of neighbors.
+                pass
+    
+    # Optimized K4 check
+    # Iterate all quadruplets? O(N^4) = 2.5e6. OK.
+    # But checking edges is faster.
+    # For each node i, check if it has >= 3 neighbors that are all connected.
+    # If i, a, b, c form K4, then a, b, c are neighbors of i and form K3.
+    # So for each i, look at neighbors. Find K3 in neighbor graph.
+    # Neighbors of i: deg(i).
+    # Check K3 in subgraph induced by neighbors.
+    # O(deg^3). Sum of deg^3 can be large?
+    # Max deg is 39. 39^3 ~ 60000.
+    # Sum over all i: 40 * 60000 = 2.4e6. OK.
+    
+    for i in range(1, n + 1):
+        neighbors = adj[i]
+        # Check if any two neighbors are connected
+        # If i, u, v form a triangle, check if there is a w connected to u, v, i?
+        # No, we need K4. i, u, v, w.
+        # So for each pair u, v in neighbors, check if they are connected.
+        # If connected, then i, u, v form K3.
+        # Then check if there is w in neighbors (w != u, w != v) connected to u and v.
+        # This finds K4 containing i.
+        # Since K4 is symmetric, finding one is enough.
+        
+        # Let's just use the O(N^4) brute force for simplicity and robustness
+        # Or the neighbor K3 check.
+        # Neighbor K3 check is better.
+        
+        # For each pair u, v in neighbors:
+        #   if v in adj[u]: (u, v) edge exists
+        #     then i, u, v is K3.
+        #     Look for w in neighbors such that w in adj[u] and w in adj[v].
+        #     If found, K4 found.
+        
+        # To optimize, use sets for neighbors
+        adj_set = [set(x) for x in adj]
+        
+        # Re-check logic
+        # for u in neighbors:
+        #   for v in neighbors:
+        #     if u < v:
+        #        if v in adj_set[u]:
+        #            # u, v, i form triangle
+        #            # look for w in neighbors
+        #            common = adj_set[u] & adj_set[v] & neighbors_set
+        #            if common:
+        #                has_k4 = True
+        #                break
+        #   if has_k4: break
+        # if has_k4: break
+    
+    # Actually, simpler:
+    # Iterate all 4-combinations? No, too slow.
+    # Iterate i, then pairs u, v in neighbors.
+    # If u, v connected, check for w.
+    # This is O(N * D^2 * D) = O(N * D^3) worst case.
+    # With D=40, 40^4 = 2.5e6.
+    # This is very fast.
+    
+    # Wait, I need to implement this check properly.
+    # It's not strictly necessary but good for pruning.
+    # I'll skip it if it complicates code, but 2.5e6 ops is negligible.
+    # I'll include it.
+    
+    # Actually, I'll just rely on the solver. The K4 check might not be enough for all unsolvable cases.
+    # And implementing it correctly without bugs is tricky.
+    # I'll skip K4 check to keep code simple and focus on the solver efficiency.
+    # The solver with MRV is powerful enough.
+    
+    # Global state
+    color = [0] * (n + 1)
+    history = [] # Stack of (node, old_color)
+    
+    def get_available(u, fixed_colors):
+        # fixed_colors is not needed, we use global color
+        # available colors for u
+        forbidden = set()
+        for v in adj[u]:
+            if color[v] != 0:
+                forbidden.add(color[v])
+        return [c for c in [1, 2, 3] if c not in forbidden]
+    
+    def search():
+        # Find uncolored node with min available colors
+        # Only consider nodes with color[u] == 0
+        # Optimization: we can track min_available
+        
+        best_node = -1
+        min_avail = 4
+        avail_colors = []
+        
+        # Iterate over all nodes. 
+        # To speed up, we can maintain a list of uncolored nodes?
+        # But N is small, iterating is fine.
+        # We need to consider only uncolored nodes.
+        # However, in `check`, we only care about nodes >= start?
+        # No, `search` inside `check` works on the current `color` state.
+        # Nodes < start are already colored (non-zero).
+        # So we just look for color[u] == 0.
+        
+        # Optimization:
+        # We can iterate 1..n.
+        for u in range(1, n + 1):
+            if color[u] == 0:
+                avail = get_available(u)
+                if not avail:
+                    return False
+                if len(avail) < min_avail:
+                    min_avail = len(avail)
+                    avail_colors = avail
+                    best_node = u
+        
+        if best_node == -1:
+            return True # All colored
+        
+        if min_avail == 1:
+            # Force assignment
+            c = avail_colors[0]
+            color[best_node] = c
+            history.append((best_node, c))
+            # Propagate?
+            # Just recurse.
+            if search():
+                return True
+            # Backtrack
+            color[best_node] = 0
+            history.pop()
+            return False
+        
+        # If min_avail > 1, try all
+        for c in avail_colors:
+            color[best_node] = c
+            history.append((best_node, c))
+            if search():
+                return True
+            color[best_node] = 0
+            history.pop()
+            
+        return False
+
+    def check(start_node):
+        # Check if nodes start_node..n can be colored given current color state
+        # Note: nodes 1..start_node-1 are colored.
+        # We need to color the rest.
+        # However, `search` picks any uncolored node.
+        # This might pick nodes < start_node?
+        # No, because they are already colored (color[u] != 0).
+        # So `search` will only pick nodes >= start_node.
+        # Wait, `color` array has 0 for uncolored.
+        # So if `color[u]` is 0, it means uncolored.
+        # So `search` is correct.
+        
+        # We need to ensure that after `check` returns, `color` is restored.
+        # `search` modifies `color` and `history`.
+        # We need to restore `history` to the state before `check`.
+        
+        start_hist_len = len(history)
+        res = search()
+        # Restore history
+        while len(history) > start_hist_len:
+            node, old_val = history.pop()
+            color[node] = old_val
+        return res
+
+    def main_solve(i):
+        if i > n:
+            return True
+        
+        # Try shifts 1, 2, 3
+        for c in range(1, 4):
+            # Check if c is valid for i
+            valid = True
+            for v in adj[i]:
+                if color[v] == c:
+                    valid = False
+                    break
+            
+            if valid:
+                color[i] = c
+                history.append((i, c))
+                
+                if check(i + 1):
+                    return True
+                
+                # Backtrack
+                color[i] = 0
+                history.pop()
+        
+        return False
+
+    # Run
+    if main_solve(1):
+        print("YES")
+        print(*(color[1:]))
+    else:
+        print("NO")
+
+solve()
+```
+Wait, one issue.
+In `main_solve`, I call `check(i+1)`.
+`check` calls `search`.
+`search` might pick a node `u` (uncolored).
+It assigns `color[u] = c`.
+Then it calls `search` recursively.
+If it returns True, `check` returns True.
+`main_solve` proceeds to `main_solve(i+1)`.
+Inside `main_solve(i+1)`, it tries to set `color[i+1]`.
+Wait, `check` might have colored some nodes $> i+1$.
+But `check` restores the state!
+So when `check` returns, `color` is back to having only $1 \dots i$ colored.
+So `main_solve(i+1)` sees 0 for all $j > i$.
+This is correct.
+
+Wait, `check` logic: `search` picks uncolored nodes.
+But `main_solve` calls `check(i+1)`.
+At this point `color[1...i]` are set.
+`color[i+1...n]` are 0.
+`search` will pick from `i+1...n`.
+This is correct.
+
+Wait, efficiency.
+`get_available` iterates `adj[u]`.
+This is $O(\text{deg})$.
+`search` iterates all $u$ to find min available. $O(N \cdot \text{deg})$.
+With $N=40$, this is fast.
+The recursion depth is at most $N$.
+The branching factor is small (due to MRV).
+This should pass.
+
+Wait, `check` restores `history`.
+`main_solve` also uses `history`.
+`main_solve` pushes `(i, c)`.
+Then calls `check`.
+`check` pushes changes to `history`.
+Then `check` restores `history` to `start_hist_len`.
+Then `main_solve` pops `(i, c)`.
+This is consistent.
+Wait, `main_solve` pushes `(i, c)`.
+`start_hist_len` inside `check` is `len(history)`.
+So `check` will restore `history` to include `(i, c)`.
+Wait, `check` pops elements until `len(history) == start_hist_len`.
+So it removes the changes made by `search`.
+The element `(i, c)` remains in `history` (pushed by `main_solve`).
+Wait, `main_solve` pushes `(i, c)` BEFORE calling `check`.
+So `start_hist_len` includes `(i, c)`.
+So `check` restores to include `(i, c)`.
+Then `main_solve` continues.
+If `main_solve` backtracks, it pops `(i, c)`.
+This is correct.
+Wait, `main_solve` pops `(i, c)` only if it decides to backtrack?
+No, `main_solve` structure:
+```python
+            color[i] = c
+            history.append((i, c))
+            if check(i + 1):
+                return True # Success, don't backtrack
+            # If check fails:
+            color[i] = 0
+            history.pop()
+```
+Yes, if `check` returns True, we return True immediately.
+The `color[i]` remains `c`.
+And `history` contains `(i, c)`.
+And we return True to `main_solve(i)`.
+Then `main_solve(i)` returns True to `main_solve(i-1)`.
+Eventually `main_solve(1)` returns True.
+The `color` array will contain the full solution.
+Wait, if `main_solve(1)` returns True, `color` has $1 \dots n$ set.
+But `check` restored `color` for $i+1 \dots n$ to 0?
+Yes!
+So when `main_solve(1)` returns True, `color` has only $1$ set?
+Wait.
+`main_solve(1)` calls `check(2)`.
+`check(2)` returns True.
+`main_solve(1)` returns True.
+But `check(2)` restored `color`!
+So `color` only has `1` set.
+Then `main_solve(1)` returns.
+We need to print the solution.
+But `color` is not fully filled.
+This is a problem.
+The `check` function is just a feasibility oracle. It shouldn't leave the graph colored.
+But `main_solve` is the one that builds the solution.
+If `check` returns True, it means a solution *exists*.
+But `main_solve` hasn't *found* the solution for $2 \dots n$ yet.
+It will find it in the next step `main_solve(2)`.
+So `main_solve(1)` should NOT return True immediately.
+It should proceed to `main_solve(2)`.
+Wait, my `main_solve` logic was:
+```python
+                if check(i + 1):
+                    return True
+```
+This assumes `main_solve` is the solver that finds the solution.
+But `main_solve` only colors node $i$.
+It doesn't color $i+1 \dots n$.
+So `main_solve(1)` returning True doesn't mean the solution is found.
+It means node 1 is colored and a valid completion exists.
+But we need to actually *find* the completion to print it.
+Wait, if `check(i+1)` returns True, it means there is *some* valid coloring for $i+1 \dots n$.
+But `main_solve` needs to *select* the lexicographically first one.
+So `main_solve` should recurse!
+It should call `main_solve(i+1)`.
+If `main_solve(i+1)` returns True, then we are good.
+So the logic should be:
+```python
+    def main_solve(i):
+        if i > n:
+            return True
+        
+        for c in range(1, 4):
+            if valid(i, c):
+                color[i] = c
+                history.append((i, c))
+                
+                # Check if valid completion exists
+                if check(i + 1):
+                    # If yes, we fix c and proceed to find the rest
+                    # But wait, we need to ensure we find the lexicographically first rest.
+                    # main_solve(i+1) will do that.
+                    if main_solve(i + 1):
+                        return True
+                
+                # Backtrack
+                color[i] = 0
+                history.pop()
+        return False
+```
+Wait, this is slightly different.
+If `check(i+1)` returns True, it means *some* valid completion exists.
+Then we call `main_solve(i+1)`.
+`main_solve(i+1)` will try $s_{i+1}=1$.
+It calls `check(i+2)`.
+If `check(i+2)` returns True, it proceeds.
+This ensures we find the lexicographically first solution.
+And `main_solve(n)` will color everything.
+So the final `color` array will be filled.
+This seems correct.
+The only cost is that we call `check` at each step.
+`check` is called $N \times 3$ times in worst case.
+But `check` returns True quickly if a solution exists.
+Wait, if `check` returns True, it might take some time to find the solution.
+But `check` just needs to find *one* solution.
+So it's efficient.
+If `check` returns False, it explores the tree.
+This is the expensive case.
+But if `check` returns False, we backtrack.
+This is the standard backtracking with lookahead.
+This is correct.
+
+Wait, `main_solve` calls `main_solve(i+1)`.
+Does `main_solve(i+1)` need `check(i+2)`?
+Yes, to ensure validity.
+So every step needs a `check`.
+This is basically running a solver with lookahead at each step.
+This is $O(N \cdot \text{Cost}(3\text{-coloring}))$.
+Given $N=40$, this is acceptable.
+
+Wait, `check(i+1)` checks if $i+1 \dots n$ can be colored.
+It finds *some* coloring.
+But `main_solve(i+1)` will try to find the *lexicographically first* coloring for $i+1 \dots n$.
+If `check(i+1)` found a coloring $C$, `main_solve(i+1)` will find a coloring $C'$.
+$C'$ will be lexicographically $\le C$.
+So it works.
+
+Wait, one detail.
+`main_solve` iterates $c \in \{1, 2, 3\}$.
+If `check(i+1)` returns True, we proceed to `main_solve(i+1)`.
+Inside `main_solve(i+1)`, it tries $c' \in \{1, 2, 3\}$.
+This ensures lexicographical order.
+Yes.
+
+Double check the `history` restoration in `check`.
+`check` saves `start_hist_len`.
+`search` pushes to `history`.
+`check` pops until `len == start_hist_len`.
+This restores `history` (and thus `color`) to state before `check`.
+This is correct.
+
+Wait, `main_solve` also pushes to `history`.
+`main_solve` pushes `(i, c)`.
+Then calls `check`.
+`check` sees `len` includes `(i, c)`.
+`check` restores to that `len`.
+So `(i, c)` remains.
+Then `main_solve` calls `main_solve(i+1)`.
+`main_solve(i+1)` pushes `(i+1, c')`.
+And so on.
+If we reach `i > n`, we have pushed $n$ items.
+We print `color`.
+If we backtrack, we pop.
+This is correct.
+
+One edge case: `check` might return True but `main_solve(i+1)` returns False?
+No. If `check(i+1)` returns True, it means a valid coloring exists for $i+1 \dots n$.
+`main_solve(i+1)` tries to find the lexicographically first valid coloring.
+Since one exists, `main_solve(i+1)` will find it (at worst, the one found by `check`).
+So `main_solve(i+1)` will return True.
+So the logic holds.
+
+Wait, `check` finds *any* valid coloring.
+`main_solve` finds the *lexicographically first*.
+Is it possible that `check` finds a coloring, but `main_solve` cannot find it because it restricts the search?
+No, `main_solve` explores all valid options.
+If `check` says "Yes, there exists", then `main_solve` will eventually find it (or a better one).
+So `main_solve` will return True.
+
+One optimization for `check`:
+If `check` finds a solution, it returns True.
+It doesn't need to find the lexicographically first one.
+So `search` inside `check` can use any heuristic (like MRV) and stop at first solution.
+This is what I implemented.
+However, `main_solve` also uses `check`.
+Wait, `main_solve` is fixed order.
+`check` is flexible order.
+This is consistent.
+
+Wait, `search` inside `check` picks the best node.
+It might pick a node $u$.
+It assigns color.
+It recurses.
+This is standard.
+One thing: `search` should not modify `color` permanently if it fails.
+It uses `history` to revert.
+This is correct.
+
+Wait, `main_solve` calls `check(i+1)`.
+`check` modifies `color` (temporarily).
+If `check` returns True, `color` is restored.
+So `main_solve` proceeds with `color` having only $1 \dots i$ set.
+Then `main_solve` calls `main_solve(i+1)`.
+`main_solve(i+1)` sets $s_{i+1}$.
+It calls `check(i+2)`.
+This is correct.
+
+Wait, what if `check(i+1)` returns True, but the only valid coloring for $i+1 \dots n$ has $s_{i+1}=3$?
+`main_solve(i+1)` will try $s_{i+1}=1$.
+It calls `check(i+2)`.
+`check(i+2)` will return False (since no solution with $s_{i+1}=1$).
+Then `main_solve` tries $s_{i+1}=2$.
+`check(i+2)` returns False.
+Then `main_solve` tries $s_{i+1}=3$.
+`check(i+2)` returns True.
+Then `main_solve` proceeds.
+So it works.
+The fact that `check(i+1)` returned True just guarantees that we won't get stuck in an infinite loop or fail later without trying all options.
+It doesn't save us from trying all options for $s_{i+1}$.
+It just prunes the branch where $s_i$ is set but no completion exists.
+This is exactly what we want.
+
+Wait, is it possible that `check(i+1)` is too slow?
+If `check` explores a huge tree before returning False.
+But `check` is only called when we are unsure.
+If `check` returns True, it might find a solution quickly.
+If it returns False, it might take long.
+But if it returns False, we backtrack on $s_i$.
+So we might run `check` multiple times.
+However, with $N=40$, this should be acceptable.
+
+One detail: `sys.setrecursionlimit`.
+Default is 1000. Depth is 40. So it's fine.
+But `search` can go deeper?
+No, depth is at most $N$ (number of nodes to color).
+So 40 is fine.
+
+Wait, `get_available` iterates `adj[u]`.
+If `adj[u]` is large, it's slow.
+Max degree is 39.
+$39 \times 40$ iterations per node selection.
+Total nodes in `search` is up to 40.
+So total ops per `check` call is roughly $40 \times 40 \times 40 \approx 64000$.
+Times 3 (branching) times 40 (levels) = $7.6 \times 10^6$.
+This is well within 2 seconds (usually $10^8$ ops/sec).
+So it's very safe.
+
+Wait, I should use fast I/O.
+`sys.stdin.read().split()` is fast.
+
+One small bug in `check` logic:
+`check` uses `search`.
+`search` picks `best_node`.
+It assigns `color[best_node]`.
+It pushes to `history`.
+Then calls `search`.
+If `search` returns True, it returns True.
+If `search` returns False, it backtracks (pops `history`, sets `color` to 0).
+Then tries next color.
+This is correct.
+
+Wait, `check` restores `history` after `search` returns.
+So if `search` returns True, `history` might have changes?
+No, `search` is a recursive function.
+If `search` returns True, it means it found a solution.
+But it doesn't mean it left the state dirty.
+Wait, `search` modifies `color` and `history`.
+If `search` returns True, it means the base case `best_node == -1` was reached.
+At that point, all nodes are colored.
+So `color` has values for all nodes.
+And `history` has all pushes.
+So `check` restores `history` to `start_hist_len`.
+This means `color` is restored to 0 for all nodes colored during `search`.
+So `check` leaves `color` as it was (only $1 \dots i$ colored).
+This is correct.
+
+Wait, what if `search` modifies `color` and returns True.
+Does `history` contain all changes?
+Yes, `history` stores all assignments made.
+So restoring `history` restores `color`.
+Correct.
+
+Wait, `main_solve` structure:
+```python
+    def main_solve(i):
+        if i > n:
+            return True
+        for c in range(1, 4):
+            if valid(i, c):
+                color[i] = c
+                history.append((i, c))
+                if check(i + 1):
+                    if main_solve(i + 1):
+                        return True
+                color[i] = 0
+                history.pop()
+        return False
+```
+Wait, I added `if main_solve(i + 1): return True`.
+This is correct.
+The `check(i+1)` is a pruning check.
+If `check(i+1)` is False, we backtrack immediately.
+If True, we recurse.
+This is good.
+
+Wait, `main_solve` calls `check(i+1)`.
+`check` runs `search`.
+`search` picks nodes from `i+1 \dots n`.
+Wait, `search` picks uncolored nodes.
+Is it possible `search` picks a node $u$ where `color[u]` is set by `main_solve`?
+No, `main_solve` sets `color[i]`.
+`check(i+1)` is called.
+`color[1 \dots i]` are set.
+`color[i+1 \dots n]` are 0.
+`search` picks uncolored nodes.
+So it picks from `i+1 \dots n`.
+This is correct.
+
+Wait, `main_solve` is called recursively.
+When `main_solve(i+1)` is called, `color[1 \dots i]` are set.
+`main_solve(i+1)` sets `color[i+1]`.
+Then calls `check(i+2)`.
+`check(i+2)` sees `color[1 \dots i+1]` set.
+It picks uncolored from `i+2 \dots n`.
+Correct.
+
+Wait, the `valid` check in `main_solve`:
+```python
+            valid = True
+            for v in adj[i]:
+                if color[v] == c:
+                    valid = False
+                    break
+```
+This checks conflicts with neighbors.
+Neighbors can be $< i$ (colored) or $> i$ (uncolored, `color[v] == 0`).
+If `color[v] == 0`, `color[v] == c` is False.
+So it only checks conflicts with already colored neighbors.
+This is correct.
+
+Wait, `check` uses `get_available`.
+`get_available` checks neighbors.
+If neighbor is uncolored (`color[v] == 0`), it doesn't restrict.
+This is correct.
+
+Looks solid.
+
+Final check on time complexity.
+In the worst case (no solution), we might explore many branches.
+But with $N=40$, 2s is plenty for optimized backtracking.
+The constraints are small enough.
+
+One thing: `history` management.
+`main_solve` pushes `(i, c)`.
+`check` pushes more.
+`check` restores to `len(history)` at start.
+So `check` removes its own pushes.
+Then `main_solve` removes `(i, c)`.
+This is correct.
+
+Wait, `check` calls `search`.
+`search` calls `search` recursively.
+All these pushes are removed by `check`'s restoration.
+Correct.
+
+One corner case: $N=1$.
+Input:
+1 0
+Output:
+YES
+1
+My code:
+`main_solve(1)` tries $c=1$. `valid` True. `check(2)` called.
+`check(2)` calls `search`.
+`search` finds no uncolored nodes (since $1 \dots 1$ colored).
+Returns True.
+`main_solve` calls `main_solve(2)`.
+`main_solve(2)` returns True.
+Prints YES 1.
+Correct.
+
+Example 1:
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+Output:
+YES
+1 2 3 3
+My code logic:
+`main_solve(1)` tries 1.
+`check(2)` checks if 2, 3, 4 can be colored.
+Graph on 2, 3, 4:
+Edges: (2, 3), (1, 4), (2, 4).
+Wait, 1 is colored 1.
+So 4 cannot be 1.
+Edges in subgraph 2, 3, 4: (2, 3), (2, 4).
+Also 4 cannot be 1.
+So 4 can be 2 or 3.
+2 can be 2 or 3.
+3 can be 1, 2, 3.
+Is it colorable?
+Yes. E.g. 2->2, 3->3, 4->3.
+So `check(2)` returns True.
+`main_solve(2)` tries 1.
+Conflict with 1 (1-2 edge). So invalid.
+Tries 2. Valid.
+`check(3)` checks 3, 4.
+1 is 1, 2 is 2.
+3 cannot be 1, 2. Must be 3.
+4 cannot be 1 (from 1), 2 (from 2). Must be 3.
+So 3->3, 4->3.
+Valid. `check(3)` returns True.
+`main_solve(3)` tries 1 (conflict 1, 2), 2 (conflict 2). Tries 3.
+`check(4)` checks 4.
+1 is 1, 2 is 2, 3 is 3.
+4 cannot be 1, 2. Must be 3.
+`check(4)` returns True.
+`main_solve(4)` tries 1 (conflict 1), 2 (conflict 2). Tries 3.
+`check(5)` returns True.
+`main_solve(5)` returns True.
+Output 1 2 3 3.
+Matches example.
+
+Looks good.
+
+One small optimization:
+`get_available` can be optimized.
+Currently $O(\text{deg})$.
+With $N=40$, it's fast.
+I'll stick with it.
+
+```python
+import sys
+
+# Increase recursion depth
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # Global state
+    color = [0] * (n + 1)
+    history = [] # Stack of (node, old_color)
+    
+    # Precompute adjacency sets for faster intersection if needed, 
+    # but list iteration is fine for N=40.
+    # However, for availability check, list is fine.
+    
+    def get_available(u):
+        forbidden = set()
+        for v in adj[u]:
+            if color[v] != 0:
+                forbidden.add(color[v])
+        return [c for c in [1, 2, 3] if c not in forbidden]
+    
+    def search():
+        # Find uncolored node with min available colors
+        best_node = -1
+        min_avail = 4
+        avail_colors = []
+        
+        # Iterate over all nodes to find uncolored ones
+        # Optimization: maintain a list of uncolored nodes?
+        # Given N=40, O(N) scan is fast enough.
+        for u in range(1, n + 1):
+            if color[u] == 0:
+                avail = get_available(u)
+                if not avail:
+                    return False
+                if len(avail) < min_avail:
+                    min_avail = len(avail)
+                    avail_colors = avail
+                    best_node = u
+        
+        if best_node == -1:
+            return True # All colored
+        
+        if min_avail == 1:
+            # Force assignment
+            c = avail_colors[0]
+            color[best_node] = c
+            history.append((best_node, c))
+            if search():
+                return True
+            color[best_node] = 0
+            history.pop()
+            return False
+        
+        # If min_avail > 1, try all
+        for c in avail_colors:
+            color[best_node] = c
+            history.append((best_node, c))
+            if search():
+                return True
+            color[best_node] = 0
+            history.pop()
+            
+        return False
+
+    def check(start_node):
+        start_hist_len = len(history)
+        res = search()
+        # Restore history
+        while len(history) > start_hist_len:
+            node, old_val = history.pop()
+            color[node] = old_val
+        return res
+
+    def main_solve(i):
+        if i > n:
+            return True
+        
+        for c in range(1, 4):
+            # Check validity with already colored neighbors
+            valid = True
+            for v in adj[i]:
+                if color[v] == c:
+                    valid = False
+                    break
+            
+            if valid:
+                color[i] = c
+                history.append((i, c))
+                
+                # Pruning: check if a valid completion exists
+                if check(i + 1):
+                    if main_solve(i + 1):
+                        return True
+                
+                # Backtrack
+                color[i] = 0
+                history.pop()
+        
+        return False
+
+    if main_solve(1):
+        print("YES")
+        print(*(color[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+Wait, one issue.
+In `main_solve`, I call `check(i+1)`.
+If `check` returns True, I call `main_solve(i+1)`.
+If `main_solve(i+1)` returns True, I return True.
+This is correct.
+However, `check` restores `color` to state before `check`.
+So when `main_solve(i+1)` is called, `color` has $1 \dots i$ set, others 0.
+This is correct.
+Wait, `check` restores `color` to state before `check`.
+`main_solve` set `color[i] = c`.
+So `check` sees `color[i] = c`.
+`check` restores to include `color[i] = c`.
+So `main_solve(i+1)` sees `color[i] = c`.
+This is correct.
+
+Wait, `check` restores `history` to `start_hist_len`.
+`start_hist_len` includes `(i, c)`.
+So `history` still has `(i, c)`.
+So `color[i]` is still `c`.
+Correct.
+
+Wait, `main_solve` calls `check(i+1)`.
+Inside `check`, `search` picks nodes from $i+1 \dots n$.
+It might pick a node $u$.
+It assigns `color[u]`.
+It pushes `(u, c)` to `history`.
+Then it recurses.
+If it returns True, `check` restores `history`.
+So `(u, c)` is popped. `color[u]` set to 0.
+So `check` returns True, and `color` is back to having only $1 \dots i$ colored.
+Correct.
+
+The solution seems robust.
+
+Wait, `get_available` uses `set`.
+Creating a set every time is slightly slow.
+But $N$ is small.
+It's fine.
+
+One final check: `main_solve` logic.
+If `check(i+1)` returns False, we backtrack and try next $c$.
+If `check` returns True, we recurse.
+If `main_solve(i+1)` returns False, we backtrack.
+If `main_solve(i+1)` returns True, we return True.
+This logic is correct for finding the lexicographically first solution.
+
+Wait, `main_solve` logic:
+```python
+                if check(i + 1):
+                    if main_solve(i + 1):
+                        return True
+```
+This is correct.
+It ensures that we only proceed if a valid completion exists.
+And `main_solve(i+1)` will find the best completion.
+
+Wait, is it possible that `check` returns True, but `main_solve(i+1)` fails?
+No, `check` guarantees existence.
+But `main_solve` finds the *lexicographically first* one.
+So `main_solve` will definitely find one.
+So `main_solve(i+1)` will return True.
+So the inner `if` is redundant?
+No, `main_solve` might fail if `check` was wrong.
+But `check` is correct.
+Wait, `main_solve` iterates $c$.
+If `check(i+1)` is True, it means there exists *some* valid coloring for $i+1 \dots n$.
+Does `main_solve(i+1)` find *that* coloring?
+Yes, it searches for valid colorings.
+Since at least one exists, it will find the first one it encounters.
+So it will return True.
+So `if main_solve(i+1): return True` is always True if `check(i+1)` is True.
+Wait, is it?
+Yes.
+So I can simplify:
+```python
+                if check(i + 1):
+                    return main_solve(i + 1) # This will always be True if check is True
+```
+Wait, `main_solve` returns True/False.
+If `check` is True, then `main_solve` MUST return True.
+So `if check(i+1): return True`?
+Wait, no.
+If I just return True, I don't need to call `main_solve(i+1)`.
+But I need to *set* the colors for $i+1 \dots n$.
+If I just return True, `color` will not be set for $i+1 \dots n$.
+So I MUST call `main_solve(i+1)`.
+But `main_solve(i+1)` will set the colors.
+So yes, I must call it.
+And since `check` guarantees existence, `main_solve(i+1)` will succeed.
+So `if check(i+1): return main_solve(i+1)` is valid.
+But `main_solve(i+1)` might try different $c$'s.
+Wait, `main_solve(i+1)` tries $c=1, 2, 3$.
+It will eventually find the solution.
+So yes, it will return True.
+So `if check(i+1): return main_solve(i+1)` is correct.
+And since `main_solve` returns True, I can just return True.
+Wait, `main_solve(i+1)` returns True.
+So `if check(i+1): return True`?
+No, I need to execute `main_solve(i+1)` to set the colors.
+So:
+```python
+                if check(i + 1):
+                    if main_solve(i + 1):
+                        return True
+```
+This is correct.
+The `if main_solve(i+1)` check is technically always True if `check` is True, but it's safer to keep it.
+Actually, if `main_solve` returns False, it means my `check` logic is flawed.
+So I'll keep it.
+
+Wait, what if `main_solve` returns False?
+Then I backtrack.
+This is correct.
+
+Wait, `check` is $O(3^{N-i})$.
+If `check` returns True, we call `main_solve`.
+If `check` returns False, we backtrack.
+This is efficient.
+
+One small thing: `check` finds *any* coloring.
+`main_solve` finds *lexicographically first*.
+Is it possible that `check` finds a coloring, but `main_solve` takes longer?
+Yes.
+But `check` is just a feasibility check.
+It doesn't need to be fast if `main_solve` is also going to run.
+Actually, if `check` is slow, it slows down the whole process.
+But `check` is usually fast.
+And `main_solve` is the one that does the work.
+So it's fine.
+
+Final check on imports.
+`sys` is used.
+`setrecursionlimit` is used.
+Everything looks good.
+
+```python
+# Final check of the code logic
+import sys
+sys.setrecursionlimit(5000)
+
+def solve():
+    # ... reading input ...
+    # ... adj list ...
+    # ... global color, history ...
+    # ... helper functions ...
+    # ... main_solve ...
+    # ... output ...
+```
+Looks good.
+
+One detail: `get_available` iterates `adj[u]`.
+`adj[u]` contains neighbors.
+If `color[v]` is 0, it's not forbidden.
+Correct.
+
+The solution seems complete.
+
+```python
+import sys
+
+# Increase recursion depth to handle deep recursion if necessary
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # Global state for coloring and history stack
+    color = [0] * (n + 1)
+    history = [] # Stack of (node, old_color)
+    
+    # Helper to get available colors for a node
+    def get_available(u):
+        forbidden = set()
+        for v in adj[u]:
+            if color[v] != 0:
+                forbidden.add(color[v])
+        return [c for c in [1, 2, 3] if c not in forbidden]
+    
+    # Recursive search for feasibility (used by check)
+    # This function tries to color the remaining uncolored nodes.
+    # It uses MRV (Minimum Remaining Values) heuristic.
+    def search():
+        best_node = -1
+        min_avail = 4
+        avail_colors = []
+        
+        # Find uncolored node with minimum available colors
+        for u in range(1, n + 1):
+            if color[u] == 0:
+                avail = get_available(u)
+                if not avail:
+                    return False # Impossible
+                if len(avail) < min_avail:
+                    min_avail = len(avail)
+                    avail_colors = avail
+                    best_node = u
+        
+        if best_node == -1:
+            return True # All nodes colored successfully
+        
+        if min_avail == 1:
+            # Forced assignment
+            c = avail_colors[0]
+            color[best_node] = c
+            history.append((best_node, c))
+            if search():
+                return True
+            color[best_node] = 0
+            history.pop()
+            return False
+        
+        # Try all available colors
+        for c in avail_colors:
+            color[best_node] = c
+            history.append((best_node, c))
+            if search():
+                return True
+            color[best_node] = 0
+            history.pop()
+            
+        return False
+
+    # Function to check if a valid coloring exists for the remaining nodes
+    def check(start_node):
+        # Save the current history length to restore later
+        start_hist_len = len(history)
+        res = search()
+        # Restore history to state before this check
+        while len(history) > start_hist_len:
+            node, old_val = history.pop()
+            color[node] = old_val
+        return res
+
+    # Main recursive solver to find lexicographically first solution
+    def main_solve(i):
+        if i > n:
+            return True
+        
+        # Try shifts 1, 2, 3 for worker i
+        for c in range(1, 4):
+            # Check validity with already colored neighbors
+            valid = True
+            for v in adj[i]:
+                if color[v] == c:
+                    valid = False
+                    break
+            
+            if valid:
+                color[i] = c
+                history.append((i, c))
+                
+                # Pruning: check if a valid completion exists
+                if check(i + 1):
+                    # If valid completion exists, proceed to find the rest
+                    if main_solve(i + 1):
+                        return True
+                
+                # Backtrack
+                color[i] = 0
+                history.pop()
+        
+        return False
+
+    # Execute the solver
+    if main_solve(1):
+        print("YES")
+        print(*(color[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+The logic holds.
+The complexity is acceptable.
+The constraints are respected.
+The output format is correct.
+The lexicographical requirement is met.
+Pruning is included.
+State restoration is handled.
+
+One tiny thing: `get_available` creates a set.
+`forbidden.add` is $O(1)$.
+List comprehension is $O(1)$ (size 3).
+So it's fast.
+
+I'm confident.
+
+Wait, `check` calls `search`.
+`search` picks `best_node`.
+It assigns `color[best_node]`.
+If `search` returns True, it means `color` is fully filled.
+But `check` restores `color` to state before `check`.
+So `color` is not fully filled after `check`.
+This is correct because `main_solve` will fill it.
+The `main_solve` loop continues.
+Wait, `main_solve` calls `check(i+1)`.
+If `check` returns True, `main_solve` calls `main_solve(i+1)`.
+`main_solve(i+1)` sets `color[i+1]`.
+Then calls `check(i+2)`.
+This continues until `i=n`.
+Then `main_solve(n+1)` returns True.
+Then `main_solve(n)` returns True.
+...
+`main_solve(1)` returns True.
+Finally `color` is filled with $1 \dots n$.
+Correct.
+
+Double check the `check` restoration.
+`start_hist_len` is captured.
+`search` pushes to `history`.
+`check` pops until `len == start_hist_len`.
+So `history` is restored.
+`color` is restored.
+Correct.
+
+The code is ready.

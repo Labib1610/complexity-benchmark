@@ -1,0 +1,28 @@
+import sys
+from collections import defaultdict
+
+def find_smallest_triad(n, m, edges):
+    graph = defaultdict(set)
+    
+    for u, v in edges:
+        graph[u].add(v)
+        graph[v].add(u)
+    
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            if b in graph[a]:
+                for c in range(b + 1, n + 1):
+                    if c in graph[a] and c in graph[b]:
+                        return a, b, c
+
+def main():
+    input = sys.stdin.read
+    data = input().splitlines()
+    n, m = map(int, data[0].split())
+    edges = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+    
+    result = find_smallest_triad(n, m, edges)
+    print(" ".join(map(str, result)))
+
+if __name__ == "__main__":
+    main()

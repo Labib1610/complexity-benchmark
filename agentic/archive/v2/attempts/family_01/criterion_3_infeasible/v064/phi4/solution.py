@@ -1,0 +1,39 @@
+import sys
+
+def find_synchronized_triad():
+    input = sys.stdin.read
+    data = input().split()
+    
+    idx = 0
+    n = int(data[idx])
+    m = int(data[idx + 1])
+    idx += 2
+    
+    lines = []
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        lines.append((u, v))
+        idx += 2
+    
+    # Create adjacency matrix
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    
+    for u, v in lines:
+        adj[u][v] = True
+        adj[v][u] = True
+    
+    # Sort nodes to ensure lexicographical order when checking triples
+    nodes = list(range(1, n + 1))
+    
+    for a in nodes:
+        for b in range(a + 1, n + 1):
+            if not adj[a][b]:
+                continue
+            for c in range(b + 1, n + 1):
+                if adj[a][c] and adj[b][c]:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    find_synchronized_triad()

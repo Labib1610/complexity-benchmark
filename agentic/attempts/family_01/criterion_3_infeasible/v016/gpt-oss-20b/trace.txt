@@ -1,0 +1,124 @@
+We need lexicographically smallest triangle in undirected graph up to n=2000, m up to 200k. We can find all triangles efficiently. Approach: adjacency as bitset or adjacency list with ordering. For lexicographic smallest (a,b,c sorted ascending). We can iterate a from 1 to n, b from neighbors > a, c from intersection of neighbors > b. Since constraints small, we can use adjacency sets.
+
+Algorithm: Build adjacency list of sets. For each a in 1..n: for each b in adjacency[a] where b>a: compute intersection of adjacency[a] and adjacency[b], but only consider c > b. Find min c. If found, we have triangle (a,b,c). Since we iterate a ascending, b ascending, we can break as soon as found first triple, because lexicographic order prioritized a then b then c. But need to ensure that for given a,b, we get minimal c. So we can find minimal c from intersection. So we can break loops accordingly.
+
+Implementation details: adjacency list as list of sorted lists or sets. For intersection, we can iterate through smaller list.
+
+Since n <=2000, adjacency sets size up to 2000. Intersection O(min(deg)). loops: For each a (2000) for each b neighbor > a (deg up to 1999). That's worst 2000*2000=4M. For each we compute intersection size maybe up to 2000. Could be heavy but still within 2s in Python? 4M * 2000 too large. But we only compute intersection if small.
+
+Better: Use bitset with Python ints: for each node, adjacency bitmask of n bits. Then intersection via bitwise AND. Then find first set bit > b. Use bit_length. That would be efficient.
+
+n=2000, bitmask fits in Python int of 2000 bits (~63 32-bit words). We can create list of ints.
+
+Procedure: adj_mask[u] = bitmask of neighbors. After reading edges, set bits accordingly.
+
+Then for a in 1..n:
+  for b in neighbors of a where b>a:
+    mask = adj_mask[a] & adj_mask[b]
+    # need to find smallest bit > b
+    # mask >> (b) will shift so that bit at position b becomes bit 0? Actually positions zero-indexed maybe.
+We need mapping: employee ids 1..n map to bit positions 0..n-1. So bit i corresponds to employee i+1.
+
+When we want c > b, we need to shift mask right by b (since b is zero-indexed). Then find lowest set bit, get position offset, add b+1 to get c.
+
+Implementation: shift = mask >> b; # now bit0 corresponds to original bit b
+We need c > b, so we need shift >>1? Wait: we need to ignore bits <=b. Since we shifted by b, bit0 corresponds to original bit b. We need first set bit at position >=1. So we can do shift >> 1 to drop bit0. Then find lowest set bit index: (shift >>1).bit_length() gives number of bits. But we need index of first set bit: Use (shift & -shift).bit_length() -1 to get index of lowest set bit. Let's compute:
+
+shift2 = shift & -shift  # lowest set bit
+pos = (shift2.bit_length() - 1)  # position starting at 0 for original bit b
+c = pos + b + 1  # translate to original index
+
+But we need to ensure that shift2 != 0.
+
+Alternate: Use (shift >>1).bit_length()? Actually we need minimal set bit > b: we can compute mask_after = mask & (~((1<<(b+1))-1)) to zero out bits <=b. Then find lowest set bit via mask_after & -mask_after. That might be simpler.
+
+Let's do:
+
+mask_after = mask & ~((1<<(b+1))-1)  # zero bits 0..b
+
+if mask_after:
+   low = mask_after & -mask_after
+   pos = low.bit_length() -1
+   c = pos +1
+   return triangle
+
+But careful: (1<<(b+1)) may overflow if b+1==2000; but Python ints unlimited. Good.
+
+Time complexity: For each a, each b > a. Number of edges m up to 200k. So loops about m/2? Actually each directed pair considered once? For each a, we iterate through neighbors > a; that is each undirected edge counted once. So ~m edges. For each we compute mask intersection and constant ops. So about 200k operations, fine.
+
+We need to find lexicographically smallest triangle: iterate a ascending; for each a, iterate b ascending; for each find smallest c. As soon as we find any c, we output (a,b,c) and exit.
+
+Implementation details:
+
+Read n,m. Initialize list of ints size n+1. For each edge u,v: set bit. For adjacency list for ordering neighbors > a: we need neighbors list sorted ascending. We can create list of neighbor lists sorted. Instead of storing list of neighbors, we can iterate all b from a+1..n and test if bit set. But that would be n^2 ~4M, still okay. But we can use adjacency lists: For each node, store sorted list of neighbors greater than node? We can store all neighbors and then filter.
+
+Simpler: For each a, we can iterate through all b from a+1 to n and check if bit set: if (adj_mask[a] >> (b-1)) &1: then process. That's O(n^2) = 4M, fine. We can also break early when found. That avoids storing neighbor list.
+
+Time fine.
+
+Edge case: ensure we find triangle. Guarantee exists.
+
+Let's implement.
+
+Test with examples.
+
+Implementation steps:
+
+def solve():
+    import sys
+    input_data = sys.stdin.read().strip().split()
+    if not input_data: return
+    it = iter(input_data)
+    n = int(next(it)); m = int(next(it))
+    adj_mask = [0]*(n+1)
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj_mask[u] |= 1 << (v-1)
+        adj_mask[v] |= 1 << (u-1)
+    for a in range(1, n+1):
+        mask_a = adj_mask[a]
+        for b in range(a+1, n+1):
+            if (mask_a >> (b-1)) & 1:
+                mask = mask_a & adj_mask[b]
+                # zero bits <= b
+                mask_after = mask & ~((1 << b) - 1)  # bits 0..b-1 zeroed
+                if mask_after:
+                    low = mask_after & -mask_after
+                    c = low.bit_length()  # because lowest bit position index +1
+                    if c <= n:
+                        print(a, b, c)
+                        return
+
+Check: When we compute low.bit_length() gives position+1 because bit_length returns number of bits needed. For mask 1<<k, bit_length = k+1. So c = low.bit_length() is correct.
+
+Let's test with sample.
+
+Example1: n=4. edges: produce triangle 1 2 3.
+
+Check code logic: a=1, b=2. mask_a & mask_b -> bits of common neighbors: 3? yes. mask_after zero bits <=b: b=2, zero bits 0..1? Wait b=2 -> zero bits 0..1? Actually we need zero bits <= b, meaning indices 0..b-1? But we want to exclude c <= b. Since c index is bit position +1. If we zero bits <=b, we zero bits positions 0..b-1. For b=2 -> zero bits 0..1 (employees 1 and 2). So we call ~((1<<b)-1) = ~((1<<2)-1)=~(3)=... This zeros bits 0 and 1. Good.
+
+mask_after contains bit for employee 3? position 2. Good.
+
+low = mask_after & -mask_after = 1<<2. bit_length=3 -> c=3. Works.
+
+Edge case: if mask_after contains multiple bits, we get lowest set bit. Works.
+
+Now complexity fine.
+
+Let's test quickly mentally example2: n=5 edges. Triangles: 1-2-4 and 3-4-5 maybe. Lexicographically smallest should be 1 2 4.
+
+Our algorithm: a=1,b=2; mask intersection includes 4. mask_after zeros <=2 -> bits 0..1? Wait b=2 zero bits 0..1. So 4 (pos3) remains. low bit_length=4 -> c=4. Works.
+
+Return.
+
+Edge case: if triangle found earlier with same a but smaller b? We iterate b ascending, so first found triangle will have minimal b. Good.
+
+Edge case: if multiple triangles with same a,b but different c, we choose minimal c via mask_after lowest bit. Good.
+
+Thus algorithm correct.
+
+Need to ensure we use 0-index mapping correctly. For bitmask, bit i corresponds to employee i+1.
+
+Now code.
+
+Let's write final solution.

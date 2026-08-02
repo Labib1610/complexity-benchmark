@@ -1,0 +1,50 @@
+def can_allocate_vaults(n, m, restrictions):
+    from collections import defaultdict, deque
+    
+    # Create an adjacency list for the graph
+    graph = defaultdict(list)
+    for u, v in restrictions:
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # To store the vault assignments
+    vault_assignment = [0] * (n + 1)
+
+    def bfs(start):
+        queue = deque([start])
+        vault_assignment[start] = 1  # Start with vault 1
+        
+        while queue:
+            current = queue.popleft()
+            current_vault = vault_assignment[current]
+            next_vault = 1 if current_vault != 1 else 2
+            
+            for neighbor in graph[current]:
+                if vault_assignment[neighbor] == 0:  # Not assigned yet
+                    vault_assignment[neighbor] = next_vault
+                    queue.append(neighbor)
+                elif vault_assignment[neighbor] == current_vault:  # Conflict
+                    return False
+                
+                # Switch the next vault for the next neighbor
+                next_vault = 3 if next_vault == 2 else 2
+        
+        return True
+
+    for compound in range(1, n + 1):
+        if vault_assignment[compound] == 0:  # Not visited
+            if not bfs(compound):
+                return "NO"
+    
+    # Adjust for lexicographically smallest output
+    # Ensure no vault is 0 and convert to 1-based index
+    result = vault_assignment[1:]  # Skip index 0
+    return "YES\n" + " ".join(map(str, result))
+
+import sys
+input = sys.stdin.read
+data = input().strip().splitlines()
+n, m = map(int, data[0].split())
+restrictions = [tuple(map(int, line.split())) for line in data[1:m+1]]
+
+print(can_allocate_vaults(n, m, restrictions))

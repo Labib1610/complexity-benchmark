@@ -1,0 +1,68 @@
+import sys
+
+# Increase recursion depth for deep graphs
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    assignment = [0] * (n + 1)
+    
+    # To get the lexicographically smallest assignment, we try to assign
+    # node i to block 1 if possible. Since we want the overall vector
+    # (s1, s2, ..., sn) to be lexicographically smallest, we iterate
+    # from 1 to n and greedily assign 1 if no conflict arises.
+    
+    for i in range(1, n + 1):
+        if assignment[i] == 0:
+            # Component not yet visited, use BFS/DFS to color it
+            # To ensure lexicographical smallest, we need to consider
+            # the implications of assigning node i to 1 vs 2.
+            # This is a standard 2-coloring problem.
+            stack = [(i, 1)]
+            assignment[i] = 1
+            component = []
+            
+            possible = True
+            while stack:
+                u, color = stack.pop()
+                component.append((u, color))
+                for v in adj[u]:
+                    if assignment[v] == 0:
+                        assignment[v] = 3 - color
+                        stack.append((v, 3 - color))
+                    elif assignment[v] == color:
+                        print("NO")
+                        return
+            
+            # Now we have a connected component. We have two ways to color it:
+            # 1. Start with node i as 1
+            # 2. Start with node i as 2
+            # We want the one that makes the resulting assignment lexicographically smaller.
+            # Since we process nodes 1 to n, we can just check which assignment
+            # for the *smallest* node in this component is better.
+            
+            # Actually, the greedy choice works: if we have a component, 
+            # we check if assigning node i to 1 works.
+            # If it does, we keep it. If not, node i must be 2.
+            # The current logic already does this because we pick the first
+            # unvisited node i, which is the smallest index in the component.
+            
+    print("YES")
+    print(*(assignment[1:]))
+
+solve()

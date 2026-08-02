@@ -1,0 +1,33 @@
+import sys
+
+def find_conflict_triplet(n, m, edges):
+    # Create adjacency list for conflicts
+    conflict_graph = {i: set() for i in range(1, n + 1)}
+    for u, v in edges:
+        conflict_graph[u].add(v)
+        conflict_graph[v].add(u)
+
+    # Find the lexicographically smallest triplet (a, b, c) such that all pairs are conflicts
+    for a in range(1, n + 1):
+        for b in conflict_graph[a]:
+            if b > a:
+                for c in conflict_graph[a]:
+                    if c > b and c in conflict_graph[b]:
+                        return a, b, c
+
+# Read input
+input = sys.stdin.read
+data = input().split()
+n = int(data[0])
+m = int(data[1])
+edges = []
+index = 2
+for _ in range(m):
+    u = int(data[index])
+    v = int(data[index + 1])
+    edges.append((u, v))
+    index += 2
+
+# Find and print the result
+result = find_conflict_triplet(n, m, edges)
+print(" ".join(map(str, result)))

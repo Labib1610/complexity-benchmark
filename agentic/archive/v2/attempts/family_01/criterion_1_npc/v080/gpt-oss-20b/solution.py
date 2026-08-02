@@ -1,0 +1,65 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if v not in adj[u]:
+            adj[u].append(v)
+        if u not in adj[v]:
+            adj[v].append(u)
+
+    sys.setrecursionlimit(1000000)
+
+    assigned = [0] * n          # 0 means unassigned, else 1..3
+    allowed = [0b111] * n       # each bit for colors 1,2,3
+
+    bits = [1, 2, 4]            # color 1 -> bit1, color2 -> bit2, color3 -> bit4
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        mask = allowed[idx]
+        for color in range(3):
+            bit = bits[color]
+            if not (mask & bit):
+                continue
+            # assign color
+            assigned[idx] = color + 1
+            changed = []
+            success = True
+            for nb in adj[idx]:
+                if nb > idx:        # nb not yet assigned
+                    old = allowed[nb]
+                    new = old & ~bit
+                    if new != old:
+                        changed.append((nb, old))
+                        allowed[nb] = new
+                        if new == 0:
+                            success = False
+                            break
+            if success:
+                if dfs(idx + 1):
+                    return True
+            # revert changes
+            for nb, old_val in changed:
+                allowed[nb] = old_val
+            assigned[idx] = 0
+        return False
+
+    if dfs(0):
+        out = ['YES', '\n', ' '.join(map(str, assigned))]
+        sys.stdout.write(''.join(out))
+    else:
+        sys.stdout.write('NO')
+
+if __name__ == "__main__":
+    solve()

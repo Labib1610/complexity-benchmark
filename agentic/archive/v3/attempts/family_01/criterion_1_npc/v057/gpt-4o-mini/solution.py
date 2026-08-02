@@ -1,0 +1,64 @@
+def can_assign(n, m, edges):
+    from collections import defaultdict, deque
+
+    graph = defaultdict(list)
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [0] * (n + 1)
+
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 1  # Start coloring with 1
+
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:
+                    # Color the neighbor with a different color
+                    color[neighbor] = 3 - current_color if current_color in (1, 2) else 1
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
+                    return False  # Conflict detected
+
+        return True
+
+    for i in range(1, n + 1):
+        if color[i] == 0:  # Not colored yet
+            if not bfs(i):
+                return "NO", []
+
+    # Now we have a valid bipartite coloring in color array
+    # We need to map colors to stages 1, 2, 3
+    stage_assignment = []
+    for i in range(1, n + 1):
+        if color[i] == 1:
+            stage_assignment.append(1)  # Map color 1 to stage 1
+        elif color[i] == 2:
+            stage_assignment.append(2)  # Map color 2 to stage 2
+        else:
+            stage_assignment.append(3)  # Map color 3 to stage 3
+
+    # To ensure lexicographically smallest, we can adjust the assignments
+    stages = sorted(set(stage_assignment))
+    stage_dict = {stages[i]: i + 1 for i in range(len(stages))}
+    final_assignment = [stage_dict[stage_assignment[i]] for i in range(n)]
+
+    return "YES", final_assignment
+
+import sys
+input = sys.stdin.read
+
+data = input().splitlines()
+n, m = map(int, data[0].split())
+edges = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+result = can_assign(n, m, edges)
+if result[0] == "NO":
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(map(str, result[1])))

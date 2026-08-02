@@ -1,0 +1,130 @@
+We need find lexicographically smallest triangle in an undirected graph with n up to 2000, m up to 200k. We need efficient algorithm. Approach: adjacency matrix as bitset maybe. n=2000, adjacency matrix bool 2000x2000 ~4M entries fine. Use Python list of bitarray? But we need adjacency checks O(1). Use set of neighbors or boolean matrix.
+
+We'll create list of bitsets using Python's built-in 'int' bitmask? 2000 bits fits in Python int. Use bitset per node: adjacency bitmask of neighbors. Then for each pair (u, v) where u<v and edge exists, we can compute intersection of neighbor sets of u and v to find w > v? But we need lexicographically smallest triple. We can iterate a from 1..n, for each b > a that is neighbor, then find c > b that is neighbor to both a and b. The lexicographically smallest triple means we want minimal a, then b, then c. So we can iterate a in increasing order, then b in increasing order among neighbors > a, then find minimal c > b in intersection of neighbors of a and b. So we need efficient intersection to find smallest c > b.
+
+We can pre-store adjacency lists sorted. For each a, we can iterate through neighbors b> a. For each b, we compute intersection of neighbor lists of a and b. But we want minimal c. We can use bitset intersection and then find lowest bit > b. Use bitset as python int bit mask: neighbor_mask[v] is int with bit i-1 set if neighbor i. Then intersection = neighbor_mask[a] & neighbor_mask[b]. We need find smallest c > b such that bit c-1 set. We can shift right by b bits? Actually we want minimum index > b. We can compute mask = intersection >> b. Then if mask != 0, least significant bit position pos = mask.bit_length()? Wait to find lowest set bit: use (mask & -mask) to get lowest set bit; then position pos = (mask & -mask).bit_length() -1. But we also need to get index > b: index = pos + b. Because we shifted by b. So we can compute:
+
+mask = intersection >> (b)
+if mask:
+    lsb = mask & -mask
+    pos = (lsb.bit_length() - 1)
+    c = pos + b + 1? Let's check: original index is (b + pos). Because shift right by b bits removes lower b bits, so bit 0 of mask corresponds to original index b. But we need c > b. Actually we want c > b. So we shift by (b+1) maybe. Let's think: if we want c > b, we shift by b+1? Suppose we shift by b: then bit 0 of mask corresponds to original index b. But we want > b, so we should shift by b+1. Because we need to ignore indices <= b. So shift by b+1. Then mask >> (b+1). But then we need to find position pos. Then c = pos + (b+1) +1? Wait original index is pos + (b+1). Because after shifting by b+1, bit 0 corresponds to original index b+1. So c = pos + (b+1). Since pos zero-based. So c = pos + b + 1. So we can compute:
+
+mask = intersection >> (b+1)
+if mask:
+    lsb = mask & -mask
+    pos = (lsb.bit_length() - 1)
+    c = pos + b + 1
+
+Check: Suppose a=1, b=2, intersection has bits for 3,4. b+1=3. intersection >>3 -> bits for 3 shift to bit0. Then lsb pos=0 => c=0+2+1=3 correct.
+
+Edge case: if intersection has bit at original index b+1 exactly, that's pos=0, c=b+1. Good.
+
+Thus algorithm: Build neighbor_mask list of size n+1. For each edge u, v: set bit v-1 in mask[u], bit u-1 in mask[v].
+
+Then iterate a from 1..n-2. For each neighbor b: we need neighbors > a. We can iterate over neighbor list of a sorted ascending. But we can also iterate over all neighbors > a using bitset scanning? For simplicity, we can precompute adjacency lists sorted. Because n small. m up to 200k, adjacency lists average length 200 (since n=2000). So iterating over all neighbors of a is fine.
+
+So for each a: for b in neigh[a]: if b > a: compute intersection of masks and find minimal c > b. If found, output a b c and exit.
+
+We must ensure lexicographically smallest across all a, b. Since we iterate a ascending, b ascending, and we find minimal c for that pair, the first found triple will be lexicographically smallest? Let's think: Suppose there is triple (a1,b1,c1) and (a2,b2,c2). If a1 < a2, we will find a1 earlier. If a1==a2 and b1 < b2, we will find b1 earlier. For fixed a,b, we find minimal c > b. That gives lexicographically smallest for that a,b. But could there be another triple with same a but smaller b but larger c? But we iterate b ascending, so we will find triple with smaller b first. So yes, first found triple is lexicographically smallest.
+
+However, we must ensure that when iterating neighbors list sorted ascending, we only consider b > a. To get sorted neighbors, we can store adjacency lists as sorted lists after building. Complexity: building adjacency lists: for each edge, append to both lists unsorted. Then sorting each list. Complexity O(m log n). But n small.
+
+Alternative: just iterate b from a+1..n and check if edge exists via adjacency matrix bool. That would be O(n^2) = 4 million, fine. n=2000, so 4 million loops fine. Then intersection can be bitset. That might be simpler. Let's estimate: For each a (2000) and for each b > a (averaging 1000), total 2 million iterations. Each intersection uses bit operations. Acceptable.
+
+Thus we can avoid sorting adjacency lists. We just iterate b from a+1..n. But we also need to check if edge exists. We can use adjacency matrix as boolean 2D list or bitset. Since we already have neighbor_mask, to check edge we can see if bit b-1 set in mask[a]. That's O(1). So algorithm:
+
+for a in range(1,n-1):
+    for b in range(a+1,n+1):
+        if (mask[a] >> (b-1)) & 1:
+            intersection = mask[a] & mask[b]
+            mask2 = intersection >> (b+1)
+            if mask2:
+                lsb = mask2 & -mask2
+                pos = (lsb.bit_length()-1)
+                c = pos + b + 1
+                print(a,b,c)
+                return
+
+Complexities: loops 2000*2000/2 ~2 million, each performing bit ops, fine.
+
+Edge case: n up to 2000, bit positions 0..1999. Use Python int; shift left maybe large but fine.
+
+We must build mask array of length n+1. For each edge, set bits. For u, v:
+
+mask[u] |= 1 << (v-1)
+mask[v] |= 1 << (u-1)
+
+Need to be careful about 1-indexed. Use list of ints.
+
+Test examples.
+
+Let's check example 1: n=4. mask[1] bits: 2,3. mask[2] bits:1,3,4. mask[3] bits:1,2,4. mask[4] bits:2,3.
+
+Loop a=1: b=2 edge exists. intersection=mask[1]&mask[2] bits: 3. shift by 3: intersection>>3=1. lsb=1 pos=0 c=0+2+1=3 -> output 1 2 3.
+
+Works.
+
+Example 2: n=5. edges: etc. Our algorithm will find a=1, b=2 edge exists, intersection of masks: neighbors common to 1 and 2: 4. shift by 3 -> intersection>>3? Wait b+1=3. intersection has bit 3? bit index 3-1=2? Let's compute: 1's neighbors: 2,4. 2's neighbors:1,4. intersection: 4. bit index 3? Actually 4 index 3? Wait bit index v-1. 4 -> index 3. So intersection bits: 1<<3=8. shift by b+1=3: shift right by 3 => 8>>3=1. lsb=1 pos=0 c=0+2+1=3? Wait b=2, so c=2+1=3? That would be 3 but 3 is not neighbor of 1 and 2. Something wrong. Because intersection had bit 3 (index 3). shift by b+1=3: 8>>3 = 1. lsb pos=0 => c=0+2+1=3. But 3 is not correct. Actually we need to shift by b+1=3? Let's re-evaluate: We want to ignore indices <= b. For b=2, we should ignore indices <=2 (i.e., 1,2). So shift by b+1=3 means we ignore 1..3. But we want to ignore indices <=2; so shift by b? Wait original indices start at 1. We want to find c > b. So we need to remove indices <= b. In mask bits, bit 0 corresponds to vertex 1. So to ignore indices <= b, we shift right by b? Because shifting by b removes bits 0..b-1. For b=2, shift by 2 removes bits 0 and 1 (vertices 1 and 2). So we need shift by b. Then bit 0 of mask corresponds to vertex 3. So shift by b=2: 8>>2=2 (binary 10). lsb=2 pos=1 -> c=1+2+1=4. Good.
+
+So earlier we mistakenly used b+1. Correction: shift by b. Then compute pos, c = pos + b + 1. Let's test: b=2, intersection 8>>2=2. lsb=2 pos=1 => c=1+2+1=4. Works.
+
+For earlier example 1: a=1,b=2, intersection bit 3 index 2? Wait 3 -> index 2. intersection=1<<2=4. shift by b=2: 4>>2=1. lsb=1 pos=0 => c=0+2+1=3. Works.
+
+Edge case: if intersection bit at index equal to b? But we want c > b, so shift by b removes bits <=b. But if intersection has bit at index b (i.e., vertex b), that bit is removed. Good.
+
+Thus algorithm:
+
+mask2 = intersection >> b
+if mask2:
+    lsb = mask2 & -mask2
+    pos = (lsb.bit_length() -1)
+    c = pos + b + 1
+
+Return triple.
+
+Let's test with scenario where intersection has bit at index b+1: e.g., b=2, intersection has bit 4 index 3. After shift by b=2, we get bit 1 at pos 1? Wait 4>>2=1 (pos 0). Let's compute: intersection bit 4 index3 -> 1<<3 = 8. 8>>2=2 (binary 10). lsb=2 pos=1 => c=1+2+1=4. Good.
+
+Works.
+
+Now complexity: we loop a up to n-2 (since need at least 3). For each a, b from a+1 to n. So about n^2/2 ~ 2M. Each step has bit ops. Should be fine.
+
+Edge: we need to ensure we don't find c > n. But mask2 shift ensures only bits <= n-1. pos + b +1 <= n. Because pos < (n-b). So good.
+
+Now code:
+
+def solve():
+    import sys
+    input = sys.stdin.readline
+    n,m = map(int,input().split())
+    mask = [0]*(n+1)
+    for _ in range(m):
+        u,v = map(int,input().split())
+        mask[u] |= 1 << (v-1)
+        mask[v] |= 1 << (u-1)
+    for a in range(1, n-1):
+        ma = mask[a]
+        for b in range(a+1, n+1):
+            if (ma >> (b-1)) & 1:
+                intersection = ma & mask[b]
+                mask2 = intersection >> b
+                if mask2:
+                    lsb = mask2 & -mask2
+                    pos = (lsb.bit_length() -1)
+                    c = pos + b + 1
+                    print(a,b,c)
+                    return
+
+Should always find a triangle.
+
+Let's test with example 2.
+
+Implement.
+
+Edge case: large n, m. Works.
+
+Check memory: mask list 2001 ints.
+
+Time: ~2M loops; each loop uses shift and bit ops. Should be fine.
+
+Let's produce final code.

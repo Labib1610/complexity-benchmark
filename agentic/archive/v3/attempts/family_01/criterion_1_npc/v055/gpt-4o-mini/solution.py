@@ -1,0 +1,53 @@
+def assign_blocks(n, m, conflicts):
+    from collections import defaultdict
+
+    # Create an adjacency list for the incompatibility graph
+    graph = defaultdict(set)
+    for u, v in conflicts:
+        graph[u].add(v)
+        graph[v].add(u)
+
+    # The result array initialized with 0 (unassigned)
+    result = [0] * (n + 1)
+
+    # Try to assign blocks
+    for task in range(1, n + 1):
+        if result[task] == 0:  # If the task is unassigned
+            # Find the blocks that are already taken by its neighbors
+            forbidden = {result[neighbor] for neighbor in graph[task] if result[neighbor] != 0}
+            # Assign the smallest valid block
+            for block in range(1, 4):
+                if block not in forbidden:
+                    result[task] = block
+                    break
+
+    # Verify if all tasks are assigned
+    for task in range(1, n + 1):
+        if result[task] == 0:
+            print("NO")
+            return
+
+    # Check for conflicts
+    for u, v in conflicts:
+        if result[u] == result[v]:
+            print("NO")
+            return
+
+    print("YES")
+    print(" ".join(map(str, result[1:])))
+
+# Read input
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+first_line = data[0].split()
+n = int(first_line[0])
+m = int(first_line[1])
+
+conflicts = []
+for i in range(1, m + 1):
+    u, v = map(int, data[i].split())
+    conflicts.append((u, v))
+
+assign_blocks(n, m, conflicts)

@@ -1,0 +1,63 @@
+import sys
+
+# Increase recursion depth for deep DFS
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    assignment = [0] * (n + 1)
+    
+    # To get the lexicographically smallest, we iterate 1 to n
+    # and try assigning 1 first.
+    for i in range(1, n + 1):
+        if assignment[i] == 0:
+            stack = [(i, 1)]
+            assignment[i] = 1
+            component = []
+            
+            # DFS to color component
+            while stack:
+                u, color = stack.pop()
+                component.append((u, color))
+                for v in adj[u]:
+                    if assignment[v] == 0:
+                        assignment[v] = 3 - color
+                        stack.append((v, 3 - color))
+                    elif assignment[v] == color:
+                        print("NO")
+                        return
+            
+            # We have a valid component coloring.
+            # However, we need the lexicographically smallest result.
+            # In a bipartite component, there are exactly two ways to color it.
+            # Let the two sets be A and B. We can either assign A=1, B=2 or A=2, B=1.
+            # We want the smallest value at the smallest index i.
+            # Since we iterate i from 1 to n, the first uncolored node i will be
+            # the smallest index in its component. We want assignment[i] to be 1.
+            # If current assignment[i] is 2, we must flip all nodes in this component.
+            if assignment[i] == 2:
+                for node, c in component:
+                    assignment[node] = 3 - c
+                    
+    print("YES")
+    print(*(assignment[1:]))
+
+solve()

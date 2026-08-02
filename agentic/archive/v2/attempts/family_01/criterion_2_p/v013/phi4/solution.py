@@ -1,0 +1,49 @@
+import sys
+from collections import deque
+
+input = sys.stdin.read
+data = input().split()
+
+n = int(data[0])
+m = int(data[1])
+
+if m == 0:
+    print("YES")
+    print('1 ' * n)
+else:
+    edges = data[2:]
+    graph = [[] for _ in range(n + 1)]
+    idx = 0
+    for i in range(m):
+        u = int(edges[idx])
+        v = int(edges[idx + 1])
+        graph[u].append(v)
+        graph[v].append(u)
+        idx += 2
+
+    color = [0] * (n + 1)
+    valid = True
+    
+    def bfs(start, c):
+        nonlocal valid
+        q = deque([start])
+        color[start] = c
+        while q:
+            node = q.popleft()
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = 3 - c
+                    q.append(neighbor)
+                elif color[neighbor] == color[node]:
+                    valid = False
+
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            bfs(i, 1)
+
+    if not valid:
+        print("NO")
+    else:
+        print("YES")
+        result = [str(color[i]) for i in range(1, n + 1)]
+        print(' '.join(result))

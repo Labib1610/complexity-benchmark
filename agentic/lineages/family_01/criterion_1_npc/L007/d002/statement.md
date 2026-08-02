@@ -1,0 +1,53 @@
+# Network Phase Calibration
+
+**Time limit:** 2 s  
+**Memory limit:** 256 MB
+
+## Description
+A modular processing system consists of $n$ distinct electronic modules numbered $1$ through $n$. Each module must be configured to operate in one of three designated execution phases: $1$, $2$, or $3$.
+
+Certain pairs of modules share direct signal couplings. To prevent harmonic resonance, any two coupled modules must not be configured to run in the same execution phase.
+
+Given the list of all pair couplings in the system, determine whether a valid phase configuration exists for all modules. If one or more valid configurations exist, find the configuration sequence $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest (i.e., prioritizing smaller values for module $1$, then module $2$, and so on).
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of modules and the number of pair coupling constraints, respectively ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$).
+
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) denoting a direct signal coupling between module $u$ and module $v$.
+
+## Output
+If no valid phase configuration exists, print `NO` on a single line.
+
+Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the phase assigned to module $i$. If multiple valid phase assignments exist, output the lexicographically smallest sequence $(s_1, s_2, \dots, s_n)$.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

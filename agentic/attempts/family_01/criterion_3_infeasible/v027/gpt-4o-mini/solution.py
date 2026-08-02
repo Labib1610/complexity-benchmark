@@ -1,0 +1,30 @@
+def main():
+    import sys
+    from collections import defaultdict
+    
+    input = sys.stdin.read
+    data = input().splitlines()
+    
+    n, m = map(int, data[0].split())
+    
+    # Create a set for prohibited pairs
+    prohibited = defaultdict(set)
+    
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        prohibited[u].add(v)
+        prohibited[v].add(u)
+
+    # Find the lexicographically smallest triple
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            if b in prohibited[a]:
+                continue
+            for c in range(b + 1, n + 1):
+                if c in prohibited[a] or c in prohibited[b]:
+                    continue
+                if b in prohibited[c] and a in prohibited[c]:
+                    print(a, b, c)
+                    return
+
+main()

@@ -1,0 +1,46 @@
+def main():
+    import sys
+    from collections import defaultdict, deque
+
+    input = sys.stdin.read
+    data = input().splitlines()
+    
+    n, m = map(int, data[0].split())
+    graph = defaultdict(list)
+    
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [0] * (n + 1)
+    impossible = False
+    
+    for start in range(1, n + 1):
+        if color[start] == 0:  # uncolored
+            queue = deque([start])
+            color[start] = 1  # color it with 1
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in graph[node]:
+                    if color[neighbor] == 0:  # if uncolored
+                        color[neighbor] = 2 if color[node] == 1 else 1
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:  # conflict
+                        impossible = True
+                        break
+                if impossible:
+                    break
+            
+            if impossible:
+                break
+    
+    if impossible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, color[1:])))
+        
+main()

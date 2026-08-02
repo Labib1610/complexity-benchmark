@@ -1,0 +1,354 @@
+**Solution Explanation**
+
+For every vertex we have to choose one of the three colours
+
+```
+1 , 2 , 3
+```
+
+such that no two adjacent vertices receive the same colour.
+The graph is small (`n ≤ 40`) but the number of possible colourings  
+(`3ⁿ`) is far too large for a naïve back‑tracking search.
+We need a fast pruning technique.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.  Observations
+
+* While we colour the vertices in the order `0 … n‑1`
+  – all neighbours with a smaller index are already coloured,
+  – all neighbours with a larger index are still uncoloured.
+
+* For a vertex `v` the set of forbidden colours is completely
+  determined by the already coloured neighbours  
+  (i.e. neighbours with a smaller index).
+
+* If for a future vertex all three colours are already used by its
+  coloured neighbours, it is impossible to colour this vertex –  
+  the whole branch can be discarded.
+
+So during the search we only have to remember, for every vertex `v`,
+how many coloured neighbours with each colour it currently has.
+With this information we can
+
+* check whether a colour can be used for the current vertex,
+* detect immediately whether a later vertex will have no possible colour.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.  Data structures
+
+```
+adj[v]          – list of all neighbours of v   (0‑based indices)
+
+colour[v]       – chosen colour of vertex v
+                  0 means "not coloured yet"
+
+used[v][c]      – for v>current vertex:
+                  number of already coloured neighbours of v
+                  that use colour (c+1)
+```
+
+`used` is updated only when a neighbour with a **larger index** is
+coloured.  
+For vertices that are processed later, `used` already contains
+all forbidden colours coming from the vertices that are already
+coloured.
+
+The size of the whole data is tiny (`40 × 3` integers).
+
+--------------------------------------------------------------------
+
+#### 3.  Recursive search
+
+```
+dfs(i)   – try to colour vertex i (0‑based)
+
+if i == n :   success, all vertices are coloured
+
+for colour c in [1,2,3]            // colours are tried in increasing order
+        // 1.  conflict with already coloured neighbours ?
+        if any neighbour of i with index < i has colour c : continue
+
+        // 2.  assign colour
+        colour[i] = c
+        affected = []              // neighbours that need to be updated
+
+        for every neighbour j of i
+                if j > i          // j is still uncoloured
+                        used[j][c-1] += 1
+                        affected.append(j)
+
+        // 3.  forward checking – look at the future vertices
+        possible = true
+        for v in range(i+1 , n)
+                if used[v][0] > 0 and used[v][1] > 0 and used[v][2] > 0
+                        possible = false
+                        break
+
+        // 4.  continue the search if still possible
+        if possible and dfs(i+1) :   return True
+
+        // 5.  backtrack
+        colour[i] = 0
+        for v in affected
+                used[v][c-1] -= 1
+
+return False
+```
+
+*All updates and backtracks are `O(deg(v))` – the degree is at most
+`n‑1`.  
+The forward check scans the remaining vertices once – `O(n)`.*
+
+The recursion depth is at most `n` (≤ 40).  
+The search is heavily pruned by the forward checking, especially
+when the graph is dense.
+
+
+
+--------------------------------------------------------------------
+
+#### 4.  Correctness Proof  
+
+We prove that the algorithm outputs a correct colouring if one exists,
+and reports impossibility otherwise.
+
+---
+
+##### Lemma 1  
+During the execution of `dfs(i)` the array `used[v]`
+contains for every vertex `v > i`
+the number of already coloured neighbours of `v`
+that use each colour.
+
+**Proof.**
+
+*Initialization* – before the first call all vertices are uncoloured,
+`used[v][c] = 0` for all `v,c`.
+
+*Induction step* –  
+Assume the invariant holds at the beginning of `dfs(i)`.
+When vertex `i` receives colour `c` we increase
+`used[j][c-1]` for every neighbour `j > i`.
+All these neighbours have not been coloured yet,
+hence the only coloured neighbour that contributes colour `c`
+is the current vertex `i`.  
+Therefore after the update `used[j][c-1]`
+equals the number of coloured neighbours of `j`
+with colour `c`.  
+When the branch is backtracked we subtract exactly the same values,
+restoring the invariant. ∎
+
+
+
+##### Lemma 2  
+If the algorithm assigns colour `c` to vertex `i`,
+then all already coloured neighbours of `i` receive a different colour.
+
+**Proof.**
+
+Before the assignment we explicitly test
+
+```
+any neighbour of i with index < i has colour c ?
+```
+
+If this is true we skip colour `c`.  
+Otherwise every already coloured neighbour of `i`
+has a different colour, so the assignment satisfies the condition
+for the current vertex. ∎
+
+
+
+##### Lemma 3  
+If the forward checking in `dfs(i)` declares a vertex `v > i`
+impossible (`used[v][0] > 0 ∧ used[v][1] > 0 ∧ used[v][2] > 0`),
+then no valid colouring of the whole graph exists extending the
+current partial assignment.
+
+**Proof.**
+
+Because of Lemma&nbsp;1, at that moment all already coloured neighbours
+of `v` are known and each colour has at least one such neighbour.
+Any colouring of `v` would have to use one of these three colours,
+but each of them is already used by a neighbour of `v`,
+hence it would violate the colouring rule.
+Therefore the whole partial assignment can never be completed. ∎
+
+
+
+##### Lemma 4  
+Whenever `dfs(i)` reaches the terminal condition `i = n`,
+the array `colour` is a proper 3‑colouring of the graph.
+
+**Proof.**
+
+By construction, for every vertex `i < n` the colour is chosen only
+if none of its already coloured neighbours uses the same colour
+(Lemma&nbsp;2 guarantees that all forbidden colours are known).
+Thus no two adjacent vertices share the same colour,
+so the obtained assignment is a proper colouring. ∎
+
+
+
+##### Lemma 5  
+If the algorithm reports *impossible*, no proper 3‑colouring exists.
+
+**Proof.**
+
+The algorithm reports impossibility only when all recursive calls
+return `False`.  
+Consider the first vertex `i` for which all three colours are tried
+and none leads to a successful branch.
+For each attempted colour the forward check rejects the branch
+iff some future vertex would have all three colours already used
+(Lemma&nbsp;3).  
+If the forward check never rejects, the recursion would have
+proceeded to the next vertex and eventually succeed
+( Lemma&nbsp;4 ).
+Hence, for every colour of `i`, the branch is impossible.
+Since the search explores all possibilities for the remaining vertices,
+no proper colouring of the whole graph can exist. ∎
+
+
+
+##### Lemma 6  
+If a proper 3‑colouring exists, the algorithm finds one.
+
+**Proof.**
+
+Take any proper colouring of the whole graph.
+When `dfs(i)` is called, all vertices `0 … i-1` are coloured exactly as
+in this proper colouring (the recursion chooses the same colours
+since all possibilities are tried).
+Consequently `used[v]` for `v>i` contains the correct numbers
+(Lemma&nbsp;1).  
+The forward checking step will never reject, because in the proper
+colouring every vertex still uncoloured indeed has at least one legal
+colour.  
+Therefore the recursive call proceeds to `i+1` and eventually
+reaches `i = n`, where it reports success. ∎
+
+
+
+##### Theorem  
+The algorithm outputs
+
+* a proper 3‑colouring of the input graph if such a colouring exists;
+* otherwise it outputs “impossible”.
+
+**Proof.**
+
+*If the algorithm outputs a colouring*:  
+By Lemma&nbsp;4 this colouring satisfies the graph colouring rules,
+hence it is correct.
+
+*If the algorithm outputs “impossible”*:  
+By Lemma&nbsp;5 no proper colouring can exist.
+
+Thus the algorithm is correct. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.  Complexity Analysis
+
+Let `n` be the number of vertices, `m` the number of edges.
+
+*Updating / backtracking a vertex: `O(deg(v)) ≤ O(n)`  
+*Forward checking: `O(n)` per recursion step  
+*Recursion depth: at most `n` (≤ 40)
+
+The worst‑case running time is  
+`O( n × 3ⁿ )` in theory, but the forward checking eliminates most
+branches.  
+For the given constraints (`n ≤ 40`) this easily runs within the time
+limit.
+
+The memory consumption is `O(n + m + n×3)` – well below one megabyte.
+
+
+
+--------------------------------------------------------------------
+
+#### 6.  Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1   # 0‑based
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    colour = [0] * n                   # 0 = uncoloured
+    used   = [[0, 0, 0] for _ in range(n)]   # used[v][c]  for v > current
+
+    def dfs(i: int) -> bool:
+        if i == n:                     # all vertices coloured
+            return True
+
+        for c in (1, 2, 3):
+            # conflict with already coloured neighbours ?
+            conflict = False
+            for nb in adj[i]:
+                if nb < i and colour[nb] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+
+            # assign colour
+            colour[i] = c
+            affected = []
+
+            for nb in adj[i]:
+                if nb > i:
+                    used[nb][c - 1] += 1
+                    affected.append(nb)
+
+            # forward checking
+            possible = True
+            for v in range(i + 1, n):
+                if used[v][0] > 0 and used[v][1] > 0 and used[v][2] > 0:
+                    possible = False
+                    break
+
+            if possible and dfs(i + 1):
+                return True
+
+            # backtrack
+            colour[i] = 0
+            for v in affected:
+                used[v][c - 1] -= 1
+
+        return False
+
+    if dfs(0):
+        print(" ".join(map(str, colour)))
+    else:
+        print("impossible")
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input/output format.

@@ -1,0 +1,91 @@
+We need lexicographically smallest triangle in undirected graph. n up to 2000, m up to 2e5. We can process adjacency lists as sets or bitsets. Need to find minimal a<b<c with edges among all pairs.
+
+Brute force O(n^3) too heavy. Since n small 2000, we can for each a iterate b> a, check if edge a-b exists. Then for each c> b, check edges a-c and b-c. Complexity: sum over edges of degree. For each edge we iterate over common neighbors? Approach: For each a<b if edge exists, find common neighbors c > b that are connected to both. Need minimal c. We can store adjacency as bitset or set for fast intersection.
+
+n=2000, bitset of 2000 bits ~ 32 uint64. We can use Python's integers bit operations. Represent adjacency for each node as bitmask of neighbors > node? But we need neighbors in general. Use Python int bitset of length n.
+
+Algorithm: Build adjacency bitmask for each node: bits 0..n-1. For each node i, adj_mask[i] = sum(1 << (v-1)) for each neighbor v.
+
+Now iterate a from 1 to n-2:
+  for b from a+1 to n-1:
+    if edge a-b: (adj_mask[a] >> (b-1)) &1:
+        common = adj_mask[a] & adj_mask[b]
+        need c > b; so mask = common >> b and mask !=0; But careful shift. For nodes >b, we want bits positions b to n-1. So we can compute mask = common >> b. If mask !=0: get lowest set bit pos = (mask & -mask). Then c = b + index_of_lowest_bit +1? Wait: if mask has bits representing nodes indices starting at b. The lowest set bit corresponds to smallest node > b. So c = b + trailing_zeros(mask) +1? Actually if b is 1-indexed, bit position p corresponds to node p+1? Let's keep 0-indexed: node 1 -> bit 0. So shift by b (since b is 1-indexed, bit index b-1). For mask >> (b), that discards bits <b. The lowest set bit index after shift gives offset from b. So c = (b) + offset + 1. Because original bit index = shift + offset = b + offset. Node number = bit_index +1. So c = b + offset +1.
+
+Thus compute offset = (mask & -mask). Then trailing zeros via bit_length? For Python, we can use (mask & -mask).bit_length() -1 gives offset. Or use (mask & -mask).bit_length() -1.
+
+Return a,b,c; break loops.
+
+Complexities: loops over all a,b pairs where edge exists. For each edge we do constant bit operations. m up to 2e5. For each edge we do one intersection of bitsets (int & int) and shift and find lsb. That's fine.
+
+Edge case: we need lexicographically smallest overall. Our loops iterate increasing a then b. For each pair we find smallest c > b via lowest bit. That yields minimal c for that pair. But overall minimal triple is found when we first encounter such a pair (a,b) with a minimal a, then minimal b. Since we iterate a ascending, and b ascending, first found triple will be lexicographically smallest. Need to ensure we don't skip if later find same a,b but smaller c? But we pick smallest c for each pair. So first triple found is minimal. So break all loops.
+
+Implementation details: Build adjacency list; also adjacency bitmask with int. Use zero-indexing for bit operations.
+
+Pseudo:
+
+def solve():
+    import sys
+    input = sys.stdin.readline
+    n,m = map(int, input().split())
+    adj = [0]*n
+    edges = []
+    for _ in range(m):
+        u,v = map(int, input().split())
+        u-=1; v-=1
+        adj[u] |= 1<<v
+        adj[v] |= 1<<u
+        edges.append((u,v))
+    for a in range(n-2):
+        for b in range(a+1, n-1):
+            if (adj[a] >> b) &1:
+                common = adj[a] & adj[b]
+                # mask bits > b
+                mask = common >> (b+1)  # shift by b+1? Wait need to remove bits <=b
+                # But we want bits > b. So shift by b+1? Let's examine.
+                # Bits indices: 0..n-1. We want indices > b.
+                # So shift by b+1: bits b+1 and up become positions 0 and up.
+                # But if we shift by b, then bit at index b becomes 0 position; but we need to exclude b as well.
+                # So shift by b+1.
+                if mask:
+                    lsb = mask & -mask
+                    offset = (lsb.bit_length() -1)
+                    c = b+1 + offset +1? Wait: after shift by b+1, offset index corresponds to original index = (b+1)+offset.
+                    # Node number = original_index +1.
+                    c = (b+1)+offset+1
+                    print(a+1, b+1, c)
+                    return
+
+But careful: if we shift by b+1, then original index = b+1 + offset. Node number = that +1. So c = b+1 + offset +1 = b+offset+2. Let's test with sample.
+
+Example 1: edges: 1-2,1-3,2-3,2-4,3-4. a=0,b=1 (node1,2). adj[0] bits: 1,2. adj[1] bits:0,2,3. common = bits 2. shift by b+1=2: mask= common>>2 = 1 (bit index 0). offset=0. c=b+offset+2=1+0+2=3. Node 3. Works.
+
+Example 2: edges: 1-2,1-4,2-4,3-4,3-5,4-5. The triangle 1-2-4. a=0,b=1. adj[0]:1,3. adj[1]:0,3. common:3. shift by 2: mask=1. offset=0. c=1+0+2=3 => node4. Works.
+
+Edge: Suppose a=0,b=2 (1-3). Adj[0] bits 1,3. Adj[2] bits 0,3,4? Wait edges: etc. But we will find triangle 1-4-5 maybe. But lexicographically minimal remains first found.
+
+We must ensure that shift by b+1 correctly eliminates bits <=b. Let’s test scenario where b=1, common bits 0? Should not happen because we only consider edges a-b; common includes a but a<b, so common may include a, but we exclude because shift.
+
+Edge: Suppose common includes node 5 with index 4 > b. shift by b+1=2: original index 4 shift to 2. Good.
+
+Ok.
+
+Consider n up to 2000, bit shift of 2000 bits fine.
+
+Implementation: Use for loops; time O(n^2) worst-case but break early; but still up to ~2 million iterations; fine.
+
+But we only iterate over b when edge exists? Currently we check every pair, but if no edge, skip. That's 2000*1999/2 ~ 2 million, fine.
+
+Let's write final code.
+
+Edge: we need to ensure we don't incorrectly compute mask when (common >> (b+1)) zero due to no c > b. Then we continue.
+
+Return after printing.
+
+Test quickly.
+
+Potential bug: We used mask = common >> (b+1). But if b+1 >= n, shift by > length; but b max n-2, b+1 <= n-1, still fine. For b=n-2, shift by n-1, leaving only possible bit n-1; but if there's no c> b, mask zero.
+
+All good.
+
+Let's produce final code.

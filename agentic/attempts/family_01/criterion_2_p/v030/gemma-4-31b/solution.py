@@ -1,0 +1,55 @@
+import sys
+
+# Increase recursion depth for deep DFS in large components
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Using fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        ptr += 2
+        
+    # colors[i] will store the mode (1 or 2). 0 means unvisited.
+    colors = [0] * (n + 1)
+    
+    # To get the lexicographically smallest sequence, for each connected component,
+    # we need to decide if the smallest index in that component should be 1 or 2.
+    # However, the constraint is that if we fix the color of one node in a bipartite 
+    # component, the colors of all other nodes in that component are determined.
+    # To make the sequence (s_1, s_2, ..., s_n) lexicographically smallest,
+    # we process nodes from 1 to n. If node i is not yet colored, it's the smallest 
+    # index in its component. To make s_i as small as possible, we MUST set s_i = 1.
+    
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start BFS/DFS to color the component. 
+            # We set the first node of the component to 1 to minimize lexicographically.
+            stack = [i]
+            colors[i] = 1
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = 3 - colors[u]
+                        stack.append(v)
+                    elif colors[v] == colors[u]:
+                        print("NO")
+                        return
+
+    print("YES")
+    print(*(colors[1:]))
+
+if __name__ == "__main__":
+    solve()

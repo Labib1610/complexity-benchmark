@@ -1,0 +1,45 @@
+def main():
+    import sys
+    from collections import defaultdict
+
+    input = sys.stdin.read
+    data = input().splitlines()
+    
+    n, m = map(int, data[0].split())
+    graph = defaultdict(list)
+    
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        graph[u - 1].append(v - 1)
+        graph[v - 1].append(u - 1)
+    
+    color = [-1] * n  # -1 means uncolored
+
+    def is_valid(node, c):
+        for neighbor in graph[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+
+    def assign_colors(node):
+        if node == n:
+            return True
+        if color[node] != -1:
+            return assign_colors(node + 1)
+
+        for c in range(1, 4):  # try colors 1, 2, 3
+            if is_valid(node, c):
+                color[node] = c
+                if assign_colors(node + 1):
+                    return True
+                color[node] = -1  # backtrack
+
+        return False
+
+    if assign_colors(0):
+        print("YES")
+        print(" ".join(map(str, color)))
+    else:
+        print("NO")
+
+main()

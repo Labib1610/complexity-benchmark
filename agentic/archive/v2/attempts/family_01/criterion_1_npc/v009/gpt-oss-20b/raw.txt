@@ -1,0 +1,324 @@
+**Solution Explanation**
+
+For every vertex we have to choose one colour from `{1, 2, 3}`.
+Neighbouring vertices may not obtain the same colour.
+The graph is given as
+
+```
+vertices : 0 … n‑1      ( n ≤ 40 )
+edges    : undirected
+```
+
+The vertices must be coloured in increasing order  
+`0 , 1 , 2 , … , n‑1`.  
+The required output is the **lexicographically smallest** valid colouring,
+or `NO` if no colouring exists.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.  Observations
+
+* For a vertex all colours already used by its neighbours are forbidden.
+  While colouring we can keep for every still uncoloured vertex the set
+  of colours that are still possible – *forward checking*.
+* If for some uncoloured vertex all colours are already forbidden, the
+  current partial colouring can never be completed – the branch can be
+  abandoned immediately.
+* Because the vertices must be processed in the fixed order
+  (`0 … n-1`) and for every vertex we try the colours in the order
+  `1, 2, 3`, the **first** complete colouring found by a depth first
+  search is automatically the lexicographically smallest one.
+
+--------------------------------------------------------------------
+
+#### 2.  Data structures
+
+* `adj[i]` – list of neighbours of vertex `i`.
+* `colour[i]` – currently chosen colour (`0` = not yet coloured).
+* `avail[i]` – 3‑bit integer (bit `0` for colour 1, bit `1` for colour 2,
+  bit `2` for colour 3) – colours that are still possible for vertex
+  `i`.  
+  For a coloured vertex it is never used again.
+
+--------------------------------------------------------------------
+
+#### 3.  Forward‑checking algorithm
+
+```
+dfs(pos)   // pos = next vertex to colour (always equal to pos in the
+            // recursion because we colour vertices sequentially)
+
+    if pos == n :            // all vertices coloured
+            return True
+
+    v = pos                  // current vertex
+
+    for each colour_bit, colour_index in [(1,1),(2,2),(4,3)]   // colours 1,2,3
+        if avail[v] has colour_bit:
+                // try this colour
+                colour[v] = colour_index
+                changed = []                    // neighbours whose avail was changed
+                ok = True
+
+                for each neighbour u of v:
+                        if u is not coloured yet:
+                                if avail[u] contains colour_bit:
+                                        old = avail[u]
+                                        avail[u] ^= colour_bit          // forbid this colour
+                                        changed.append( (u, old) )
+                                        if avail[u] == 0:                // dead end
+                                                ok = False
+                                                break
+
+                if ok and dfs(pos+1):
+                        return True            // success deep inside
+
+                // revert all changes made in this branch
+                for (u, old) in changed:
+                        avail[u] = old
+                colour[v] = 0
+
+    return False                               // no colour possible for this vertex
+```
+
+*When `avail[v]` is already zero the loop will be empty and the function
+returns `False` immediately.*
+
+The search depth is at most 40, each recursive call touches only the
+neighbours of the vertex that is coloured in this level – at most 39
+edges – therefore the algorithm is easily fast enough.
+
+
+
+--------------------------------------------------------------------
+
+#### 4.  Correctness Proof  
+
+We prove that the algorithm prints the required answer.
+
+---
+
+##### Lemma 1  
+During the whole execution for every uncoloured vertex `x`
+`avail[x]` contains exactly the set of colours that do **not** conflict
+with any already coloured neighbour of `x`.
+
+**Proof.**
+
+*Initialization.*  
+Before any vertex is coloured all `avail[x] = 0b111` – all colours are
+possible, which is correct because no neighbour is coloured.
+
+*Maintenance.*  
+Assume the lemma is true before colouring a vertex `v` with colour `c`
+(`c ∈ {1,2,3}`).
+
+For every uncoloured neighbour `u` of `v` the algorithm removes `c`
+from `avail[u]`.  
+After this removal `avail[u]` no longer contains `c`, i.e. the colour
+conflicting with the newly coloured neighbour is absent.
+No other entries of `avail[u]` are changed, therefore `avail[u]`
+still represents exactly the colours that are allowed by all coloured
+neighbours of `u`.
+
+All other vertices keep their `avail` unchanged, and the property
+holds for them as well.
+
+Thus after the assignment the lemma is still true. ∎
+
+
+
+##### Lemma 2  
+When the algorithm assigns a colour to a vertex `v` the chosen colour
+does not conflict with any already coloured neighbour of `v`.
+
+**Proof.**
+
+If a neighbour `u` of `v` is already coloured with colour `c`,
+then during the colouring of `u` the algorithm removed `c` from
+`avail[v]`.  
+Therefore `avail[v]` never contains a colour that is used by a
+coloured neighbour, and the loop checks `if avail[v] & colour_bit`
+before assigning.  
+Hence the chosen colour is safe. ∎
+
+
+
+##### Lemma 3  
+If the algorithm returns `True` at depth `n`, the produced colours form
+a proper 3‑colouring of the whole graph.
+
+**Proof.**
+
+The algorithm only assigns a colour to a vertex when this colour is
+present in `avail[v]`.  
+By Lemma&nbsp;2 this colour does not conflict with any already coloured
+neighbour.
+During the recursion every vertex is coloured exactly once, therefore
+all edges are between vertices of different colours.
+All colours are from `{1,2,3}` – a proper 3‑colouring. ∎
+
+
+
+##### Lemma 4  
+If the graph is 3‑colourable, the algorithm finds a colouring.
+
+**Proof.**
+
+Consider a particular proper 3‑colouring `C` of the graph.
+During the DFS the algorithm always tries the colours in the order
+`1, 2, 3`.  
+When the recursion reaches a vertex `v`, the current partial colouring
+coincides with `C` on all previous vertices (by construction of DFS
+branches).  
+Because `C` is proper, the colour `C[v]` is allowed: all neighbours of
+`v` already coloured in `C` have colours different from `C[v]`,
+therefore by Lemma&nbsp;1 `avail[v]` still contains the bit for
+`C[v]`.  
+Thus the branch that assigns `C[v]` to `v` is explored.
+Consequently the DFS eventually follows exactly the colours of `C`
+through all vertices and returns `True`. ∎
+
+
+
+##### Lemma 5  
+Among all possible colourings the algorithm outputs the lexicographically
+smallest one.
+
+**Proof.**
+
+Vertices are processed in fixed order `0 … n-1`.  
+For a given vertex the algorithm tries colours in the order `1, 2, 3`.
+Hence the first complete colouring found by the DFS is the one that
+uses the smallest possible colour for the first vertex where a choice
+is required, then the smallest for the second vertex, and so on.
+No later discovered colouring can be lexicographically smaller. ∎
+
+
+
+##### Theorem  
+The program prints `NO` iff the graph is not 3‑colourable.
+Otherwise it prints the lexicographically smallest valid colouring.
+
+**Proof.**
+
+*If part.*  
+Assume the program prints `NO`.  
+The DFS returned `False`, meaning that no sequence of colour choices
+leads to a full colouring.  
+By Lemma&nbsp;3 any successful DFS would produce a proper 3‑colouring,
+so no such colouring exists – the graph is not 3‑colourable.
+
+*Only if part.*  
+Assume the graph is not 3‑colourable.  
+By Lemma&nbsp;4 the DFS would find a colouring if one existed,
+hence it cannot succeed and the program outputs `NO`.
+
+*Lexicographic optimality.*  
+When a colouring is printed, it is the result of a successful DFS.
+By Lemma&nbsp;3 it is a proper 3‑colouring, and by Lemma&nbsp;5 it is
+the lexicographically smallest among all colourings. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.  Complexity Analysis
+
+`n ≤ 40`, `m ≤ 39` edges for a connected graph.
+
+```
+DFS depth          :  n   (≤ 40)
+Work per level     :  number of neighbours of the current vertex
+                     ≤ 39   (≤ 39 edges)
+Time complexity    :  O(n · m)   ≤ 1 560 operations
+Memory usage       :  adjacency lists + a few integer arrays
+                     =  O(n + m)  ≤ 80 integers
+```
+
+Both limits are easily within the required limits.
+
+
+
+--------------------------------------------------------------------
+
+#### 6.  Reference Implementation  (Python 3)
+
+```python
+import sys
+sys.setrecursionlimit(1000)
+
+# -------------------------------------------------------------
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.read().strip().split()))
+    if not data:
+        return
+
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+
+    # adjacency list
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        adj[u].append(v)
+        adj[v].append(u)
+
+    colour = [0] * n               # 0 = uncoloured, else 1/2/3
+    avail = [0b111] * n            # 3 bits, all colours initially possible
+
+    # colour bits and their indices (bit 0 -> colour 1, etc.)
+    colour_bits = [(1, 1), (2, 2), (4, 3)]
+
+    def dfs(pos: int) -> bool:
+        """Depth first search, next vertex to colour is 'pos'."""
+        if pos == n:                 # all vertices coloured
+            return True
+
+        v = pos
+        for bit, idx in colour_bits:
+            if avail[v] & bit:       # this colour is still possible
+                colour[v] = idx
+                changed = []         # neighbours whose avail was updated
+                ok = True
+
+                for u in adj[v]:
+                    if colour[u] == 0:          # u is still uncoloured
+                        if avail[u] & bit:
+                            old = avail[u]
+                            avail[u] ^= bit       # forbid this colour
+                            changed.append((u, old))
+                            if avail[u] == 0:    # dead end
+                                ok = False
+                                break
+
+                if ok and dfs(pos + 1):
+                    return True          # success deep inside
+
+                # revert all changes of this branch
+                for u, old in changed:
+                    avail[u] = old
+                colour[v] = 0
+
+        return False                    # no colour works for vertex v
+
+    possible = dfs(0)
+
+    out_lines = sys.stdout
+    if not possible:
+        out_lines.write("NO")
+    else:
+        out_lines.write("\n".join(map(str, colour)))
+
+# -------------------------------------------------------------
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input / output format.

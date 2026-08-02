@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
 
 from harness.checker import judge_problem
 from harness.dataset import Criterion, discover_criteria, discover_families, iter_problems
+
+
+# Ground-truth (.out) generation is an offline, one-time, UNLIMITED-time cost; the
+# per-problem `time_limit_s` applies only to models at evaluation, never to the
+# reference. So when validating that the reference reproduces its cached .out we
+# give it a generous ceiling (overridable via REFERENCE_CHECK_TIMEOUT_S), decoupled
+# from the model time limit. This lets scaled NPC references (which may take many
+# seconds) validate cleanly. Only the reference-validation path uses this; model
+# evaluation in evaluate.py still uses the real time_limit_s.
+_REFERENCE_TIMEOUT_S = float(os.environ.get("REFERENCE_CHECK_TIMEOUT_S", "3600"))
 
 
 _FORBIDDEN_TERMS = re.compile(
@@ -54,7 +65,8 @@ def check_reference(criterion: Criterion) -> list[str]:
         if not tc.out_path.exists():
             problems.append(f"MISSING .out for {tc.in_path}")
 
-    verdict = judge_problem(criterion, criterion.reference_path)
+    verdict = judge_problem(criterion, criterion.reference_path,
+                            timeout_override=_REFERENCE_TIMEOUT_S)
     for cv in verdict.cases:
         if cv.verdict != "PASS":
             problems.append(

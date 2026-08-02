@@ -1,0 +1,78 @@
+import sys
+
+# Increase recursion depth for deep DFS if necessary, 
+# though iterative BFS/DFS is preferred for 2*10^5.
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        ptr += 2
+        if u == v:
+            # Self-loop means it's impossible to assign a shift
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Shift assignments: 0 means unassigned, 1 and 2 are the shifts
+    shifts = [0] * (n + 1)
+    
+    # To get the lexicographically smallest sequence, we iterate through 
+    # personnel 1 to n. For each person not yet assigned, we try shift 1.
+    # If assigning shift 1 leads to a contradiction (bipartite check), 
+    # then shift 1 is impossible for this component's representative.
+    # However, since we want lexicographically smallest, we must be careful.
+    # For a connected component, once the first node's shift is fixed, 
+    # the rest are determined. To minimize lexicographically, we want 
+    # the earliest possible index to have the smallest possible value (1).
+    
+    for i in range(1, n + 1):
+        if shifts[i] == 0:
+            # Start a BFS/DFS to color the component
+            # We want the smallest lexicographical sequence.
+            # For the first node 'i' in a component, we prefer shift 1.
+            # Then we propagate.
+            stack = [i]
+            shifts[i] = 1
+            component = [i]
+            
+            # Use a queue or stack to traverse
+            idx = 0
+            while idx < len(component):
+                u = component[idx]
+                idx += 1
+                for v in adj[u]:
+                    if shifts[v] == 0:
+                        shifts[v] = 3 - shifts[u]
+                        component.append(v)
+                    elif shifts[v] == shifts[u]:
+                        print("NO")
+                        return
+            
+            # Now we have a valid 2-coloring for this component.
+            # We can potentially flip all colors in this component (1->2, 2->1).
+            # We flip if it results in a lexicographically smaller sequence.
+            # The sequence is determined by the first element in the component 
+            # that differs between the two options.
+            # Since we processed 'i' first and set it to 1, and 1 < 2,
+            # any flip would make shifts[i] = 2, which is lexicographically larger.
+            # Thus, keeping shifts[i] = 1 is always optimal for the component 
+            # starting at i.
+            
+    print("YES")
+    print(*(shifts[1:]))
+
+if __name__ == "__main__":
+    solve()

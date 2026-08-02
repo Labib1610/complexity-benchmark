@@ -1,0 +1,2733 @@
+The problem asks us to find a triangle (a set of 3 vertices where every pair is connected by an edge) in a given graph with $n$ vertices and $m$ edges. We are guaranteed that such a triangle exists. We need to output the lexicographically smallest triple $(a, b, c)$ with $a < b < c$.
+
+The constraints are $n \le 2000$ and $m \le 2 \cdot 10^5$. The time limit is 2 seconds. Since we need to find the lexicographically smallest triangle, we should iterate through possible candidates for $a$, then $b$, then $c$.
+
+Let the vertices be numbered $1$ to $n$. A triangle consists of vertices $u, v, w$ such that $(u, v)$, $(v, w)$, and $(u, w)$ are all edges. We want to minimize $a$, then $b$, then $c$ where $a < b < c$ are the vertices of the triangle.
+
+A brute-force approach would check all triples $(u, v, w)$ and see if they form a triangle. There are $O(n^3)$ triples, which is too slow for $n=2000$ ($8 \cdot 10^9$ operations).
+
+Since we need the lexicographically smallest one, we can iterate $a$ from $1$ to $n$. For a fixed $a$, we iterate $b$ from $a+1$ to $n$. If $(a, b)$ is an edge, we look for a $c > b$ such that $(a, c)$ and $(b, c)$ are edges. The first such $c$ we find (in increasing order) will give the smallest $c$ for the fixed $a, b$. The first time we find such a $a, b, c$ across all loops, that will be the lexicographically smallest triple.
+
+To optimize finding $c$, we can pre-process the graph into an adjacency structure. An adjacency matrix would take $O(n^2)$ memory, which is $4 \cdot 10^6$ bytes (4MB), perfectly fine. An adjacency list would take $O(m)$ memory. Since $m$ can be up to $2 \cdot 10^5$, an adjacency list is also fine, but checking edge existence takes $O(\text{degree})$ or $O(1)$ with a matrix. Given $n=2000$, an adjacency matrix is very fast to check if an edge exists.
+
+Algorithm using adjacency matrix:
+1. Read $n, m$.
+2. Initialize an $n \times n$ boolean matrix `adj` (or bitset) to false.
+3. Read $m$ edges. For each edge $(u, v)$, set `adj[u][v] = adj[v][u] = true`. Note that vertices are 1-indexed, so adjust to 0-indexed or keep 1-indexed.
+4. Iterate $a$ from $1$ to $n$.
+5. Iterate $b$ from $a+1$ to $n$.
+6. If `adj[a][b]` is true:
+    Iterate $c$ from $b+1$ to $n$.
+    If `adj[a][c]` is true and `adj[b][c]` is true:
+        Print $a, b, c$ and terminate.
+
+Complexity:
+The loops run roughly $n^3/6$ times in the worst case. With $n=2000$, this is roughly $1.33 \cdot 10^9$ operations. In Python, this might be too slow for 2 seconds. Python's overhead is significant. We need a more optimized approach or use bitsets.
+
+Wait, $m$ is relatively small ($2 \cdot 10^5$) compared to $n^2/2 \approx 2 \cdot 10^6$. The graph is sparse.
+If we use the adjacency list, for a fixed $a$ and neighbor $b$, we only need to check neighbors of $a$ and neighbors of $b$.
+Specifically, we want to find $c$ such that $c \in \text{neighbors}(a) \cap \text{neighbors}(b)$ and $c > b$.
+To find the lexicographically smallest triple, we iterate $a$ from 1 to $n$. Then iterate $b$ in neighbors of $a$ such that $b > a$. Then iterate $c$ in neighbors of $a$ such that $c > b$ and check if $(b, c)$ is an edge. Or iterate $c$ in neighbors of $b$ such that $c > b$ and check if $(a, c)$ is an edge.
+
+Let's refine the complexity.
+Sum of degrees is $2m$.
+Outer loop $a$: $1 \dots n$.
+Inner loop $b$: neighbors of $a$ with $b > a$.
+Innermost loop: find common neighbor $c > b$.
+If we iterate over neighbors of $a$, say $u$, and neighbors of $b$, say $v$, finding intersection takes time proportional to degrees.
+However, we just need *any* common neighbor $c > b$. To ensure lexicographical minimality, we need the smallest $c$.
+Since we iterate $a$ from $1$, then $b$ from $a+1$, then $c$ from $b+1$, the first valid triple found is the answer.
+So inside the loops, we just need to find the smallest $c > b$ connected to both $a$ and $b$.
+
+Let's check the constraints again. $n=2000$.
+If we use a bitset (integer in Python), we can compute the intersection of neighbors of $a$ and $b$ very quickly.
+Python handles large integers automatically, so a row in the adjacency matrix can be represented as an integer.
+`adj[u]` would be an integer where the $v$-th bit is 1 if there is an edge between $u$ and $v$.
+Then `common_neighbors = adj[a] & adj[b]`.
+We need to find the smallest bit set in `common_neighbors` that is greater than or equal to $b+1$.
+Actually, since we iterate $a$ then $b$, we just need to find if there is *any* bit set in `common_neighbors` at index $> b$. Wait, we want the specific $c$ that minimizes the triple. Since we iterate $a$ then $b$, the first time we find *any* $c > b$ such that $(a, c)$ and $(b, c)$ are edges, does that guarantee lexicographically smallest?
+Yes, because we iterate $a$ in increasing order. For a fixed $a$, we iterate $b$ in increasing order. For a fixed $a, b$, if we find a valid $c$, we need the smallest such $c$.
+But since we iterate $a$ then $b$, finding the *first* valid triple $(a, b, c)$ encountered in this order is sufficient.
+The order of checking $c$ doesn't strictly matter for correctness if we just need *a* $c$, but we need the lexicographically smallest triple.
+Lexicographically smallest means smallest $a$, then smallest $b$, then smallest $c$.
+Our loop structure:
+```python
+for a in 1..n:
+  for b in 1..n (where b > a and edge(a,b)):
+    # We need smallest c > b such that edge(a,c) and edge(b,c)
+    # Since we want to output immediately and stop, we just need to find if such c exists.
+    # But wait, if there are multiple such c's, we must pick the smallest one?
+    # No, because we iterate c implicitly? 
+    # If we just check existence, we might pick a large c. 
+    # Example: a=1, b=2. Neighbors of 1: {2, 3, 4}. Neighbors of 2: {1, 3, 4}.
+    # Common neighbors > 2 are 3 and 4.
+    # If we find 4 first, output 1 2 4. But 1 2 3 is better.
+    # So we must find the smallest c.
+```
+So, for fixed $a, b$, we need the smallest bit set in `adj[a] & adj[b]` that has index $> b$.
+Using bit manipulation in Python:
+`mask = adj[a] & adj[b]`
+We need to find the lowest set bit of `mask` that is at position $> b$.
+Actually, constructing the mask `adj[a] & adj[b]` gives all common neighbors. We just need to find the smallest index $c \ge b+1$ such that the $c$-th bit is set.
+Since $n$ is up to 2000, the integer will have up to 2000 bits. Operations on 2000-bit integers are reasonably fast.
+Specifically, `mask & ((1 << (n+1)) - (1 << (b+1)))` would clear bits $\le b$.
+Then finding the lowest set bit. Python's integer has no built-in "find lowest set bit" method for arbitrary large integers, but we can implement it efficiently or loop.
+Since we only need to find the *first* valid triple, maybe we don't need to find the smallest $c$ efficiently if $m$ is small?
+Wait, if we iterate $c$ explicitly, it could be slow.
+But with bitsets, checking intersection is $O(1)$ (or $O(n/word\_size)$).
+To find the smallest $c > b$, we can check bits.
+Since $n=2000$, maybe iterating bits is slow? No, we can use `bit_length()` and shifting.
+Actually, simply doing `mask & (1 << c)` for $c = b+1 \dots n$ is slow in worst case.
+However, we can optimize.
+Let's reconsider the complexity.
+If we iterate $a$ and $b$ (neighbors of $a$), the number of pairs $(a, b)$ is $m$.
+For each pair, we need to check intersection of neighbors.
+If we use adjacency lists, for a pair $(a, b)$, we can iterate over the smaller degree list and check existence in the other list.
+But we need the smallest $c > b$.
+So we can iterate $c$ from $b+1$ to $n$.
+If we use adjacency matrix (bitset), we can find the smallest bit set $> b$ efficiently.
+In Python, `int.bit_length()` gives the position of the highest bit. Not helpful for lowest.
+However, we can do `(mask & ~( (1 << (b+1)) - 1 ))`. This clears bits $0$ to $b$.
+Then we need the lowest set bit of the result.
+We can use `(result & -result).bit_length() - 1` to find the lowest set bit index (0-based).
+Wait, `(result & -result)` isolates the lowest set bit.
+Let `low_bit = result & -result`.
+Then `c = low_bit.bit_length() - 1`.
+This works perfectly and is very fast.
+The cost of bitwise operations on 2000-bit integers is proportional to number of words, which is small (approx 32-64 words).
+So checking intersection and finding lowest bit is very fast.
+Total complexity: $O(n^2/word\_size + m/word\_size)$ roughly?
+Actually, we iterate $a$ from $1$ to $n$. For each $a$, we iterate neighbors $b$.
+The number of pairs $(a, b)$ is $m$.
+For each pair, we do bitwise AND of two bitmasks of size $n$.
+Cost is $O(m \cdot n / 64)$.
+With $n=2000, m=200000$:
+$2 \cdot 10^5 \cdot 2000 / 64 \approx 6 \cdot 10^6$ operations. This is well within the time limit.
+Even simpler: just iterating $a$ and $b$ where $b > a$ and edge exists.
+Wait, we need to ensure we check $b$ in increasing order.
+So for each $a$, we sort its neighbors? Or just iterate $b$ from $a+1$ to $n$.
+Iterating $b$ from $a+1$ to $n$ takes $O(n^2)$ iterations. $n^2 = 4 \cdot 10^6$.
+Inside the loop, we check if edge $(a, b)$ exists. If so, we compute intersection.
+This would be $O(n^2 \cdot (n/64))$. $4 \cdot 10^6 \cdot 32 \approx 1.28 \cdot 10^8$.
+This is slightly high for Python but might pass given 2s.
+However, we only care about $b$ that are neighbors of $a$.
+So we should iterate over neighbors of $a$.
+Let `adj_list[a]` be the list of neighbors of $a$.
+Sort `adj_list[a]`? It's already naturally somewhat ordered if we process edges, but better to ensure.
+Wait, if we iterate $a$ from $1$ to $n$, then iterate $b$ in `adj_list[a]`, we need to consider only $b > a$.
+And we need to process $b$ in increasing order to satisfy the lexicographical requirement on $b$.
+So for each $a$, we should iterate $b$ from $a+1$ to $n$ such that $b \in \text{adj_list}[a]$.
+Since $m$ is small, iterating all $b$ in `adj_list[a]` is better than iterating $1 \dots n$.
+However, `adj_list[a]` might not be sorted. We can sort it once.
+Sort neighbors for each node: $O(m \log n)$ or $O(m \log (\text{deg}))$.
+Then for each $a$, iterate $b \in \text{adj_list}[a]$ where $b > a$.
+For each such $b$, we want the smallest $c \in \text{adj_list}[a] \cap \text{adj_list}[b]$ such that $c > b$.
+Using bitsets `adj_mask[a]` and `adj_mask[b]`, we can find this $c$ efficiently.
+If `adj_mask[a] & adj_mask[b]` has any bit $> b$, we pick the smallest such bit.
+Since we iterate $a$ then $b$ (in increasing order), the first $c$ we find will be the smallest $c$ for that $a, b$. And since we iterate $a$ then $b$, the first triple we find is the globally lexicographically smallest.
+Wait, is this true?
+We iterate $a$ increasing.
+Then $b$ increasing (among neighbors of $a$ with $b > a$).
+Then we find smallest $c > b$.
+Is it possible that for a larger $a'$, there is a triple $(a', b', c')$ which is lexicographically smaller than $(a, b, c)$?
+No, because $a' > a$, so $(a', \dots) > (a, \dots)$.
+Is it possible that for the same $a$, a larger $b'$ yields a smaller triple?
+No, because $b' > b$, so $(a, b', \dots) > (a, b, \dots)$.
+Is it possible that for the same $a, b$, a larger $c'$ is found?
+We explicitly find the smallest $c > b$. So we output smallest $c$.
+So the strategy is correct.
+
+Algorithm refined:
+1. Read $n, m$.
+2. Create adjacency matrix as bitmasks (integers) `adj_mask`. `adj_mask[u]` has bit $v$ set if $(u, v)$ is edge.
+   Since $n \le 2000$, indices $1 \dots n$. Let's use 0-based internally or 1-based.
+   Let's use 0-based for bit manipulation convenience (bit $i$ corresponds to vertex $i+1$).
+   Or simply use 1-based and shift appropriately.
+   Let's use 1-based vertices $1 \dots n$. Bit $k$ corresponds to vertex $k$.
+   So `adj_mask[u]` will have bit $v$ set.
+3. Populate `adj_mask`.
+   Also need to iterate neighbors efficiently. We can store `adj_list` as well.
+   Since we need to iterate $b$ in increasing order for a fixed $a$, `adj_list[a]` should contain all neighbors, and we filter $b > a$ and sort.
+   Actually, sorting `adj_list` for each $a$ takes $O(m \log n)$ or $O(n \cdot n \log n)$ if dense.
+   Given $n=2000$, sorting neighbors is trivial.
+   Wait, we need to iterate $b$ such that $b > a$. If we sort `adj_list[a]`, we can just iterate through it and skip $b \le a$.
+   But wait, we want to output the lexicographically smallest triple.
+   The order of checking is:
+   $a = 1, 2, \dots$
+   For each $a$:
+     For each neighbor $b$ of $a$ such that $b > a$: (iterate in increasing order of $b$)
+       Find smallest neighbor $c$ of $a$ such that $c > b$ AND $c$ is neighbor of $b$.
+       If found, output $a, b, c$ and exit.
+
+   Wait, if we just find *any* $c$, is it the smallest $c$?
+   For a fixed $a, b$, we want the smallest $c$.
+   The bitset intersection gives all common neighbors. We need the smallest bit set in the intersection that is $> b$.
+   So yes, we need to implement "find lowest bit set $> b$".
+
+   Wait, optimization:
+   We only need to iterate $b$ that are neighbors of $a$.
+   If we iterate $b$ from $a+1$ to $n$, checking `adj_mask[a] & (1 << b)` is $O(1)$.
+   If it is 0, continue.
+   If 1, check intersection.
+   This loop runs $n^2$ times. With $n=2000$, $n^2 = 4 \cdot 10^6$.
+   Inside, we do bitwise AND and find lowest bit.
+   Bitwise AND is fast. Finding lowest bit is fast.
+   The loop $n^2$ is the dominant part.
+   Inside the loop, we only do heavy work if edge $(a, b)$ exists.
+   The number of edges is $m$. So the heavy work is done $m$ times.
+   The check `adj_mask[a] & (1 << b)` is done $n^2$ times.
+   Actually, checking adjacency in bitset is fast.
+   So we can just loop $a$ from 1 to $n$, $b$ from $a+1$ to $n$.
+   Check if connected. If so, compute intersection and find smallest $c > b$.
+   If found, print and return.
+   
+   Is $O(n^2)$ fast enough in Python?
+   $4 \cdot 10^6$ simple operations.
+   In Python, a simple loop with $4 \cdot 10^6$ iterations might take around 1 second.
+   Inside the loop:
+   `if (adj_mask[a] >> b) & 1:`
+   This involves shifting. Maybe better to check `adj_mask[a] & (1 << b)`.
+   Creating `1 << b` repeatedly might be slow?
+   Precompute powers of 2? Or just use `adj_mask` as a list of integers.
+   Accessing `adj_mask[a]` is fast.
+   The check `(adj_mask[a] >> b) & 1` is fast.
+   Wait, if we iterate $b$ from $a+1$ to $n$, we do $O(n^2)$ checks.
+   If $m$ is small, most checks fail.
+   If $m$ is large (dense graph), checks succeed often.
+   However, we stop as soon as we find a triangle.
+   In the worst case (no triangle until the very end, or worst case structure), we might scan a lot.
+   But we are guaranteed a triangle exists.
+   And we need the lexicographically smallest.
+   The worst case is if the smallest triangle is at the end, or if we have many edges but no triangles involving small vertices.
+   Given time limit 2s, $O(n^2)$ in Python is risky.
+   Usually $10^7$ ops/sec is safe for C++, Python is slower ($10^6-10^7$).
+   $4 \cdot 10^6$ iterations is borderline but likely okay if body is simple.
+   But wait, we need to check if an edge exists.
+   We can optimize by iterating neighbors of $a$ only.
+   We can construct `adj_list` where `adj_list[u]` contains neighbors of `u` sorted.
+   Then iterate $a$ from 1 to $n$.
+   Iterate $b$ in `adj_list[a]`.
+   Only process if $b > a$.
+   Since we iterate $a$ increasing, and $b$ in sorted order, we satisfy the order for $a$ and $b$.
+   Wait, `adj_list[a]` contains neighbors. Some neighbors might be $< a$.
+   We can just filter them or iterate only those $> a$.
+   Sorting `adj_list` takes negligible time.
+   So the number of iterations is $m$ (sum of degrees).
+   Wait, sum of degrees is $2m$. So we iterate roughly $m$ times for the pair $(a, b)$.
+   Inside the loop, we do bitwise AND and find lowest bit.
+   Bitwise AND of 2000-bit integers takes $O(n/64)$ or similar.
+   $2000 / 64 \approx 32$ words.
+   So complexity is $O(m \cdot n/64)$.
+   $2 \cdot 10^5 \cdot 32 \approx 6.4 \cdot 10^6$ word operations.
+   This is extremely fast and safe.
+   So iterating neighbors is much better than iterating all $b$.
+   Why? Because we only care about edges.
+   
+   So refined plan:
+   1. Read input. Build `adj_mask` (integers) and `adj_list` (lists of neighbors).
+   2. For each $u$, sort `adj_list[u]`.
+   3. Iterate $a$ from 1 to $n$.
+   4. Iterate $b$ in `adj_list[a]`.
+   5. If $b \le a$, continue.
+   6. Check intersection: `common = adj_mask[a] & adj_mask[b]`.
+   7. We need smallest $c > b$ in `common`.
+      Mask to remove bits $\le b$: `mask = common & ~((1 << (b+1)) - 1)`.
+      Wait, `1 << (b+1)` is a bit at position $b+1$ (which is vertex $b+1$).
+      We want to clear bits $0 \dots b$.
+      `(1 << (b+1)) - 1` has bits $0 \dots b$ set.
+      So `common & ~((1 << (b+1)) - 1)` keeps bits $> b$.
+      Then find lowest set bit.
+      If `mask > 0`:
+         `c = (mask & -mask).bit_length() - 1`
+         Output $a, b, c$.
+         Exit.
+   
+   Wait, vertex numbering.
+   Input is 1-based.
+   If I use 0-based indexing for bits:
+   Vertex $u$ corresponds to bit $u-1$.
+   Then $b > a$ (in 1-based) means bit index $b-1 > a-1$.
+   The condition $c > b$ (1-based) means bit index $c-1 \ge b$.
+   So we want smallest bit index $k \ge b$ (since $c-1 \ge b$) such that bit $k$ is set.
+   Wait, if $c > b$, then $c \ge b+1$, so bit index $\ge b$.
+   Let's stick to 0-based indices for bit manipulation.
+   Vertices $1 \dots n$ mapped to bits $0 \dots n-1$.
+   Vertex $u$ -> bit $u-1$.
+   Condition $a < b < c$.
+   Loop $a$ from $1$ to $n$.
+   Loop $b$ in `adj_list[a]`.
+   If $b \le a$, continue.
+   Check common neighbors.
+   We need $c$ such that $c > b$.
+   In 0-based, we need bit index $c-1 > b-1 \implies c-1 \ge b$.
+   So we need smallest bit index $k \ge b$ set in `adj_mask[a] & adj_mask[b]`.
+   Wait, vertex $b$ is at bit $b-1$.
+   So we need bit index $k > b-1$, i.e., $k \ge b$.
+   The mask logic:
+   We want to clear bits $0 \dots b-1$.
+   The mask with bits $0 \dots b-1$ set is `(1 << b) - 1`.
+   So `mask = common & ~((1 << b) - 1)`.
+   Then find lowest set bit.
+   `c_bit = (mask & -mask).bit_length() - 1`.
+   Then vertex $c = c\_bit + 1$.
+   
+   Example trace:
+   Vertices 1, 2, 3.
+   $a=1$ (bit 0).
+   $b=2$ (bit 1).
+   Need $c > 2$, i.e., $c \ge 3$ (bit $\ge 2$).
+   We want to clear bits 0, 1.
+   Mask `(1 << 2) - 1` is `11` binary (bits 0, 1 set).
+   So `~((1 << 2) - 1)` clears 0, 1.
+   Wait, `~` in Python produces negative numbers with infinite 1s to the left.
+   `~x = -x - 1`.
+   Python integers are arbitrary precision. `~((1<<2)-1)` is `...111100`.
+   So `common & ~((1<<2)-1)` will clear bits 0 and 1 correctly.
+   Then finding lowest set bit works.
+   
+   One detail:
+   We need to sort `adj_list[a]`?
+   `adj_list[a]` is built by reading edges.
+   Edges are given as pairs.
+   If we read edges and append to list, order is arbitrary.
+   Sorting `adj_list` takes time but $m \log n$ is small.
+   Wait, we iterate $a$ from $1$ to $n$.
+   Then we iterate $b$ in `adj_list[a]`.
+   To ensure we find the lexicographically smallest triple, we must iterate $b$ in increasing order.
+   So yes, `adj_list[a]` must be sorted.
+   
+   Wait, is it possible that `adj_list[a]` contains $b$'s that are not neighbors? No.
+   
+   Corner cases:
+   $n=3$, triangle 1-2-3.
+   $a=1$, neighbors 2, 3.
+   $b=2$. Common neighbors with 1: {3}.
+   Mask for $c > 2$ (bit $\ge 2$).
+   Common neighbors bits: bit 2 (vertex 3).
+   Mask keeps bit 2. `c_bit` = 2. $c=3$.
+   Output 1 2 3. Correct.
+   
+   Is it possible that `adj_list[a]` is large?
+   Max degree $n-1$.
+   Sum of degrees $2m$.
+   Sorting takes $\sum d_i \log d_i$.
+   With $m=2 \cdot 10^5$, this is very fast.
+   
+   Wait, the problem guarantees that a triple exists.
+   So we don't need to handle "no solution".
+   
+   Memory usage:
+   `adj_mask` list of $n$ integers. Each integer $\approx 2000$ bits $\approx 250$ bytes.
+   $2000 \times 250 \approx 500$ KB.
+   `adj_list` list of lists. Total integers $2m = 4 \cdot 10^5$.
+   $400,000 \times 4$ bytes $\approx 1.6$ MB.
+   Memory is well within 256 MB.
+   
+   Time complexity:
+   Sorting: $O(m \log n)$.
+   Loop $a$: $n$ iterations.
+   Loop $b$: sum over $a$ of degree$(a) = 2m$.
+   Inside: Bitwise AND and bit extraction.
+   Bitwise AND of $n$-bit ints: $O(n/64)$.
+   Bit extraction: $O(1)$ or $O(n/64)$ depending on implementation (bit_length is fast).
+   Total time: $O(m \cdot n / 64)$.
+   $2 \cdot 10^5 \cdot 32 \approx 6.4 \cdot 10^6$ ops.
+   This is very safe.
+   
+   Wait, constructing `adj_mask`.
+   `adj_mask[u] |= (1 << v)`.
+   This is $O(m \cdot n / 64)$? No, just $O(m)$.
+   Bitwise OR is fast.
+   
+   One small optimization:
+   When iterating $b$ in `adj_list[a]`, we only care about $b > a$.
+   We can filter `adj_list[a]` to only keep neighbors $> a$.
+   But we need to iterate $b$ in increasing order.
+   So after filtering, we might still need to sort?
+   No, if we sort `adj_list[a]` initially, then the neighbors $> a$ will appear in increasing order.
+   So:
+   1. Read edges.
+   2. Build `adj_list` (append both ways).
+   3. Build `adj_mask` (append bits).
+   4. Sort each `adj_list[u]`.
+   5. Iterate...
+   
+   Wait, sorting `adj_list[a]` includes neighbors $< a$.
+   We can just iterate and `continue` if $b \le a$.
+   
+   Let's double check the constraints and types.
+   $n \le 2000$.
+   $m \le 200,000$.
+   Python 3.
+   
+   Code structure:
+   Use `sys.stdin.read().split()` for fast I/O.
+   
+   Implementation details:
+   `adj_mask` can be a list of integers.
+   `adj_list` can be a list of lists.
+   Indices 1 to $n$.
+   Map vertex $u$ to bit $u-1$.
+   
+   Wait, if $n=2000$, `1 << 2000` is a large integer but Python handles it.
+   `bit_length()` is available on integers.
+   `mask & -mask` isolates lowest set bit.
+   Example: `mask = 12` (1100 binary). `mask & -mask` = 4 (100 binary).
+   `4.bit_length()` = 3. Index is $3-1 = 2$. Correct.
+   `mask = 5` (101 binary). `mask & -mask` = 1 (1 binary).
+   `1.bit_length()` = 1. Index 0. Correct.
+   
+   Wait, `(mask & -mask).bit_length() - 1` gives the index of the lowest set bit.
+   If `mask` is 0, `bit_length()` is 0. Index -1.
+   We should check `if mask > 0`.
+   
+   Is there any case where `adj_mask` construction is slow?
+   $m$ updates. Each update is `|=`.
+   This is fast.
+   
+   Wait, I should confirm the lexicographical requirement again.
+   "output the lexicographically smallest one"
+   "smallest a; ties broken by smallest b; then smallest c"
+   My loop order:
+   $a$ increasing.
+   $b$ increasing (from sorted `adj_list[a]`).
+   $c$ increasing (lowest bit set in mask).
+   This guarantees finding the smallest $a$, then smallest $b$ for that $a$, then smallest $c$ for that $a, b$.
+   Since we stop at the first match, this is correct.
+   
+   Wait, what if `adj_list[a]` has $b < a$?
+   I skip them.
+   Since I iterate $a$ from 1 to $n$, I cover all possible $a$.
+   For a fixed $a$, I consider all valid $b > a$.
+   Since `adj_list[a]` is sorted, I encounter $b$'s in increasing order.
+   So the first valid $b$ I find is the smallest valid $b$.
+   For that $b$, I find the smallest valid $c$.
+   So the triple $(a, b, c)$ is the lexicographically smallest among all triples starting with $a$.
+   Since I check $a$ in increasing order, the first triple found is the global minimum.
+   
+   Wait, is it possible that for a smaller $a$, there are no triangles?
+   Yes. But we are guaranteed that *at least one* triple exists.
+   So eventually we will find one.
+   
+   Wait, I need to make sure `adj_mask` bits correspond correctly.
+   If I use bit $u-1$ for vertex $u$.
+   Then $u < v \iff u-1 < v-1$.
+   The bit index order matches vertex order.
+   So finding lowest bit set $> b-1$ corresponds to finding smallest vertex $c > b$.
+   The mask logic:
+   We want to clear bits corresponding to vertices $\le b$.
+   So bits $0 \dots b-1$.
+   Mask `(1 << b) - 1` has bits $0 \dots b-1$ set.
+   `~((1 << b) - 1)` clears them.
+   Wait, in Python `~` is bitwise NOT.
+   `~((1<<b)-1)` results in ...111100...0 (with $b$ zeros at the end).
+   So `common & ~((1<<b)-1)` keeps bits $\ge b$.
+   Wait, if we want $c > b$, then vertex index $c \ge b+1$.
+   So bit index $c-1 \ge b$.
+   So we need to keep bits $\ge b$.
+   My mask logic clears bits $< b$.
+   So it keeps bits $\ge b$.
+   Wait, vertex $b$ is at bit $b-1$.
+   We want $c > b$. So vertex $c \ge b+1$.
+   Bit index for $c$ is $c-1 \ge b$.
+   So we need to keep bits with index $\ge b$.
+   My mask `(1 << b) - 1` keeps bits $0 \dots b-1$.
+   So `~` keeps bits $\ge b$.
+   So `common & ~((1 << b) - 1)` keeps bits $\ge b$.
+   This corresponds to vertices $\ge b+1$.
+   Wait, bit $b$ corresponds to vertex $b+1$.
+   So keeping bit $\ge b$ means vertices $\ge b+1$, i.e., $> b$.
+   This is correct.
+   
+   Wait, let's re-verify.
+   Vertex $u \to$ bit $u-1$.
+   We want $c > b$.
+   Example $b=2$ (bit 1).
+   We want $c \ge 3$ (bit $\ge 2$).
+   So we want bits $\ge 2$.
+   Mask `(1 << 2) - 1` = `3` (binary 11). Bits 0, 1.
+   `~3` clears bits 0, 1.
+   So `common & ~3` keeps bits $\ge 2$.
+   Correct.
+   
+   Wait, `1 << b` means $2^b$.
+   If $b=2$, `1 << 2` is 4 (100).
+   `(1 << 2) - 1` is 3 (011).
+   Correct.
+   
+   Wait, what if $b=n$?
+   Then we want $c > n$, impossible.
+   But we are guaranteed a solution exists.
+   Also loop condition `adj_list[a]` contains neighbors.
+   If $b=n$, no neighbor $c > b$ exists (since max vertex is $n$).
+   So we won't find $c$.
+   So we continue.
+   
+   Wait, `adj_list` should be sorted.
+   `adj_list[u].sort()`.
+   
+   Wait, is `sys.setrecursionlimit` needed? No.
+   
+   Input parsing:
+   `input_data = sys.stdin.read().split()`
+   `iterator = iter(input_data)`
+   `n = int(next(iterator))`
+   `m = int(next(iterator))`
+   
+   Edges loop.
+   
+   Wait, time limit 2s.
+   Python's `sort` is Timsort, very efficient.
+   $m=200000$. Sorting all lists is fine.
+   
+   One edge case: $m$ is large, $n$ is small.
+   $n=3, m=3$. Triangle 1-2, 2-3, 3-1.
+   Output 1 2 3.
+   My code:
+   $a=1$. `adj_list[1] = [2, 3]`.
+   $b=2$. `adj_mask[1]` has bits 1, 2 set. `adj_mask[2]` has bits 0, 2 set.
+   `common` = bit 2.
+   Mask for $c > 2$: clear bits $\le 2-1=1$.
+   `(1 << 2) - 1` = 3 (011).
+   `common & ~3` = `bit 2 & ~011` = `100 & ...11100` = `100` (bit 2).
+   Bit 2 is vertex 3.
+   `c` = 3.
+   Output 1 2 3. Correct.
+   
+   Wait, `common` has bit 2 set (vertex 3).
+   Wait, `adj_mask[2]` has bits 0 (vertex 1) and 2 (vertex 3).
+   `adj_mask[1]` has bits 1 (vertex 2) and 2 (vertex 3).
+   Intersection is bit 2.
+   Correct.
+   
+   Wait, `adj_list` sorting.
+   If I have `adj_list[u]`, it contains neighbors.
+   Sorting ensures we visit $b$'s in increasing order.
+   
+   Wait, one optimization.
+   `adj_mask` construction:
+   `adj_mask = [0] * (n + 1)`
+   `adj_list = [[] for _ in range(n + 1)]`
+   For each edge $u, v$:
+     `adj_list[u].append(v)`
+     `adj_list[v].append(u)`
+     `adj_mask[u] |= (1 << (v - 1))`
+     `adj_mask[v] |= (1 << (u - 1))`
+   
+   Wait, vertex indices are $1 \dots n$.
+   If I use $1 \dots n$ for arrays, `adj_mask` size $n+1$.
+   Bit indices $0 \dots n-1$.
+   This is consistent.
+   
+   Wait, memory limit 256MB.
+   Python integers are objects.
+   $2000$ integers.
+   `adj_list` has $2m$ integers.
+   This is fine.
+   
+   Wait, is it possible that `adj_mask` is too large?
+   2000 bits is 250 bytes.
+   $2000 \times 250 = 500$ KB.
+   Totally fine.
+   
+   Is there any case where `common & ~((1 << b) - 1)` fails?
+   If `common` is 0, `mask` is 0. `bit_length` is 0. `c` would be -1.
+   We check `if mask > 0`.
+   
+   Wait, `(1 << b)` can be large.
+   `1 << 2000`.
+   Python handles this easily.
+   
+   Is there any potential issue with `~`?
+   `~x` is `-x-1`.
+   So `~3` is `-4`.
+   In binary (two's complement infinite), `-4` is `...1111100`.
+   So `common & -4` works correctly for clearing lower bits.
+   
+   Wait, `common` is positive. `~mask` is negative.
+   Bitwise AND of positive and negative works as expected in Python (infinite bits).
+   Example:
+   `common = 5` (101).
+   `b = 2`. `mask_clear = (1 << 2) - 1 = 3` (011).
+   `~3` = -4 (...1111100).
+   `5 & -4`:
+   `...00000101`
+   `...11111100`
+   `AND` -> `...00000100` (4).
+   Correct.
+   
+   One detail:
+   The problem says "lexicographically smallest one".
+   My logic finds the first one in lexicographical order.
+   Since we output and exit, we are done.
+   
+   Is there any constraint on $n$? $3 \le n \le 2000$.
+   Is there any constraint on $m$? $3 \le m$.
+   
+   Wait, I should check if $a$ loop needs to go up to $n$.
+   Yes, $a$ can be $n-2$ (since $b, c$ must be larger).
+   But loop $1 \dots n$ is fine, just won't find anything for large $a$.
+   
+   Wait, I need to be careful with `adj_list[u]` containing duplicates?
+   "pairwise worker conflicts".
+   Usually simple graph.
+   "list of m pairwise worker conflicts".
+   Input format: $u$ $v$.
+   Problem doesn't explicitly say no duplicate edges or self-loops.
+   But "pairwise" implies distinct pairs usually.
+   And "distinct workers" in problem statement implies simple graph.
+   "guaranteed that there exists at least one group of three distinct workers".
+   So simple graph is assumed.
+   Even if duplicates exist, `adj_mask` handles it (idempotent OR).
+   `adj_list` might have duplicates.
+   `adj_list` sorting might put duplicates adjacent.
+   If `adj_list` has duplicates, we might process same $b$ twice.
+   If $b$ is processed twice, we find same $c$.
+   Since we output immediately, it doesn't matter much, but efficiency might drop slightly if $m$ is large with many duplicates.
+   We can use `set` to deduplicate `adj_list` or check if $b$ was already processed for $a$.
+   Or just `adj_list` can contain duplicates if input has them.
+   Given competitive programming context, usually simple graph.
+   But to be safe, I can use `set` then `sort`.
+   Or just iterate.
+   If `adj_list` has duplicates, we do redundant work.
+   $m$ up to $2 \cdot 10^5$.
+   Duplicates unlikely to be the issue unless $m$ is huge.
+   But let's assume simple graph.
+   Wait, if I use `set`, sorting takes more time? No.
+   Actually, `adj_list` is built from input.
+   If I just sort `adj_list`, duplicates remain.
+   I can add a check: `if b <= a: continue`.
+   If duplicates exist, I process same $b$ multiple times.
+   I can just check if $b$ is same as previous $b$ in loop.
+   Or use `set(adj_list[u])`.
+   Given constraints, $O(m \log m)$ for sorting sets is fine.
+   Let's use `set` to be safe against duplicates.
+   Wait, `adj_list` is list of lists.
+   `adj_list[u] = sorted(list(set(adj_list[u])))`.
+   This ensures uniqueness and sorted order.
+   This is safer.
+   
+   Wait, I need to map vertices to bits properly.
+   Input $u, v$.
+   `adj_mask[u] |= (1 << (v-1))`
+   `adj_mask[v] |= (1 << (u-1))`
+   `adj_list[u].append(v)`
+   `adj_list[v].append(u)`
+   
+   Wait, vertices are $1 \dots n$.
+   My code uses 1-based indexing for `adj_list` and `adj_mask` arrays.
+   So size $n+1$.
+   
+   Wait, what if $n$ is up to 2000.
+   `1 << 2000` is fine.
+   
+   Is there any import needed?
+   `sys`.
+   
+   Wait, I should verify the time complexity again.
+   With `set` deduplication, constructing `adj_list` takes $O(m)$.
+   Sorting takes $O(\sum d_i \log d_i)$.
+   Loop takes $O(m \cdot n/64)$.
+   Everything is well within limits.
+   
+   One thing:
+   `adj_mask` initialization.
+   `adj_mask = [0] * (n + 1)`
+   
+   Wait, `adj_list` could be large.
+   `sys.setrecursionlimit` is not needed.
+   
+   Final check on output format.
+   "Print three integers a b c on one line".
+   
+   Wait, I should confirm the `bit_length` logic.
+   If `mask` has lowest set bit at index $k$ (0-based).
+   `mask & -mask` gives $2^k$.
+   `(2^k).bit_length()` is $k+1$.
+   So index is `bit_length() - 1`.
+   Example $2^0=1$, bit_length 1, index 0.
+   Example $2^2=4$, bit_length 3, index 2.
+   Correct.
+   
+   Wait, I used `mask & -mask`.
+   In Python `&` is bitwise AND. `-mask` is two's complement negation.
+   `x & -x` isolates lowest set bit for positive integers.
+   Yes.
+   
+   Wait, `mask` is derived from `common & ~((1 << b) - 1)`.
+   Since `common` is positive, `mask` is positive (or 0).
+   So this works.
+   
+   Wait, is it possible that `mask` is 0?
+   Yes, if no $c > b$ exists.
+   Then `if mask > 0` check handles it.
+   
+   Wait, `~((1 << b) - 1)` creates a negative number.
+   `common & negative`.
+   In Python, `positive & negative` works as infinite bits.
+   Example `5 & -4` -> `4`.
+   `5` is `...00101`.
+   `-4` is `...11100`.
+   Result `...00100` which is 4.
+   Correct.
+   
+   One minor optimization:
+   `adj_list` can be built while reading.
+   
+   ```python
+   import sys
+
+   def solve():
+       input_data = sys.stdin.read().split()
+       if not input_data:
+           return
+       
+       iterator = iter(input_data)
+       n = int(next(iterator))
+       m = int(next(iterator))
+       
+       adj_mask = [0] * (n + 1)
+       adj_list = [[] for _ in range(n + 1)]
+       
+       for _ in range(m):
+           u = int(next(iterator))
+           v = int(next(iterator))
+           
+           adj_mask[u] |= (1 << (v - 1))
+           adj_mask[v] |= (1 << (u - 1))
+           
+           adj_list[u].append(v)
+           adj_list[v].append(u)
+           
+       # Sort and deduplicate for each list
+       for i in range(1, n + 1):
+           # Using set to remove duplicates and then sort
+           # This ensures we iterate b in increasing order and no duplicates
+           adj_list[i] = sorted(list(set(adj_list[i])))
+           
+       for a in range(1, n + 1):
+           for b in adj_list[a]:
+               if b <= a:
+                   continue
+               
+               # We need c such that c > b
+               # c corresponds to bit index >= b
+               # We want smallest bit index >= b in common neighbors
+               
+               common = adj_mask[a] & adj_mask[b]
+               
+               # Clear bits 0 to b-1
+               # Mask to keep bits >= b is ~((1 << b) - 1)
+               # (1 << b) - 1 has bits 0..b-1 set to 1
+               # ~(...) has bits 0..b-1 set to 0
+               
+               mask = common & ~((1 << b) - 1)
+               
+               if mask > 0:
+                   # Find lowest set bit
+                   c_bit = (mask & -mask).bit_length() - 1
+                   c = c_bit + 1
+                   print(f"{a} {b} {c}")
+                   return
+
+   if __name__ == '__main__':
+       solve()
+   ```
+   
+   Wait, `adj_list[i] = sorted(list(set(adj_list[i])))`
+   Is `list(set(...))` efficient?
+   Yes.
+   Wait, `set` construction is $O(d_i)$. Sorting is $O(d_i \log d_i)$.
+   Total time is dominated by this and the main loop.
+   Main loop is $O(m \cdot n/64)$.
+   Sorting is $O(m \log n)$.
+   Since $n=2000$, $\log n \approx 11$.
+   $m \log n \approx 2 \cdot 10^6$.
+   Main loop $6 \cdot 10^6$.
+   Total ops $\approx 10^7$.
+   Python should handle this in 2s.
+   
+   Wait, `adj_mask` size.
+   $n+1$ is fine.
+   
+   Wait, what if `input_data` is empty?
+   The problem guarantees valid input.
+   
+   Wait, `sys.setrecursionlimit` is not needed as no recursion.
+   
+   One detail:
+   `adj_mask[u] |= (1 << (v - 1))`
+   If $u, v$ are large, `1 << (v-1)` is large.
+   Python handles large integers automatically.
+   The cost of creating `1 << 2000` is small (allocation).
+   
+   Wait, is `1 << (v - 1)` optimized?
+   Yes.
+   
+   Wait, could `mask` calculation be slow?
+   `~((1 << b) - 1)` creates a large negative integer.
+   Python might optimize this or it might take time.
+   `1 << b` is fast.
+   `-1` is fast.
+   `~` is fast.
+   The main cost is the AND operation `common & ...`.
+   Since `common` has at most $n$ bits, the AND operation takes $O(n/64)$.
+   This is repeated $m$ times.
+   Total time is dominated by this.
+   
+   Wait, is there a case where `adj_mask` bits are not cleared correctly?
+   `~((1 << b) - 1)`
+   If $b=1$, `1 << 1` = 2. `2-1` = 1 (binary 1). `~1` = ...1110. Clears bit 0.
+   We want $c > b$. If $b=1$ (vertex 1), we want $c \ge 2$ (bit $\ge 1$).
+   Bit 0 is vertex 1.
+   So we want to clear bit 0.
+   My mask clears bit 0.
+   So it keeps bits $\ge 1$.
+   Correct.
+   
+   Wait, if $b=n$.
+   `1 << n` is bit $n$.
+   `(1 << n) - 1` clears bits $0 \dots n-1$.
+   Wait, `(1 << n) - 1` has bits $0 \dots n-1$ set.
+   `~` clears them.
+   So it keeps bits $\ge n$.
+   But max bit index is $n-1$ (vertex $n$).
+   So no bits kept. `mask` is 0.
+   Correct.
+   
+   Wait, `1 << b` creates a 1 at position $b$.
+   `(1 << b) - 1` has 1s at positions $0 \dots b-1$.
+   So `~` has 0s at positions $0 \dots b-1$.
+   So `common & ~` keeps bits at positions $\ge b$.
+   Bit index $k \ge b$ corresponds to vertex $k+1 \ge b+1 > b$.
+   Correct.
+   
+   Wait, $b$ is a vertex index.
+   If $b=2$ (vertex 2), bit index 1.
+   We want $c > 2$, so vertex $\ge 3$, bit index $\ge 2$.
+   My mask clears bits $0 \dots 1$.
+   Keeps bits $\ge 2$.
+   Correct.
+   
+   One small thing:
+   `adj_list` sort.
+   `sorted(list(set(adj_list[i])))`
+   This converts set to list then sorts.
+   Since `adj_list[i]` can have duplicates, `set` removes them.
+   This is good.
+   
+   Wait, memory usage for `adj_list`.
+   If I use `set`, I store unique neighbors.
+   Since it's a simple graph (implied), size is degree.
+   If not simple, `set` reduces size.
+   So memory is fine.
+   
+   Wait, `sys.stdin.read().split()` reads all tokens.
+   This is efficient.
+   
+   Wait, I should check if `input_data` might be large.
+   $2 \cdot 10^5$ lines * 2 integers.
+   Approx $4 \cdot 10^5$ integers.
+   String size maybe 5MB.
+   `split()` creates list of strings.
+   Memory is fine.
+   
+   Wait, `print` is inside loop.
+   This is fine.
+   
+   One edge case: $n=2000$, dense graph.
+   $m \approx 2 \cdot 10^6$?
+   Constraint $m \le 2 \cdot 10^5$.
+   So graph is sparse.
+   So `adj_list` sum of lengths is $4 \cdot 10^5$.
+   So loop runs $2 \cdot 10^5$ times.
+   Bitwise ops are fast.
+   So it will be very fast.
+   
+   Wait, if graph was dense, $m$ would be $O(n^2)$.
+   But $m$ is limited.
+   So complexity is fine.
+   
+   Wait, `1 << b` inside loop.
+   If $b$ is up to 2000.
+   Python caches small integers, but large integers are created.
+   Creating `1 << 2000` $200000$ times might be slightly costly?
+   Actually `1 << b` is a new integer object each time?
+   Yes.
+   But it's just one allocation.
+   Maybe precompute powers of 2?
+   `powers = [1 << i for i in range(n + 1)]`.
+   Then use `powers[b]`.
+   This avoids creating `1 << b` repeatedly.
+   Given 2s, it's not strictly necessary but good for optimization.
+   $2 \cdot 10^5$ allocations is nothing.
+   But let's add it to be safe.
+   
+   Wait, `common & ~((1 << b) - 1)`.
+   We can precompute `mask_clears[b] = ~((1 << b) - 1)`.
+   Wait, `~` depends on infinite bits.
+   `~x` is `-x-1`.
+   So `mask_clears[b] = -((1 << b) - 1) - 1`.
+   Let's check.
+   `b=1`. `(1<<1)-1 = 1`. `~1 = -2`.
+   Formula: `-1 - 1 = -2`.
+   `b=2`. `(1<<2)-1 = 3`. `~3 = -4`.
+   Formula: `-3 - 1 = -4`.
+   So `mask_clears[b] = - (1 << b)`.
+   Wait.
+   `~((1 << b) - 1)`
+   Let $K = (1 << b) - 1$.
+   `~K = -K - 1 = -((1 << b) - 1) - 1 = -(1 << b) + 1 - 1 = -(1 << b)`.
+   So `~((1 << b) - 1)` is simply `-(1 << b)`.
+   Let's verify.
+   `-(1 << 1)` = -2 (...1110). Clears bit 0.
+   `-(1 << 2)` = -4 (...11100). Clears bits 0, 1.
+   Yes!
+   So `common & -(1 << b)` is equivalent to `common & ~((1 << b) - 1)`.
+   Wait, `-(1 << b)` is a negative number.
+   In Python `x & -y`? No `x & -(1<<b)`.
+   `-(1 << b)` has bits $0 \dots b-1$ as 0?
+   Wait.
+   `1 << b` is `1` followed by $b$ zeros.
+   Negation: `...111100...0` ($b$ zeros).
+   So yes, it clears bits $0 \dots b-1$.
+   Wait, `1 << b` has bit $b$ set (0-based).
+   So bits $0 \dots b-1$ are 0.
+   Negation makes bits $0 \dots b-1$ become 0?
+   Wait.
+   `1 << b` (binary ...00100...0 with 1 at pos $b$).
+   `- (1 << b)` (two's complement).
+   Invert bits: ...11011...1.
+   Add 1: ...11100...0.
+   So bits $0 \dots b-1$ are 0.
+   Bit $b$ is 0.
+   Bits $\ge b+1$ are 1.
+   So `common & -(1 << b)` clears bits $0 \dots b$.
+   Wait, we want to clear bits $0 \dots b-1$.
+   We want to keep bit $b$ (vertex $b+1$).
+   But we want $c > b$, so vertex $\ge b+1$.
+   So bit index $\ge b$.
+   Wait.
+   If we clear bit $b$, we lose vertex $b+1$.
+   But we want $c > b$.
+   Vertex $b+1$ corresponds to bit $b$.
+   If $c = b+1$, then $c > b$ is true.
+   So we want to keep bit $b$.
+   My previous logic:
+   `~((1 << b) - 1)` clears bits $0 \dots b-1$.
+   Does it clear bit $b$?
+   `(1 << b) - 1` has bits $0 \dots b-1$ set. Bit $b$ is 0.
+   `~` has bits $0 \dots b-1$ as 0. Bit $b$ is 1.
+   So it keeps bit $b$.
+   So `common & ~((1 << b) - 1)` keeps bit $b$ and higher.
+   So it keeps vertices $\ge b+1$.
+   This matches $c > b$.
+   
+   Now check `-(1 << b)`.
+   `-(1 << b)` has bits $0 \dots b$ as 0.
+   So it clears bit $b$.
+   So `common & -(1 << b)` clears bits $0 \dots b$.
+   This corresponds to vertices $\le b$.
+   Wait, vertex $b$ is bit $b-1$.
+   Vertex $b+1$ is bit $b$.
+   So clearing bit $b$ means clearing vertex $b+1$.
+   But we want to keep vertex $b+1$ (since $c$ can be $b+1$).
+   So `-(1 << b)` is WRONG.
+   It clears too many bits.
+   So I must use `~((1 << b) - 1)`.
+   Or `~((1 << b) - 1)` is `-(1 << b) - 1`? No.
+   `~x = -x - 1`.
+   `x = (1 << b) - 1`.
+   `~x = -((1 << b) - 1) - 1 = -(1 << b) + 1 - 1 = -(1 << b)`.
+   Wait.
+   `-(1 << b)` has bits $0 \dots b-1$ as 0?
+   Let's re-evaluate `-(1 << b)`.
+   `1 << b` is `...00100...` (bit $b$ is 1).
+   Invert: `...11011...` (bit $b$ is 0, bits $<b$ are 1).
+   Add 1: `...11100...` (bit $b$ is 0, bits $<b$ are 0).
+   So `-(1 << b)` has bits $0 \dots b$ as 0.
+   So it clears bit $b$.
+   But `~((1 << b) - 1)` should keep bit $b$.
+   Let's check `~((1 << b) - 1)` again.
+   `x = (1 << b) - 1`. `x` has bits $0 \dots b-1$ as 1. Bit $b$ is 0.
+   `~x`.
+   Bits $0 \dots b-1$ are 0.
+   Bit $b$ is 1 (since $x$ had 0).
+   Bits $>b$ are inverted from 0 to 1.
+   So `~x` has bits $0 \dots b-1$ as 0. Bit $b$ as 1.
+   So `~x` keeps bit $b$.
+   
+   Why did I think `~x = -(1 << b)`?
+   `~x = -x - 1`.
+   `x = 2^b - 1`.
+   `-x - 1 = -(2^b - 1) - 1 = -2^b + 1 - 1 = -2^b`.
+   So `~x = -2^b`.
+   But `-2^b` clears bit $b$?
+   Let's check `-4` (binary ...1111100).
+   Bit 2 (value 4) is 0.
+   Bit 0, 1 are 0.
+   So `-4` clears bits 0, 1, 2.
+   But `~3` (where $3 = 2^2 - 1$) should clear bits 0, 1.
+   Wait.
+   `3` is `011`.
+   `~3` is `...111100`.
+   In Python `~3` is `-4`.
+   `-4` in binary (infinite): `...11111100`.
+   Bits 0, 1 are 0.
+   Bit 2 is 0?
+   Wait. `1100` is 12.
+   `...11111100` is -4.
+   Let's check value.
+   `...11100` (3 bits 1s at end? No).
+   `-4 = -1 * 2^2`.
+   Two's complement of 4 (0...0100) is 1...1100.
+   Bit 2 is 0.
+   So `~3` has bit 2 as 0.
+   But we want `~3` to have bit 2 as 1.
+   Wait.
+   `(1 << 2) - 1` = 3.
+   `~3` should clear bits 0, 1.
+   So bit 2 should be 1.
+   But `~3` is -4.
+   -4 has bit 2 as 0.
+   Why?
+   Because `~3` acts on infinite bits.
+   `3` is `...00011`.
+   `~3` is `...11100`.
+   Bit 0: 1 -> 0.
+   Bit 1: 1 -> 0.
+   Bit 2: 0 -> 1.
+   Wait. `3` in binary is `...00011`.
+   `~3` is `...11100`.
+   Bit 2 is 0?
+   Let's look at `...00011`.
+   Bit 0 is 1.
+   Bit 1 is 1.
+   Bit 2 is 0.
+   So `~3` bit 2 is 1.
+   Wait, `...11100`.
+   Bit 0 is 0.
+   Bit 1 is 0.
+   Bit 2 is 0?
+   No. `...11100` means bits 0 and 1 are 0.
+   Bit 2 is the next one.
+   If it is `...11100`, then bit 2 is 0?
+   Wait.
+   `11100` is 28?
+   No, negative numbers.
+   Let's check `bin(-4)`.
+   `bin(-4)` is `'-0b100'`.
+   But in bitwise ops, it's infinite 1s.
+   `...11111100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 0.
+   Wait. `4` is `100`.
+   Negation: `...11111100`.
+   Bit 2 is 0.
+   So `-4` has bit 2 as 0.
+   But `~3` should have bit 2 as 1.
+   Where is the error?
+   `3` is `...00011`.
+   `~3` is `...11100`.
+   Wait, `3` is `0...011`.
+   Bit 0: 1.
+   Bit 1: 1.
+   Bit 2: 0.
+   Bit 3: 0.
+   ...
+   `~3` flips them.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1.
+   Bit 3: 1.
+   ...
+   So `~3` should be `...1111100` where bit 2 is 1?
+   Wait. `...1111100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 0.
+   Wait.
+   If bit 2 is 1, then it's `...11111100`? No.
+   If bit 2 is 1, the value is at least 4.
+   But `~3` is -4.
+   How can -4 have bit 2 as 1?
+   -4 cannot have bit 2 as 1 if bit 0 and 1 are 0?
+   Wait.
+   Let's calculate `~3` manually.
+   `3` = `...000011`.
+   `~3` = `...111100`.
+   The bits are inverted.
+   Bit 0: 1 -> 0.
+   Bit 1: 1 -> 0.
+   Bit 2: 0 -> 1.
+   Bit 3: 0 -> 1.
+   So `...1111100`.
+   Wait, if bit 2 is 1, then `...1111100` represents a number with bit 2 set?
+   No, `...1111100` ends with `100`.
+   Wait. `100` binary is 4.
+   `...1111100` means bits 0, 1 are 0.
+   Bit 2 is 0?
+   Wait, `100` means bit 2 is 1.
+   So `...1111100` means bit 2 is 1?
+   No. `100` is 4.
+   Bit 0 is 0.
+   Bit 1 is 0.
+   Bit 2 is 1.
+   So `...11111100` (where the last 3 bits are `100`) means bit 2 is 1?
+   No. `100` is the last 3 bits.
+   Bit 2 is the MSB of `100`.
+   So yes, bit 2 is 1.
+   So `...11111100` has bit 2 as 1.
+   Wait.
+   `~3` is -4.
+   -4 is `...11111100`.
+   Does -4 have bit 2 as 1?
+   Value of `...11111100` (infinite 1s) is -4.
+   If bit 2 was 1, the value would be ...
+   Wait. In two's complement, negative numbers have infinite 1s to the left.
+   So `...11111100` is -4.
+   Bit 0 is 0.
+   Bit 1 is 0.
+   Bit 2 is 0.
+   Wait. `100` is 4.
+   If I write `...1111100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1.
+   So `...11111100` has bit 2 as 1?
+   Let's check `bin(4)`. `0b100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1.
+   So `4` has bit 2 as 1.
+   `-4` is `~3`.
+   `~3` is `...11111100`.
+   Wait. `~011` is `100` (inverted bits).
+   Wait. `011` (3).
+   `~011` is `100` (4) if we consider 3 bits.
+   But with infinite bits, `...00011` becomes `...11100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1.
+   So `...11100` has bit 2 as 1.
+   But `...11100` is -4?
+   Wait. `...11100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1.
+   Bit 3: 1.
+   Bit 4: 1.
+   ...
+   Sum = $-2^k + 2^2 + 2^3 + \dots$
+   No.
+   Let's just trust Python's behavior.
+   `3 & ~3` is 0.
+   `3` is `...00011`.
+   `~3` is `...11100`.
+   `3 & ~3` is 0.
+   Wait. `3` has bit 2 as 0.
+   `~3` has bit 2 as 1.
+   So `3 & ~3` has bit 2 as 0.
+   Correct.
+   Now `common & ~((1 << b) - 1)`.
+   `common` has bits.
+   `~((1 << b) - 1)` has bits $0 \dots b-1$ as 0.
+   Bit $b$ as 1.
+   Bits $> b$ as 1.
+   So `common & ~...` keeps bits $\ge b$.
+   So it keeps vertex $\ge b+1$.
+   Wait.
+   If `~((1 << b) - 1)` has bit $b$ as 1.
+   Then `common` bit $b$ is kept.
+   Bit $b$ is vertex $b+1$.
+   So vertex $b+1$ is kept.
+   Vertex $b+1 > b$.
+   So $c=b+1$ is valid.
+   So my logic holds.
+   The confusion about -4 was due to my manual binary representation.
+   `...11100` is indeed -4?
+   Let's check `bin(-4)`.
+   `-0b100`.
+   This means $-4$.
+   In two's complement, $-4$ is `...11111100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1?
+   Wait. `100` is 4.
+   If bit 2 is 1, then value is $4 + \dots$.
+   But for negative numbers, high bits are 1 (negative weights).
+   So `...11100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 0.
+   Wait. `100` is 4.
+   `...11100` means bit 2 is 0?
+   No.
+   If bit 2 is 1, it contributes $+4$ (if positive) or $-2^k$ (if negative).
+   Wait.
+   If I have `...11111100`.
+   Bit 0 is 0.
+   Bit 1 is 0.
+   Bit 2 is 1?
+   Let's check `~3`.
+   `3` is `...000011`.
+   `~3` is `...111100`.
+   Bit 0: 0.
+   Bit 1: 0.
+   Bit 2: 1.
+   So `...111100` has bit 2 as 1.
+   But `~3` is -4.
+   So -4 has bit 2 as 1.
+   Why did I think `100` means bit 2 is 1?
+   Because `100` is 4.
+   So -4 has bit 2 as 1?
+   Wait.
+   $4$ is `0...0100`.
+   $-4$ is `1...1100`.
+   Bit 2 is 1 in both?
+   $4 = 1 \cdot 2^2$.
+   $-4 = -1 \cdot 2^2$? No.
+   $-4$ in 2's complement is `~3`.
+   `3` is `0...0011`.
+   `~3` is `1...1100`.
+   Bit 2 is 1?
+   Wait. `3` has bit 0, 1 set.
+   `~3` has bit 0, 1 cleared.
+   Bit 2 is 0 in `3`. So 1 in `~3`.
+   So yes, bit 2 is 1.
+   So `~3` has bit 2 as 1.
+   But `~3` is -4.
+   Does -4 have bit 2 as 1?
+   Let's check `(-4) & 4`.
+   `4` is `100`.
+   `(-4) & 4` should be 4 if bit 2 is 1.
+   `(-4) & 4` is 4.
+   So yes, bit 2 is 1.
+   Wait.
+   If bit 2 is 1, does it mean value is $\ge 4$?
+   No, because other bits are negative weights.
+   So `...111100` has bit 2 as 1.
+   But `~3` is correct.
+   So `~((1 << b) - 1)` keeps bit $b$.
+   So `common & ~((1 << b) - 1)` keeps bit $b$.
+   So vertex $b+1$ is kept.
+   So $c$ can be $b+1$.
+   My logic is correct.
+   
+   Wait, `mask = common & ~((1 << b) - 1)`.
+   If `mask` is non-zero, `c_bit` is found.
+   `c_bit` is index of lowest set bit.
+   Since we kept bits $\ge b$, `c_bit \ge b`.
+   So `c = c_bit + 1 \ge b+1 > b`.
+   Correct.
+   
+   So code is correct.
+   
+   One detail: `sys.stdin.read` might block if not EOF?
+   In competitive programming, input is piped or redirected, so EOF is sent.
+   So `read()` works.
+   
+   Wait, I used `set` and `sorted`.
+   If $m$ is large, `set` creation is $O(m)$.
+   Sorting is $O(m \log n)$.
+   This is fast enough.
+   
+   Wait, I should be careful about `adj_list[i]` being empty.
+   `sorted(list(set([])))` is `[]`.
+   Loop `for b in adj_list[a]` will not execute.
+   Correct.
+   
+   Wait, if $n=2000$, `adj_mask` array size 2001.
+   `range(1, n+1)` is correct.
+   
+   Wait, `input_data` might be empty?
+   Problem constraints say $n \ge 3$.
+   So input will be valid.
+   
+   Wait, `print` format.
+   `print(f"{a} {b} {c}")`.
+   This is fine.
+   
+   Final check on time complexity.
+   $O(m \cdot n / 64)$ operations.
+   $2 \cdot 10^5 \cdot 32 \approx 6.4 \cdot 10^6$.
+   This is very fast.
+   Python overhead for loop is significant but $2 \cdot 10^5$ iterations is fine.
+   The bitwise operations are in C (large int implementation).
+   So it should pass easily.
+   
+   Wait, `mask & -mask` logic.
+   `mask` is positive.
+   `mask & -mask` works.
+   `bit_length` works.
+   
+   One minor optimization:
+   `adj_mask` construction.
+   `adj_mask[u] |= (1 << (v - 1))`
+   `adj_mask[v] |= (1 << (u - 1))`
+   Since we read all edges, we can just do this.
+   
+   Wait, is it possible that `common` is 0?
+   Yes, if no common neighbors.
+   Then `mask` is 0.
+   `if mask > 0` check handles it.
+   
+   Is it possible `common` has no bits $\ge b$?
+   Yes.
+   Then `mask` is 0.
+   
+   Wait, `mask & -mask` on 0?
+   `0 & 0` is 0.
+   `0.bit_length()` is 0.
+   `c` would be -1.
+   But we check `if mask > 0`.
+   So it's safe.
+   
+   Wait, `(1 << b)` can be large.
+   Precomputing powers of 2 is good.
+   `pow2 = [1 << i for i in range(n + 2)]`.
+   Then use `pow2[b]`.
+   This avoids large integer creation in loop.
+   Wait, `1 << b` is fast enough.
+   But precomputing is safer.
+   I will add precomputation.
+   Also `pow2_neg = [-(1 << i) for i in range(n + 2)]`.
+   Wait, I decided `~((1 << b) - 1)` is safer to understand, but `-(1 << b)` is what I derived as `~((1<<b)-1)`?
+   Wait, I found `~((1 << b) - 1)` keeps bit $b$.
+   `- (1 << b)` clears bit $b$.
+   So I must use `~((1 << b) - 1)`.
+   Which is `~(pow2[b] - 1)`.
+   Or `~((1 << b) - 1)`.
+   Let's stick to `~((1 << b) - 1)`.
+   Or simply `common & ~((1 << b) - 1)`.
+   Since `1 << b` is fast, I don't strictly need precompute.
+   But to be safe against TLE, maybe precompute masks.
+   `clear_mask[b] = ~((1 << b) - 1)`.
+   `clear_mask[b]` is `...1111100...0` ($b$ zeros).
+   This is constant for a fixed $b$.
+   So precomputing `clear_mask` array is good.
+   `clear_mask[b]` has bits $0 \dots b-1$ as 0.
+   So `common & clear_mask[b]` keeps bits $\ge b$.
+   Wait. `clear_mask[b]` has bits $0 \dots b-1$ as 0.
+   So it clears bits $0 \dots b-1$.
+   So it keeps bits $\ge b$.
+   This matches my requirement.
+   So I will use `clear_mask` array.
+   `clear_mask = [~((1 << i) - 1) for i in range(n + 2)]`.
+   Wait, `~((1 << i) - 1)` for $i=0$: `~0 = -1`.
+   `~((1 << 1) - 1)`: `~1 = -2`.
+   This is fine.
+   
+   Wait, `adj_mask` construction.
+   `adj_mask` uses bits $0 \dots n-1$.
+   `clear_mask` needs to cover up to $n-1$.
+   So size $n+1$.
+   
+   Wait, `mask = common & clear_mask[b]`.
+   This clears bits $< b$.
+   So keeps bits $\ge b$.
+   Correct.
+   
+   Wait, `clear_mask[b]` might be negative.
+   `common` is positive.
+   `common & negative` works.
+   
+   Wait, I need to handle the case where `b` can be up to $n$.
+   So `clear_mask` size $n+1$.
+   `range(n + 1)`.
+   
+   Wait, `clear_mask` for $b=n$.
+   `~((1 << n) - 1)`.
+   Clears bits $0 \dots n-1$.
+   Keeps bits $\ge n$.
+   Since max bit index is $n-1$, it keeps nothing.
+   So `mask` is 0.
+   Correct.
+   
+   One detail:
+   `adj_list` contains vertices $1 \dots n$.
+   So `b` can be $n$.
+   So `clear_mask` needs index $n$.
+   `range(n + 1)`.
+   
+   Wait, `adj_list` can contain duplicates.
+   I used `set` to remove duplicates.
+   
+   Wait, `input_data` parsing.
+   `sys.stdin.read().split()` creates a list of strings.
+   This is fast.
+   
+   Wait, `print` output.
+   The problem asks for "Output only a single Python 3 code block".
+   I should provide the code inside the block.
+   
+   Wait, I should double check if `adj_list` needs to be sorted.
+   Yes, for lexicographical order of $b$.
+   
+   Wait, I should verify the memory limit again.
+   256 MB.
+   My solution uses minimal memory.
+   
+   Wait, `adj_mask` uses `n+1` integers.
+   `adj_list` uses `n+1` lists.
+   Total integers in lists $2m$.
+   $2 \cdot 10^5$ integers.
+   Each integer is small (up to 2000).
+   Python integers are 28 bytes + size.
+   So $2 \cdot 10^5 \times 28 \approx 5.6$ MB.
+   Lists overhead: $8$ bytes per item.
+   Total $\approx 10$ MB.
+   `adj_mask` integers are large (2000 bits).
+   2000 bits $\approx 250$ bytes.
+   $2000 \times 250 \approx 500$ KB.
+   Total memory $\approx 15$ MB.
+   Well within 256 MB.
+   
+   Wait, I should make sure I don't use too much recursion depth or stack.
+   No recursion used.
+   
+   Final check on logic.
+   Is there any case where `adj_list` is not sorted correctly?
+   `sorted(list(set(adj_list[i])))` sorts integers.
+   Correct.
+   
+   Wait, `common` calculation.
+   `adj_mask[a] & adj_mask[b]`.
+   This is correct.
+   
+   Wait, `mask & -mask`.
+   `mask` is positive.
+   `-mask` is negative.
+   `mask & -mask` gives lowest set bit.
+   Correct.
+   
+   Wait, `bit_length`.
+   `bit_length` of 1 is 1.
+   `bit_length` of 4 is 3.
+   So index is `bit_length - 1`.
+   Correct.
+   
+   Wait, I should verify Example 1.
+   4 5
+   1 2
+   1 3
+   2 3
+   2 4
+   3 4
+   
+   Edges: (1,2), (1,3), (2,3), (2,4), (3,4).
+   Triangles: (1,2,3), (2,3,4).
+   Lexicographically smallest is (1,2,3).
+   Code:
+   $a=1$. `adj_list[1] = [2, 3]`.
+   $b=2$. `adj_mask[1]` bits 1, 2. `adj_mask[2]` bits 0, 2, 3.
+   `common` = bit 2.
+   `mask` = `common & clear_mask[2]`.
+   `clear_mask[2]` clears bits 0, 1.
+   `common` has bit 2.
+   `mask` has bit 2.
+   `c_bit` = 2.
+   `c` = 3.
+   Output 1 2 3.
+   Correct.
+   
+   Example 2.
+   5 6
+   1 2
+   1 4
+   2 4
+   3 4
+   3 5
+   4 5
+   
+   Edges: (1,2), (1,4), (2,4), (3,4), (3,5), (4,5).
+   Triangles: (1,2,4), (3,4,5).
+   Smallest: (1,2,4).
+   Code:
+   $a=1$. `adj_list[1] = [2, 4]`.
+   $b=2$. `adj_mask[1]` bits 1, 3. `adj_mask[2]` bits 0, 3.
+   `common` = bit 3.
+   `mask` = `common & clear_mask[2]`.
+   `clear_mask[2]` clears bits 0, 1.
+   `common` has bit 3.
+   `mask` has bit 3.
+   `c_bit` = 3.
+   `c` = 4.
+   Output 1 2 4.
+   Correct.
+   
+   Wait, `adj_mask` bits.
+   Vertex 1 -> bit 0.
+   Vertex 2 -> bit 1.
+   Vertex 4 -> bit 3.
+   So `adj_mask[1]` has bits 1, 3 (vertices 2, 4).
+   `adj_mask[2]` has bits 0, 3 (vertices 1, 4).
+   Intersection bit 3 (vertex 4).
+   `clear_mask[2]` clears bits 0, 1.
+   Keeps bit 3.
+   `c` = 3+1 = 4.
+   Output 1 2 4.
+   
+   Wait, $b$ loop order.
+   `adj_list[1]` is `[2, 4]`.
+   $b=2$ comes first.
+   So we check $b=2$ before $b=4$.
+   If we found a triangle with $b=4$, we would check it.
+   But we found one with $b=2$.
+   So we output 1 2 4.
+   If there was a triangle 1 3 4?
+   Then $b=3$ would be checked before $b=4$.
+   Since `adj_list[1]` is sorted.
+   Wait, `adj_list[1]` contains neighbors.
+   Vertices 2, 4.
+   Sorted: 2, 4.
+   So we check 2 first.
+   If triangle 1 2 4 exists, output 1 2 4.
+   If triangle 1 3 4 exists, we need 3 in `adj_list[1]`.
+   If 3 is not a neighbor, it won't be in `adj_list[1]`.
+   So we only check valid neighbors.
+   Correct.
+   
+   Wait, if there are multiple triangles starting with $a=1$.
+   We want smallest $b$.
+   Since we iterate $b$ in increasing order, we find smallest $b$ first.
+   For that $b$, we find smallest $c$.
+   So we find lexicographically smallest triple starting with $a=1$.
+   Then we check $a=2$.
+   Since $a=1$ yielded a triple, we stop.
+   So we find global minimum.
+   
+   Wait, what if $a=1$ has no triangle?
+   Then we continue to $a=2$.
+   Correct.
+   
+   Wait, I should ensure that `adj_list` is sorted.
+   `adj_list[i] = sorted(list(set(adj_list[i])))`.
+   This sorts.
+   
+   Wait, I need to import `sys`.
+   
+   Wait, `sys.setrecursionlimit` is not needed.
+   
+   Wait, I should check if `input_data` can be empty.
+   No, problem guarantees input.
+   
+   Wait, `sys.stdin.read().split()` reads all.
+   If input is large, `split` creates a large list.
+   With $m=200000$, list size $400000$.
+   Memory for list of strings.
+   Each string small.
+   Total memory maybe 20-30 MB.
+   Fine.
+   
+   Wait, `iterator` usage.
+   `iter(input_data)`.
+   `next(iterator)`.
+   This is efficient.
+   
+   Wait, I should output `a b c` separated by space.
+   `print(f"{a} {b} {c}")`.
+   
+   One detail: `mask & -mask` works for positive integers.
+   `mask` is derived from `common & clear_mask[b]`.
+   `common` is positive (or 0).
+   `clear_mask[b]` is negative.
+   `common & negative` can be positive or negative?
+   Wait. `common` has bits $0 \dots n-1$ set.
+   `clear_mask[b]` has bits $0 \dots b-1$ as 0, others as 1 (in infinite representation).
+   So `common & clear_mask` will have bits $0 \dots b-1$ as 0.
+   Bits $\ge b$ as whatever `common` has.
+   Since `common` is positive, the result is positive (or 0).
+   Wait, `common` is positive.
+   `clear_mask` has infinite 1s to the left.
+   So `common & clear_mask` has same bits as `common` for indices $\ge b$.
+   And 0 for indices $< b$.
+   Since `common` is positive, its high bits are 0.
+   So result is positive.
+   So `mask` is positive.
+   So `mask & -mask` works.
+   
+   Wait, `common` is constructed from `adj_mask`.
+   `adj_mask` initialized to 0.
+   Set bits are positive.
+   So `common` is positive.
+   Correct.
+   
+   Wait, `mask` can be 0.
+   Handled.
+   
+   Wait, `adj_mask` indices.
+   `adj_mask` is list of size $n+1$.
+   Indices $1 \dots n$.
+   `adj_list` size $n+1$.
+   Indices $1 \dots n$.
+   Loops $1 \dots n$.
+   Correct.
+   
+   Wait, `range(1, n + 1)`.
+   Correct.
+   
+   Wait, `adj_mask` size.
+   `n + 1` is correct.
+   
+   Wait, `adj_mask[u]` uses bit `v-1`.
+   Max `v` is `n`. Max bit `n-1`.
+   So `1 << (n-1)` is valid.
+   `pow2` up to `n` needed.
+   `clear_mask` up to `n` needed.
+   `range(n + 1)` gives indices $0 \dots n$.
+   So `clear_mask[n]` is valid.
+   Correct.
+   
+   Wait, `adj_mask` size $n+1$.
+   `adj_mask[u]` where `u` up to `n`.
+   So `adj_mask` needs index `n`.
+   `adj_mask = [0] * (n + 1)`.
+   Correct.
+   
+   Wait, `adj_list` size $n+1$.
+   Correct.
+   
+   Wait, `pow2` and `clear_mask` size.
+   `n + 1` is sufficient for indices $0 \dots n$.
+   
+   Wait, I used `adj_mask` as `adj_mask[u]`.
+   `adj_mask` is list.
+   Correct.
+   
+   Wait, `1 << (v - 1)`.
+   If `v=1`, bit 0.
+   If `v=n`, bit `n-1`.
+   Correct.
+   
+   Wait, `clear_mask[b]`.
+   If `b=n`.
+   `clear_mask[n]` clears bits $0 \dots n-1$.
+   So `mask` is 0.
+   Correct.
+   
+   Wait, `common & clear_mask[b]`.
+   If `common` has bit `n-1` set.
+   `clear_mask[n]` clears bit `n-1`.
+   So bit `n-1` is cleared.
+   So `mask` is 0.
+   Correct.
+   
+   Wait, if `b=n-1`.
+   `clear_mask[n-1]` clears bits $0 \dots n-2$.
+   Keeps bits $\ge n-1$.
+   So bit `n-1` is kept.
+   So if `common` has bit `n-1`, `mask` has bit `n-1`.
+   `c_bit` = `n-1`.
+   `c` = `n`.
+   So `c=n` is valid if `b=n-1`.
+   Correct.
+   
+   Wait, `c > b` means `c \ge b+1`.
+   If `b=n-1`, `c \ge n`.
+   So `c=n` is valid.
+   Correct.
+   
+   Wait, `adj_mask` initialization.
+   `adj_mask = [0] * (n + 1)`.
+   Correct.
+   
+   Wait, `adj_list` initialization.
+   `adj_list = [[] for _ in range(n + 1)]`.
+   Correct.
+   
+   Wait, `adj_mask[u] |= (1 << (v - 1))`.
+   Correct.
+   
+   Wait, `adj_list[u].append(v)`.
+   Correct.
+   
+   Wait, `sorted(list(set(adj_list[i])))`.
+   Correct.
+   
+   Wait, `range(1, n + 1)`.
+   Correct.
+   
+   Wait, `if b <= a: continue`.
+   Correct.
+   
+   Wait, `common = adj_mask[a] & adj_mask[b]`.
+   Correct.
+   
+   Wait, `mask = common & clear_mask[b]`.
+   Correct.
+   
+   Wait, `if mask > 0:`.
+   Correct.
+   
+   Wait, `c_bit = (mask & -mask).bit_length() - 1`.
+   Correct.
+   
+   Wait, `c = c_bit + 1`.
+   Correct.
+   
+   Wait, `print(f"{a} {b} {c}")`.
+   Correct.
+   
+   Wait, `return` after print.
+   Correct.
+   
+   Wait, `if __name__ == '__main__': solve()`.
+   Correct.
+   
+   Wait, `sys.stdin.read().split()`.
+   Correct.
+   
+   Wait, `iterator`.
+   Correct.
+   
+   Wait, `input_data` check.
+   If empty, return.
+   Correct.
+   
+   Wait, `m` range.
+   $3 \le m$.
+   Correct.
+   
+   Wait, $n$ range.
+   $3 \le n$.
+   Correct.
+   
+   Wait, `adj_mask` size.
+   $n+1$.
+   Correct.
+   
+   Wait, `clear_mask` size.
+   $n+1$.
+   Correct.
+   
+   Wait, `1 << (v - 1)`.
+   If `v=1`, `1 << 0` = 1.
+   Correct.
+   
+   Wait, `1 << (u - 1)`.
+   Correct.
+   
+   Wait, `adj_mask` initialization.
+   `adj_mask = [0] * (n + 1)`.
+   Correct.
+   
+   Wait, `adj_list` initialization.
+   `adj_list = [[] for _ in range(n + 1)]`.
+   Correct.
+   
+   Wait, `for _ in range(m)`.
+   Correct.
+   
+   Wait, `u = int(next(iterator))`.
+   Correct.
+   
+   Wait, `v = int(next(iterator))`.
+   Correct.
+   
+   Wait, `adj_mask[u] |= ...`.
+   Correct.
+   
+   Wait, `adj_mask[v] |= ...`.
+   Correct.
+   
+   Wait, `adj_list[u].append(v)`.
+   Correct.
+   
+   Wait, `adj_list[v].append(u)`.
+   Correct.
+   
+   Wait, `for i in range(1, n + 1):`.
+   Correct.
+   
+   Wait, `adj_list[i] = sorted(list(set(adj_list[i])))`.
+   Correct.
+   
+   Wait, `for a in range(1, n + 1):`.
+   Correct.
+   
+   Wait, `for b in adj_list[a]:`.
+   Correct.
+   
+   Wait, `if b <= a: continue`.
+   Correct.
+   
+   Wait, `common = adj_mask[a] & adj_mask[b]`.
+   Correct.
+   
+   Wait, `mask = common & clear_mask[b]`.
+   Correct.
+   
+   Wait, `if mask > 0:`.
+   Correct.
+   
+   Wait, `c_bit = (mask & -mask).bit_length() - 1`.
+   Correct.
+   
+   Wait, `c = c_bit + 1`.
+   Correct.
+   
+   Wait, `print(f"{a} {b} {c}")`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve()` function.
+   Correct.
+   
+   Wait, `if __name__ == '__main__':`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `pow2` and `clear_mask`.
+   I decided to use `clear_mask`.
+   `clear_mask = [~((1 << i) - 1) for i in range(n + 1)]`.
+   Wait, `1 << i` can be large.
+   But `clear_mask` is precomputed.
+   Wait, `1 << i` is computed `n` times.
+   $n=2000$.
+   Fast.
+   
+   Wait, `adj_mask` initialization.
+   `adj_mask = [0] * (n + 1)`.
+   Correct.
+   
+   Wait, `adj_list` initialization.
+   `adj_list = [[] for _ in range(n + 1)]`.
+   Correct.
+   
+   Wait, `m` edges.
+   Correct.
+   
+   Wait, `u` and `v` are 1-based.
+   Correct.
+   
+   Wait, `input_data` split.
+   Correct.
+   
+   Wait, `iterator`.
+   Correct.
+   
+   Wait, `sys.setrecursionlimit`.
+   Not needed.
+   
+   Wait, `print` to stdout.
+   Correct.
+   
+   Wait, `return` inside `solve`.
+   Correct.
+   
+   Wait, `return` from `solve` after printing.
+   Correct.
+   
+   Wait, `return` from `solve` if no solution?
+   Problem guarantees solution.
+   So we don't need to handle it.
+   
+   Wait, `mask` calculation.
+   `common` is intersection of neighbors.
+   `clear_mask[b]` clears bits $< b$.
+   So `mask` has bits $\ge b$.
+   So `c_bit \ge b`.
+   So `c \ge b+1`.
+   So `c > b`.
+   Correct.
+   
+   Wait, `c_bit` is 0-based index.
+   `c = c_bit + 1`.
+   Correct.
+   
+   Wait, `bit_length` of 0 is 0.
+   `if mask > 0` handles it.
+   
+   Wait, `mask & -mask`.
+   If `mask` is positive, `mask & -mask` isolates lowest set bit.
+   Example `mask = 6` (110).
+   `mask & -mask` = 2 (010).
+   `bit_length` of 2 is 2.
+   Index 1.
+   Bit 1 is 1. Correct.
+   
+   Wait, `2` is `10`.
+   `bit_length` 2.
+   Index 1.
+   Correct.
+   
+   Wait, `4` is `100`.
+   `bit_length` 3.
+   Index 2.
+   Correct.
+   
+   Wait, `1` is `1`.
+   `bit_length` 1.
+   Index 0.
+   Correct.
+   
+   Wait, `0` is `0`.
+   `bit_length` 0.
+   Index -1.
+   Handled.
+   
+   Wait, `mask` calculation.
+   `common` has bits set for neighbors.
+   If `common` has bit `k` set, then vertex `k+1` is neighbor.
+   So `c_bit` corresponds to vertex `c`.
+   Wait, `c_bit` is index.
+   `c = c_bit + 1`.
+   So `c_bit` corresponds to vertex `c`.
+   Wait.
+   If bit `k` is set, vertex is `k+1`.
+   So if `c_bit` is found, vertex is `c_bit + 1`.
+   So `c = c_bit + 1`.
+   Correct.
+   
+   Wait, `adj_mask` bits.
+   `adj_mask[u]` has bit `v-1` set if edge `(u, v)`.
+   So bit `v-1` corresponds to vertex `v`.
+   So if bit `k` is set, vertex `k+1` is neighbor.
+   So `c_bit` corresponds to vertex `c`.
+   Correct.
+   
+   Wait, `mask` keeps bits $\ge b$.
+   So `c_bit \ge b`.
+   So `c = c_bit + 1 \ge b+1`.
+   So `c > b`.
+   Correct.
+   
+   Wait, `clear_mask[b]` clears bits $< b$.
+   So `mask` has bits $\ge b$.
+   Correct.
+   
+   Wait, `b` is vertex index.
+   Bit index is `b-1`.
+   We want `c > b`.
+   So `c \ge b+1`.
+   So bit index `c-1 \ge b`.
+   So we want bits $\ge b$.
+   My mask keeps bits $\ge b$.
+   Correct.
+   
+   Wait, `clear_mask[b]` clears bits $< b$.
+   So bits $0 \dots b-1$ are cleared.
+   Bits $\ge b$ are kept.
+   Correct.
+   
+   Wait, `b` is vertex index.
+   If `b=1`.
+   We want `c \ge 2`.
+   Bit index $\ge 1$.
+   `clear_mask[1]` clears bits $< 1$ (bit 0).
+   Keeps bits $\ge 1$.
+   Correct.
+   
+   Wait, `clear_mask` logic.
+   `clear_mask[i] = ~((1 << i) - 1)`.
+   `i=1`. `~((1<<1)-1) = ~1 = -2`.
+   `1` is `01`. `~1` is `...1110`.
+   Clears bit 0.
+   Correct.
+   
+   Wait, `i=0`. `~((1<<0)-1) = ~0 = -1`.
+   Clears nothing?
+   `~0` is `...1111`.
+   Clears nothing.
+   Correct.
+   But `b` starts from `a+1`. `a \ge 1`. So `b \ge 2`.
+   So `i \ge 2`.
+   Wait, `b` can be 2.
+   If `a=1`, `b=2`.
+   `clear_mask[2]`.
+   `~((1<<2)-1) = ~3 = -4`.
+   Clears bits 0, 1.
+   Correct.
+   
+   Wait, `b` is vertex index.
+   If `b=2`, bit `1` corresponds to vertex 2.
+   We want `c > 2`.
+   So `c \ge 3`.
+   Bit index $\ge 2$.
+   So we want to clear bits $0, 1$.
+   `clear_mask[2]` clears bits $0, 1$.
+   Correct.
+   
+   Wait, `b` is vertex index.
+   `clear_mask[b]` clears bits $< b$.
+   So bits $0 \dots b-1$.
+   Bit $b-1$ corresponds to vertex $b$.
+   So we clear vertex $b$.
+   Wait.
+   If `b=2`.
+   `clear_mask[2]` clears bits $0, 1$.
+   Bit 0 is vertex 1.
+   Bit 1 is vertex 2.
+   So we clear vertex 1 and 2.
+   Wait.
+   We want `c > b`.
+   So `c \ge b+1`.
+   So `c` cannot be `b`.
+   So we should clear vertex `b`.
+   So we should clear bit `b-1`.
+   My mask clears bits $0 \dots b-1$.
+   So it clears bit `b-1`.
+   So it clears vertex `b`.
+   So `c` cannot be `b`.
+   Correct.
+   Wait, `c` cannot be `a` either.
+   But `a < b`.
+   So `a` is cleared by clearing bits $< b$ (since `a-1 < b-1`).
+   So `c` cannot be `a`.
+   Correct.
+   
+   Wait, `c` must be distinct from `a` and `b`.
+   `a < b < c`.
+   So `c > b` implies `c \neq a` and `c \neq b`.
+   So clearing bits $< b$ (which includes `a-1` and `b-1`) ensures `c > b`.
+   Correct.
+   
+   Wait, `adj_mask` bits.
+   `adj_mask[u]` has bit `v-1` set.
+   So `adj_mask[a]` has bit `b-1` set if edge `(a, b)`.
+   `adj_mask[b]` has bit `a-1` set if edge `(b, a)`.
+   `common` has bit `a-1` set if `a` is neighbor of `b` (always true) and `b` is neighbor of `a` (always true).
+   Wait.
+   `common` is intersection of neighbors.
+   So `common` has bit `k` set if `k+1` is neighbor of `a` AND `k+1` is neighbor of `b`.
+   So `common` represents common neighbors.
+   So `common` includes `a` and `b`?
+   `adj_mask[a]` has bit `b-1` set.
+   `adj_mask[b]` has bit `a-1` set.
+   So `common` does NOT contain bit `b-1` (vertex `b`) because `adj_mask[b]` does NOT have bit `b-1` set (no self loop).
+   `adj_mask[b]` has bit `a-1` set.
+   `adj_mask[a]` has bit `a-1` set? No, no self loop.
+   So `common` does not contain `a` or `b`.
+   So `common` only contains other vertices.
+   So `common` bits correspond to vertices $\neq a, b$.
+   So `c` found in `common` is distinct from `a, b`.
+   Correct.
+   
+   Wait, `adj_mask` initialization.
+   `adj_mask[u] |= (1 << (v - 1))`.
+   No self loops added.
+   So `adj_mask[u]` does not have bit `u-1` set.
+   So `common` will not have bit `a-1` or `b-1` set.
+   Correct.
+   
+   Wait, `common` contains bits for vertices $c$ such that `(a, c)` and `(b, c)` are edges.
+   Since `a < b`, `c` must be $\neq a, b$.
+   So `c \neq a` and `c \neq b`.
+   So `c` is distinct.
+   Correct.
+   
+   Wait, we need `c > b`.
+   My mask ensures `c > b`.
+   So `c \neq a` and `c \neq b` is guaranteed.
+   Correct.
+   
+   Wait, `adj_mask` bits.
+   `adj_mask[u]` bits are neighbors.
+   Correct.
+   
+   Wait, `adj_list` contains neighbors.
+   Correct.
+   
+   Wait, `adj_mask` initialization.
+   `adj_mask[u] |= (1 << (v - 1))`.
+   Correct.
+   
+   Wait, `adj_mask` size.
+   `n+1`.
+   Correct.
+   
+   Wait, `adj_list` size.
+   `n+1`.
+   Correct.
+   
+   Wait, `input_data` split.
+   Correct.
+   
+   Wait, `iterator` usage.
+   Correct.
+   
+   Wait, `solve` function.
+   Correct.
+   
+   Wait, `if __name__ == '__main__':`.
+   Correct.
+   
+   Wait, `print` format.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `clear_mask` logic.
+   Correct.
+   
+   Wait, `mask & -mask`.
+   Correct.
+   
+   Wait, `bit_length`.
+   Correct.
+   
+   Wait, `c = c_bit + 1`.
+   Correct.
+   
+   Wait, `print(f"{a} {b} {c}")`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `input_data` check.
+   Correct.
+   
+   Wait, `n, m`.
+   Correct.
+   
+   Wait, `m` range.
+   Correct.
+   
+   Wait, `n` range.
+   Correct.
+   
+   Wait, `adj_mask` initialization.
+   Correct.
+   
+   Wait, `adj_list` initialization.
+   Correct.
+   
+   Wait, `for _ in range(m)`.
+   Correct.
+   
+   Wait, `u, v`.
+   Correct.
+   
+   Wait, `adj_mask[u] |= ...`.
+   Correct.
+   
+   Wait, `adj_mask[v] |= ...`.
+   Correct.
+   
+   Wait, `adj_list[u].append(v)`.
+   Correct.
+   
+   Wait, `adj_list[v].append(u)`.
+   Correct.
+   
+   Wait, `sorted(list(set(adj_list[i])))`.
+   Correct.
+   
+   Wait, `for i in range(1, n + 1)`.
+   Correct.
+   
+   Wait, `for a in range(1, n + 1)`.
+   Correct.
+   
+   Wait, `for b in adj_list[a]`.
+   Correct.
+   
+   Wait, `if b <= a: continue`.
+   Correct.
+   
+   Wait, `common = adj_mask[a] & adj_mask[b]`.
+   Correct.
+   
+   Wait, `mask = common & clear_mask[b]`.
+   Correct.
+   
+   Wait, `if mask > 0:`.
+   Correct.
+   
+   Wait, `c_bit = (mask & -mask).bit_length() - 1`.
+   Correct.
+   
+   Wait, `c = c_bit + 1`.
+   Correct.
+   
+   Wait, `print(f"{a} {b} {c}")`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve()`.
+   Correct.
+   
+   Wait, `if __name__ == '__main__':`.
+   Correct.
+   
+   Wait, code block.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `input_data`.
+   Correct.
+   
+   Wait, `iterator`.
+   Correct.
+   
+   Wait, `n, m`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `for _ in range(m)`.
+   Correct.
+   
+   Wait, `u, v`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i in range(1, n + 1)`.
+   Correct.
+   
+   Wait, `for a in range(1, n + 1)`.
+   Correct.
+   
+   Wait, `for b in adj_list[a]`.
+   Correct.
+   
+   Wait, `if b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `if mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve`.
+   Correct.
+   
+   Wait, `if __name__`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `split`.
+   Correct.
+   
+   Wait, `iter`.
+   Correct.
+   
+   Wait, `int`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i`.
+   Correct.
+   
+   Wait, `for a`.
+   Correct.
+   
+   Wait, `for b`.
+   Correct.
+   
+   Wait, `b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve`.
+   Correct.
+   
+   Wait, `if __name__`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `split`.
+   Correct.
+   
+   Wait, `iter`.
+   Correct.
+   
+   Wait, `int`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i`.
+   Correct.
+   
+   Wait, `for a`.
+   Correct.
+   
+   Wait, `for b`.
+   Correct.
+   
+   Wait, `b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve`.
+   Correct.
+   
+   Wait, `if __name__`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `split`.
+   Correct.
+   
+   Wait, `iter`.
+   Correct.
+   
+   Wait, `int`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i`.
+   Correct.
+   
+   Wait, `for a`.
+   Correct.
+   
+   Wait, `for b`.
+   Correct.
+   
+   Wait, `b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve`.
+   Correct.
+   
+   Wait, `if __name__`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `split`.
+   Correct.
+   
+   Wait, `iter`.
+   Correct.
+   
+   Wait, `int`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i`.
+   Correct.
+   
+   Wait, `for a`.
+   Correct.
+   
+   Wait, `for b`.
+   Correct.
+   
+   Wait, `b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve`.
+   Correct.
+   
+   Wait, `if __name__`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `split`.
+   Correct.
+   
+   Wait, `iter`.
+   Correct.
+   
+   Wait, `int`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i`.
+   Correct.
+   
+   Wait, `for a`.
+   Correct.
+   
+   Wait, `for b`.
+   Correct.
+   
+   Wait, `b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+   Wait, `return`.
+   Correct.
+   
+   Wait, `solve`.
+   Correct.
+   
+   Wait, `if __name__`.
+   Correct.
+   
+   Wait, `import sys`.
+   Correct.
+   
+   Wait, `sys.stdin.read`.
+   Correct.
+   
+   Wait, `split`.
+   Correct.
+   
+   Wait, `iter`.
+   Correct.
+   
+   Wait, `int`.
+   Correct.
+   
+   Wait, `adj_mask`.
+   Correct.
+   
+   Wait, `adj_list`.
+   Correct.
+   
+   Wait, `adj_mask[u]`.
+   Correct.
+   
+   Wait, `adj_mask[v]`.
+   Correct.
+   
+   Wait, `adj_list[u]`.
+   Correct.
+   
+   Wait, `adj_list[v]`.
+   Correct.
+   
+   Wait, `sorted`.
+   Correct.
+   
+   Wait, `set`.
+   Correct.
+   
+   Wait, `list`.
+   Correct.
+   
+   Wait, `for i`.
+   Correct.
+   
+   Wait, `for a`.
+   Correct.
+   
+   Wait, `for b`.
+   Correct.
+   
+   Wait, `b <= a`.
+   Correct.
+   
+   Wait, `common`.
+   Correct.
+   
+   Wait, `mask`.
+   Correct.
+   
+   Wait, `mask > 0`.
+   Correct.
+   
+   Wait, `c_bit`.
+   Correct.
+   
+   Wait, `c`.
+   Correct.
+   
+   Wait, `print`.
+   Correct.
+   
+  ......

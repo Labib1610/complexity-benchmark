@@ -1,0 +1,57 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use adjacency sets for O(1) edge lookups
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate a from 1 to n-2
+    # Iterate b from a+1 to n-1
+    # Check if a and b are connected. If so, check if any c > b exists
+    # such that c is connected to both a and b.
+    
+    # Sort neighbors to potentially speed up finding c
+    adj_sorted = [sorted(list(s)) for s in adj]
+    
+    for a in range(1, n + 1):
+        # Only consider neighbors b > a
+        neighbors_a = [x for x in adj_sorted[a] if x > a]
+        for b in neighbors_a:
+            # We need a c such that b < c and c is in adj[a] and adj[b]
+            # Since we want lexicographically smallest, we check c in increasing order
+            # The intersection of adj[a] and adj[b] gives candidates for c
+            
+            # Optimization: intersect the smaller adjacency list with the larger one
+            # to find c > b
+            set_a = adj[a]
+            set_b = adj[b]
+            
+            # Iterate through the smaller set to find common neighbors
+            if len(set_a) < len(set_b):
+                candidates = set_a
+            else:
+                candidates = set_b
+                
+            for c in sorted(list(candidates)):
+                if c > b:
+                    if c in set_a and c in set_b:
+                        print(f"{a} {b} {c}")
+                        return
+
+if __name__ == '__main__':
+    solve()

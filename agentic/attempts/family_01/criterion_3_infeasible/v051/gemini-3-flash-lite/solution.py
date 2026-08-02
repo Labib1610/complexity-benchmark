@@ -1,0 +1,58 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use an adjacency matrix for O(1) edge lookup
+    # Since n <= 2000, 2000x2000 bitsets or boolean arrays fit in memory
+    adj = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate a from 1 to n-2
+    # Iterate b from a+1 to n-1
+    # Check if b is connected to a
+    # Iterate c from b+1 to n
+    # Check if c is connected to a and b
+    
+    # Optimization: convert sets to sorted lists to iterate efficiently
+    adj_list = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        # Neighbors of a that are greater than a
+        neighbors_a = [x for x in adj_list[a] if x > a]
+        if len(neighbors_a) < 2:
+            continue
+        
+        # Sort neighbors to ensure we check b and c in lexicographical order
+        neighbors_a.sort()
+        
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # We need c > b such that c is in adj[a] and adj[b]
+            # This is equivalent to c being in the intersection of adj[a] and adj[b]
+            
+            # Find neighbors of b that are > b
+            neighbors_b = adj[b]
+            
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                if c in neighbors_b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,42 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Store graph as adjacency sets for O(1) lookup
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest triple (a, b, c) with a < b < c:
+    # We iterate a from 1 to n-2, b from a+1 to n-1, and c from b+1 to n.
+    # To optimize, we only check if b is in adj[a] and then iterate over
+    # the intersection of adj[a] and adj[b].
+    
+    for a in range(1, n + 1):
+        # Sort neighbors to ensure we find lexicographically smallest b and c
+        neighbors_a = sorted([x for x in adj[a] if x > a])
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            # Find common neighbors c such that c > b
+            # Intersection of adj[a] and adj[b]
+            common = adj[a].intersection(adj[b])
+            c_candidates = sorted([x for x in common if x > b])
+            
+            if c_candidates:
+                print(f"{a} {b} {c_candidates[0]}")
+                return
+
+if __name__ == '__main__':
+    solve()

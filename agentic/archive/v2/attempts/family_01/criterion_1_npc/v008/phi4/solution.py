@@ -1,0 +1,50 @@
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [[] for _ in range(n)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        conflicts[u].append(v)
+        conflicts[v].append(u)
+        index += 2
+    
+    def is_valid_assignment(shifts, worker, shift):
+        for conflict in conflicts[worker]:
+            if shifts[conflict] == shift:
+                return False
+        return True
+    
+    from itertools import permutations
+    
+    shifts = [-1] * n
+    found = False
+    
+    for perm in permutations([1, 2, 3]):
+        valid = True
+        shifts[:n//3 + (n % 3 > 0)] = [perm[0]] * (n // 3 + (n % 3 > 0))
+        shifts[n//3 + (n % 3 > 0):2*n//3 + (n % 3 > 1)] = [perm[1]] * (n // 3 + (n % 3 > 1))
+        shifts[2*n//3 + (n % 3 > 1):] = [perm[2]] * (n - 2*n//3 - (n % 3 > 1))
+        
+        for worker in range(n):
+            if not is_valid_assignment(shifts, worker, shifts[worker]):
+                valid = False
+                break
+        
+        if valid:
+            print("YES")
+            print(' '.join(map(str, shifts)))
+            found = True
+            break
+    
+    if not found:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

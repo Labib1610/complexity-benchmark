@@ -1,0 +1,29 @@
+from itertools import product
+
+n, m = map(int, input().split())
+if m == 0:
+    print("YES")
+    print(*([1] * n))
+else:
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u, v = map(lambda x: int(x) - 1, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
+
+    ok = False
+    for comb in product(range(3), repeat=n):
+        valid = True
+        for i in range(n):
+            if any(comb[i] == comb[j] for j in adj[i]):
+                valid = False
+                break
+
+        if valid:
+            print("YES")
+            print(*(x + 1 for x in comb))
+            ok = True
+            break
+
+    if not ok:
+        print("NO")

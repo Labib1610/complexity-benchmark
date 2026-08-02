@@ -1,0 +1,49 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+
+    # We want the lexicographically smallest (a, b, c) where a < b < c.
+    # This means we want to minimize a, then b, then c.
+    # We can iterate through all possible 'a' from 1 to n-2.
+    # For a fixed 'a', we look for the smallest 'b' > a such that (a, b) is an edge.
+    # Then we look for the smallest 'c' > b such that (a, c) is an edge AND (b, c) is an edge.
+    
+    # To optimize, we only consider vertices connected to 'a'.
+    for a in range(1, n - 1):
+        # Get all neighbors of a that are greater than a, sorted ascending
+        neighbors_of_a = sorted([v for v in adj[a] if v > a])
+        
+        # We need to find two vertices b, c from neighbors_of_a such that b < c and (b, c) is an edge.
+        # To minimize b, we iterate through neighbors_of_a as candidates for b.
+        for i in range(len(neighbors_of_a)):
+            b = neighbors_of_a[i]
+            # Now we look for the smallest c > b in neighbors_of_a that is also connected to b.
+            for j in range(i + 1, len(neighbors_of_a)):
+                c = neighbors_of_a[j]
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

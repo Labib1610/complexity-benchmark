@@ -1,0 +1,60 @@
+import sys
+
+def solve():
+    # Increase recursion depth if needed, though not necessary for this approach
+    sys.setrecursionlimit(2000)
+    
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use adjacency lists and adjacency sets for fast lookup
+    adj = [[] for _ in range(n + 1)]
+    # Using a bitset (represented as a large integer in Python) for O(1) or O(N/64) intersection
+    # Since N=2000, bitsets are very efficient in Python.
+    bit_adj = [0] * (n + 1)
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        bit_adj[u] |= (1 << v)
+        bit_adj[v] |= (1 << u)
+        
+    # Sort adjacency lists to ensure lexicographical search
+    for i in range(1, n + 1):
+        adj[i].sort()
+        
+    # We need the lexicographically smallest (a, b, c) where a < b < c.
+    # Iterate a from 1 to n
+    for a in range(1, n + 1):
+        # Iterate b from the neighbors of a that are greater than a
+        # Neighbors are already sorted, so we just filter those > a
+        neighbors_a = [v for v in adj[a] if v > a]
+        
+        for b in neighbors_a:
+            # We need c such that c > b and c is connected to both a and b.
+            # Intersection of bitsets for a and b gives all common neighbors.
+            common = bit_adj[a] & bit_adj[b]
+            
+            # We need the smallest c > b.
+            # Shift right by (b+1) to remove all bits <= b.
+            candidates = common >> (b + 1)
+            if candidates:
+                # Find the position of the lowest set bit.
+                # (candidates & -candidates).bit_length() - 1 gives the index of the first 1.
+                # However, candidates is shifted by (b+1), so we add (b+1).
+                low_bit = candidates & -candidates
+                c = low_bit.bit_length() - 1 + (b + 1)
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

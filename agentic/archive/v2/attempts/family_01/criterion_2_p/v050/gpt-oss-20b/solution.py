@@ -1,0 +1,44 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    ans = [0] * n
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        dq = deque([i])
+        color[i] = 0
+        while dq:
+            u = dq.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    dq.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    # Build answer: color 0 -> 1, color 1 -> 2
+    for i in range(n):
+        ans[i] = color[i] + 1
+    out = ["YES", " ".join(map(str, ans))]
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()

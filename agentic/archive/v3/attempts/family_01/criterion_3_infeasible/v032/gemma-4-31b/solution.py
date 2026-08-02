@@ -1,0 +1,53 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    # To keep track of sorted neighbors for lexicographical order
+    adj_list = [[] for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].add(v)
+        adj[v].add(u)
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+        idx += 2
+
+    # Pre-sort adjacency lists to facilitate lexicographical search
+    for i in range(1, n + 1):
+        adj_list[i].sort()
+
+    # We are looking for the lexicographically smallest triple (a, b, c)
+    # where a < b < c and all pairs are connected.
+    # Lexicographical smallest means we prioritize smallest a, then smallest b, then smallest c.
+    
+    for a in range(1, n - 1):
+        # To find the smallest b and c for a fixed a, we only care about neighbors of a that are > a.
+        neighbors_a = [v for v in adj_list[a] if v > a]
+        
+        # We need to find the smallest b from neighbors_a and then the smallest c from neighbors_a
+        # such that b and c are also connected.
+        # Since neighbors_a is already sorted, we can iterate through it.
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                # Check if b and c are connected
+                # Since b < c and we need to check if (b, c) is an edge, 
+                # we check the set of b's neighbors for c.
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

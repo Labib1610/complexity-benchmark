@@ -1,0 +1,171 @@
+<think>
+We need 3-coloring of graph with n ≤ 40. Need lexicographically smallest assignment. We can backtrack with pruning. Since 3^40 huge but constraints small n. Use recursion order 1..n. For each node, try colors 1..3. Check conflicts with already colored neighbors. Since graph small, backtracking will likely work maybe worst-case 3^40 but with constraints maybe okay? But n=40 may still be large. We need efficient pruning maybe using DSATUR or bipartite? But 3-coloring NP-complete; but n≤40 allow backtracking with branch and bound.
+
+We can use bitmask adjacency. For each node, maintain set of neighbors. For assignment, we maintain colors array. For each node, when trying color c, check all neighbors that are already colored; if any has same c, skip.
+
+To find lexicographically smallest, we just try colors in order 1..3. Depth-first search. Stop when found first solution.
+
+We need good pruning: maybe use ordering by degree? But lexicographic requires order fixed by node index. So we cannot permute nodes; we must assign in increasing index to achieve lexicographic minimal. So we can't reorder search to reduce branching; but we can still prune early. However n=40 might still be okay because many graphs impossible or limited. But worst-case empty graph: all colorings valid; we will find first one quickly: assign all 1. So trivial. Worst-case graph that forces many branches? Maybe a graph requiring many colors? But with 3 colors, backtracking worst-case maybe large but n=40 small.
+
+We can also use bitmask of available colors per node based on neighbor colors: maintain available colors mask. When assign, propagate. Use recursion with forward checking: compute for each uncolored node a mask of colors not used by neighbors. If any becomes zero, backtrack. This is like simple constraint propagation. That should reduce branches.
+
+Implementation: arrays: colors[n], adjacency list.
+
+We can maintain for each node available mask: start 0b111. When assign node u color c, for all uncolored neighbors v, we clear bit c from avail[v]. If any avail becomes 0 we backtrack. We'll need to revert changes on backtrack. We can store a list of changed nodes.
+
+We also maintain order: nodes in 1..n. We'll use recursion index idx (next node to assign). At each step, we pick node idx (0-based). We'll try colors from 1..3 that are in avail[idx]. For each, assign, update avail for neighbors, recursing. If solution found, return True.
+
+We need to store avail as list of ints. On backtrack, revert changes: we keep for each assigned node a list of neighbor indices and previous avail. But easier: when we assign, we record a list of tuples (v, old_mask). Then after recursion, restore. Complexity fine.
+
+We must also ensure lexicographic minimal: Since we try colors in ascending order for each node, first solution will be lexicographically minimal because we assign nodes in order.
+
+Edge case: n up to 40, recursion depth 40 fine.
+
+Let's design:
+
+def dfs(idx):
+    if idx==n: return True
+    u=idx
+    mask=avail[u]
+    for c in [1,2,3]:
+        bit=1<<(c-1)
+        if mask & bit:
+            # assign
+            colors[u]=c
+            changes=[]
+            for v in adj[u]:
+                if colors[v]==0:
+                    old=avail[v]
+                    new=old & ~bit
+                    if new==0:
+                        # revert
+                        for vv,ov in changes:
+                            avail[vv]=ov
+                        colors[u]=0
+                        break
+                    changes.append((v,old))
+                    avail[v]=new
+            else:
+                # all good
+                if dfs(idx+1):
+                    return True
+                # backtrack changes
+                for vv,ov in changes:
+                    avail[vv]=ov
+                colors[u]=0
+                continue
+            # if break due to conflict
+            # revert changes
+            for vv,ov in changes:
+                avail[vv]=ov
+            colors[u]=0
+            continue
+    return False
+
+But we need to handle break properly. Let's restructure: for each color, we compute new avail for neighbors; if any neighbor becomes zero, skip this color. Implementation: need to apply changes tentatively, check. We'll gather changes first. We'll iterate neighbors, compute new mask; if zero, break. After loop, if all good, assign color and recurse. After recursion or if fail, revert changes.
+
+Pseudo:
+
+for c in 1..3:
+  bit=1<<(c-1)
+  if not (avail[u] & bit): continue
+  changes=[]
+  ok=True
+  for v in adj[u]:
+    if colors[v]==0:
+      new=avail[v] & ~bit
+      if new==0:
+        ok=False
+        break
+      changes.append((v, avail[v]))
+      avail[v]=new
+  if not ok:
+    for vv,ov in changes: avail[vv]=ov
+    continue
+  colors[u]=c
+  if dfs(idx+1): return True
+  colors[u]=0
+  for vv,ov in changes: avail[vv]=ov
+
+Return False.
+
+Need adjacency list precomputed.
+
+Edge: if neighbor already colored with same color, but we check avail mask ensures that color not allowed. But we should also check neighbor color conflicts earlier: if colors[v]==c, then we cannot assign u=c. But avail[u] would not contain bit if neighbor colored same? Actually avail[u] updates when neighbor colored. When we color v, we removed bit from avail of its neighbors. So avail[u] will not contain bit if neighbor v colored same. Good.
+
+Base: avail initially all 7.
+
+Implementation details.
+
+Complexities good.
+
+Test on given examples.
+
+Edge: n=1, m=0. DFS will assign color 1.
+
+Return lexicographic minimal.
+
+Let's produce final code.
+</think>
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    colors = [0] * n          # 0 unassigned, 1-3 assigned
+    avail = [0b111] * n       # bitmask of available colors for each node
+
+    def dfs(idx):
+        if idx == n:
+            return True
+        u = idx
+        mask = avail[u]
+        # try colors 1..3 in order
+        for color in (1, 2, 3):
+            bit = 1 << (color - 1)
+            if not (mask & bit):
+                continue
+            changes = []
+            ok = True
+            for v in adj[u]:
+                if colors[v] == 0:
+                    new_mask = avail[v] & ~bit
+                    if new_mask == 0:
+                        ok = False
+                        break
+                    changes.append((v, avail[v]))
+                    avail[v] = new_mask
+            if not ok:
+                for v, old in changes:
+                    avail[v] = old
+                continue
+            colors[u] = color
+            if dfs(idx + 1):
+                return True
+            colors[u] = 0
+            for v, old in changes:
+                avail[v] = old
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(c) for c in colors))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

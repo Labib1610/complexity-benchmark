@@ -1,0 +1,67 @@
+import sys
+
+# Increase recursion depth for deep DFS trees in large graphs
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        ptr += 2
+        
+    # color[i] will store 1 or 2. 0 means unvisited.
+    color = [0] * (n + 1)
+    
+    # To get the lexicographically smallest sequence, for each connected component,
+    # we want the smallest possible value for the smallest index in that component.
+    # Since it's a bipartite graph, if we fix the color of one node, the colors of all 
+    # others in that component are determined.
+    # To minimize (s_1, s_2, ..., s_n), for each component, we find the smallest index 'i'
+    # that hasn't been colored yet. We try setting color[i] = 1.
+    # This will force colors for the rest of the component. 
+    # If we can't color it with 1, we can't color it at all (bipartite check).
+    # Wait, if the component is bipartite, we can always choose whether the smallest index 
+    # gets 1 or 2. To get the lexicographically smallest sequence, we MUST assign 
+    # the smallest index in the component the value 1.
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start a BFS/DFS to color this component
+            # We set the smallest index in the component to 1 to minimize lexicographically
+            stack = [(i, 1)]
+            color[i] = 1
+            
+            # Using a stack for iterative DFS to avoid recursion limits and potentially be faster
+            visited_in_comp = [i]
+            idx = 0
+            # Using a queue for BFS is often simpler for bipartite checks
+            queue = [i]
+            head = 0
+            while head < len(queue):
+                u = queue[head]
+                head += 1
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u] # 1 -> 2, 2 -> 1
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    print("YES")
+    print(*(color[i] for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

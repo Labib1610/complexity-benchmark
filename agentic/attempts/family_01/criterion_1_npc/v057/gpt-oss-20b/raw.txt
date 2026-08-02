@@ -1,0 +1,247 @@
+<think>
+We need to solve graph 3-coloring with lexicographically smallest assignment. n <= 40, m up to 780. 3-color problem is NP-hard, but n small (<=40). We need to find lexicographically smallest coloring. Can use backtracking with pruning, using bitmasks. 3 colors: 1,2,3. Lexicographic order: sequence of s1..sn minimal. So we need to assign colors to nodes in order 1..n. For each node, try colors 1..3 in ascending order, but must respect constraints with already colored neighbors. If impossible, backtrack. This is simple DFS, but worst-case exponential. n=40, but maybe graph density moderate; but worst-case 3^40 huge. Need better approach.
+
+We can use DSATUR or branch and bound, but we also need lexicographic minimal. We can do backtracking with pruning using graph coloring heuristics: choose next vertex with most constraints, but lexicographic requirement: we must assign vertices in order 1..n. Because lexicographic order defined by s1..sn, we cannot reorder vertices. So we cannot choose variable ordering other than increasing index. So we must assign node i before i+1. That might blow up. But maybe constraints allow pruning: use bitmask of forbidden colors for each node based on already colored neighbors. Since n <= 40, we can represent graph adjacency as bitmask arrays of length n.
+
+We can implement DFS with recursion depth up to 40. At each step, compute color allowed set for node i: start with {1,2,3} minus colors of neighbors already colored. Since we assign in order, neighbors with index < i are already colored. So we can maintain for each node a bitmask of forbidden colors due to neighbors already processed. That may be efficient.
+
+But worst-case, e.g., empty graph, all nodes can be color 1, so trivial. Tough case is complete graph of size 4? For n=40 complete graph, each node has degree 39 > 2, so impossible. But algorithm will quickly fail when cannot color a node due to 3 colors used by neighbors? Actually for K4, we can color with 4 colors, but only 3 available, so impossible. At node 4, its neighbors 1-3 all colored with distinct colors 1,2,3, so node 4 has no allowed colors. That will cause backtrack at node 4? Wait node 1 colored 1, node2 2, node3 3, node4 has no allowed. But if we had colored node3 with 1 instead of 3, maybe possible? For K4, still impossible because 4 nodes can't be colored with 3 colors. So backtrack will explore many branches? But maybe early detection: if any node has degree >=3, still possible but not guarantee. But we need general algorithm.
+
+Could use exact algorithm with bitmask DP: For 3-coloring, we can use splitting into two independent sets? 3-coloring is equivalent to partition into 3 independent sets. We can use DP over subsets: For each subset S, check if it's independent set. Then we need to partition all vertices into 3 independent sets. That's 3-coloring. We can compute all independent subsets (<= 2^n). n=40 => 2^40 impossible.
+
+We need smarter algorithm. Use graph coloring with DSATUR but in lexicographic order? But lexicographic minimal requires exploring colors 1..3 for each vertex in order. So we can use backtracking with early pruning using graph coloring heuristics like forward checking: keep for each uncolored vertex a set of possible colors. When we assign a color to vertex i, we reduce possible colors for its uncolored neighbors. If any neighbor loses all colors, backtrack. This is typical backtracking with forward checking, which often solves up to 50 vertices.
+
+Let's do that. Complexity worst-case may still be large but given constraints maybe okay.
+
+Implement:
+
+- adjacency list or bitmask adjacency: list of neighbor indices.
+
+- maintain arrays color[n] (0 uncolored, 1-3 colored).
+- maintain possible colors bitmask for each vertex: 3 bits: 0b111 initially.
+
+When we color vertex v with c:
+
+- For each neighbor u > v (since earlier neighbors already colored), we need to remove color c from possible[u] if u uncolored. If possible[u] becomes 0, backtrack.
+
+But we also need to handle neighbors < v? They are already colored, so no need.
+
+We also need to ensure we consider lexicographic order: we will iterate vertices in order 0..n-1. At each step, try colors 1..3.
+
+We need to maintain stack of changes to revert on backtrack.
+
+We'll implement recursive function dfs(idx). If idx==n: success.
+
+Else: v=idx.
+
+Compute allowed colors: colors not used by colored neighbors (neighbors with color). But we can maintain possible[v] already updated. So allowed = possible[v] & (~0). But we need to ensure we consider that possible[v] may still contain colors that are used by already colored neighbors? We should update possible[v] when those neighbors are colored earlier. Since we only update possible for neighbors > v currently, but we also need to update for neighbors < v? Actually when coloring neighbor u < v, we removed color from possible[v] if v uncolored. So possible[v] always reflects constraints from earlier colored vertices. Good.
+
+Thus allowed = possible[v].
+
+Try colors in order 1..3 if allowed bit present.
+
+For each color c: we will color[v]=c, then record changes list to revert. We'll loop neighbors u>v or any neighbor u>v? Actually we need to reduce possible[u] for all neighbors u > v (uncolored). For neighbors u < v, they are already colored; no changes needed. So we iterate over neighbors list of v, for each u > v and uncolored, if possible[u] has bit c, we remove it and push (u, c) to changes. After updating all, we check if any u had possible[u]==0 after removal; if so, we revert changes and continue next color.
+
+Also after coloring v, we set possible[v] = 0? Not needed.
+
+Revert changes: for each (u,c) we add back bit c to possible[u].
+
+Edge case: we also need to handle conflict: if any neighbor u already colored with same color c, we should skip color c. But we already removed color c from possible[u] when coloring u, so if u colored c, possible[u] is 0? Wait we don't modify possible[u] when colored; we just keep color[v] assigned. But we need to check conflicts: when we consider color c for v, we must ensure no neighbor u < v with color[u]==c. But since we removed color c from possible[v] when that neighbor was colored, possible[v] no longer includes c. So allowed colors already exclude conflicts. Good.
+
+Thus algorithm should produce lexicographically smallest solution because at each vertex we try colors ascending, and recursion depth ensures first found solution is lexicographically minimal.
+
+We need efficient representation of possible: integer with 3 bits: bit 0 for color 1, bit1 for color2, bit2 for color3. Initially 0b111.
+
+Neighbors: adjacency lists.
+
+We need to handle revert changes: we record list of (u, bit). When revert, we set possible[u] |= bit.
+
+We can also maintain count of possible bits to detect zero quickly: possible[u]==0.
+
+We also need to consider time: worst-case may still be large but maybe okay for n=40.
+
+Let's write code.
+
+Potential optimization: we can order vertices by degree descending? But lexicographic order prohibits reordering. So skip.
+
+Ok.
+
+Edge Cases: m=0: all color 1 works; algorithm will assign 1 to all.
+
+Ok.
+
+Let's implement.
+
+We need recursion depth up to 40; recursion okay.
+
+We need to speed: use adjacency list as lists of ints.
+
+Implementation steps:
+
+- read n,m
+
+- build adjacency list: edges.
+
+- colors = [0]*n
+
+- possible = [0b111]*n
+
+- define dfs(idx):
+
+   if idx==n: return True
+
+   v=idx
+
+   allowed = possible[v]
+   for c in 1..3:
+      bit = 1 << (c-1)
+      if allowed & bit:
+          # try assign
+          colors[v]=c
+          changes=[]
+          ok=True
+          for u in adj[v]:
+              if u>v and colors[u]==0: # uncolored
+                  if possible[u] & bit:
+                      possible[u] ^= bit  # remove
+                      changes.append((u,bit))
+                      if possible[u]==0:
+                          ok=False
+                          break
+          if ok:
+              if dfs(idx+1):
+                  return True
+          # revert
+          for u,bit in changes:
+              possible[u] |= bit
+          colors[v]=0
+   return False
+
+But we also need to handle neighbors u<v colored; we already removed bit from possible[v] earlier; so allowed uses possible[v], which is already updated. Good.
+
+But we also need to handle that when we color v, we need to add to changes for neighbors u>v that had bit; but we also need to check if removing bit causes u's possible to become 0; we break and revert.
+
+After recursion, revert changes and colors[v]=0.
+
+Edge: possible[v] remains as before coloring; we didn't modify it when coloring v. But we should keep possible[v] as before; we could set possible[v]=0 to avoid reusing; but not necessary.
+
+But we might want to ensure possible[v] not used later; but since v will not be considered again (idx increases), it's fine.
+
+Now we need to ensure that when we color v, we don't modify possible[v] incorrectly. It's fine.
+
+Let's test mentally with example.
+
+Example1: n=4, edges: 1-2,1-3,2-3,1-4,2-4.
+
+Adj list 0-based: 0:1,2,3; 1:0,2,3; 2:0,1; 3:0,1
+
+DFS:
+
+idx0: v0. allowed=111. try c1. colors[0]=1. neighbors u>0: 1,2,3. For each uncolored, remove bit1.
+
+possible[1] becomes 110 (bits 2,3); changes [(1,1)]. possible[2] becomes 110; changes add (2,1). possible[3] becomes 110; changes add (3,1). none zero.
+
+dfs idx1: v1. allowed=110. try c2. colors[1]=2. neighbors >1: 2,3. Remove bit2.
+
+possible[2] currently 110 removes bit2 -> 100 (bit 3). changes (2,2). possible[3] 110 -> 100. changes (3,2). none zero.
+
+dfs idx2: v2. allowed=100. try c3. colors[2]=3. neighbors >2: only 3? adjacency of 2: 0,1; no >2. so no changes. dfs idx3: v3. allowed=100. try c3. colors[3]=3. neighbors >3 none. dfs idx4 success. Output colors: [1,2,3,3]. Good.
+
+Example2: K4. Let's see quickly: v0 try c1. neighbors 1,2,3 remove bit1. possible[1]=110,2=110,3=110.
+
+v1: try c2. neighbors 2,3 remove bit2. possible[2] becomes 100, possible[3] becomes 100.
+
+v2: allowed=100. try c3. neighbors >2: 3 remove bit3. possible[3] currently 100 remove bit3 -> 0. ok=false. revert. no other colors. backtrack v1: try c3. allowed 110. try c3. neighbors 2,3 remove bit3. possible[2] 110 -> 010 (bit2). possible[3] 110 -> 010. ok.
+
+v2: allowed=010. try c2. neighbors 3 remove bit2. possible[3] currently 010 remove bit2 -> 0. fail. backtrack v2: no other colors. backtrack v1: no other colors. backtrack v0: try c2. neighbors 1,2,3 remove bit2. possible[1]=101,2=101,3=101.
+
+v1: try c1. neighbors 2,3 remove bit1. possible[2] 101 remove -> 100, possible[3] 101 remove -> 100.
+
+v2: allowed=100. try c3. neighbors 3 remove bit3. possible[3] 100 remove -> 0. fail. backtrack v1: try c3. neighbors 2,3 remove bit3. possible[2] 101 remove -> 001, possible[3] 101 remove -> 001.
+
+v2: allowed=001. try c1. neighbors 3 remove bit1. possible[3] 001 remove -> 0 fail. backtrack v2: no other colors. backtrack v1: no other colors. backtrack v0: try c3. neighbors 1,2,3 remove bit3. possible[1]=010,2=010,3=010.
+
+v1: try c1. neighbors 2,3 remove bit1. possible[2] 010 remove -> 010 (bit2) unchanged? Wait bit1 not present. So no change. possible[3] 010 unchanged.
+
+v2: allowed=010. try c2. neighbors 3 remove bit2. possible[3] 010 remove -> 000 fail. backtrack v1: try c2. neighbors 2,3 remove bit2. possible[2] 010 remove -> 000 fail. backtrack v1: try c3. neighbors 2,3 remove bit3. but bit3 not present. no changes. v2: allowed=010. try c2. neighbors 3 remove bit2. possible[3] 010 remove -> 000 fail. No solution. Return NO.
+
+Works.
+
+Complexity: For each node, we try up to 3 colors, branch factor maybe 3^n worst-case. But constraints small.
+
+Should we add pruning: if any neighbor already colored with color, we skip color even if allowed? But allowed already excludes.
+
+Also we can precompute neighbor lists sorted ascending to reduce iteration cost.
+
+Potential optimization: maintain array of uncolored neighbor lists? Not needed.
+
+Implementation details: Use recursion; but Python recursion limit default 1000, ok.
+
+Let's code.
+
+Make sure to use sys.setrecursionlimit(1000000).
+
+Edge case: if no solution, print NO.
+
+Ok.
+
+Let's produce final code.
+</think>
+```python
+import sys
+
+def main():
+    sys.setrecursionlimit(1000000)
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    colors = [0] * n
+    possible = [0b111] * n  # bits 0,1,2 for colors 1,2,3
+
+    def dfs(idx):
+        if idx == n:
+            return True
+        v = idx
+        allowed = possible[v]
+        # try colors 1..3
+        for c in (1, 2, 3):
+            bit = 1 << (c - 1)
+            if allowed & bit:
+                colors[v] = c
+                changes = []
+                ok = True
+                for u in adj[v]:
+                    if u > v and colors[u] == 0 and (possible[u] & bit):
+                        possible[u] ^= bit
+                        changes.append((u, bit))
+                        if possible[u] == 0:
+                            ok = False
+                            break
+                if ok:
+                    if dfs(idx + 1):
+                        return True
+                # revert changes
+                for u, b in changes:
+                    possible[u] |= b
+                colors[v] = 0
+        return False
+
+    if dfs(0):
+        out = ['YES', ' '.join(map(str, colors))]
+    else:
+        out = ['NO']
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    main()
+```

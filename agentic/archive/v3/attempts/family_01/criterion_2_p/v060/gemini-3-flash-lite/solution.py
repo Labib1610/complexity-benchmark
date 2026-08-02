@@ -1,0 +1,64 @@
+import sys
+
+# Increase recursion depth for deep DFS
+sys.setrecursionlimit(500000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    N = int(input_data[0])
+    M = int(input_data[1])
+    
+    adj = [[] for _ in range(N + 1)]
+    idx = 2
+    for _ in range(M):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    color = [0] * (N + 1)
+    # We want lexicographically smallest assignment.
+    # This means for each connected component, we try to assign the smallest 
+    # index node to 1. If that's impossible, assign to 2.
+    
+    ans = [0] * (N + 1)
+    
+    for i in range(1, N + 1):
+        if color[i] == 0:
+            # Start BFS/DFS for this component
+            # To get lexicographically smallest, we greedily pick 1 for the first node
+            component = []
+            stack = [i]
+            color[i] = 1
+            component.append(i)
+            
+            # Use a stack to traverse the component
+            idx_comp = 0
+            while idx_comp < len(component):
+                u = component[idx_comp]
+                idx_comp += 1
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        component.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+            
+            # Check if this component's assignment is valid and optimal
+            # Actually, the greedy choice of color[i]=1 is always optimal for 
+            # lexicographical order because we want the smallest index to be 1.
+            # Since all nodes in a component are linked, fixing one node's color
+            # fixes all others.
+            for node in component:
+                ans[node] = color[node]
+                
+    print("YES")
+    print(*(ans[1:]))
+
+if __name__ == '__main__':
+    solve()

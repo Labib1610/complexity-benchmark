@@ -1,0 +1,40 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate a from 1 to n-2
+    # Iterate b from a+1 to n-1
+    # Check if a and b are connected. If so, find common neighbors c > b.
+    # The first valid triad found in this order is the lexicographically smallest.
+    
+    for a in range(1, n + 1):
+        # Sort neighbors to ensure we check b and c in increasing order
+        adj_a = sorted([x for x in adj[a] if x > a])
+        for i in range(len(adj_a)):
+            b = adj_a[i]
+            # Neighbors of b that are also neighbors of a
+            # We need c > b
+            common = adj[a].intersection(adj[b])
+            c_candidates = [x for x in common if x > b]
+            if c_candidates:
+                print(f"{a} {b} {min(c_candidates)}")
+                return
+
+if __name__ == '__main__':
+    solve()

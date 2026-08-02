@@ -1,0 +1,152 @@
+<think>
+We need to find lexicographically smallest triangle in an undirected graph with n up to 2000, m up to 200k. We can store adjacency sets or bitsets. We need to find smallest a, then smallest b, then smallest c.
+
+Brute force O(n^3) too slow.
+
+We can iterate over a from 1..n. For each a, need to find smallest b > a that is neighbor of a, and c > b such that edges (a,b), (a,c), (b,c) exist.
+
+We can store adjacency bitsets using Python's int or bitarray. n <= 2000, bitset of length 2000 fits in 2000 bits ~ 250 bytes each. For 2000 nodes, memory fine. But Python int bit operations may be efficient.
+
+Approach: adjacency as list of ints bitmask. Node i's neighbors >= i? But we need to query intersection of neighbors of a and b and find minimal c > b.
+
+We can for each pair (a,b) with a<b and edge present, compute intersection of neighbors of a and b, then find smallest c > b in intersection. But we must ensure c > b. We could maintain bitmask for neighbors > current index.
+
+Simpler: For each a from 1..n:
+  For each b > a such that edge present:
+    Compute intersection = adj[a] & adj[b]
+    We need minimal c > b in intersection. We can mask off bits <= b. So we can precompute a mask for bits > b: mask = ((1 << (n - b)) - 1) << b. But that's dynamic.
+
+We can also iterate over neighbors of a that are > a: for each b. Then compute intersection and find minimal c > b using bit_length on the masked intersection.
+
+Let's implement adjacency as list of ints where bit i-1 corresponds to node i.
+
+For each a from 1..n:
+  neighbors_a = adj[a]
+  For each b where b> a and bit set: we need to iterate over set bits > a.
+
+We can iterate over bits by scanning neighbors_a >> a? Actually we can get submask = neighbors_a >> a, then while submask:
+    b_offset = (submask & -submask).bit_length() - 1? Wait, we can use bit_length to find lowest set bit: lowbit = submask & -submask; b = (lowbit.bit_length() - 1) + a? Let's compute: Suppose bit 0 corresponds to node 1. We need to shift.
+
+Simpler: we can for b in range(a+1, n+1) and check if bit set via mask: if neighbors_a >> (b-1) & 1: then process. Complexity: for each a, scanning all later nodes gives O(n^2)=4M, fine for n=2000.
+
+During that, compute intersection = adj[a] & adj[b]. Then mask to bits > b: we need to find minimal c > b: we can compute submask = intersection & (~((1 << b) - 1)). Because bits 0..b-1 correspond to nodes 1..b. Actually node index i corresponds to bit i-1. So bits < b correspond to nodes <= b. So we zero them: mask = intersection & (~((1 << b) - 1)). Then if mask != 0, we find minimal c: c = (mask.bit_length() - 1) + 1? Wait bit_length gives position of highest set bit +1. But we need lowest set bit. For lowest set bit, we can use lowbit = mask & -mask. Then c = (lowbit.bit_length() - 1) + 1? Actually if lowbit=1<<k, then k is zero-based index. Node number is k+1. So c = k+1. So compute k = (lowbit.bit_length() - 1); c = k+1.
+
+Return first found (a,b,c) in lexicographic order because we iterate a ascending, b ascending, and c minimal from intersection. The first found will be lexicographically smallest. Because for fixed a,b, we choose minimal c. Since we iterate b ascending, the earliest triplet found will be minimal.
+
+Time complexity: O(n^2/64?) scanning all pairs a,b. n=2000 => 2M pairs. For each pair we do bit operations O(1). That's fine.
+
+Edge case: need to ensure adjacency list includes self? Not needed.
+
+Implementation details:
+
+- Read n,m.
+- Build adj list of ints length n+1 (1-indexed). Initialize 0.
+- For each edge u,v: set bit for v in adj[u] and u in adj[v].
+- For a in range(1,n-1): 
+   for b in range(a+1, n):
+        if (adj[a] >> (b-1)) & 1:
+            inter = adj[a] & adj[b]
+            mask = inter & (~((1 << b) - 1))
+            if mask:
+                lowbit = mask & -mask
+                c = lowbit.bit_length()
+                # because lowbit.bit_length() gives index+1 of high bit; but lowbit is power of two. For lowbit=1<<k, bit_length returns k+1. So c = lowbit.bit_length()
+                print(a,b,c)
+                return
+
+Check: node numbers: bit 0 -> node1. lowbit=1 << (c-1). lowbit.bit_length() = (c-1)+1 = c. Good.
+
+Edge case: n=2000 => 1 << n may exceed Python int? Python int arbitrary precision. But 1 << n is fine.
+
+Complexities: For b=2000, (1 << b) may be huge but fine.
+
+We must ensure that the mask generation does not overflow memory. (~((1 << b) - 1)) gives negative number, but bitwise & with inter will work because inter is positive. But we need to ensure that negative mask has infinite bits set beyond n. But & with inter will keep only bits that inter has. Since inter's bits beyond n are 0, it's fine. But to be safe, we can precompute mask = ((1 << (n - b)) - 1) << b. That yields only bits from b to n-1 set. That also works.
+
+Let's compute mask = ((1 << (n - b)) - 1) << b. But if n - b = 0, then (1 << 0)-1 = 0 so mask=0. Works.
+
+Let's use that.
+
+Implementation:
+
+full_mask = ((1 << (n - b)) - 1) << b
+
+Then inter & full_mask.
+
+Alternatively use ~((1 << b) - 1). But negative numbers may cause confusion.
+
+We'll use full_mask.
+
+Edge: n-b may be up to 1999, 1 << 1999 huge but Python handles.
+
+Ok.
+
+Let's implement solve().
+
+Also ensure to convert to int reading.
+
+Return.
+
+Let's test quickly mentally with example.
+
+Example1: n=4.
+
+adj[1] bits: 2,3 => bits 1,2 -> 0b110 = 6
+adj[2]: 1,3,4 => bits 0,2,3 -> 0b1101 = 13
+adj[3]: 1,2,4 -> bits 0,1,3 -> 0b1011 = 11
+adj[4]: 2,3 -> bits 1,2 -> 0b110 = 6
+
+Loop a=1:
+b=2: edge present. inter = 6 & 13 = 4 (0b100). mask= ((1 << (4-2))-1)<<2 = (1<<2 -1)<<2 = (4-1)<<2 =3<<2=12 (0b1100). inter & mask = 4. lowbit=4, c=4.bit_length()=3? Wait 4 bit_length=3? 4 = 100b, bit_length=3. That's c=3. Good.
+
+Output 1 2 3.
+
+Ok.
+
+Edge: if inter has multiple bits > b, we take minimal c by lowbit.
+
+Return.
+
+Now implement.
+
+Memory 2000 ints fine.
+
+Let's produce final code.
+</think>
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+
+    for a in range(1, n - 1):
+        a_mask = adj[a]
+        for b in range(a + 1, n):
+            if (a_mask >> (b - 1)) & 1:
+                inter = a_mask & adj[b]
+                if inter:
+                    # mask bits > b
+                    if n - b == 0:
+                        mask = 0
+                    else:
+                        mask = ((1 << (n - b)) - 1) << b
+                    inter_masked = inter & mask
+                    if inter_masked:
+                        lowbit = inter_masked & -inter_masked
+                        c = lowbit.bit_length()  # lowbit = 1 << (c-1)
+                        print(a, b, c)
+                        return
+
+if __name__ == "__main__":
+    solve()
+```

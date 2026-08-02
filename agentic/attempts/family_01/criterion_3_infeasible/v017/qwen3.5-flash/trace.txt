@@ -1,0 +1,1531 @@
+The problem asks us to find the lexicographically smallest triple of employees $(a, b, c)$ such that $a < b < c$ and each pair $(a, b)$, $(a, c)$, and $(b, c)$ has a restriction. In graph theory terms, this is finding the lexicographically smallest triangle (3-clique) in a graph where nodes represent employees and edges represent restrictions.
+
+Input constraints:
+$n \le 2000$
+$m \le \min(n(n-1)/2, 2 \cdot 10^5)$
+Time limit: 2 seconds
+Memory limit: 256 MB
+
+We are guaranteed that at least one triangle exists.
+We need to output the smallest $a$, then smallest $b$, then smallest $c$.
+
+This is the "finding the lexicographically first triangle" problem.
+Since $n$ is up to 2000, an $O(n^3)$ algorithm checking all triples is roughly $8 \cdot 10^9$ operations, which is too slow.
+An $O(m \sqrt{m})$ or $O(m \cdot n)$ algorithm might be acceptable. $m$ is up to $2 \cdot 10^5$. $m \cdot n \approx 4 \cdot 10^8$, which might be tight but possibly acceptable for 2 seconds in C++, but in Python it's risky.
+However, we are looking for the *lexicographically smallest* triangle. We can iterate through possible candidates for $a$ in increasing order. For a fixed $a$, we iterate through possible candidates for $b$ in increasing order such that $(a, b)$ is an edge. Then we check for the smallest $c > b$ such that $(a, c)$ and $(b, c)$ are edges.
+
+Let's refine this approach.
+The edges are given. Let's store the graph as an adjacency list. Since we need to check existence of edges efficiently, maybe an adjacency matrix or bitsets would help.
+With $n=2000$, an adjacency matrix takes $2000 \times 2000$ integers/bools, which is $4 \cdot 10^6$ entries. This fits easily in memory. Accessing an adjacency matrix is $O(1)$.
+If we use an adjacency matrix `adj[u][v] = True/False`, we can iterate:
+1. Iterate $a$ from $1$ to $n$.
+2. Iterate $b$ from $a+1$ to $n$. If `adj[a][b]` is False, continue.
+3. Iterate $c$ from $b+1$ to $n$. If `adj[a][c]` and `adj[b][c]` are both True, then we found $(a, b, c)$. Since we iterate in increasing order, the first one we find is the lexicographically smallest.
+
+Complexity:
+The loops are roughly $\sum_{a=1}^n \sum_{b=a+1}^n \sum_{c=b+1}^n 1$.
+In worst case (dense graph, e.g., $n(n-1)/2$ edges), this is $O(n^3)$.
+But the problem statement says $m \le 2 \cdot 10^5$.
+If the graph is sparse, $O(n^3)$ is an overestimate because most `adj[a][b]` will be false.
+However, checking `adj[a][b]` doesn't cost much, but checking `adj[a][c]` and `adj[b][c]` inside the inner loop is still problematic if the outer loops run many times.
+Wait, if we iterate $a$ and $b$, we only enter the inner loop if `adj[a][b]` is true.
+So the complexity is bounded by $\sum_{(a,b) \in E} (n - b)$. This is roughly $O(n \cdot m)$.
+With $n=2000$ and $m=2 \cdot 10^5$, $n \cdot m = 4 \cdot 10^8$. In Python, $4 \cdot 10^8$ operations is definitely too slow for 2 seconds. Python usually handles $\sim 10^7$ to $10^8$ simple operations per second, but complex operations take longer.
+However, we stop as soon as we find a solution.
+Is there a faster way?
+
+Let's consider the structure.
+We want smallest $a$. So we iterate $a$ from 1 to $n$.
+For a fixed $a$, we want smallest $b > a$ such that $b$ is connected to $a$.
+Then for fixed $a, b$, we want smallest $c > b$ such that $c$ is connected to both $a$ and $b$.
+
+If we store the graph as an adjacency list `adj[u]` containing neighbors of `u` in sorted order, we can optimize.
+Let `adj[a]` be the list of neighbors of $a$ sorted.
+We iterate $a$ from 1 to $n$.
+  We iterate through $b$ in `adj[a]` such that $b > a$.
+    We need to find the smallest $c$ in `adj[a]` (or `adj[b]`) such that $c > b$ and $c$ is connected to $b$.
+    
+Actually, since we need $c > b$, we can intersect `adj[a]` and `adj[b]` but restrict to $c > b$.
+Since we want the *lexicographically smallest* triple, we iterate $a$ from $1 \dots n$, then $b$ from $a+1 \dots n$ (only if edge exists), then find smallest $c$.
+The intersection of neighbors of $a$ and neighbors of $b$ gives candidates for $c$. If we iterate $c$ in increasing order, the first one we find is the best for fixed $a, b$.
+Since we iterate $a$ increasing, then $b$ increasing, the first valid triple found is the answer.
+
+Optimization:
+Instead of checking $O(n)$ for $c$, we can iterate over the intersection of adjacency lists.
+Or even better, use bitsets.
+With $n=2000$, we can represent the adjacency row of $a$ as a Python `int` (which acts as a bitset).
+`mask_a` has bit $k$ set if $(a, k)$ is an edge.
+Then for a fixed $a$ and $b$ (where $b > a$ and edge $(a, b)$ exists), the potential $c$'s are those bits set in `mask_a & mask_b`.
+We need the smallest bit index $c > b$.
+Since Python integers support arbitrary length bitwise operations, `mask_a & mask_b` is very fast.
+We need to find the smallest bit set strictly greater than $b$.
+This can be done efficiently.
+Wait, finding the smallest bit index $> b$ in a bitmask.
+If we construct the mask such that bit $i$ corresponds to node $i$, then `mask & (mask << (b+1))` ... no.
+We need the lowest bit set in `mask_a & mask_b` that is $> b$.
+Let `common = mask_a & mask_b`.
+We need the lowest set bit of `common` that is $\ge b+1$.
+We can check bits one by one, or use `bit_length` or some other trick.
+However, Python's `int.bit_length()` gives the highest bit. We need the lowest.
+A common trick is to use `common & -common` to get the lowest set bit, but we need it to be $> b$.
+Since we check $a$ then $b$, we just need to check bits of `common` from $b+1$ upwards.
+Since we stop at the first valid $c$, this looks like it might be fast enough.
+Wait, `common` can have up to $n$ bits. Looping through bits is $O(n)$.
+If we do this for every edge $(a, b)$, it's $O(m \cdot n)$ worst case.
+But wait, we only care about the *first* $c$ we find.
+Actually, for fixed $a$, we want to find smallest $b > a$ connected to $a$, then smallest $c > b$ connected to both.
+This means we iterate $a$ from $1$ to $n$.
+  We iterate $b$ in `adj[a]` such that $b > a$.
+    We calculate `common = mask_a & mask_b`.
+    We need the smallest bit set in `common` that is $> b$.
+    Let's call this `c`. If it exists, we found our answer $(a, b, c)$ and can terminate immediately.
+
+Is this fast enough?
+We iterate $a$. Then iterate $b$. If we don't find a $c$, we continue to next $b$.
+The worst case is when there are no triangles, but problem guarantees at least one.
+Actually, if the graph is dense (e.g. $m \approx n^2/2$), we might check many pairs.
+But $m \le 2 \cdot 10^5$.
+If $m$ is small, the number of pairs $(a, b)$ is small.
+If $m$ is large (dense), $n$ cannot be too large such that $n(n-1)/2$ exceeds $m$.
+Wait, $n \le 2000$, $m \le 200,000$.
+If $n=2000$, max edges $\approx 2 \cdot 10^6$. $m$ is much smaller than max possible edges. So the graph is relatively sparse (average degree $\approx 200$).
+So iterating over edges $(a, b)$ is $O(m)$ iterations.
+Inside the loop, we do bitwise AND. `int` operations on 2000 bits are fast (roughly 2000/64 operations).
+Wait, Python handles large integers. 2000 bits is small.
+Bitwise AND takes proportional to number of bits.
+However, we need to find the smallest bit $> b$.
+Iterating through bits of the result might be slow if done naively (looping $n$ times).
+But we can use the property of bit manipulation.
+Actually, we can just iterate $c$ from `adj[b]` (neighbors of $b$).
+Since we want lexicographically smallest $c$, we should check neighbors of $b$ in increasing order.
+If we iterate $b$ in increasing order from `adj[a]` (filtered for $b > a$), then iterate $c$ in increasing order from `adj[b]` (filtered for $c > b$), the first $c$ such that $c$ is also in `adj[a]` is the answer.
+Checking if $c \in adj[a]$ can be $O(1)$ with an adjacency matrix or bitset lookup.
+Wait, adjacency matrix lookup is $O(1)$.
+So for fixed $a$ (outer loop), iterate $b \in adj[a]$ with $b > a$.
+  For each such $b$, iterate $c \in adj[b]$ with $c > b$.
+    Check if $(a, c)$ is an edge.
+    If yes, output $a, b, c$ and exit.
+
+Complexity:
+Sum over $a$ of (degree of $a$) * (degree of $b$).
+Worst case: a graph where we have many triangles but they are "late".
+Example: $1$ is connected to $2, 3, \dots, k$. $2$ is connected to $3, \dots, k$.
+If the triangle is $1, 2, 3$, we find it immediately.
+If the triangle is $u, v, w$ with large indices, we might do more work.
+But notice we stop as soon as we find *any* triangle.
+We want the lexicographically smallest.
+So we iterate $a=1, 2, \dots$.
+Inside, $b=a+1, \dots$.
+Inside, $c=b+1, \dots$.
+This order guarantees lexicographical minimality.
+The complexity is roughly the number of edges times the maximum degree? Or something like that.
+Actually, the complexity is bounded by $\sum_{(a,b) \in E} \text{degree}(b)$.
+This is the number of paths of length 2.
+This can be $O(m \cdot n)$ in worst case (e.g. star graph plus edges from center to leaves, wait star graph has no triangles).
+Consider a complete graph $K_n$. $m \approx n^2/2$.
+We check $a=1$, $b=2$. $c=3$. Found immediately.
+The worst case for this algorithm is when we have to check many pairs $(a, b)$ and for each $b$ check many $c$'s that are NOT connected to $a$.
+Since we stop at the first success, we essentially explore the search space until we find the target.
+Given the constraints and the "lexicographically smallest" requirement, this "brute force in order" is the most natural approach.
+Is it fast enough in Python?
+Let's analyze the worst case.
+Suppose the only triangle is $(n-2, n-1, n)$.
+We iterate $a$ from 1 to $n-2$.
+For each $a$, we iterate $b$ in neighbors.
+If graph is dense, this is slow.
+But if graph is dense, there are many triangles, so we would likely find one much earlier.
+The "hard" case is a graph with few triangles, or triangles only at the end, but also dense enough to make checks expensive.
+However, $m$ is limited to $2 \cdot 10^5$.
+Sum of degrees is $2m$.
+The complexity is $\sum_{a} \sum_{b \in adj[a]} \text{count}(c \in adj[b] \text{ s.t. } c > b)$.
+This is bounded by $\sum_{(a,b) \in E} \text{degree}(b)$.
+This sum is bounded by $m \cdot \max(\text{degree})$.
+In worst case, one node has degree $n-1$, others have degree 1.
+Then sum is $\approx n \cdot 1 = n$.
+Or a clique of size $k$. $m \approx k^2/2$. Sum is $k^3/2$.
+With $m \le 2 \cdot 10^5$, max clique size $k \approx \sqrt{400000} \approx 632$.
+Then $k^3 \approx 2.5 \cdot 10^8$.
+This is on the edge for Python.
+However, usually test cases are not worst-case complete graphs.
+And we stop early.
+Wait, if there is a clique of size 632 involving nodes $1 \dots 632$, we will find the triangle $(1, 2, 3)$ immediately.
+The problematic case is when the triangle with smallest lexicographical order involves nodes with large indices, and we waste time checking non-triangles.
+But wait, if we iterate $a$ from 1, and $b$ from neighbors, we check the smallest possible $b$ first.
+So we would find $(1, 2, 3)$ before $(100, 101, 102)$.
+So we only waste time if the graph does NOT have triangles with small indices.
+If the graph has no triangles among $1 \dots k$ but has one later, we might scan many edges.
+But if there are no triangles among $1 \dots k$, then the subgraph induced by $1 \dots k$ is triangle-free.
+There is a theorem (Turán graph) about max edges in triangle-free graph. Max edges is $\lfloor n^2/4 \rfloor$.
+So if the graph has $m$ edges and $m$ is large, it must have triangles.
+Specifically, if $m > n^2/4$, there is a triangle.
+With $n=2000$, $n^2/4 = 1,000,000$. $m$ is only $200,000$. So the graph can be triangle-free (or close to it) and still have $m$ edges.
+In a bipartite graph, there are no triangles. But the problem guarantees a triangle exists.
+So the graph is not bipartite.
+But it could be close to bipartite.
+If the graph is bipartite plus one edge, we might have a triangle.
+But we need to find the smallest one.
+Let's reconsider the bitset optimization.
+With adjacency bitsets, we can check $c \in adj[b]$ such that $c \in adj[a]$ very fast.
+Actually, iterating $c \in adj[b]$ is efficient because we only iterate existing edges.
+If we use adjacency lists sorted by neighbor index, we can just iterate.
+Wait, if we iterate $b \in adj[a]$ (sorted), then $c \in adj[b]$ (sorted), and check `adj[a][c]`.
+Using an adjacency matrix (or bitset) for `adj[a]` lookup is $O(1)$.
+So the inner check is fast.
+The complexity is proportional to number of pairs $(a, b)$ such that $a < b$ and $(a, b) \in E$, multiplied by degree of $b$.
+Wait, we only iterate $b \in adj[a]$ (where $b > a$).
+For each such $b$, we iterate $c \in adj[b]$ (where $c > b$).
+Then check if $(a, c) \in E$.
+This is basically iterating over all paths of length 2: $a \to b \to c$.
+We check if $a \to c$ closes the triangle.
+We stop at the first valid triangle.
+The number of paths of length 2 can be large.
+However, we iterate $a$ from $1$. Then $b$ from neighbors. Then $c$ from neighbors.
+We want to minimize $a$, then $b$, then $c$.
+This order is exactly what the nested loops enforce.
+So the logic is correct.
+The only concern is speed.
+Can we optimize the inner loop?
+Instead of iterating $c \in adj[b]$, we can iterate $c$ in `adj[a]` and check if `c` is in `adj[b]`.
+Which list is smaller?
+It's better to iterate over the smaller adjacency list of $a$ and $b$ to find the intersection.
+Since we want smallest $c$, we need the intersection elements in increasing order.
+If we intersect `adj[a]` and `adj[b]`, we get candidates for $c$.
+We need $c > b$.
+So we want the smallest element in `adj[a] \cap adj[b]` that is $> b$.
+If we use bitsets, `mask_a & mask_b` gives the intersection. We need the lowest set bit $> b$.
+This seems computationally very fast in Python.
+Let's verify.
+Python integers are arbitrary precision.
+Operations like `&`, `|`, `^` on large integers are efficient (linear in number of bits).
+We can precompute `mask` for each node.
+`mask[u]` is an integer with bit `v` set if `u` and `v` are connected.
+Since nodes are 1-based, bit `v` corresponds to index `v`.
+We can simply use `1 << v`.
+To find the smallest bit $> b$ in `mask_a & mask_b`:
+We can do `common = mask_a & mask_b`.
+We want the least significant bit of `common` that is at position $\ge b+1$.
+We can mask out bits $\le b$.
+`common_filtered = common & ~((1 << (b + 1)) - 1)`
+This clears all bits from 0 to $b$.
+Then we need to find the lowest set bit in `common_filtered`.
+In Python, we can use `(common_filtered & -common_filtered).bit_length() - 1` to get the index of the lowest set bit.
+Wait, `bit_length()` gives the number of bits required to represent an integer.
+For a power of 2, e.g., $2^k$, `bit_length` is $k+1$. The index is $k$.
+So index = `(common_filtered & -common_filtered).bit_length() - 1`.
+If `common_filtered` is 0, then no such $c$ exists.
+This operation is $O(n/64)$ or similar, very fast.
+With $m$ edges, we iterate over all pairs $(a, b)$ with $a < b$.
+Number of such pairs is $m$.
+Wait, we need to iterate $a$ from 1 to $n$.
+Then iterate $b \in adj[a]$ with $b > a$.
+The number of such pairs is exactly the number of edges $m$.
+For each pair, we do a constant number of bitwise operations.
+Total complexity $O(m \cdot n / \text{word\_size})$.
+With $n=2000$, $m=200,000$, $2 \cdot 10^5 \cdot 2000 \approx 4 \cdot 10^8$ bit operations? No.
+The bitwise AND takes time proportional to the number of bits (words), which is $n/64 \approx 32$.
+So total operations $\approx 2 \cdot 10^5 \cdot 32 \approx 6.4 \cdot 10^6$.
+This is extremely fast and will easily pass within 2 seconds.
+The overhead of Python loop and object creation is the main factor, but $2 \cdot 10^5$ iterations is small.
+Wait, we only need to check pairs $(a, b)$ where $a$ is small? No, we must check in order.
+Wait, if we just iterate all edges $(a, b)$ sorted by $a$, then by $b$, we might find the solution quickly.
+But we need to output the lexicographically smallest triple.
+So we must process $a$ in increasing order.
+For a fixed $a$, we process $b$ in increasing order.
+For a fixed pair $(a, b)$, we find the smallest $c > b$ that forms a triangle.
+If we find one, we are done because any other solution would have larger $a$ (if we are at current $a$) or same $a$ and larger $b$, or same $a, b$ and larger $c$.
+Wait, is it guaranteed that if we find a solution for $(a, b)$, it is the best?
+Yes. We iterate $a$ from $1$.
+  Inside, we iterate $b$ from $a+1$.
+    If $(a, b)$ is not an edge, skip.
+    If it is, we check for smallest $c > b$ connected to both.
+    The first $c$ we find is the smallest valid $c$ for this pair.
+    Since we iterate $a$ then $b$, and for fixed $a, b$ we pick smallest $c$, the first triple found is lexicographically smallest.
+    So we can return immediately.
+
+One detail: Iterating $b$ from $a+1$.
+The input gives edges. We can store adjacency list as a list of lists.
+We need to iterate $a$ from $1$ to $n$.
+For each $a$, we get neighbors. We only care about neighbors $b > a$.
+So we should sort the adjacency lists or just filter them. Since we want to process $b$ in increasing order, sorting the adjacency lists for each node is helpful, or we can just store them sorted.
+Since input edges are not sorted, we might need to sort `adj[u]` for each $u$.
+Sorting takes $O(m \log n)$ or $O(m \log m)$. This is negligible.
+Then we can just iterate.
+
+Let's refine the algorithm:
+1. Read $n, m$.
+2. Initialize `adj` as a list of lists or bitsets.
+   To support fast intersection and bit scanning, we need bitsets.
+   `adj_masks = [0] * (n + 1)`
+   `adj_lists = [[] for _ in range(n + 1)]`
+   Actually, we need `adj_lists` to iterate $a$ then $b$ efficiently?
+   Wait, if we just iterate all edges $(u, v)$, we can't easily enforce $a < b < c$ order with just a list of edges unless we sort edges.
+   Sorting edges by $u$ then $v$ is good.
+   Let's create a list of edges sorted.
+   Then iterate through edges. Let edge be $(u, v)$ with $u < v$.
+   Let $a = u, b = v$.
+   We want smallest $c > b$ connected to both.
+   Wait, iterating through edges sorted by $u, v$ means we process potential pairs $(a, b)$ in lexicographical order.
+   For each pair $(a, b)$, we check if there exists $c > b$ such that $(a, c)$ and $(b, c)$ exist.
+   If yes, find smallest such $c$.
+   Since we iterate $(a, b)$ in increasing order, the first valid $(a, b, c)$ we find is the answer.
+   Wait, is it?
+   Yes. The order is defined by $a$, then $b$, then $c$.
+   So if we find a triangle for pair $(a, b)$, say with vertices $c_1 < c_2 < \dots$, we should pick $c_1$.
+   And since we iterate pairs $(a, b)$ in order, the first time we find ANY valid $c$ for ANY pair $(a, b)$, that triple $(a, b, c)$ is lexicographically smallest.
+   Wait, this assumes that for a fixed $(a, b)$, we find the smallest $c$.
+   Yes, we need to find the smallest $c$.
+   If for pair $(a, b)$ there are multiple $c$'s, we pick the smallest one.
+   And if we iterate $(a, b)$ in increasing order, the first valid triple we encounter is the global minimum.
+   
+   So the plan:
+   1. Store graph as adjacency bitmasks `adj_masks`.
+   2. Collect all edges $(u, v)$ with $u < v$.
+   3. Sort edges such that primary key is $u$, secondary is $v$.
+   4. Iterate through sorted edges. Let current edge be $(a, b)$.
+   5. Compute `common = adj_masks[a] & adj_masks[b]`.
+   6. We need smallest bit set in `common` that is $> b$.
+   7. Mask out bits $\le b$: `potential_c = common & ~((1 << (b + 1)) - 1)`.
+   8. If `potential_c` is non-zero:
+      Find lowest set bit index. Let it be $c$.
+      Output $a, b, c$ and terminate.
+   
+   Wait, is it possible that a smaller $a$ exists?
+   We iterate $a$ in increasing order (since edges are sorted by $u$).
+   So we check all pairs with $a=1$, then $a=2$, etc.
+   For a fixed $a$, we check all $b > a$ in increasing order.
+   So yes, the first valid triple found is the lexicographically smallest.
+   
+   Complexity:
+   Sorting edges: $O(m \log m)$.
+   Loop: $m$ iterations.
+   Bitwise ops: $O(n/64)$.
+   Finding lowest bit: $O(1)$ or $O(n)$?
+   `potential_c & -potential_c` is fast. `bit_length()` is fast.
+   So total time is dominated by $m \cdot (n/64)$ or $m \log m$.
+   $2 \cdot 10^5 \cdot 32 \approx 6.4 \cdot 10^6$ ops.
+   This is very safe.
+   
+   Wait, is it possible that `potential_c` is 0 but there is a solution with larger $a$?
+   Yes, but we are looking for the *lexicographically smallest* triple.
+   Since we iterate $(a, b)$ in lexicographical order, if we find a solution, it is the smallest.
+   The question is whether iterating edges sorted by $(u, v)$ covers all potential pairs $(a, b)$ in order.
+   Yes, because any triangle corresponds to a pair $(a, b)$ with $a < b$.
+   Since we check all edges, we check all pairs.
+   The order of checking is $a$ increasing, then $b$ increasing.
+   This matches the lexicographical requirement for the first two elements of the triple.
+   The third element $c$ is chosen to be minimal for the current pair.
+   So the first solution found is indeed the answer.
+   
+   Wait, is it possible that for a pair $(a, b)$, the smallest $c$ makes a triple $(a, b, c)$ which is "better" than some $(a', b', c')$ found later?
+   Yes, because we process $(a, b)$ before $(a', b')$ if $a < a'$ or ($a=a'$ and $b < b'$).
+   So any solution found later has larger $a$ or same $a$ larger $b$.
+   So we are good.
+   
+   One edge case: Is it possible that we miss a pair?
+   We iterate over all edges $(u, v)$.
+   Any triangle has 3 edges. Let vertices be $x, y, z$ with $x < y < z$.
+   The pairs are $(x, y)$, $(x, z)$, $(y, z)$.
+   The pair $(x, y)$ will be processed when we encounter edge $(x, y)$.
+   At that point, we look for $c > y$ connected to both. $z$ is such a vertex.
+   We will find $z$ (or something smaller if it exists).
+   Since we process $(x, y)$ before $(x, z)$ and $(y, z)$ (because $y < z$), we will find the triangle when processing $(x, y)$.
+   Wait, we need to check if we find the *smallest* $c$.
+   For pair $(x, y)$, we check for $c > y$.
+   If there are multiple $c$'s, we pick the smallest one.
+   Since we output the first found triple, we are guaranteed to find the optimal one.
+   
+   Wait, is it possible that we process $(x, y)$ and find $c$, but later we process $(x, z)$?
+   Yes, but $(x, y)$ comes before $(x, z)$.
+   The triple found at $(x, y)$ is $(x, y, c)$.
+   The triple found at $(x, z)$ would be $(x, z, c')$ with $c' > z > y$.
+   So $(x, y, c)$ is lexicographically smaller than $(x, z, c')$ because $y < z$.
+   So we don't need to worry about later pairs if we find a solution at $(x, y)$.
+   Wait, what if for $(x, y)$ we find a $c$ such that $c < z$, but then later we process $(x, z)$ and find $c'$?
+   Actually, if we find a solution at $(x, y)$, we stop.
+   Is it possible that there is a solution $(x, y, c)$ where $c$ is very large, and another solution $(x, y', c')$ where $y' < y$?
+   We iterate $b$ in increasing order. So we would have processed $(x, y')$ before $(x, y)$.
+   So if $(x, y', c')$ exists, we would have found it.
+   So yes, the logic holds.
+
+Data structures:
+`adj_masks`: list of integers.
+`edges`: list of tuples $(u, v)$.
+Input reading:
+Read all lines.
+Parse $n, m$.
+Loop $m$ times.
+Read $u, v$. Ensure $u < v$ (swap if needed).
+Add to `edges` list.
+Set bit in `adj_masks[u]` and `adj_masks[v]`.
+Sort `edges`.
+Run the loop.
+
+Wait, $m$ up to $2 \cdot 10^5$.
+Python `input().split()` is fast enough.
+Using `sys.stdin.read().split()` is better for bulk reading.
+
+Implementation details:
+Indices are 1-based.
+Bit manipulation:
+Bit $k$ corresponds to integer $2^k$.
+Node indices $1 \dots n$.
+So for node $u$, we use bit $u$.
+When computing `common & ~((1 << (b + 1)) - 1)`, we clear bits $1 \dots b$.
+Wait, node indices start at 1.
+$((1 << (b + 1)) - 1)$ has bits $0 \dots b$ set.
+So `~` will have bits $0 \dots b$ as 0, and higher bits as 1 (in infinite precision sense, but in Python integers are signed, so `~x` is `-x-1`).
+Wait, bitwise NOT in Python on positive integers acts as if there are infinite leading zeros.
+`~x` is `-x-1`.
+So `common & ~((1 << (b + 1)) - 1)` works correctly.
+Example: $b=2$. `1 << 3` is 8 (binary 1000). `8 - 1` is 7 (0111).
+`~7` is ...1111000.
+`common & ...1111000` keeps bits $\ge 3$.
+Correct.
+
+Wait, node indices are up to 2000.
+$1 \ll 2000$ is a large integer but Python handles it fine.
+`bit_length()` works on large integers.
+Example: `x = 1 << 5`. `x.bit_length()` is 6.
+`x & -x` is `32` (100000).
+`32.bit_length()` is 6.
+So index is `bit_length() - 1`.
+If `x` is 0, `bit_length` is 0.
+So check if `potential_c` is 0.
+
+Wait, input guarantees at least one triangle.
+So the loop will always find a solution.
+
+Let's double check time limits.
+Python's large integer operations are efficient but not $O(1)$.
+The size of integer is proportional to $n/64$ words.
+With $n=2000$, it's $\approx 32$ words.
+Operations are very fast.
+$m = 200,000$.
+$200,000 \times 32 \approx 6.4 \times 10^6$ word ops.
+This is well within 2 seconds (typically $10^8$ ops/sec for C++, maybe $10^7$ for Python).
+Wait, Python overhead might be higher.
+But $6.4 \times 10^6$ is a lower bound on complexity.
+It should be safe.
+
+Edge case:
+$u, v$ in input might be unordered.
+We should ensure $u < v$ for edges list.
+Also, for `adj_masks`, we set both `adj_masks[u] |= (1 << v)` and `adj_masks[v] |= (1 << u)`.
+The loop iterates edges.
+Let's verify the loop order again.
+We sort edges by $u$ then $v$.
+For edge $(u, v)$, let $a=u, b=v$.
+We check if there is $c > b$ connected to $a$ and $b$.
+Is it possible that a valid triangle exists with vertices $x, y, z$ ($x < y < z$) but we don't find it when processing $(x, y)$?
+We process $(x, y)$ because it's an edge.
+At $(x, y)$, we look for $c > y$. Since $z > y$ and $(x, z), (y, z)$ are edges, $z$ is a candidate.
+We will find the smallest such $c$.
+Is it possible that we process $(x, z)$ before $(x, y)$?
+No, because $y < z$, so $(x, y)$ comes before $(x, z)$.
+Is it possible we process $(y, z)$ before $(x, y)$?
+We sort primarily by first element.
+$(x, y)$ has first element $x$.
+$(y, z)$ has first element $y$.
+Since $x < y$, $(x, y)$ comes first.
+So we process pairs in correct order.
+
+Wait, what if multiple edges have same $u$?
+$(u, v_1), (u, v_2) \dots$ with $v_1 < v_2 < \dots$.
+We process them in that order.
+So we check smallest $b$ first.
+This is correct.
+
+Wait, input $m$ can be up to $\min(n(n-1)/2, 2 \cdot 10^5)$.
+If $n=2000$, $n(n-1)/2 \approx 2 \cdot 10^6$.
+So $m$ is at most $2 \cdot 10^5$.
+The graph is sparse enough.
+The approach seems solid.
+
+Let's write the code.
+Use `sys.stdin.read` for fast I/O.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    # Adjacency masks. Indexing 0 to n. We will use 1 to n.
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+        
+    # Sort edges to process in lexicographical order of (u, v)
+    edges.sort()
+    
+    # Iterate through edges to find the triangle
+    for u, v in edges:
+        # u is a, v is b. We need c > v.
+        # Check intersection of neighbors of u and v
+        # potential c must be > v
+        
+        # Optimization: check bits > v
+        # Common neighbors mask
+        common = adj_masks[u] & adj_masks[v]
+        
+        # We need the smallest bit set in common that is strictly greater than v.
+        # Mask out bits <= v.
+        # (1 << (v + 1)) - 1 creates a mask with bits 0..v set.
+        # We want to clear these bits from common.
+        # However, Python handles negative numbers and infinite bits in a specific way for bitwise ops.
+        # It's safer to construct the mask to keep bits > v.
+        
+        # We want bits from v+1 upwards.
+        # A mask with bits >= v+1 set is -1 ^ ((1 << (v+1)) - 1)
+        # In Python, ~x is -x-1, which acts as infinite 1s to the left.
+        # So ~((1 << (v + 1)) - 1) will have 0s at 0..v and 1s elsewhere.
+        # Let's verify:
+        # v = 2. (1 << 3) - 1 = 7 (0...0111). ~7 = -8 (1...11000).
+        # common & -8 keeps bits >= 3.
+        
+        mask_clear_low = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear_low
+        
+        if potential_c:
+            # Find lowest set bit
+            # lowest_set_bit = potential_c & -potential_c
+            # index = lowest_set_bit.bit_length() - 1
+            
+            # Alternatively, just use bit_length on the value itself?
+            # No, bit_length gives the position of the highest bit.
+            # We need the lowest set bit.
+            # We can use `potential_c & -potential_c` to isolate the lowest bit.
+            # Then `bit_length() - 1`.
+            
+            lowest_bit = potential_c & -potential_c
+            c = lowest_bit.bit_length() - 1
+            
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    solve()
+```
+
+Let's double check the `potential_c` extraction.
+Example: $n=4$. Edges $(1, 2), (1, 3), (2, 3)$.
+`adj_masks[1]`: bits 2 and 3 set. `0...1100` (binary for 12).
+`adj_masks[2]`: bits 1 and 3 set. `0...1010` (binary for 10).
+Wait, node indices 1, 2, 3.
+Bit 1 corresponds to node 1.
+`adj_masks` initialized to 0.
+Read $(1, 2)$: `adj_masks[1] |= 1<<2` (4), `adj_masks[2] |= 1<<1` (2).
+Read $(1, 3)$: `adj_masks[1] |= 1<<3` (8). `adj_masks[1]` is 12. `adj_masks[3] |= 1<<1` (2).
+Read $(2, 3)$: `adj_masks[2] |= 1<<3` (8). `adj_masks[2]` is 10. `adj_masks[3] |= 1<<2` (4).
+
+Edges sorted: $(1, 2), (1, 3), (2, 3)$.
+1. Process $(1, 2)$. $u=1, v=2$.
+   `common = adj_masks[1] & adj_masks[2]`.
+   `adj_masks[1]` (1100 binary, bits 2,3).
+   `adj_masks[2]` (1010 binary, bits 1,3).
+   Intersection: bit 3 set. Value 8.
+   We need $c > v=2$.
+   `mask_clear_low = (1 << 3) - 1 = 7` (0111).
+   `~7` (in 2's complement or infinite bits) ...1111000.
+   `common & ~7` = `8 & ...1111000` = 8.
+   `potential_c` is 8.
+   `lowest_bit` = 8.
+   `bit_length` of 8 is 4.
+   `c` = 4 - 1 = 3.
+   Output: `1 2 3`.
+   Wait, bit 3 corresponds to node 3.
+   The index calculation `bit_length() - 1` gives the exponent.
+   $2^3$ has bit length 4. $4-1=3$. Correct.
+   Wait, node 1 corresponds to bit $2^1=2$.
+   $2^1$ has bit length 2. $2-1=1$.
+   So yes, bit index $k$ corresponds to node $k$.
+   Wait, if I use `1 << v` where $v$ is the node index, then bit $v$ is set.
+   $v=1 \implies 1 \ll 1 = 2$. $2^1$.
+   So bit index matches node index.
+   My code uses `1 << v`. So bit $v$ is set.
+   The calculation `bit_length() - 1` returns $v$.
+   So `c` is the node index.
+   
+   Is it correct that `adj_masks[1]` has bit 2 set?
+   Input `1 2`.
+   `adj_masks[1] |= 1 << 2`. Bit 2 set.
+   `adj_masks[2] |= 1 << 1`. Bit 1 set.
+   Correct.
+   
+   Wait, the loop checks `potential_c`.
+   If `potential_c` is non-zero, we find the smallest bit.
+   Wait, `potential_c` is `common & ~mask`.
+   `common` has bits corresponding to neighbors.
+   `mask` clears bits $\le v$.
+   So `potential_c` has bits corresponding to neighbors $> v$.
+   The lowest set bit in `potential_c` corresponds to the smallest neighbor $> v$.
+   So yes, this is correct.
+
+Wait, what about the example 2?
+Input:
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+Edges:
+(1, 2)
+(1, 4)
+(2, 4)
+(3, 4)
+(3, 5)
+(4, 5)
+Sorted: (1, 2), (1, 4), (2, 4), (3, 4), (3, 5), (4, 5).
+
+1. (1, 2). Neighbors of 1: {2, 4}. Neighbors of 2: {1, 4}.
+   Common: {4}.
+   $c > 2$. 4 is valid.
+   Output 1 2 4.
+   Correct.
+   Wait, is 1 2 3 a triangle? No, 1-3 is not an edge.
+   Is 1 2 4 a triangle? 1-2 yes, 1-4 yes, 2-4 yes.
+   Is 1 2 3? No.
+   Is 1 3 4? 1-3 no.
+   So 1 2 4 is indeed smallest.
+   
+Wait, my manual trace of example 2 output is 1 2 4.
+The example output says 1 2 4.
+So it matches.
+
+Wait, I should check if there are any edge cases.
+$n=2000$.
+$m$ small or large.
+If graph is disconnected?
+The problem guarantees at least one triangle exists.
+If $u, v$ are large, does `1 << v` overflow?
+No, Python integers are arbitrary precision.
+Memory usage:
+`adj_masks`: list of $2001$ integers. Each integer up to $2^{2000}$.
+$2000$ bits is 250 bytes.
+$2000 \times 250 \approx 500$ KB.
+`edges`: list of $200,000$ tuples.
+Tuple overhead is small.
+Memory limit 256 MB.
+This is well within limits.
+
+Time complexity:
+Reading input: $O(m)$.
+Building masks: $O(m)$.
+Sorting edges: $O(m \log m)$.
+Loop: $m$ iterations.
+Inside loop: bitwise ops on 2000-bit integers.
+Python's large int bitwise ops are $O(N_{bits}/64)$.
+$2000/64 \approx 32$.
+Total ops $\approx 32 m \approx 6.4 \times 10^6$.
+This is very fast.
+
+Is there any case where `potential_c` calculation is slow?
+`common` is computed.
+`mask_clear_low` is computed.
+`~mask_clear_low` is computed.
+`potential_c` computed.
+`potential_c & -potential_c` computed.
+`bit_length` computed.
+All these are efficient.
+However, `~mask_clear_low` creates a negative number with infinite leading 1s?
+Actually, in Python `~x` is `-x-1`.
+For `mask = (1 << (v+1)) - 1`, `mask` is positive.
+`~mask` is negative.
+`common` is positive.
+`common & ~mask` works correctly because Python's `&` on negative numbers treats them as having infinite leading 1s in 2's complement.
+Wait.
+`common` is positive.
+`~mask` is negative.
+`common & ~mask` should be positive (subset of bits of `common`).
+Let's verify with small numbers.
+`common = 0b1100` (12). `mask = 0b0111` (7). `~mask = -8` (111...1000).
+`12 & -8`.
+12: ...001100
+-8: ...111000
+Result: ...001000 (8).
+This keeps bits of `common` that are not in `mask` (bits $\ge v+1$).
+Wait, `mask` has bits $0 \dots v$ set.
+So `~mask` has bits $0 \dots v$ as 0.
+So `common & ~mask` keeps bits of `common` where `~mask` has 1.
+These are bits $> v$.
+This is exactly what we want.
+So the logic holds.
+
+One small optimization:
+We need to sort `edges`.
+Since we are using `sys.stdin.read().split()`, we get strings.
+Converting to int takes time.
+`map(int, ...)` is faster.
+Also `edges` list construction.
+We can store edges as tuples.
+Wait, `edges.sort()` sorts by first element, then second. This is exactly what we want.
+
+Also, `adj_masks` initialization.
+We need `adj_masks` to access quickly.
+We iterate $u, v$ from sorted edges.
+We access `adj_masks[u]` and `adj_masks[v]`.
+This is $O(1)$.
+Seems optimal.
+
+One corner case: $u, v$ inputs might be such that $u > v$.
+My code handles `if u > v: u, v = v, u`.
+This ensures $u < v$ for edges list.
+And also ensures we look for $c > v$ (since $c$ must be the third vertex, and we enforce order $a < b < c$).
+Wait, if the triangle is $x, y, z$ with $x < y < z$.
+Edges are $(x, y), (x, z), (y, z)$.
+My code iterates edges.
+When it processes $(x, y)$ (since $x < y$), it looks for $c > y$. $z$ is a candidate.
+When it processes $(x, z)$, it looks for $c > z$. No candidate for this triangle (since $z$ is the largest).
+When it processes $(y, z)$, it looks for $c > z$. No candidate.
+So the triangle is detected at $(x, y)$.
+Is it possible we detect it at $(x, z)$? No, because we check $c > z$.
+Is it possible we detect it at $(y, z)$? No.
+So we detect it exactly once (at the first pair in lexicographical order).
+And since we iterate pairs in lexicographical order, we find the best one.
+Wait, what if we have multiple triangles?
+Triangle 1: $1, 2, 3$. Detected at $(1, 2)$.
+Triangle 2: $1, 2, 4$. Detected at $(1, 2)$ as well?
+If we have both, we look for smallest $c > 2$.
+$c=3$ is smaller than $c=4$.
+So we find $1, 2, 3$.
+And since we stop immediately, we output $1, 2, 3$.
+This is correct.
+What if triangle is $1, 3, 4$ vs $1, 2, 5$?
+Pairs for $1, 3, 4$: $(1, 3)$.
+Pairs for $1, 2, 5$: $(1, 2)$.
+We sort edges. $(1, 2)$ comes before $(1, 3)$.
+So we process $(1, 2)$. We find $c=5$. Output $1, 2, 5$.
+Is $1, 2, 5$ lexicographically smaller than $1, 3, 4$?
+$(1, 2, 5)$ vs $(1, 3, 4)$.
+$a=1$ same. $b=2$ vs $b=3$. $2 < 3$.
+So yes, $1, 2, 5$ is smaller.
+Is it possible there is a triangle with $a=1, b=2, c=3$?
+If so, we would have processed $(1, 2)$ and found $3$.
+So we would output $1, 2, 3$.
+If not, we check larger $c$'s for $(1, 2)$.
+If we find none, we move to next edge.
+Next edge for $a=1$ is $(1, 3)$. We check $c > 3$.
+So we find $1, 3, 4$.
+So the algorithm is correct.
+
+Wait, I should check if `adj_masks` indices are correct.
+`adj_masks` size is $n+1$.
+Indices $1 \dots n$.
+If $u, v$ are up to $n$, `1 << v` uses bit $v$.
+If $n=2000$, $2^{2000}$ is large but fine.
+Is it possible that we need to handle $n$ up to 2000 efficiently?
+Yes, bit operations on 2000 bits are fast.
+Wait, if $n$ was larger, say $10^5$, this would be too slow ($O(m \cdot n / 64)$).
+But $n=2000$ is small.
+So this solution is optimal for the given constraints.
+
+Memory usage:
+`edges` list: $2 \cdot 10^5$ tuples.
+Each tuple 2 ints.
+In Python, tuples have some overhead.
+$2 \cdot 10^5 \times 48$ bytes $\approx 10$ MB.
+`adj_masks` list: $2000$ large ints.
+Each large int is $\approx 250$ bytes.
+$2000 \times 250 = 500$ KB.
+Total memory is very low.
+
+One minor thing:
+`sys.setrecursionlimit` is not needed.
+The code is iterative.
+
+Final check on imports and structure.
+Standard competitive programming template.
+Read all input at once.
+Parse integers.
+Logic.
+Print.
+Everything looks good.
+
+Double check the complexity again.
+Is `adj_masks[u] & adj_masks[v]` really fast?
+It iterates over the internal representation of the integer.
+For $N=2000$, it's 32 64-bit words.
+Looping 32 times is instant.
+Doing it $200,000$ times is $6.4 \cdot 10^6$ ops.
+Plus sorting $2 \cdot 10^5$ items. $2 \cdot 10^5 \log(2 \cdot 10^5) \approx 3.6 \cdot 10^6$ comparisons.
+Total time is well within 2 seconds.
+Python might be slow with overhead, but this logic is tight.
+
+One edge case: `potential_c` could be 0.
+The check `if potential_c:` handles it.
+If no $c$ found, we continue to next edge.
+If no triangle found at all, we would exit loop without output.
+But problem guarantees at least one triangle.
+So we will output.
+
+Wait, is it possible that `adj_masks` contains bits for nodes that are not in range?
+No, we only set bits for $u, v$ read from input.
+And we check `bit_length()`.
+If `potential_c` is non-zero, it must have some bit set.
+Since we constructed `adj_masks` only with bits $1 \dots n$, the set bits are in range.
+So `c` will be $\le n$.
+Also `c > v`.
+So $1 \le v < c \le n$.
+Valid.
+
+```python
+import sys
+
+# Increase recursion depth just in case, though not used here.
+sys.setrecursionlimit(2000)
+
+def main():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency masks. 
+    # adj_masks[u] will store an integer where the k-th bit is set if u and k are connected.
+    # We use 1-based indexing for nodes, so bit k corresponds to node k.
+    # Size is n + 1.
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    # Parse edges
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+        except StopIteration:
+            break
+        
+        # Ensure u < v for consistent processing
+        if u > v:
+            u, v = v, u
+        
+        edges.append((u, v))
+        
+        # Set bits in adjacency masks
+        # Note: 1 << v sets the bit at position v
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+        
+    # Sort edges to process in lexicographical order of (u, v)
+    # This ensures we check pairs (a, b) with smallest a, then smallest b first.
+    edges.sort()
+    
+    # Iterate through sorted edges
+    for u, v in edges:
+        # We are considering the pair (u, v) as the first two elements of a potential triangle.
+        # We need to find a third node c such that c > v and (u, c) and (v, c) are edges.
+        # If we find such a c, then (u, v, c) is a triangle.
+        # Since we iterate pairs in increasing order, the first valid c we find will give
+        # the lexicographically smallest triple (u, v, c) for this specific pair.
+        # And since we iterate pairs in order, the first such triple found overall is the answer.
+        
+        # Find common neighbors of u and v
+        # common_neighbors = adj_masks[u] & adj_masks[v]
+        # We are interested in neighbors c such that c > v.
+        
+        common = adj_masks[u] & adj_masks[v]
+        
+        # We need to clear bits corresponding to nodes <= v.
+        # A mask with bits 0 to v set is (1 << (v + 1)) - 1.
+        # We want to clear these bits from common.
+        # In Python, bitwise NOT (~) on a positive integer x acts as if x has infinite leading zeros.
+        # ~x = -x - 1.
+        # So ~((1 << (v + 1)) - 1) will have 0s at positions 0..v and 1s elsewhere.
+        # This effectively masks out bits <= v.
+        
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear
+        
+        if potential_c:
+            # We found at least one candidate c > v.
+            # We need the smallest such c, which corresponds to the lowest set bit in potential_c.
+            
+            # Isolate the lowest set bit
+            lowest_bit = potential_c & -potential_c
+            
+            # The position of the lowest set bit is bit_length() - 1.
+            # Since we set bit k for node k, this returns the node index.
+            c = lowest_bit.bit_length() - 1
+            
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    main()
+```
+One small detail: `sys.setrecursionlimit` is unnecessary, I will remove it.
+Also `try-except` blocks for `next(iterator)` are good practice but given guaranteed valid input, strict error handling is not strictly required, but safe.
+The problem statement guarantees valid input.
+
+Wait, `adj_masks[u] |= (1 << v)`
+If `u` and `v` are large, say 2000. `1 << 2000` is fine.
+However, `adj_masks` is a list of size $n+1$.
+If $n=2000$, indices $0 \dots 2000$.
+Correct.
+
+Wait, what if `potential_c` has multiple bits set?
+`potential_c & -potential_c` isolates the lowest one (least significant bit).
+Since bits are ordered by value (position 0 is LSB), the lowest set bit corresponds to the smallest index.
+Wait, bit 0 is $2^0=1$. Bit 1 is $2^1=2$.
+Smallest index corresponds to smallest power of 2.
+Yes, `lowest_bit` gives the smallest power of 2 present.
+`bit_length()` gives the position.
+Example: $2^3$ (bit 3). `bit_length` is 4. $4-1=3$.
+Example: $2^5$ (bit 5). `bit_length` is 6. $6-1=5$.
+So yes, `bit_length() - 1` gives the index.
+Correct.
+
+One subtle point:
+Is it possible that `common` has bit 0 set?
+Node indices are $1 \dots n$. We never set bit 0.
+So bit 0 is always 0.
+So `lowest_bit` will be at least $2^1$.
+`bit_length` will be at least 2.
+`c` will be at least 1.
+Since we mask out $\le v$, and $v \ge 1$, $c$ will be $> v$.
+Wait, if $v=1$. `mask_clear` clears bits 0, 1.
+So $c$ must be $\ge 2$.
+Correct.
+
+The solution seems robust.
+
+```python
+# Final check of the code structure
+import sys
+
+# Standard competitive programming setup for fast I/O is not strictly needed with sys.stdin.read, 
+# but it helps.
+
+def main():
+    # Read all tokens
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    # Read n and m
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    # Initialize adjacency masks
+    # Using a list of integers where each integer acts as a bitset
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    # Read edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        # Ensure u < v for the edge representation
+        if u > v:
+            u, v = v, u
+        
+        edges.append((u, v))
+        
+        # Update bitsets
+        # Node indices are 1-based
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+        
+    # Sort edges to iterate in lexicographical order of pairs (u, v)
+    edges.sort()
+    
+    # Iterate and find the first valid triangle
+    for u, v in edges:
+        # We look for c > v such that c is connected to both u and v
+        # Intersection of neighbors
+        common = adj_masks[u] & adj_masks[v]
+        
+        # We need c > v. So we clear bits <= v.
+        # Mask with bits 0..v set is (1 << (v + 1)) - 1
+        # We want to keep bits > v.
+        # ~mask_clear has 0s at 0..v and 1s elsewhere (conceptually infinite 1s to left)
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear
+        
+        if potential_c:
+            # Found a valid c. We need the smallest one.
+            # The smallest index corresponds to the least significant bit set in potential_c.
+            # Extract lowest set bit
+            lowest_bit = potential_c & -potential_c
+            
+            # Get index. bit_length returns the number of bits required to represent the integer.
+            # For 2^k, bit_length is k+1. So index is k = bit_length - 1.
+            c = lowest_bit.bit_length() - 1
+            
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    main()
+```
+Looks good.
+
+Wait, I should verify constraints again.
+$m \le \min(n(n-1)/2, 2 \cdot 10^5)$.
+If $n=2000$, $n(n-1)/2 \approx 2 \cdot 10^6$.
+So $m$ is limited by $2 \cdot 10^5$.
+My complexity assumption holds.
+
+One tiny thing:
+Is `input_data` guaranteed to be non-empty?
+Yes, based on problem statement.
+Is `iterator` guaranteed to have enough elements?
+Yes, problem statement guarantees $m$ lines follow.
+So no need for excessive error checking.
+
+One edge case: $n=3, m=3$, triangle $1-2, 2-3, 1-3$.
+Edges: $(1, 2), (1, 3), (2, 3)$.
+Sorted: $(1, 2), (1, 3), (2, 3)$.
+1. $(1, 2)$. $u=1, v=2$.
+   `common` has bit 3.
+   `mask_clear` clears bits $\le 2$.
+   `potential_c` has bit 3.
+   `lowest_bit` is $2^3$. `c` is 3.
+   Output 1 2 3.
+   Correct.
+
+Another edge case:
+$n=4, m=4$. Edges $(1, 2), (2, 3), (3, 4), (4, 1)$.
+No triangle. But problem guarantees at least one.
+So this case won't happen.
+
+What if $m$ is very small? $m=3$. Triangle. Works.
+
+The solution seems solid.
+
+One final check on `sys.stdin.read().split()`.
+If the input is large, `split()` creates a large list of strings.
+For $2 \cdot 10^5$ lines, input size is roughly $2 \cdot 10^5 \times 10$ bytes $\approx 2$ MB.
+`split()` creates $4 \cdot 10^5$ strings.
+This is memory safe.
+Converting to ints one by one is efficient.
+
+I will formulate the final code now.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from standard input at once
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency masks. adj_masks[u] is a bitmask representing neighbors of u.
+    # Since n <= 2000, we can store masks as integers.
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    # Parse m edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        # Ensure u < v for canonical representation
+        if u > v:
+            u, v = v, u
+        
+        edges.append((u, v))
+        
+        # Update adjacency bitmasks
+        # Node indices are 1-based, so we set bit v for node u, etc.
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+    
+    # Sort edges lexicographically.
+    # This ensures we check pairs (a, b) in increasing order of a, then b.
+    # This is crucial for finding the lexicographically smallest triangle (a, b, c).
+    edges.sort()
+    
+    # Iterate through edges to find the first valid triangle
+    for u, v in edges:
+        # We consider edge (u, v) as the first two vertices of the triangle.
+        # We need to find a vertex c > v such that c is connected to both u and v.
+        # We compute the intersection of neighbors of u and v.
+        common_neighbors = adj_masks[u] & adj_masks[v]
+        
+        # We are only interested in neighbors c > v.
+        # We create a mask to clear bits corresponding to nodes <= v.
+        # (1 << (v + 1)) - 1 has bits 0 to v set.
+        # ~mask_clear has bits 0 to v as 0, and bits > v as 1 (conceptually).
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c_mask = common_neighbors & ~mask_clear
+        
+        if potential_c_mask:
+            # We found at least one valid c > v.
+            # To satisfy lexicographical requirement, we need the smallest such c.
+            # This corresponds to the lowest set bit in potential_c_mask.
+            
+            # Isolate the lowest set bit
+            lowest_bit = potential_c_mask & -potential_c_mask
+            
+            # Calculate the bit index. bit_length() returns the number of bits required to represent the integer.
+            # For a power of 2, 2^k, bit_length is k+1. So index k = bit_length - 1.
+            c = lowest_bit.bit_length() - 1
+            
+            # Print the result and exit
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    solve()
+```
+The logic holds.
+Wait, `potential_c_mask` variable name is clearer.
+One detail: in Python `~mask_clear` works as expected for positive `mask_clear`.
+`mask_clear` is positive.
+`~mask_clear` is negative.
+`common_neighbors` is positive.
+`&` between positive and negative works as expected (bitwise AND).
+Example: `5 & ~3`. `5` is `101`. `3` is `011`. `~3` is `...11100`.
+`101 & ...11100` = `100` (4).
+Correct.
+
+Is it possible that `potential_c_mask` has bits set that are not valid neighbors?
+No, `common_neighbors` only has bits set if they are neighbors.
+So `potential_c_mask` only has bits set for valid neighbors.
+So `c` is definitely a valid neighbor.
+And `c > v` is enforced by masking.
+So it forms a triangle.
+And since we iterate $u$ then $v$ then find smallest $c$, it is the lexicographically first.
+
+One edge case: `sys.setrecursionlimit` is not needed but harmless. I'll remove it to be clean.
+Also `try-except` is good but I can simplify.
+The code is ready.
+
+```python
+import sys
+
+def solve():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency masks. adj_masks[u] stores the bitmask of neighbors of u.
+    # Indices are 1-based.
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        # Ensure u < v for consistent processing
+        if u > v:
+            u, v = v, u
+        
+        edges.append((u, v))
+        
+        # Set bits in adjacency masks
+        # Node indices 1..n map to bits 1..n
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+    
+    # Sort edges to process in lexicographical order of pairs (u, v)
+    # This ensures we find the lexicographically smallest triangle first.
+    edges.sort()
+    
+    # Iterate through sorted edges
+    for u, v in edges:
+        # We are looking for c > v such that (u, c) and (v, c) are edges.
+        # This forms a triangle (u, v, c) with u < v < c.
+        
+        # Find common neighbors
+        common = adj_masks[u] & adj_masks[v]
+        
+        # Filter neighbors to be > v
+        # Mask with bits 0..v set is (1 << (v + 1)) - 1
+        # We want to clear these bits.
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear
+        
+        if potential_c:
+            # Find the smallest valid c.
+            # This is the lowest set bit in potential_c.
+            lowest_bit = potential_c & -potential_c
+            c = lowest_bit.bit_length() - 1
+            
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    solve()
+```
+Final check:
+The question asks to output "three space-separated integers".
+My code prints `f"{u} {v} {c}"`. Correct.
+The problem guarantees at least one such group exists.
+So `if potential_c` will eventually be true.
+The constraints $n \le 2000$ and $m \le 2 \cdot 10^5$ are respected.
+Time complexity is dominated by sorting edges $O(m \log m)$ and iterating edges $O(m \cdot n/64)$.
+Space complexity is $O(m + n)$.
+Seems correct.
+
+One small thing: `adj_masks` size.
+If $n=2000$, index 2000 is accessed.
+`adj_masks` has size $n+1 = 2001$. Indices $0 \dots 2000$.
+Correct.
+
+The solution is ready.
+
+Wait, I should confirm that `bit_length` works for `lowest_bit`.
+`lowest_bit` is a power of 2, so it is $\ge 1$.
+`bit_length()` is defined for non-zero integers.
+Yes.
+
+And `potential_c & -potential_c` works for positive `potential_c`.
+Yes.
+
+I'm confident.
+
+One edge case: $n=3, m=3$.
+Edges: (1,2), (1,3), (2,3).
+Sorted: (1,2), (1,3), (2,3).
+Loop 1: u=1, v=2. common has bit 3. mask_clear clears bits 0,1,2. potential_c has bit 3. c=3. Output 1 2 3.
+Correct.
+
+Another case:
+Edges: (1,2), (2,3), (1,3). Same.
+Wait, input order might be different.
+(1, 2)
+(3, 1) -> (1, 3)
+(2, 3)
+Sorted: (1, 2), (1, 3), (2, 3).
+Same result.
+
+What if edges are:
+(3, 1) -> (1, 3)
+(2, 3) -> (2, 3)
+(1, 2) -> (1, 2)
+Sorted: (1, 2), (1, 3), (2, 3).
+Same.
+
+What if triangle is (2, 3, 4)?
+Edges: (2, 3), (2, 4), (3, 4).
+Sorted: (2, 3), (2, 4), (3, 4).
+Loop 1: u=2, v=3. common has bit 4. mask_clear clears bits 0,1,2,3. potential_c has bit 4. c=4. Output 2 3 4.
+Correct.
+
+What if triangle is (1, 4, 5) and (2, 3, 4)?
+Edges for (1, 4, 5): (1, 4), (1, 5), (4, 5).
+Edges for (2, 3, 4): (2, 3), (2, 4), (3, 4).
+Sorted edges: (1, 4), (1, 5), (2, 3), (2, 4), (3, 4), (4, 5).
+1. (1, 4). u=1, v=4. common neighbors of 1 and 4.
+   Neighbors of 1: {4, 5}. Neighbors of 4: {1, 2, 3, 5}.
+   Common: {5}.
+   Mask clear bits $\le 4$.
+   potential_c has bit 5.
+   c=5.
+   Output 1 4 5.
+   Is this correct?
+   Triples are (1, 4, 5) and (2, 3, 4).
+   (1, 4, 5) is lexicographically smaller than (2, 3, 4) because $1 < 2$.
+   So yes, correct.
+
+Wait, what if edges are:
+(1, 2), (2, 3), (3, 1) -> (1, 2), (1, 3), (2, 3).
+And (4, 5), (5, 6), (6, 4) -> (4, 5), (4, 6), (5, 6).
+Sorted: (1, 2), (1, 3), (2, 3), (4, 5), (4, 6), (5, 6).
+First is (1, 2). Finds 3. Output 1 2 3.
+Correct.
+
+Seems robust.
+
+One detail: `sys.setrecursionlimit` is not needed.
+The code is clean.
+
+```python
+import sys
+
+# Set recursion limit just in case, though not used.
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency masks. adj_masks[u] stores the bitmask of neighbors of u.
+    # Indices are 1-based.
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        # Ensure u < v for consistent processing
+        if u > v:
+            u, v = v, u
+        
+        edges.append((u, v))
+        
+        # Set bits in adjacency masks
+        # Node indices 1..n map to bits 1..n
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+    
+    # Sort edges to process in lexicographical order of pairs (u, v)
+    # This ensures we find the lexicographically smallest triangle first.
+    edges.sort()
+    
+    # Iterate through sorted edges
+    for u, v in edges:
+        # We are looking for c > v such that (u, c) and (v, c) are edges.
+        # This forms a triangle (u, v, c) with u < v < c.
+        
+        # Find common neighbors
+        common = adj_masks[u] & adj_masks[v]
+        
+        # Filter neighbors to be > v
+        # Mask with bits 0..v set is (1 << (v + 1)) - 1
+        # We want to clear these bits.
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear
+        
+        if potential_c:
+            # Find the smallest valid c.
+            # This is the lowest set bit in potential_c.
+            lowest_bit = potential_c & -potential_c
+            c = lowest_bit.bit_length() - 1
+            
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    solve()
+```
+This is the final code.
+Wait, `sys.setrecursionlimit` is not needed. I'll remove it.
+Wait, I should verify `sys.stdin.read` behavior on large inputs.
+It reads until EOF.
+This is standard for CP problems.
+Okay.
+
+One check: The variable `iterator` is an iterator over strings.
+`int(next(iterator))` converts string to int.
+This is correct.
+
+I will remove comments to keep it concise but readable.
+Actually, comments are fine.
+The request says "Output only the answer in the exact format specified. Return only one Python 3 code block."
+Wait, "Output only a single Python 3 code block and nothing else — no explanation before or after."
+This applies to the whole response.
+But I can include comments inside the code.
+The "Output only a single Python 3 code block" instruction is for the *entire response*.
+Wait, "Output only a single Python 3 code block and nothing else".
+So I cannot write any text outside the code block.
+Inside the code block, comments are allowed.
+
+Wait, the prompt says "You write correct, efficient Python 3 solutions. Your program reads all input from standard input and writes only the required answer to standard output. Output only a single Python 3 code block and nothing else — no explanation before or after."
+This means I should output ONLY the code block.
+Okay.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+        
+    edges.sort()
+    
+    for u, v in edges:
+        common = adj_masks[u] & adj_masks[v]
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear
+        
+        if potential_c:
+            lowest_bit = potential_c & -potential_c
+            c = lowest_bit.bit_length() - 1
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    solve()
+```
+This looks perfect.
+
+Wait, I should check if `potential_c` is 0.
+If `potential_c` is 0, the loop continues.
+If `potential_c` is non-zero, we find `c`.
+Since problem guarantees at least one triangle, we will eventually find one.
+So `return` will be reached.
+
+One final check on constraints.
+$n=2000$.
+$1 \ll 2001$ is fine.
+Memory is fine.
+Time is fine.
+Input format is fine.
+Output format is fine.
+
+I am ready.
+
+Wait, one more thing. `adj_masks[u] |= (1 << v)`
+If $u$ or $v$ is $0$?
+Problem says $1 \le u, v \le n$.
+So no issue.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def main():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency masks. adj_masks[u] stores the bitmask of neighbors of u.
+    # Indices are 1-based.
+    adj_masks = [0] * (n + 1)
+    edges = []
+    
+    # Parse edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        
+        # Ensure u < v for consistent processing
+        if u > v:
+            u, v = v, u
+        
+        edges.append((u, v))
+        
+        # Set bits in adjacency masks
+        # Node indices 1..n map to bits 1..n
+        adj_masks[u] |= (1 << v)
+        adj_masks[v] |= (1 << u)
+    
+    # Sort edges to process in lexicographical order of pairs (u, v)
+    edges.sort()
+    
+    # Iterate through sorted edges
+    for u, v in edges:
+        # We are looking for c > v such that (u, c) and (v, c) are edges.
+        # This forms a triangle (u, v, c) with u < v < c.
+        
+        # Find common neighbors
+        common = adj_masks[u] & adj_masks[v]
+        
+        # Filter neighbors to be > v
+        # Mask with bits 0..v set is (1 << (v + 1)) - 1
+        # We want to clear these bits.
+        mask_clear = (1 << (v + 1)) - 1
+        potential_c = common & ~mask_clear
+        
+        if potential_c:
+            # Find the smallest valid c.
+            # This is the lowest set bit in potential_c.
+            lowest_bit = potential_c & -potential_c
+            c = lowest_bit.bit_length() - 1
+            
+            print(f"{u} {v} {c}")
+            return
+
+if __name__ == '__main__':
+    main()
+```
+I'll use `main` instead of `solve` to be standard.
+I'll keep `sys.setrecursionlimit` just in case, though not needed. It doesn't hurt.
+Actually, I'll remove it to be cleaner.
+The solution is non-recursive.
+
+I'll output the code now.

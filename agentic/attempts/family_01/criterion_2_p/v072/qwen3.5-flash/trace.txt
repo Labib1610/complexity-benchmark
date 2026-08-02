@@ -1,0 +1,991 @@
+The problem asks us to assign each of $n$ individuals to one of two operating periods, 1 or 2. We are given $m$ restrictions, where each restriction is a pair of individuals $(u, v)$ that cannot be in the same period. We need to determine if a valid assignment exists. If it does, we need to output the lexicographically smallest assignment sequence.
+
+This is a classic graph coloring problem. Specifically, it's about determining if a graph is bipartite. The individuals are nodes, and the restrictions are edges. An edge between $u$ and $v$ means $u$ and $v$ must have different colors (periods). Since there are only 2 colors available, this is exactly 2-coloring. A graph is 2-colorable if and only if it is bipartite.
+
+If the graph is not bipartite (i.e., contains an odd cycle), then no valid assignment exists, and we should output "NO".
+If the graph is bipartite, there are usually multiple valid assignments. We need the lexicographically smallest one. The assignment is a sequence $s_1, s_2, \dots, s_n$. To make this sequence lexicographically smallest, we want $s_1$ to be as small as possible (preferably 1). Given $s_1$, we want $s_2$ to be as small as possible, and so on.
+
+Let's represent the graph using an adjacency list. Since the graph might be disconnected, we might have multiple connected components.
+For each connected component, once we fix the color of one node in that component, the colors of all other nodes in that component are determined (since it's a bipartite graph, there are exactly two valid colorings for each connected component: one starting with 1 and one starting with 2, assuming the component is non-empty).
+Wait, if a component has no edges (isolated vertices), there are more degrees of freedom. An isolated vertex can be 1 or 2. To make the sequence lexicographically smallest, we should definitely pick 1 for any isolated vertex.
+
+Let's formalize the strategy to find the lexicographically smallest assignment.
+We want to determine $s_1, s_2, \dots, s_n$ in order.
+Actually, the constraints are local. $s_i$ depends on its neighbors.
+However, the "lexicographically smallest" requirement applies to the whole array $s$.
+Let's consider the connected components.
+For a connected component $C$, let the vertices be $v_1, v_2, \dots, v_k$.
+There are at most 2 ways to color this component if we fix the color of one vertex. Let's say we color vertex $u$ with color 1. Then all neighbors of $u$ must be 2, their neighbors 1, and so on. This propagates to the whole component. If we encounter a contradiction (a neighbor already colored with the same color), then the graph is not bipartite.
+If the component is bipartite, there are two possible colorings for the vertices in this component. Let's call them $A$ and $B$. In coloring $A$, a specific node $u$ has color $c$, and in coloring $B$, it has color $3-c$ (since 1 and 2 are the colors).
+To minimize the sequence lexicographically, we need to consider the indices $1, \dots, n$.
+Actually, we don't necessarily fix the color of the "smallest index in the component" first to determine the coloring. We want to minimize the resulting array.
+Wait, the lexicographical comparison compares indices from 1 to $n$. So $s_1$ is the most significant. If we can choose $s_1=1$, we should.
+However, $s_1$ is constrained by its neighbors. If $s_1=1$, then all neighbors of $1$ must be 2, their neighbors 1, etc. This determines the colors for the entire connected component containing 1.
+This suggests a greedy strategy across components.
+But wait, components are independent. The choice of coloring for one component does not affect another.
+So, for each connected component, we have two choices of coloring (if the component is bipartite). Let's say for component $C$, the two possible color assignments for the vertices in $C$ are $P_1$ and $P_2$. Note that $P_2$ is just the bitwise negation of $P_1$ (1 becomes 2, 2 becomes 1).
+We want to pick $P_1$ or $P_2$ such that the contribution to the global sequence is minimized.
+Actually, this isn't quite right. The global sequence is $s_1, s_2, \dots, s_n$.
+If $u$ is the smallest index in component $C$, then if we pick $P_1$ where $s_u=1$, we get $s_u=1$. If we pick $P_2$, we get $s_u=2$. Since we want to minimize the sequence lexicographically, we should prefer the assignment where $s_u=1$ over $s_u=2$.
+Is this always sufficient?
+Yes. Because for any two valid assignments $S$ and $S'$, let $k$ be the first index where they differ. To make the sequence lexicographically smaller, we want $S_k < S'_k$. Since $S_k$ and $S'_k$ can only be 1 or 2, we prefer $S_k=1$.
+If $k$ is the smallest index in its component, then the choice of coloring for the component determines $s_k$. If $k$ is not the smallest index in its component, say $j < k$ is in the same component, then $s_j$ is already determined (because we processed it earlier? No, we don't process components in order of index necessarily, or if we do, we just need to decide for each component).
+Actually, simpler:
+Iterate $i$ from 1 to $n$.
+If $s_i$ is already determined (because $i$ is in a component whose coloring was decided when we visited some $j < i$), we keep it.
+If $s_i$ is not determined, it means $i$ is the first node in its component we have encountered. Since we want to minimize the sequence lexicographically, and $s_i$ is the first element of the sequence contributed by this component, we *must* set $s_i = 1$.
+Wait, is this correct?
+Let's trace.
+We want the sequence $s$ to be lexicographically smallest.
+Suppose we have components $C_1, C_2, \dots$.
+Let $min\_idx(C)$ be the smallest index of a vertex in component $C$.
+For any component, we have two colorings. One results in $s_{min\_idx(C)} = 1$, the other in $s_{min\_idx(C)} = 2$.
+Since we want to minimize the whole array, and $min\_idx(C)$ is an index in the array, having $s_{min\_idx(C)} = 1$ is better than $s_{min\_idx(C)} = 2$ regardless of what happens at other indices?
+Wait. Lexicographical order compares the first differing element.
+Suppose we have two components. Component A has min index 1. Component B has min index 3.
+We decide coloring for A. We can make $s_1=1$ or $s_1=2$. Obviously we choose $s_1=1$. This decision is fixed.
+Then we consider Component B. We can make $s_3=1$ or $s_3=2$. We choose $s_3=1$.
+So it seems for every component, we just enforce that the node with the smallest index in that component gets color 1.
+Let's double check.
+Is it possible that forcing the smallest index in a component to be 1 forces some other index $k > min\_idx(C)$ to be 2, whereas the other coloring would make $k$ be 1?
+Yes. For example, indices 1 and 2 are connected.
+Option 1: $s_1=1 \implies s_2=2$. Sequence contribution: (1, 2).
+Option 2: $s_1=2 \implies s_2=1$. Sequence contribution: (2, 1).
+Comparing (1, 2) and (2, 1), (1, 2) is smaller.
+What if indices are 2 and 3 connected, and 1 is isolated.
+Component {2, 3}. Min index 2.
+Option 1: $s_2=1 \implies s_3=2$.
+Option 2: $s_2=2 \implies s_3=1$.
+We compare global sequence.
+If $s_1=1$ (forced for isolated node).
+Seq 1: 1, 1, 2.
+Seq 2: 1, 2, 1.
+Seq 1 is smaller. So we prefer $s_2=1$.
+It seems the logic holds: for each connected component, we look at the node with the smallest index $u$ in that component. We must set $s_u = 1$. Why?
+Because $u$ is the first index in the array where this component contributes a value. Any decision about $s_u$ happens "before" any decisions about other nodes in the component (since their indices are $> u$). And decisions in other components with min index $> u$ don't affect $s_u$.
+Wait, what if we have a component with min index $u$, and we have another component with min index $v > u$. The choice for $v$ doesn't affect $s_u$. The choice for $u$ doesn't affect $v$. So we can optimize each component independently.
+For a specific component, let the set of indices be $I$. We want to choose coloring $C \in \{ \text{coloring}_1, \text{coloring}_2 \}$ to minimize the subsequence $(s_i)_{i \in I}$? No, that's not how lexicographical comparison works.
+Lexicographical comparison compares $(s_1, s_2, \dots, s_n)$.
+When comparing two candidates $S$ and $S'$, we find the first index $i$ where $S_i \neq S'_i$.
+If we iterate through components in increasing order of their minimum index, say $C_1, C_2, \dots$ with min indices $m_1 < m_2 < \dots$.
+The values $s_i$ for $i \in C_1$ are determined by the choice for $C_1$. Since $m_1$ is the smallest index overall (or at least smaller than any index in $C_2, \dots$), the value $s_{m_1}$ is the most significant bit among all decisions.
+Wait, this is only true if $m_1=1$.
+If $m_1 > 1$, then indices $1, \dots, m_1-1$ belong to some other components processed before? No.
+Let's sort components by their minimum index. Let the sorted min indices be $idx_1 < idx_2 < \dots$.
+Actually, the set of indices $\{1, \dots, n\}$ is partitioned into components.
+Let's just run a traversal (BFS/DFS) to find components.
+We can iterate $i$ from 1 to $n$. If $i$ has not been visited, it is the start of a new component (specifically, it's the smallest index in that component because we iterate 1 to $n$).
+For this component, we must decide the coloring.
+We have two choices. Let's say we pick color 1 for $i$. This propagates to the whole component.
+Is it possible that picking color 2 for $i$ leads to a lexicographically smaller sequence?
+Suppose we pick color 1 for $i$. Then $s_i = 1$.
+If we pick color 2 for $i$, then $s_i = 2$.
+Since $s_i$ is the value at index $i$, and we want to minimize the sequence lexicographically, we prefer $s_i=1$ over $s_i=2$.
+Is it possible that $s_i$ is NOT the first index where the two sequences differ?
+Consider two colorings for the component $C$. Let the colorings be $A$ and $B$.
+In $A$, $s_i = 1$. In $B$, $s_i = 2$. (Since $i$ is the root of our traversal, if we fix $s_i$, the whole component is fixed. If $s_i=1$ leads to valid coloring, $s_i=2$ leads to valid coloring (just swapped colors). So both are valid if the component is bipartite).
+So we have two valid global sequences $S_A$ and $S_B$.
+$S_A$ has $s_i = 1$. $S_B$ has $s_i = 2$.
+For any $k < i$, $s_k$ is determined by components with min index $< i$. Since $i$ is the min index of the current component, no other component has indices smaller than $i$?
+Wait.
+Let the components be $C_1, C_2, \dots$.
+Let $min(C_j)$ be the minimum index in component $C_j$.
+If we process components in increasing order of $min(C_j)$, then when we are at component $C$ with $min(C) = k$, we have already fixed the colors for all indices $< k$.
+Wait, this is not true.
+Example: $1$ and $2$ are in component $C_1$. $min(C_1) = 1$.
+$3$ is in component $C_2$. $min(C_2) = 3$.
+We process $C_1$ first (since $1 < 3$). We choose coloring for $C_1$.
+We have choice $s_1=1$ or $s_1=2$.
+If $s_1=1$, sequence starts $1, \dots$.
+If $s_1=2$, sequence starts $2, \dots$.
+Obviously $1, \dots$ is smaller. So we pick $s_1=1$.
+Then we process $C_2$. We have choice $s_3=1$ or $s_3=2$.
+We pick $s_3=1$.
+This logic holds if the indices in $C_1$ are all smaller than indices in $C_2$. But they aren't necessarily.
+However, we only care about the *first* index where the sequences differ.
+Let's assume we have two valid assignments $S$ and $S'$.
+Let $k$ be the smallest index such that $S_k \neq S'_k$.
+If $k$ belongs to component $C$, then for any other component $C'$, the assignment is the same (because components are independent).
+So at index $k$, we have $S_k \neq S'_k$.
+Within component $C$, there are only two valid colorings. Let's call them $c_1$ and $c_2$.
+In $c_1$, $s_k$ has some value $v$. In $c_2$, $s_k$ has value $3-v$.
+If we choose $c_1$ and $S_k=v$, and we choose $c_2$ and $S'_k=3-v$.
+To minimize the sequence, we compare $v$ and $3-v$. Since values are 1 and 2, we prefer 1.
+So for any index $k$, if it is the *first* index where a decision matters, we want to assign it 1.
+The "first index where a decision matters" for a component $C$ is simply $min(C)$.
+Why?
+Suppose we have two valid assignments $S$ and $S'$ that differ only within component $C$.
+Then $S_k = S'_k$ for all $k \notin C$.
+Also for $k \in C$, the assignments are completely determined by the choice of coloring for $C$.
+So $S$ corresponds to one coloring of $C$, $S'$ to the other.
+Let $k_{min} = min(C)$.
+In one coloring, $s_{k_{min}} = 1$. In the other, $s_{k_{min}} = 2$.
+So the first index where $S$ and $S'$ can differ is $k_{min}$.
+Since we want the lexicographically smallest sequence, we compare the sequences at index $k_{min}$. We prefer 1.
+So yes, the strategy is:
+1. Find connected components.
+2. For each component, check if it is bipartite. If not, output NO.
+3. For each component, let $u$ be the node with the smallest index. Assign $s_u = 1$. Propagate this to the rest of the component (neighbors get 2, their neighbors 1, etc.).
+4. If any propagation fails (conflict), output NO.
+5. Otherwise, construct the sequence and output YES and the sequence.
+
+Wait, is it possible that for a component, $min(C)$ is not the only constraint?
+Suppose $C = \{1, 3\}$. $1$ and $3$ are connected. $min(C)=1$.
+We set $s_1=1 \implies s_3=2$.
+Is there any other valid assignment? $s_1=2 \implies s_3=1$.
+Sequence 1: $1, \dots, 2$. Sequence 2: $2, \dots, 1$.
+Comparing at index 1: $1 < 2$. So Sequence 1 is better.
+Suppose $C = \{2, 3\}$. $min(C)=2$.
+We set $s_2=1 \implies s_3=2$.
+Other option: $s_2=2 \implies s_3=1$.
+Comparing at index 2: $1 < 2$. So $s_2=1$ is better.
+It seems my logic holds. The node with the smallest index in the component dictates the choice because it appears earlier in the array than any other node in the component. Since components are disjoint, decisions for different components don't interfere, but the relative order of indices determines which component's decision comes first in the lexicographical comparison.
+Actually, wait.
+We have multiple components.
+Let $C_1, C_2$ be two components.
+Suppose $min(C_1) < min(C_2)$.
+Does the choice of coloring for $C_1$ affect the validity or optimality of $C_2$? No, they are independent.
+Does the choice of coloring for $C_2$ affect the choice for $C_1$? No.
+But does the choice for $C_1$ affect the lexicographical comparison against $C_2$?
+No, because indices in $C_1$ (specifically $min(C_1)$) are smaller than indices in $C_2$ (specifically $min(C_2)$).
+Wait, this assumes $min(C_1)$ is smaller than $min(C_2)$.
+But what if there are indices in $C_2$ that are smaller than indices in $C_1$?
+By definition, $min(C)$ is the smallest index in $C$.
+So if $min(C_1) < min(C_2)$, then all indices in $C_1$ are not necessarily smaller than all in $C_2$, but the *first* index where we encounter a decision for $C_1$ is smaller than the *first* index where we encounter a decision for $C_2$.
+Wait, this is slightly subtle.
+We are constructing a sequence $s_1, \dots, s_n$.
+We want to minimize this sequence.
+We can iterate $i$ from 1 to $n$.
+If $s_i$ is not yet assigned, it means $i$ is the smallest index in its component $C$.
+Why? Because if $i$ was in a component where we already visited some $j < i$, then $s_i$ would have been assigned when we visited $j$.
+So if $s_i$ is unassigned, $i$ is indeed $min(C)$.
+At this point, we are at the first index of the array where component $C$ has a value.
+For this component, we have two choices for the coloring.
+Option 1: $s_i = 1$. This forces the colors of all other nodes in $C$.
+Option 2: $s_i = 2$. This forces the colors of all other nodes in $C$.
+Since $i$ is the *first* index in the array where these two options differ (because for $k < i$, $s_k$ is determined by components with $min(C') < i$), we must choose the option that gives $s_i = 1$.
+This confirms the strategy: Iterate $i$ from 1 to $n$. If $i$ is unvisited, start a BFS/DFS from $i$ to find the component. Assign $s_i = 1$. For every edge $(u, v)$ encountered during traversal, assign $s_v = 3 - s_u$. If we encounter a node $v$ that is already assigned and $s_v = s_u$, then the graph is not bipartite -> NO.
+After processing all components, if no conflict found, output YES and the array.
+
+Algorithm:
+1. Read $n, m$.
+2. Build adjacency list `adj`.
+3. Initialize `color` array of size $n+1$ with 0 (unvisited).
+4. Loop `i` from 1 to $n$:
+    a. If `color[i]` is 0:
+        i. Set `color[i] = 1`.
+        ii. Perform BFS/DFS starting at `i` to traverse the component.
+            - For each neighbor `v` of current node `u`:
+                - If `color[v]` is 0:
+                    - `color[v] = 3 - color[u]`
+                    - Add `v` to queue/stack.
+                - Else if `color[v] == color[u]`:
+                    - Return "NO".
+5. If loop completes without conflict, print "YES".
+6. Print `color[1]` to `color[n]` separated by spaces.
+
+Complexity:
+Building graph: $O(N + M)$.
+Traversal: Each node and edge visited once. $O(N + M)$.
+Total Time: $O(N + M)$.
+Space: $O(N + M)$ for graph and storage.
+Constraints: $N, M \le 2 \cdot 10^5$. Time limit 1s. Python should be fast enough if implemented efficiently.
+Recursion limit for DFS might be an issue in Python. $N=200,000$. Default recursion limit is usually 1000. Need to increase it or use iterative BFS/DFS.
+Iterative BFS with `collections.deque` is safer and easy to implement.
+
+Let's double check the constraints and potential pitfalls.
+$m=0$: Output YES and 1 1 ... 1. My logic: loop 1 to n, color[i]=1 (since unvisited), queue empty, loop finishes. Correct.
+Disconnected graph: Handled by outer loop 1 to n.
+Odd cycle: Detected by `color[v] == color[u]`. Correct.
+Lexicographically smallest: Handled by prioritizing `color[i]=1` for the first unvisited node. Correct.
+
+Example 1:
+4 4
+1 2
+2 3
+3 4
+1 4
+Adj: 1:[2,4], 2:[1,3], 3:[2,4], 4:[3,1]
+i=1: color[1]=0 -> set color[1]=1. Q=[1].
+  Pop 1. Neighbors 2, 4.
+  color[2]=0 -> color[2]=2. Q=[2, 4].
+  color[4]=0 -> color[4]=2. Q=[2, 4].
+  Pop 2. Neighbors 1, 3.
+  1: color[1]=1 != color[2]=2. OK.
+  3: color[3]=0 -> color[3]=1. Q=[4, 3].
+  Pop 4. Neighbors 3, 1.
+  3: color[3]=1 != color[4]=2. OK.
+  1: color[1]=1 != color[4]=2. OK.
+  Pop 3. Neighbors 2, 4.
+  2: color[2]=2 != color[3]=1. OK.
+  4: color[4]=2 != color[3]=1. OK.
+Loop continues. i=2,3,4 are colored.
+Result: 1 2 1 2. Correct.
+
+Example 2:
+3 3
+1 2
+1 3
+2 3
+Adj: 1:[2,3], 2:[1,3], 3:[1,2]
+i=1: color[1]=1. Q=[1].
+  Pop 1. Neighbors 2, 3.
+  color[2]=2. Q=[2, 3].
+  color[3]=2. Q=[2, 3].
+  Pop 2. Neighbors 1, 3.
+  1: OK.
+  3: color[3]=2. color[2]=2. Conflict! Return NO.
+Correct.
+
+Corner case: $n=1, m=0$.
+i=1: color[1]=1. Output YES 1. Correct.
+
+Corner case: large $n$, chain.
+1-2-3-4...
+Works fine.
+
+Corner case: large $n$, star.
+1 connected to 2..n.
+Works fine.
+
+Input reading:
+Use `sys.stdin.read().split()` to read all tokens at once. This is faster than `input()` loop.
+Integers parsing.
+
+Implementation details:
+`sys.setrecursionlimit` is not needed if using BFS with deque.
+Use `collections.deque`.
+Output formatting: `print(*(color[1:]))`.
+
+Wait, just to be absolutely sure about the "lexicographically smallest" logic.
+Is there any case where setting `color[i]=1` (where `i` is the first unvisited node) forces a subsequent node `j` (where `j > i`) to be `2`, whereas setting `color[i]=2` would allow `color[j]=1`, and somehow the sequence with `color[i]=2` and `color[j]=1` is smaller?
+Sequence 1: `... 1 ... 2 ...` (at indices `i` and `j`)
+Sequence 2: `... 2 ... 1 ...` (at indices `i` and `j`)
+Comparing lexicographically, the first difference is at index `i`.
+Seq 1 has 1 at `i`. Seq 2 has 2 at `i`.
+Since $1 < 2$, Seq 1 is smaller.
+The only way Seq 2 could be smaller is if the difference occurred at an index $k < i$.
+But $i$ is the first unvisited node, so for all $k < i$, $s_k$ is already fixed by previous components.
+Since we process components in order of their smallest index, the decisions made for previous components are immutable with respect to the current component.
+Wait, "processing components in order of their smallest index" is implicit in the loop `for i in range(1, n+1)`.
+When we are at `i`, if `color[i]` is 0, it means no node $k < i$ is in the same component as `i`.
+Why? If there was a node $k < i$ in the same component, it would have been visited when the loop reached $k$ (since $k$ would also be 0 at that time, triggering a component traversal covering `i`).
+So yes, `i` is indeed the smallest index in its component.
+Therefore, `i` is the first index in the sequence where this component's values appear.
+To minimize the sequence, we must minimize the value at the first differing position.
+Thus, we must set `color[i]=1`.
+The logic holds solid.
+
+Wait, one edge case.
+What if the component is just a single node?
+Then $i$ is the only node.
+Set $s_i=1$.
+If we set $s_i=2$, sequence would be worse at index $i$.
+So yes, always 1.
+
+What if the component has nodes $i, j$ ($i < j$) with edge $(i, j)$.
+We set $s_i=1 \implies s_j=2$.
+Seq: ..., 1, ..., 2.
+Other option: $s_i=2 \implies s_j=1$.
+Seq: ..., 2, ..., 1.
+Diff at $i$. $1 < 2$. So first option is better.
+What if they are not connected? Then they belong to different components.
+If they are in same component, edges force constraints.
+The logic seems robust.
+
+Wait, is it possible that for some component, the valid colorings are not just "1 at min" and "2 at min"?
+For a bipartite component, the coloring is unique up to swapping colors 1 and 2.
+So yes, there are exactly two valid colorings (if connected and non-empty).
+One has $s_{min} = 1$, the other has $s_{min} = 2$.
+So we just pick the one with $s_{min} = 1$.
+
+The code structure:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    color = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            q = deque([i])
+            while q:
+                u = q.popleft()
+                c = color[u]
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - c
+                        q.append(v)
+                    elif color[v] == c:
+                        print("NO")
+                        return
+
+    print("YES")
+    print(*(color[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, `sys.setrecursionlimit` is not needed since I used `deque`.
+Memory usage: `adj` takes $O(M)$ space. `color` takes $O(N)$. `input_data` takes $O(M)$ roughly.
+With $N, M = 2 \cdot 10^5$, this is well within 256 MB.
+Time complexity: $O(N+M)$ for reading and BFS. Python should handle $2 \cdot 10^5$ in 1s easily.
+The `input().split()` might be slow if the input is huge, but `sys.stdin.read().split()` is the standard fast I/O in Python.
+The `iterator` approach avoids creating intermediate lists for lines.
+
+One small check: Is it possible `m=0`? The loop `range(m)` will just not execute. `adj` will be empty lists. The logic works.
+Is it possible `n=1`? Loop `range(1, 2)` runs once. `color[1]=1`. Output `YES \n 1`. Correct.
+
+Wait, the problem statement says "Read from standard input, write to standard output."
+The format is strict.
+"NO" or "YES" followed by array.
+My code prints "NO" and returns.
+My code prints "YES" then array.
+The space separated integers part: `print(*(color[1:]))` does exactly that (space separated).
+
+Double check the problem constraints again.
+$1 \le n \le 2 \cdot 10^5$.
+$0 \le m \le 2 \cdot 10^5$.
+Time limit 1s.
+Memory limit 256 MB.
+Python 3.
+
+One optimization: `sys.stdin.read().split()` creates a list of all strings. For $4 \cdot 10^5$ integers, this list is manageable.
+Memory for list of strings: each string object + overhead.
+In Python, a list of $4 \cdot 10^5$ strings might take around 20-30 MB. The integers list `adj` takes more.
+Total memory should be fine.
+
+Let's double check if there are any other constraints or tricky cases.
+"lexicographically smallest valid assignment sequence".
+I'm confident in the greedy strategy per component based on the smallest index.
+
+Just to be pedantic, let's verify if `sys.stdin.read().split()` works if there are empty lines or weird whitespace. `split()` without arguments splits by any whitespace run, so it handles newlines and spaces correctly.
+The input format says:
+First line: n m
+Next m lines: u v
+This is standard.
+
+One minor thing: `print(*(color[1:]))` creates a tuple of arguments which might be slightly memory intensive for very large $N$.
+$N=200,000$. A tuple of 200,000 integers is fine.
+However, constructing the string might be slow.
+`sys.stdout.write(' '.join(map(str, color[1:])) + '\n')` is often faster.
+Given 1s time limit, standard `print` is usually okay, but `join` is safer for large outputs.
+Let's use `sys.stdout.write`.
+
+Wait, `color[1:]` creates a copy. `color` is size $200000$. Copying is fast.
+Mapping to string is $O(N)$. Joining is $O(N)$.
+Printing is $O(N)$.
+This is efficient.
+
+One more check on the logic.
+Is it possible that the graph is not connected, and for some component, the "lexicographically smallest" logic requires us to look ahead?
+No, because components are independent.
+The overall sequence is the concatenation of decisions.
+Since we iterate $i$ from 1 to $n$, we are effectively deciding the value of $s_i$ based on whether it's the first time we see its component.
+If $i$ is already colored, $s_i$ is fixed.
+If $i$ is not colored, it's the first time we see its component. We must choose the coloring that puts 1 at $i$.
+Is there any scenario where placing 1 at $i$ forces a later index $j$ to be 2, but placing 2 at $i$ allows $j$ to be 1, AND placing 2 at $i$ somehow makes the sequence smaller?
+Lexicographical comparison compares from left to right.
+If $s_i$ differs, the value at $i$ determines the order.
+Since $i$ is the index in the sequence, and $i$ is smaller than any other index in the component (because we iterate $1..n$ and pick unvisited), $s_i$ is the most significant difference between the two possible colorings of this component.
+So we must minimize $s_i$. $1 < 2$. So we pick 1.
+This logic is sound.
+
+Wait, what if $i$ is NOT the smallest index in the component?
+Suppose component is $\{2, 5\}$.
+We iterate $i=1$. Not in component.
+$i=2$. In component. `color[2]=0`.
+We set `color[2]=1`.
+This propagates to 5. `color[5]=2`.
+This is the first time we touch this component. 2 is the smallest index in $\{2, 5\}$.
+So my logic "Iterate 1 to n, if not visited, it is min index" holds.
+Because if there was a smaller index in the component, it would have been visited in an earlier iteration.
+So yes, `i` is always `min(C)` when we enter the if block.
+
+Final check on imports and structure.
+Standard competitive programming template.
+
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case, though we use iterative BFS
+sys.setrecursionlimit(200005)
+
+def main():
+    # Fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    # Process each component
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start BFS for this component
+            color[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_c = color[u]
+                next_c = 3 - current_c
+                
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = next_c
+                        queue.append(v)
+                    elif color[v] != next_c:
+                        # Conflict found
+                        print("NO")
+                        return
+
+    # If we reach here, a valid assignment exists
+    print("YES")
+    # Output the sequence
+    # Convert to string for fast output
+    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == '__main__':
+    main()
+```
+The logic `elif color[v] != next_c:` covers `color[v] == current_c` because `next_c` is `3 - current_c` (1 or 2).
+If `color[v]` is set, it must be either 1 or 2.
+If `color[v] == next_c`, it's consistent (neighbor gets opposite color).
+If `color[v] != next_c`, then `color[v]` must be `current_c` (since only 1 and 2 are possible).
+So `color[v] == current_c` is the conflict.
+The code handles this correctly.
+
+One detail: `sys.setrecursionlimit` is not needed for iterative solution, but harmless.
+The constraints are $2 \cdot 10^5$.
+The `iterator` logic is robust.
+The memory limit 256 MB is plenty for this.
+Time limit 1s is tight for Python but $O(N+M)$ should pass.
+Using `sys.stdin.read` is crucial.
+
+One small thing: `map(str, color[1:])` creates an iterator, `join` consumes it. This is efficient.
+Wait, `color` contains 0s?
+No, the loop `for i in range(1, n + 1)` ensures that every index $1 \dots n$ is visited because we iterate through all nodes. If a node is unvisited, we start a BFS. So `color` will be fully populated with 1 or 2.
+Wait, what if the graph has nodes that are not connected to anything?
+The outer loop `for i in range(1, n+1)` catches them. `if color[i] == 0` will be true. `color[i] = 1`. Loop finishes.
+So `color` will be fully filled.
+
+The code looks good.
+
+Double check: "Output only a single Python 3 code block and nothing else".
+I will wrap the code in the block.
+
+One final check on constraints:
+$N, M$ up to $200,000$.
+Input reading: `sys.stdin.read().split()` creates a list of strings.
+Memory for list of $400,000$ strings.
+Each string is small.
+Python overhead per object is around 50 bytes.
+$400,000 \times 50 \approx 20$ MB.
+List pointers: $400,000 \times 8 \approx 3.2$ MB.
+Integers in `adj`: $2 \times 200,000$ integers in lists.
+Total memory usage well under 256 MB.
+
+Speed:
+Splitting string: Fast.
+Iterating and converting to int: Fast.
+Building Adj: $O(M)$ appends.
+BFS: $O(N+M)$.
+Output: $O(N)$.
+Total operations roughly $10^6 \sim 10^7$. Python can do $\sim 10^8$ simple ops per second.
+Should be fine.
+
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case, though we use iterative BFS
+sys.setrecursionlimit(300000)
+
+def main():
+    # Fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 = unvisited, 1 = Period 1, 2 = Period 2
+    color = [0] * (n + 1)
+    
+    # Iterate through all nodes to handle disconnected components
+    # We want the lexicographically smallest sequence, so for each component,
+    # we want the node with the smallest index to have color 1.
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # This node i is the smallest index in its component
+            # because we iterate in increasing order and only process unvisited nodes.
+            # To ensure lexicographically smallest sequence, set color[i] = 1.
+            color[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_c = color[u]
+                next_c = 3 - current_c
+                
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = next_c
+                        queue.append(v)
+                    elif color[v] != next_c:
+                        # Conflict: neighbor has the same color as current node
+                        print("NO")
+                        return
+
+    # If we reach here, a valid assignment exists
+    print("YES")
+    # Output the sequence
+    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == '__main__':
+    main()
+```
+Looks complete.
+
+One edge case to consider: $N$ is large, $M=0$.
+Loop runs $N$ times. Each time `color[i]=1`. Queue empty.
+Prints $N$ ones. Correct.
+
+Another edge case: $N=2, M=1$, 1-2.
+i=1: color[1]=1. Q=[1]. Pop 1. Neighbor 2. color[2]=2. Q=[2]. Pop 2. Neighbor 1. color[1]=1 != 2. OK.
+i=2: color[2] is 2. Skip.
+Output: YES \n 1 2.
+Correct.
+
+Another: $N=3, M=2$, 1-2, 2-3.
+i=1: color[1]=1.
+  Q=[1]. Pop 1.
+  2: color[2]=2. Q=[2].
+  Pop 2.
+  1: OK.
+  3: color[3]=1. Q=[3].
+  Pop 3.
+  2: OK.
+Output: YES \n 1 2 1.
+Lexicographically smallest?
+Valid: 1 2 1, 2 1 2.
+1 2 1 < 2 1 2. Correct.
+
+The solution seems solid.
+
+One tiny thing: The problem says "Return only one Python 3 code block."
+I will provide only the code block.
+
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case, though we use iterative BFS
+sys.setrecursionlimit(300000)
+
+def main():
+    # Fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 = unvisited, 1 = Period 1, 2 = Period 2
+    color = [0] * (n + 1)
+    
+    # Iterate through all nodes to handle disconnected components
+    # We want the lexicographically smallest sequence, so for each component,
+    # we want the node with the smallest index to have color 1.
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # This node i is the smallest index in its component
+            # because we iterate in increasing order and only process unvisited nodes.
+            # To ensure lexicographically smallest sequence, set color[i] = 1.
+            color[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_c = color[u]
+                next_c = 3 - current_c
+                
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = next_c
+                        queue.append(v)
+                    elif color[v] != next_c:
+                        # Conflict: neighbor has the same color as current node
+                        print("NO")
+                        return
+
+    # If we reach here, a valid assignment exists
+    print("YES")
+    # Output the sequence
+    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == '__main__':
+    main()
+```
+The solution is ready.
+
+Wait, I should check if `sys.setrecursionlimit` is allowed/needed. It's not needed for iterative, but keeping it doesn't hurt. I'll remove it to be cleaner since I'm using `deque`.
+
+Also, `input_data` might be empty. `if not input_data: return` handles it.
+The try-except block handles malformed input end (though problem guarantees valid input format).
+
+One detail: `sys.stdout.write` expects a string. `map` returns iterator in Python 3. `join` consumes it. This is correct.
+
+Final Code Structure:
+```python
+import sys
+from collections import deque
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            queue = deque([i])
+            while queue:
+                u = queue.popleft()
+                c = color[u]
+                next_c = 3 - c
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = next_c
+                        queue.append(v)
+                    elif color[v] == c:
+                        print("NO")
+                        return
+
+    print("YES")
+    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == '__main__':
+    main()
+```
+In the loop `elif color[v] == c:`, I simplified the condition.
+Previously I had `elif color[v] != next_c`.
+Since `next_c = 3 - c`, `color[v] != next_c` implies `color[v] == c` (since `color[v]` must be 1 or 2 if it's not 0).
+So `elif color[v] == c` is equivalent and slightly clearer.
+Wait, if `color[v]` is 0, it enters the first `if`.
+If `color[v]` is not 0, it must be 1 or 2.
+If `color[v] == next_c`, it's valid (no conflict).
+If `color[v] != next_c`, then `color[v]` must be `c` (since `c != next_c`).
+So `elif color[v] == c` is correct.
+Wait, is it possible `color[v]` is 3? No.
+So logic holds.
+
+One minor optimization: `adj` list creation.
+`adj = [[] for _ in range(n + 1)]` is fine.
+The rest is standard.
+
+I will remove the comments to keep it clean, or keep them for clarity? The instruction says "Output only the answer in the exact format specified." and "Return only one Python 3 code block."
+Comments are fine inside the code block. I'll keep them minimal.
+
+One check: The `try-except` block might hide errors if input is truncated unexpectedly, but for competitive programming, input is assumed to follow specification. `next(iterator)` will raise `StopIteration` if data is missing. The `try-except` is good practice.
+
+Final check on memory limit. 256MB.
+Python integers are objects (28 bytes).
+List of lists.
+List of `200,000` lists.
+Each list has average degree $2M/N = 2$.
+So total integers in lists $\approx 400,000$.
+$400,000 \times 28 \approx 11$ MB.
+List overhead.
+Total memory usage is very safe.
+
+Time limit 1s.
+Python `sys.stdin.read` is very fast.
+BFS is linear.
+Should pass.
+
+```python
+import sys
+from collections import deque
+
+def main():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 = unvisited, 1 = Period 1, 2 = Period 2
+    color = [0] * (n + 1)
+    
+    # Iterate through nodes 1 to n to ensure we find the lexicographically smallest assignment
+    # For each component, the first node encountered (smallest index) determines the coloring
+    # to minimize the sequence (by setting it to 1).
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_c = color[u]
+                next_c = 3 - current_c
+                
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = next_c
+                        queue.append(v)
+                    elif color[v] == current_c:
+                        print("NO")
+                        return
+
+    print("YES")
+    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == '__main__':
+    main()
+```
+This looks perfect.
+
+One check: is `deque` available in `collections`? Yes.
+Is `sys` imported? Yes.
+Is indentation correct? Yes.
+Are variables named correctly? Yes.
+Is range correct? `range(1, n + 1)` covers 1 to n. `color` size `n + 1`.
+Is output format correct? `YES` then newline then space separated numbers.
+Wait, `sys.stdout.write` writes the string. `print("YES")` writes "YES\n".
+So output will be:
+YES\n
+1 2 1 2\n
+This matches the requirement.
+Wait, example output:
+YES
+1 2 1 2
+My code:
+YES
+1 2 1 2
+(with newline at end).
+Usually trailing newline is expected/ignored.
+The example output doesn't explicitly show the trailing newline but it's standard.
+My `print("YES")` adds a newline.
+My `sys.stdout.write` adds a newline at the end.
+So it will be:
+YES
+1 2 1 2
+(newline)
+This is correct.
+
+I am ready.
+
+One last check on edge case: $N=1, M=0$.
+Input:
+1 0
+Output:
+YES
+1
+My code:
+n=1, m=0.
+adj[1] = [].
+i=1: color[1]=0 -> color[1]=1. Q=[1]. While loop: pop 1, adj[1] empty.
+Loop ends.
+Print YES.
+Print color[1] -> "1".
+Correct.
+
+Double check Example 2:
+3 3
+1 2
+1 3
+2 3
+Output:
+NO
+My code:
+i=1: color[1]=1. Q=[1].
+Pop 1. Neighbors 2, 3.
+color[2]=2. Q=[2].
+color[3]=2. Q=[2, 3].
+Pop 2. Neighbors 1, 3.
+1: color[1]=1 != 2. OK.
+3: color[3]=2 == 2. Conflict. Print NO. Return.
+Correct.
+
+The solution is verified.
+
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case, though we use iterative BFS
+sys.setrecursionlimit(300000)
+
+def main():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 = unvisited, 1 = Period 1, 2 = Period 2
+    color = [0] * (n + 1)
+    
+    # Iterate through nodes 1 to n to ensure we find the lexicographically smallest assignment
+    # For each component, the first node encountered (smallest index) determines the coloring
+    # to minimize the sequence (by setting it to 1).
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_c = color[u]
+                next_c = 3 - current_c
+                
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = next_c
+                        queue.append(v)
+                    elif color[v] == current_c:
+                        print("NO")
+                        return
+
+    print("YES")
+    sys.stdout.write(' '.join(map(str, color[1:])) + '\n')
+
+if __name__ == '__main__':
+    main()
+```
+The `sys.setrecursionlimit` is not needed since I'm not using recursion, but I will leave it out to keep the code clean as requested (only necessary imports and logic).
+Actually, I'll keep it out. It's not needed.
+
+Wait, I should check if `sys.stdin.read` works well with large inputs on all platforms. Yes, it's standard.
+I'm confident.
+
+One detail: `sys.setrecursionlimit` is often included in templates. I'll omit it since I'm using iterative BFS.
+
+Final check of the code for any syntax errors.
+`map(str, color[1:])` -> `color` is list of ints. `str` converts to string. `join` joins with space. `write` writes string.
+`queue` is deque.
+`adj` is list of lists.
+Everything looks syntactically correct.
+
+One minor point: `if not input_data: return` handles empty input.
+The constraints say $1 \le n$. So input will not be empty.
+The `try-except` block handles incomplete input gracefully.
+
+I will formulate the response now.

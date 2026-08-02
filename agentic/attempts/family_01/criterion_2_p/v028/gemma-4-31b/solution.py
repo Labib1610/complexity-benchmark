@@ -1,0 +1,70 @@
+import sys
+
+# Increase recursion depth for deep DFS in connected components
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    # color[i] = 0: unvisited, 1: channel 1, 2: channel 2
+    color = [0] * (n + 1)
+    
+    # To find the lexicographically smallest assignment, we iterate through 
+    # sensors from 1 to n. For each unvisited sensor, we start a BFS/DFS.
+    # Since we want lexicographically smallest, we always try to assign '1' 
+    # to the root of the current component.
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start BFS to avoid recursion depth issues and ensure 
+            # we process nodes in a predictable order.
+            # However, to ensure lexicographical smallest, the root MUST be 1.
+            stack = [i]
+            color[i] = 1
+            
+            # Standard BFS/DFS to check bipartiteness
+            # Using a stack for DFS-like traversal
+            visited_in_comp = [i]
+            ptr = 0
+            while ptr < len(visited_in_comp):
+                u = visited_in_comp[ptr]
+                ptr += 1
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        visited_in_comp.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    # The logic above assigns 1 to the root of each component.
+    # Because we iterate i from 1 to n, the first node of every component 
+    # encountered is the smallest index in that component. 
+    # Assigning it '1' is the greedy choice for lexicographical smallest.
+    # However, we must verify if there's any way to make it smaller.
+    # Actually, for a connected component, once the color of one node is fixed, 
+    # all others are determined. 
+    # If we have two choices (root=1 or root=2), root=1 always yields 
+    # a sequence that is lexicographically smaller or equal at the first 
+    # position of the component.
+    
+    print("YES")
+    print(*(color[i] for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

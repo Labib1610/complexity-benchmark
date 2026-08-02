@@ -1,0 +1,45 @@
+def can_assign_tasks(n, m, conflicts):
+    from collections import defaultdict, deque
+
+    graph = defaultdict(list)
+    for u, v in conflicts:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [0] * (n + 1)  # 0 means uncolored, 1/2/3 will represent the cores
+
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 1  # Start coloring with 1
+        while queue:
+            node = queue.popleft()
+            next_color = 1
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:  # If uncolored
+                    while next_color == color[node] or next_color in (color[n] for n in graph[node]):
+                        next_color += 1
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:  # Conflict found
+                    return False
+        return True
+
+    for task in range(1, n + 1):
+        if color[task] == 0:  # Not colored yet
+            if not bfs(task):
+                print("NO")
+                return
+
+    print("YES")
+    print(' '.join(map(str, color[1:n + 1])))
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+first_line = data[0].split()
+n = int(first_line[0])
+m = int(first_line[1])
+conflicts = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+can_assign_tasks(n, m, conflicts)

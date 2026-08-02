@@ -1,0 +1,22 @@
+def find_triplet(n, m, pairs):
+    incompatible = [set() for _ in range(n + 1)]
+    
+    for u, v in pairs:
+        incompatible[u].add(v)
+        incompatible[v].add(u)
+    
+    for a in range(1, n + 1):
+        for b in incompatible[a]:
+            if b > a:
+                for c in incompatible[a].intersection(incompatible[b]):
+                    if c > b:
+                        return a, b, c
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+n, m = map(int, data[0].split())
+pairs = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+a, b, c = find_triplet(n, m, pairs)
+print(a, b, c)

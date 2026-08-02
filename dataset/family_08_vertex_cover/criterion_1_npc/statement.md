@@ -10,7 +10,7 @@ You have a budget of **k** guards. Decide whether **k** guards (placed on juncti
 
 ## Input
 
-The first line contains three integers **n**, **m**, and **k** (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2, 0 ≤ k ≤ 18).
+The first line contains three integers **n**, **m**, and **k** (1 ≤ n ≤ 54, 0 ≤ m ≤ n·(n−1)/2, 0 ≤ k ≤ 18).
 Each of the next **m** lines contains two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v): a corridor between junctions u and v. No corridor is listed twice.
 
 ## Output

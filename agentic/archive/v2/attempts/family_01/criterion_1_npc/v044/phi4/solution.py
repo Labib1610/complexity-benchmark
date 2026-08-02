@@ -1,0 +1,54 @@
+import sys
+from itertools import combinations
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Read conflict pairs
+    conflicts = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        conflicts.append((u, v))
+        index += 2
+    
+    # Create adjacency matrix for conflicts
+    conflict_matrix = [[0] * n for _ in range(n)]
+    for u, v in conflicts:
+        conflict_matrix[u][v] = 1
+        conflict_matrix[v][u] = 1
+
+    def is_valid(assignment):
+        for i in range(n):
+            for j in range(i + 1, n):
+                if conflict_matrix[i][j] == 1 and assignment[i] == assignment[j]:
+                    return False
+        return True
+
+    def backtrack(index, assignment):
+        if index == n:
+            return is_valid(assignment)
+
+        # Try assigning channels 1, 2, 3 in order
+        for channel in range(1, 4):
+            assignment[index] = channel
+            if backtrack(index + 1, assignment):
+                return True
+            assignment[index] = 0
+        
+        return False
+
+    assignment = [0] * n
+    if backtrack(0, assignment):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,2178 @@
+The problem asks us to find the lexicographically smallest triple of servers $(a, b, c)$ such that $1 \le a < b < c \le n$ and there are direct links between $(a, b)$, $(b, c)$, and $(a, c)$. We are given $n$ servers and $m$ edges. It is guaranteed that at least one such triple exists. The constraints are $n \le 2000$ and $m \le 2 \cdot 10^5$.
+
+The problem is essentially finding a triangle in a graph. Since we need the lexicographically smallest triple $(a, b, c)$, we should iterate through possible values of $a$, then $b$, then $c$.
+
+Let's consider the constraints. $N$ is up to 2000. A brute-force check of all triples $(a, b, c)$ would take $O(N^3)$ time, which is roughly $8 \cdot 10^9$ operations, too slow for a 2-second time limit. We need something more efficient, likely $O(N^2)$ or $O(M \sqrt{M})$ or similar.
+
+Since we want the lexicographically smallest triple, we should iterate $a$ from $1$ to $n$. For a fixed $a$, we iterate $b$ from $a+1$ to $n$. If there is an edge between $a$ and $b$, we then look for a $c$ such that $b < c \le n$ and edges $(a, c)$ and $(b, c)$ exist. If we find such a $c$, then $(a, b, c)$ is a valid triple. Since we iterate $a$ and $b$ in increasing order, the first valid $c$ we find for a specific pair $(a, b)$ will be the smallest $c$ for that pair, and since $a$ and $b$ are minimized first, this will be the lexicographically smallest triple overall.
+
+So the algorithm would be:
+1. Store the graph. Since we need to check for edge existence efficiently, an adjacency matrix or adjacency sets would work. Given $N \le 2000$, an adjacency matrix `adj[N+1][N+1]` of booleans takes $2000^2$ bytes $\approx 4$ MB, which is well within the memory limit.
+2. Iterate $a$ from $1$ to $n$.
+3. Iterate $b$ from $a+1$ to $n$.
+4. If there is an edge between $a$ and $b$:
+    5. Iterate $c$ from $b+1$ to $n$.
+    6. If there are edges between $(a, c)$ and $(b, c)$, then we found our answer $(a, b, c)$. Since we iterate in order, this is the lexicographically smallest. Return/Print and exit.
+
+Let's analyze the complexity of this approach.
+In the worst case, we iterate all pairs $(a, b)$ and for each, we iterate all $c > b$.
+This looks like $O(N^3)$ in the worst case (e.g., a complete graph). However, we stop as soon as we find the *first* triangle.
+Wait, if the graph is a complete graph, the first triangle is $(1, 2, 3)$. We check $a=1$, $b=2$, $c=3$. Edge $(1,2)$ exists, edge $(1,3)$ exists, edge $(2,3)$ exists. Found immediately.
+The worst case is when the lexicographically smallest triangle has large indices, or when there are many pairs $(a, b)$ connected but no triangle involving them, and we have to scan all $c$.
+
+Let's refine the complexity.
+The algorithm is:
+```python
+for a in range(1, n + 1):
+    for b in range(a + 1, n + 1):
+        if adj[a][b]:
+            for c in range(b + 1, n + 1):
+                if adj[a][c] and adj[b][c]:
+                    print(a, b, c)
+                    return
+```
+The condition `adj[a][b]` means we only enter the inner loop if $(a, b)$ is an edge.
+So the complexity is roughly $\sum_{(a, b) \in E} (n - b)$.
+In the worst case (dense graph), this could be close to $O(N^3)$.
+However, we need to find *the* lexicographically smallest triple.
+Is it possible to optimize?
+We are looking for the smallest $a$, then smallest $b$, then smallest $c$.
+The condition is finding $a < b < c$ such that $a \sim b, b \sim c, a \sim c$.
+We can iterate $a$ from $1$ to $n$.
+For a fixed $a$, we want the smallest $b > a$ such that $a \sim b$ and there exists $c > b$ with $a \sim c$ and $b \sim c$.
+Actually, simply iterating $c$ from $b+1$ to $n$ is fine if we find such a $c$. But wait, if we iterate $a$, then $b$, then $c$, we are guaranteed to find the smallest triple?
+Yes, because the loops are ordered: $a$ is minimized first, then $b$, then $c$. The first time the condition is met, we have the minimal $a$, then minimal $b$ for that $a$, then minimal $c$ for that $a, b$. Since we want to minimize $a$, then $b$, then $c$, this order works perfectly.
+
+However, the $O(N^3)$ concern remains. With $N=2000$, $N^3/6 \approx 1.33 \cdot 10^9$ ops. In Python, this might be too slow (limit is usually $\sim 10^7-10^8$ ops per second).
+We need to be careful. Is there a case where we scan a lot?
+Suppose the graph is a star graph with center $n$ and leaves $1, \dots, n-1$. No triangles. But the problem guarantees at least one triangle exists.
+Consider a graph with a "long" path of non-triangle edges followed by a triangle at the very end.
+Or a graph where the first triangle is $(n-2, n-1, n)$.
+In that case, we will iterate $a$ from 1 to $n-2$. For each $a$, we iterate $b$ from $a+1$ to $n-1$. If $(a, b)$ is an edge, we scan $c$.
+If the edges form a structure where many pairs $(a, b)$ are connected but share no common neighbor $c > b$, we pay the cost.
+Actually, if the edges are sparse, $M$ is small, so it's fast. If edges are dense, triangles are likely to appear early.
+The worst case for this specific algorithm is when there are many edges but no small triangles.
+However, $M \le 2 \cdot 10^5$. The number of edges is limited.
+The loop structure is:
+```python
+for a in range(1, n + 1):
+    for b in neighbors(a) such that b > a:
+        for c in neighbors(a) such that c > b:
+            if c in neighbors(b):
+                return a, b, c
+```
+Wait, iterating neighbors is better than iterating all $c$.
+Let's rewrite the loops using adjacency lists (or sets).
+Sort adjacency lists to ensure $u < v$ handling is consistent or simply check conditions.
+Let's store adjacency list `adj[u]` containing all neighbors $v$ of $u$.
+Algorithm:
+1. Build adjacency list. To check edge existence in $O(1)$, maybe keep an adjacency matrix or set of edges. Since $N=2000$, adjacency matrix `adj_mat[u][v]` is fast.
+   Also adjacency list `adj[u]` sorted is useful.
+   Actually, for each $a$, we iterate $b \in \text{adj}[a]$ with $b > a$.
+   Then we need to find $c \in \text{adj}[a] \cap \text{adj}[b]$ with $c > b$.
+   If we have sorted adjacency lists, we can iterate through the list `adj[a]` and `adj[b]` to find intersection, or just iterate `adj[a]` and check membership in `adj[b]`.
+   
+   Let's refine:
+   Iterate $a$ from 1 to $n$.
+   Iterate $b$ in `adj[a]` where $b > a$.
+   Iterate $c$ in `adj[a]` where $c > b$.
+   Check if $c$ is in `adj[b]`.
+   
+   Complexity: $\sum_{a} \sum_{b \in \text{adj}[a], b>a} \text{degree}(a)$.
+   This is bounded by $\sum_{a} \text{degree}(a)^2$.
+   In worst case (star graph), $\sum d_i^2 \approx (n-1)^2$.
+   In complete graph, $\sum n^2 = n^3$.
+   Wait, if it's a complete graph, we find triangle immediately at $(1, 2, 3)$.
+   The worst case is when we check many pairs $(a, b)$ but fail to find $c$.
+   However, the problem guarantees a triangle exists.
+   Is it possible to construct a graph where we check $O(M \cdot N)$ or $O(N^3)$ work?
+   Suppose we have $a=1$, neighbors $2, 3, \dots, k$. We check pairs $(1, i)$ for $i \in \{2, \dots, k\}$. For each pair, we check common neighbors.
+   If we use the adjacency matrix for $O(1)$ check:
+   Outer loops: $a$ from 1 to $n$, $b$ from $a+1$ to $n$.
+   If `adj[a][b]`:
+     iterate $c$ from $b+1$ to $n$.
+       If `adj[a][c]` and `adj[b][c]`: found.
+   
+   This is still potentially slow if we don't find a triangle for a long time.
+   But wait, if we iterate $c$ from $b+1$ to $n$, we rely on `adj[a][c]` being true.
+   If we iterate only neighbors of $a$ that are $> a$, that's better.
+   Let `neighbors[a]` be the list of neighbors of $a$.
+   For $a$ in $1 \dots n$:
+     sort `neighbors[a]` (or just iterate if it contains indices > a).
+     For $b$ in `neighbors[a]`:
+       if $b \le a$: continue
+       For $c$ in `neighbors[a]`:
+         if $c \le b$: continue
+         Check if $b$ and $c$ are connected.
+         To check if $b$ and $c$ are connected efficiently:
+           Use an adjacency matrix `adj[u][v]` for $O(1)$ lookup.
+           OR use adjacency sets.
+           Since $N \le 2000$, `adj[u][v]` is fine.
+   
+   The complexity becomes $\sum_{a=1}^n \sum_{b \in N(a), b>a} \sum_{c \in N(a), c>b} 1$.
+   This is $\sum_{a} \binom{\text{deg}(a)}{2}$.
+   Since $\sum \text{deg}(a) = 2M$, the worst case is when degrees are concentrated.
+   Max value of $\sum d_i^2$ given $\sum d_i = 2M$.
+   If $M \approx N^2/2$, then $\sum d_i^2 \approx N \cdot N^2 = N^3$.
+   However, if the graph is dense, we find a triangle very early.
+   If the graph is sparse, $\sum d_i^2$ is smaller.
+   Wait, is it possible to have $\sum d_i^2$ large but no small triangles?
+   Yes, a bipartite graph has no triangles. If we have a dense bipartite graph (e.g. $K_{N/2, N/2}$), $\sum d_i^2 \approx 2 \cdot (N/2)^3 = N^3/4$.
+   But the problem guarantees a triangle exists.
+   Even if a triangle exists deep in the lexicographical order, say involving vertices with high indices.
+   Consider a graph constructed by taking a large bipartite graph on $1 \dots n-1$, and adding edges to form a triangle on $n, n-1, n-2$.
+   In this case, for $a=1 \dots n-3$, we might scan many pairs.
+   However, $M \le 200,000$.
+   $\sum d_i^2$ can be at most $2M \cdot N$ (since $d_i \le N$). $2 \cdot 200000 \cdot 2000 = 8 \cdot 10^8$.
+   This is slightly high for Python.
+   However, we need to consider that inside the loop we do constant work (matrix lookup).
+   $8 \cdot 10^8$ operations in Python might TLE (Time Limit Exceeded). Python usually handles $\approx 10^7$ simple operations per second, maybe up to $10^8$ with PyPy or very simple ops. 2 seconds is generous but Python is slow.
+   
+   Let's check the constraints and typical solutions for "Triangle Finding".
+   Usually, $O(M \sqrt{M})$ is the bound for finding *any* triangle.
+   To find the *lexicographically smallest*, we might need to be specific.
+   
+   Optimized approach:
+   We iterate $a$ from 1 to $n$.
+   We iterate $b$ in `adj[a]` such that $b > a$.
+   We need to find $c \in \text{adj}[a] \cap \text{adj}[b]$ with $c > b$.
+   If we intersect `adj[a]` and `adj[b]`, we can find such $c$.
+   To do this efficiently:
+   Sort adjacency lists.
+   For fixed $a$ and $b$, iterate through `adj[a]` and `adj[b]` to find intersection.
+   Or simply, iterate through the smaller adjacency list and check existence in the larger one (using a hash set or boolean array).
+   Since $N$ is small (2000), a boolean array `is_neighbor[b]` for the current $a$ (or just global matrix) is $O(1)$.
+   
+   Let's stick to the adjacency matrix for $O(1)$ edge check.
+   The bottleneck is $\sum_{a} \sum_{b \in N(a), b>a} \text{count of } c \in N(a) \text{ s.t. } c > b$.
+   Wait, if we iterate $c \in N(a)$ with $c > b$, we check `adj[b][c]`.
+   The number of operations is $\sum_{a} \sum_{b \in N(a), b>a} (\text{number of neighbors of } a \text{ greater than } b)$.
+   This is bounded by $\sum_{a} \binom{d(a)}{2}$.
+   As discussed, this can be $O(N^3)$ or $O(M \cdot N)$.
+   With $N=2000, M=200000$, $N^3 \approx 8 \cdot 10^9$ (too big).
+   However, if we have a dense bipartite graph, we do lots of work.
+   But we are guaranteed a triangle exists.
+   The worst case is when the triangle is "late".
+   Example: Vertices $1, \dots, n$. Edges $(1, 2), (1, 3), \dots, (1, n)$ (star). Plus edges $(2, 3), (2, 4), \dots, (n-1, n)$ forming a clique on $2 \dots n$.
+   Wait, if $2 \dots n$ is a clique, then $(2, 3, 4)$ is a triangle. $a=2$ is the smallest $a$ for a triangle. $a=1$ has neighbors $2 \dots n$.
+   If we iterate $a=1$: neighbors are $2 \dots n$.
+   We pick $b=2$. We check $c \in \{3, \dots, n\}$.
+   Check `adj[2][c]`. Since $2 \dots n$ is a clique, `adj[2][c]` is true for all $c \ge 3$.
+   So we find $(1, 2, 3)$ immediately.
+   
+   What if the triangle is only at the end?
+   We need to construct a graph where no triangle exists for small $a$, but one exists later.
+   This implies for small $a$, the subgraph induced by neighbors of $a$ is triangle-free.
+   If we have a bipartite graph on $1 \dots n$, it is triangle free.
+   Add one triangle on $n-2, n-1, n$.
+   Then for $a=1 \dots n-3$, we must scan.
+   If $a=1$ is connected to all $2 \dots n$, and edges exist between $2 \dots n$ forming a bipartite graph.
+   Wait, if $1$ is connected to all, then for $a=1$, neighbors are $2 \dots n$.
+   We iterate $b \in \{2 \dots n\}$.
+   Then we iterate $c \in \{2 \dots n\}$ with $c > b$.
+   We check if $b$ and $c$ are connected.
+   If $2 \dots n$ is a bipartite graph, no $b, c$ are connected?
+   Wait, if $2 \dots n$ is bipartite, then for any $b, c$ in that set, they might be connected if they are in different partitions.
+   But we need $a, b, c$ to form a triangle.
+   If $a=1$, and we need $b, c$ such that $1 \sim b, 1 \sim c, b \sim c$.
+   If $1$ is connected to everyone, then we just need *any* edge $(b, c)$ in the rest of the graph.
+   If the rest of the graph is bipartite, it still has edges.
+   Let's say the edges in $2 \dots n$ are $(2, 3), (4, 5) \dots$.
+   Then we find $(1, 2, 3)$ quickly.
+   
+   What if the edges in $2 \dots n$ are sparse?
+   Suppose $1$ is connected to $2, \dots, n$.
+   Suppose edges in $2 \dots n$ are only $(n-2, n-1)$ and $(n-1, n)$ and $(n-2, n)$ (the triangle).
+   Then for $a=1$, neighbors are $2 \dots n$.
+   We iterate $b=2$. Neighbors of $1$ greater than $2$ are $3 \dots n$.
+   We check if $b=2$ is connected to any of $3 \dots n$.
+   If no edges connected to 2 except maybe to $n-2$ (which is not connected to 2 in this hypothetical? No, triangle is $n-2, n-1, n$).
+   If 2 is not part of any edge in $2 \dots n$, then for $b=2$, we scan $c \in \{3 \dots n\}$, check `adj[2][c]`. All false. Cost: $O(n)$.
+   Then $b=3$, scan $c \in \{4 \dots n\}$, check `adj[3][c]`. All false. Cost $O(n)$.
+   ...
+   Until $b=n-2$. Neighbors of $n-2$ in $2 \dots n$ are $n-1, n$.
+   For $c=n-1$, check `adj[n-2][n-1]`. True. Return $(1, n-2, n-1)$.
+   Total cost: $\sum_{b=2}^{n-3} (n-b) \approx O(n^2)$.
+   This is fast.
+   
+   It seems the $O(\sum d_a^2)$ approach is actually quite efficient on average or for typical worst cases, unless we have a specific construction.
+   Is there a construction where $\sum d_a^2$ is large and we don't find a triangle early?
+   This requires $\sum_{b \in N(a), c \in N(a), b < c} 1$ to be large, AND `adj[b][c]` to be false for most pairs.
+   This means for a vertex $a$, many pairs of neighbors are non-adjacent.
+   This is exactly the condition that the neighborhood of $a$ has few edges.
+   If neighborhood of $a$ has $k$ vertices and 0 edges, we do $k(k-1)/2$ checks.
+   We can have many vertices with such neighborhoods.
+   Example: Star graph $1 \dots n$ connected to center $C$. Wait, star graph has no triangles.
+   We need at least one triangle.
+   Suppose we have a huge bipartite graph plus one triangle far away.
+   Let vertices $1 \dots N/2$ be set $U$, $N/2+1 \dots N$ be set $V$.
+   Edges between $U$ and $V$. No edges within $U$ or within $V$.
+   This is $K_{N/2, N/2}$. It has no triangles.
+   Add a triangle on vertices $N, N-1, N-2$.
+   For $a$ in $U$ (indices $1 \dots N/2$):
+     Neighbors are all in $V$.
+     So neighbors are $N/2+1 \dots N$.
+     We iterate $b \in \{N/2+1 \dots N\}$.
+     We iterate $c \in \{N/2+1 \dots N\}$ with $c > b$.
+     We check if $b \sim c$.
+     Since $U, V$ is bipartite, there are no edges within $V$.
+     So `adj[b][c]` is always false for $b, c \in V$.
+     So we iterate all pairs $(b, c)$ in $V$.
+     Number of pairs is $\binom{N/2}{2} \approx N^2/8$.
+     We do this for each $a \in U$. Total checks: $|U| \cdot \binom{|V|}{2} \approx (N/2) \cdot (N^2/8) = N^3/16$.
+     With $N=2000$, $N^3 \approx 8 \cdot 10^9$. $N^3/16 \approx 5 \cdot 10^8$.
+     This is potentially too slow for Python in 2 seconds.
+     Wait, in this example, $a$ goes from $1$ to $N/2$.
+     For each $a$, $b$ goes from $N/2+1$ to $N-2$ (since triangle is at end).
+     Actually, we stop as soon as we find a triangle.
+     The triangle is $N-2, N-1, N$.
+     So for $a \in U$, we scan $b, c \in V$.
+     If we check all pairs, we do $O(N^3)$ work.
+     However, notice that we iterate $b$ then $c$.
+     For $a=1$, $b=N/2+1$, we scan $c \in \{N/2+2 \dots N\}$. All checks fail.
+     Then $b=N/2+2$, scan $c \in \{N/2+3 \dots N\}$. All fail.
+     ...
+     Until $b=N-2$. Neighbors of $a=1$ include $N-2, N-1, N$.
+     When $b=N-2$, we check $c=N-1$. `adj[N-2][N-1]` is true (part of triangle).
+     So for $a=1$, we find $(1, N-2, N-1)$?
+     Wait, is $(1, N-2, N-1)$ a triangle?
+     $1 \sim N-2$ (yes, $1 \in U, N-2 \in V$).
+     $1 \sim N-1$ (yes).
+     $N-2 \sim N-1$ (yes, triangle).
+     So $(1, N-2, N-1)$ IS a triangle.
+     So we would find it when $a=1$, $b=N-2$, $c=N-1$.
+     Wait, does this mean we still scan a lot?
+     For $a=1$, $b$ iterates $N/2+1 \dots N-2$.
+     For each $b$, $c$ iterates $b+1 \dots N$.
+     Most checks `adj[b][c]` are false because $V$ is independent set.
+     So we check $\sum_{b=N/2+1}^{N-2} (N - b) \approx \binom{N/2}{2}$ checks.
+     This is $O(N^2)$.
+     Then we return.
+     So total time is $O(N^2)$.
+     Wait, why did I think $O(N^3)$?
+     Ah, the loops are:
+     `for a in range(1, n+1):`
+       `for b in adj[a]: if b > a:`
+         `for c in adj[a]: if c > b:`
+           `if adj[b][c]:`
+     If we use the adjacency list `adj[a]`, we only iterate over neighbors of $a$.
+     So we don't iterate all pairs in $V$, only pairs in $V$ that are both neighbors of $a$.
+     In the bipartite example, $a \in U$ is connected to ALL nodes in $V$.
+     So neighbors of $a$ are all $V$.
+     So we iterate all pairs in $V$.
+     Yes, complexity is $\sum_{a \in U} \binom{|V|}{2}$.
+     Wait, if we find a triangle at $a=1$, we stop.
+     The triangle $(1, N-2, N-1)$ exists.
+     So we stop after processing $a=1$.
+     So total complexity is $O(N^2)$.
+     
+     Is there a case where we don't find a triangle for a long time?
+     This requires that for the first few $a$'s, there are NO triangles involving $a$.
+     In the example above, $(1, N-2, N-1)$ was a triangle.
+     Why? Because $1$ connected to $N-2$, $N-1$, and $N-2$ connected to $N-1$.
+     This is because $N-2, N-1$ are neighbors of $a=1$.
+     If $a=1$ is connected to $N-2, N-1$, and they are connected, then $(1, N-2, N-1)$ is a triangle.
+     So we find it quickly.
+     To delay finding a triangle, we need to ensure that for small $a$, any pair of neighbors of $a$ is NOT connected.
+     This means the neighborhood of $a$ must be an independent set.
+     If for all $a=1 \dots k$, the neighborhood $N(a)$ is an independent set, then no triangle involves $1 \dots k$.
+     This implies the graph is triangle-free for vertices $1 \dots k$ and their neighbors?
+     No, it implies no triangle with smallest vertex $a \le k$.
+     So the first triangle must have smallest vertex $> k$.
+     If we construct a graph where $1 \dots k$ have independent neighborhoods, and the first triangle involves $k+1$.
+     Example: $K_{k, k}$ bipartite graph on $1 \dots 2k$.
+     Vertices $1 \dots k$ in $U$, $k+1 \dots 2k$ in $V$.
+     Edges only between $U$ and $V$.
+     No triangles.
+     Add a triangle on vertices $2k+1, 2k+2, 2k+3$.
+     If $N$ is large enough.
+     Wait, if we have $N$ vertices.
+     Let $1 \dots k$ be $U$, $k+1 \dots 2k$ be $V$.
+     Edges between all $u \in U, v \in V$.
+     This is dense.
+     For $a=1$ (in $U$), neighbors are $k+1 \dots 2k$.
+     Since $V$ is independent, no pairs in neighbors are connected.
+     So we check all pairs in $V$.
+     We do $\binom{k}{2}$ checks.
+     Since no triangle is found with $a=1$, we move to $a=2$.
+     Same, neighbors $V$. No pairs connected. $\binom{k}{2}$ checks.
+     ...
+     For $a=k$, neighbors $V$. No pairs connected. $\binom{k}{2}$ checks.
+     Total checks: $k \cdot \binom{k}{2} \approx k^3/2$.
+     If $k \approx N/2$, this is $N^3/16$.
+     BUT wait.
+     If $N=2000$, $k=1000$.
+     $10^9 / 16 \approx 6 \cdot 10^7$.
+     This is well within the limit!
+     $6 \cdot 10^7$ operations in Python might take 1-2 seconds, but since the operations are simple array lookups, it might be okay.
+     Wait, $M$ is limited to $200,000$.
+     In the bipartite graph $K_{k, k}$, $M = k^2$.
+     If $k=1000$, $M = 1,000,000$.
+     But the problem says $M \le 200,000$.
+     Ah! So the graph cannot be a dense $K_{1000, 1000}$.
+     With $M \le 200,000$, we cannot have $k \approx 1000$ bipartite graph.
+     The maximum number of edges in a bipartite graph with $N$ vertices is roughly $N^2/4$.
+     But we are limited by $M$.
+     So if $N=2000$, max $M$ is small.
+     The worst case complexity using $\sum d_a^2$ is bounded by $M \cdot N$ in the worst case?
+     $\sum_{a} d_a^2 \le (\max d_a) \sum d_a = N \cdot 2M$.
+     With $N=2000, M=200000$, $2000 \cdot 400000 = 8 \cdot 10^8$.
+     This is the theoretical upper bound.
+     But we need to check if we can actually hit this bound while satisfying "lexicographically smallest".
+     The bound $N \cdot 2M$ assumes we iterate all pairs of neighbors for every vertex.
+     For a fixed $a$, we iterate pairs $(b, c)$ of neighbors.
+     If $a$ has degree $d_a$, we do $d_a^2$ work (roughly).
+     Sum of $d_a^2$ is bounded by $N \cdot 2M$.
+     If we have a star graph with center $1$, $d_1 = N-1$, others degree 1.
+     $\sum d_i^2 = (N-1)^2 + (N-1) \cdot 1 \approx N^2$.
+     This is fast.
+     If we have a graph where everyone has degree $\approx M/N$.
+     Then $\sum d_i^2 \approx N \cdot (M/N)^2 = M^2/N$.
+     If $M=200,000, N=2000$, $M^2/N = 4 \cdot 10^{10} / 2000 = 2 \cdot 10^7$.
+     This is very fast.
+     The worst case is when degrees are skewed?
+     $\sum d_i^2$ is maximized when one degree is large.
+     If one node has degree $N-1$. Then we do $(N-1)^2$ work.
+     But this is only if we don't find a triangle early.
+     If node 1 has degree $N-1$, it is connected to everyone.
+     If there is *any* edge in the graph, say $(u, v)$, then $(1, u, v)$ is a triangle (assuming $u, v > 1$).
+     If $u, v > 1$, then we find it when $a=1$.
+     The only case we don't find it is if the edge $(u, v)$ involves 1? No, $1$ is connected to everyone.
+     If the only edges are incident to 1? Then no triangles.
+     But we are guaranteed a triangle exists.
+     If node 1 is connected to everyone, then any edge $(u, v)$ with $u, v > 1$ forms a triangle with 1.
+     If no such edge exists, then there are no triangles at all (since any triangle must have 3 vertices, if all edges are incident to 1, we can't form a triangle).
+     So if $d_1 = N-1$ and a triangle exists, we find it immediately (very quickly).
+     Specifically, we check pairs of neighbors of 1.
+     We iterate $b \in \{2 \dots N\}$.
+     For each $b$, we check neighbors $c$ of 1 with $c > b$.
+     We check `adj[b][c]`.
+     If there is *any* edge in $2 \dots N$, say $(u, v)$, we will find it.
+     The first such edge we encounter in the loop will trigger.
+     How much work do we do before finding $(u, v)$?
+     We check pairs $(b, c)$ in lexicographical order.
+     We find the first edge $(u, v)$ in the list of edges sorted by $u$, then $v$.
+     Let the edges in $2 \dots N$ be $E'$. Sort $E'$ by $u$.
+     We iterate $b$ from $2$ to $N$.
+     If $b$ is not involved in any edge in $E'$, we scan all $c > b$ and fail.
+     Wait, if $b$ is not involved in any edge in $E'$, then for all $c > b$, `adj[b][c]` is false.
+     So we do $N-b$ checks.
+     If the first edge in $E'$ is $(u, v)$ with $u$ small, we find it quickly.
+     If the first edge in $E'$ is $(N-2, N-1)$, then for $b=2 \dots N-3$, we scan $c$'s.
+     Total checks $\approx (N-3) \cdot N \approx N^2$.
+     Still $O(N^2)$.
+     
+     So it seems the algorithm is effectively $O(M \cdot N)$ or $O(N^2)$ or something related to $M$.
+     Given $N=2000$, $O(N^2) = 4 \cdot 10^6$ ops.
+     $O(MN) = 4 \cdot 10^8$.
+     The bound $\sum d_a^2$ is the tightest.
+     Max $\sum d_a^2$ subject to $\sum d_a = 2M$ and $d_a < N$.
+     This is maximized when $d_a$ are as large as possible.
+     But we established that if $d_a$ is large, we likely find a triangle quickly.
+     The only case we scan a lot is if we iterate many pairs of neighbors that are NOT connected.
+     But the number of non-edges in a neighborhood is related to the number of edges in the neighborhood.
+     Actually, if the graph is sparse, $d_a$ is small, so $d_a^2$ is small.
+     If the graph is dense, $d_a$ is large, but triangles are dense too, so we find one quickly.
+     
+     It seems the brute force with adjacency matrix/lists is efficient enough.
+     Let's double check the constraints and Python speed.
+     Time limit 2s.
+     Python loops can be slow.
+     Using `adj` as a list of lists of integers.
+     For $a$ in $1..n$:
+       For $b$ in $adj[a]$:
+         if $b \le a$: continue
+         For $c$ in $adj[a]$:
+           if $c \le b$: continue
+           if $b$ is connected to $c$:
+             found.
+     
+     Wait, iterating `adj[a]` twice is $d_a^2$.
+     We can optimize:
+     For $a$ in $1..n$:
+       For $b$ in $adj[a]$:
+         if $b \le a$: continue
+           For $c$ in $adj[b]$:
+             if $c \le b$: continue
+               if $c$ in $adj[a]$: # Check if $c$ is neighbor of $a$
+                 found.
+     
+     This is better.
+     We iterate $a$, then $b \in N(a), b>a$.
+     Then iterate $c \in N(b), c>b$.
+     Check if $c \in N(a)$.
+     To check $c \in N(a)$ efficiently:
+       Use boolean array `is_neighbor[a][c]` or set.
+       Or since we iterate $c$ from $N(b)$, we can check `is_neighbor[a][c]`.
+     
+     Complexity: $\sum_{(a, b) \in E, a < b} \text{deg}(b)$.
+     This is $\sum_{b} \text{deg}(b) \cdot \text{deg}(b) = \sum \text{deg}(b)^2$.
+     Wait, no.
+     For each $a$, we iterate $b \in N(a)$ with $b > a$.
+     So we sum over edges $(a, b)$ where $a < b$.
+     For each such edge, we iterate neighbors of $b$.
+     So complexity is $\sum_{(a, b) \in E, a < b} \text{deg}(b)$.
+     This is bounded by $\sum_{b} \text{deg}(b)^2$.
+     Because for a fixed $b$, it is the 'b' in the pair $(a, b)$ for each neighbor $a < b$.
+     So we do $\sum_{b} \text{deg}(b) \cdot \text{deg}(b)$ operations.
+     This is exactly $\sum \text{deg}(b)^2$.
+     As analyzed before, with $M \le 200,000$ and $N \le 2000$, $\sum d_i^2$ can be up to $8 \cdot 10^8$ in theory (if one node has degree $N-1$ and others have degree 1? No, sum of degrees is $2M$).
+     If sum of degrees is $2M$, max $\sum d_i^2$ is when degrees are concentrated.
+     If we have one node with degree $2M$ (impossible, max $N-1$).
+     Max degree is $N-1$.
+     So we can have $\approx M/(N-1)$ nodes with degree $N-1$.
+     Or rather, $\sum d_i = 2M$.
+     Let $k$ nodes have degree $N-1$. Then $k(N-1) \le 2M$.
+     $k \approx 2M/N$.
+     Contribution to sum of squares: $k(N-1)^2 \approx \frac{2M}{N} N^2 = 2MN$.
+     So worst case is $O(MN)$.
+     $2 \cdot 10^5 \cdot 2000 = 4 \cdot 10^8$.
+     This is the upper bound.
+     Is it achievable?
+     We need a graph with $M$ edges where for many edges $(a, b)$ (with $a < b$), $b$ has high degree, AND we don't find a triangle quickly.
+     If $b$ has high degree, it has many neighbors.
+     If $b$ has many neighbors, and we iterate $c \in N(b)$, checking if $c \in N(a)$.
+     If $c \in N(a)$, we found a triangle.
+     So if we don't find a triangle, it means for the current pair $(a, b)$, the intersection $N(a) \cap N(b)$ (restricted to $> b$) is empty.
+     This means $N(a)$ and $N(b)$ don't share neighbors $> b$.
+     This requires the graph to be "locally" triangle-free around these pairs.
+     
+     Is it possible to construct such a graph?
+     We need $N(a) \cap N(b) \cap \{c \mid c > b\} = \emptyset$.
+     This must hold for all pairs $(a, b)$ with $a < b$ that we process before the triangle.
+     If we process edges in lexicographical order of $(a, b)$, we stop as soon as we find a triangle.
+     So we only care if the FIRST triangle is late.
+     This implies for all pairs $(a, b)$ with $a < b$ appearing before the first triangle, $N(a) \cap N(b) \cap \{c > b\} = \emptyset$.
+     This basically means the graph is a "triangle-free" graph for the prefix of edges processed.
+     But we are guaranteed a triangle exists.
+     So the graph is NOT triangle-free.
+     But maybe the triangle is formed by vertices with large indices.
+     If the triangle is $(u, v, w)$ with $u < v < w$, and all other triangles have larger $u$, or same $u$ but larger $v$.
+     So we essentially scan all pairs $(a, b)$ such that no $c > b$ exists with edges $(a, c)$ and $(b, c)$.
+     This is equivalent to saying that for all pairs $(a, b)$ processed, the edge $(a, b)$ is not part of any triangle $(a, b, c)$ with $c > b$.
+     This is equivalent to: for every edge $(a, b)$, there is no triangle $(a, b, c)$ with $c > b$ that is lexicographically smaller than the target triangle.
+     Wait, if we iterate $a, b$ in order, we check all edges $(a, b)$ that could be the first two vertices of a triangle.
+     If we have a triangle $(u, v, w)$ with $u < v < w$.
+     We will reach $(u, v)$ in the outer loops.
+     Then we iterate $c \in N(v)$ with $c > v$.
+     If $w \in N(v)$ and $w \in N(u)$?
+     Yes, if $(u, v)$ is an edge and $u, v, w$ is a triangle, then $w \in N(u)$ and $w \in N(v)$.
+     Since $w > v$, we will find it.
+     The only reason we continue is if there is no such $w$ for the current $(a, b)$.
+     So we are iterating over edges $(a, b)$ that are NOT part of any triangle $(a, b, c)$ with $c > b$.
+     Wait, if $(a, b)$ is part of a triangle $(a, b, c)$ with $c > b$, we find it immediately and stop.
+     So we only process edges $(a, b)$ where NO triangle $(a, b, c)$ with $c > b$ exists.
+     This means $(a, b)$ is not part of any triangle that "starts" with $a, b$.
+     But wait, if $(a, b)$ is part of a triangle $(a, b, c)$ with $c < b$.
+     Then $c$ would have been processed earlier (since $c < b$).
+     Specifically, if triangle is $(a, c, b)$ with $c < b$.
+     Then when we were at $a$, and picked $c$ (since $c > a$), we would have found $b$.
+     Wait, the order is:
+     $a$ fixed.
+     $b \in N(a)$ with $b > a$.
+     $c \in N(a)$ with $c > b$.
+     Check `adj[b][c]`.
+     
+     If there is a triangle $(a, c, b)$ with $c < b$.
+     Then when we pick $b$ (which is the larger index), we iterate $c \in N(a)$ with $c > b$.
+     Wait, if $c < b$, we won't check it in the inner loop `for c in N(a) if c > b`.
+     So if the triangle is $(a, c, b)$ with $c < b$, we missed it?
+     No, the triangle indices must be sorted $x < y < z$.
+     So if the triangle is $\{x, y, z\}$ with $x < y < z$.
+     Then $a=x, b=y, c=z$.
+     When $a=x$, we iterate $b \in N(x)$ with $b > x$. One of them is $y$.
+     Then we iterate $c \in N(x)$ with $c > y$. One of them is $z$.
+     Then we check `adj[y][z]`. It is true.
+     So we find the triangle.
+     
+     So the condition "we don't stop" means for all pairs $(a, b)$ with $a < b$ and $a \sim b$, there is no $c > b$ such that $a \sim c$ and $b \sim c$.
+     This means there is no triangle of form $(a, b, c)$ with $a < b < c$.
+     But we are guaranteed a triangle exists.
+     Let the lexicographically smallest triangle be $(x, y, z)$ with $x < y < z$.
+     Then for any pair $(a, b)$ with $a < b$ and $a \sim b$:
+     If $(a, b) \neq (x, y)$, then either:
+     1. There is no $c > b$ with $a, b, c$ triangle.
+     2. Or there is a $c > b$ with $a, b, c$ triangle, but that would imply $(a, b, c)$ is lexicographically smaller than or equal to $(x, y, z)$?
+        If $(a, b, c)$ is a triangle, then $a < b < c$.
+        If $(a, b, c)$ is found before $(x, y, z)$, then $(a, b, c) \le (x, y, z)$.
+        Since $(x, y, z)$ is the smallest, we must have $(a, b, c) = (x, y, z)$.
+        So for all $(a, b)$ processed before $(x, y)$, there is NO $c > b$ forming a triangle.
+        For $(a, b) = (x, y)$, there IS such $c$ (namely $z$).
+     
+     So we only pay the cost for pairs $(a, b)$ such that $a < b$, $a \sim b$, and no triangle $(a, b, c)$ with $c > b$ exists.
+     Let $E_{no\_tri}$ be the set of such edges.
+     We sum $\text{deg}(b)$ for $(a, b) \in E_{no\_tri}$.
+     Wait, the complexity is $\sum_{a} \sum_{b \in N(a), b>a} \sum_{c \in N(b), c>b} 1$.
+     Actually my previous loop structure was:
+     Iterate $a$.
+       Iterate $b \in N(a)$ with $b > a$.
+         Iterate $c \in N(b)$ with $c > b$.
+           Check $c \in N(a)$.
+     
+     This iterates over all "V-shapes" $(a, b, c)$ with $a < b < c$ and edges $(a, b), (b, c)$.
+     Then check $(a, c)$.
+     The number of such V-shapes is $\sum_{(a, b) \in E, a < b} \text{deg}(b) - \text{something}$.
+     Basically $\sum_{b} \text{deg}(b)^2$.
+     Wait, is it?
+     For a fixed $b$, we consider incoming edges $(a, b)$ with $a < b$.
+     For each such edge, we iterate outgoing edges $(b, c)$ with $c > b$.
+     The number of pairs $(a, c)$ such that $(a, b), (b, c)$ is edges with $a < b < c$.
+     This is exactly the number of paths of length 2 with increasing indices.
+     Let $P_2$ be the number of such paths.
+     We check each one to see if $(a, c)$ exists.
+     The complexity is proportional to $P_2$.
+     We stop as soon as we find a triangle.
+     So we only count paths that are NOT part of a triangle $(a, b, c)$ with $a < b < c$ that is lexicographically smallest.
+     Wait, if we find a triangle, we stop.
+     So we count all V-shapes $(a, b, c)$ with $a < b < c$ such that $a \sim b$ and $b \sim c$, AND we haven't found a triangle yet.
+     Since we stop at the first triangle, this means we count all V-shapes $(a, b, c)$ such that:
+     For all $(a', b', c')$ lexicographically smaller than $(a, b, c)$, $(a', b', c')$ is NOT a triangle.
+     Wait, the condition to stop is: we iterate $(a, b)$ then $(b, c)$.
+     We check if $(a, c)$ is an edge.
+     The first time this is true, we stop.
+     So we iterate all triples $(a, b, c)$ with $a < b < c$ such that $a \sim b$ and $b \sim c$, UNTIL we find one with $a \sim c$.
+     The number of such triples is bounded by the total number of paths of length 2 with increasing indices.
+     Let this be $K$.
+     Is $K$ bounded?
+     $K = \sum_{b} (\text{number of } a < b \text{ s.t. } a \sim b) \times (\text{number of } c > b \text{ s.t. } b \sim c)$.
+     Let $d_{<}(b)$ be degree of $b$ restricted to $a < b$.
+     Let $d_{>}(b)$ be degree of $b$ restricted to $c > b$.
+     Then $K = \sum_{b} d_{<}(b) \cdot d_{>}(b)$.
+     Since $d_{<}(b) + d_{>}(b) = \text{deg}(b)$, we have $d_{<}(b) \cdot d_{>}(b) \le (\text{deg}(b)/2)^2$.
+     So $K \le \sum \text{deg}(b)^2 / 4$.
+     As discussed, $\sum \text{deg}(b)^2$ can be up to $2MN \approx 4 \cdot 10^8$.
+     But wait, we stop as soon as we find a triangle.
+     If the first triangle is $(x, y, z)$, we process all triples $(a, b, c)$ that are lexicographically smaller than $(x, y, z)$ in the order of the loops.
+     Wait, the loops order:
+     $a$ from 1 to $n$.
+       $b$ from $a+1$ to $n$.
+         $c$ from $b+1$ to $n$.
+     This is lexicographical order on $(a, b, c)$.
+     Wait, if we iterate $a$, then $b$, then $c$.
+     We check if $a \sim b$ and $b \sim c$ and $a \sim c$.
+     If we use adjacency lists, we only iterate valid edges.
+     The order of checking triples is determined by the loops.
+     If we use the nested loop structure:
+     ```python
+     for a in range(1, n + 1):
+       for b in adj[a]:
+         if b <= a: continue
+         for c in adj[b]:
+           if c <= b: continue
+           if c in adj[a]: # or adj_mat[a][c]
+             print(a, b, c)
+             return
+     ```
+     This checks triples in an order that is NOT strictly lexicographical on $(a, b, c)$?
+     Let's trace.
+     $a=1$.
+     $b$ iterates neighbors of 1. Let's say neighbors are $2, 4, 5$.
+     Order of $b$: $2, 4, 5$.
+     For $b=2$:
+       $c$ iterates neighbors of 2. Say $3, 5$.
+       Order of $c$: $3, 5$.
+       Check $(1, 2, 3)$. If triangle, return.
+       Check $(1, 2, 5)$. If triangle, return.
+     For $b=4$:
+       $c$ iterates neighbors of 4. Say $3, 5$.
+       Order $c$: $3, 5$.
+       Check $(1, 4, 3)$. Wait, $c=3 < b=4$. The condition `c > b` filters this out.
+       So we only check $c > b$.
+       Say neighbors of 4 are $5, 6$.
+       Check $(1, 4, 5)$.
+     
+     So the order of checks is:
+     $(1, 2, 3)$, $(1, 2, 5)$, then $(1, 4, 5)$, etc.
+     Is this lexicographical?
+     $(1, 2, 3)$ vs $(1, 4, 5)$. $1=1, 2<4$. Yes.
+     $(1, 2, 5)$ vs $(1, 4, 5)$. $1=1, 2<4$. Yes.
+     So yes, this order is lexicographical with respect to $(a, b, c)$.
+     Because $a$ is fixed outer loop. $b$ is increasing in $N(a)$ (if we sort neighbors). $c$ is increasing in $N(b)$.
+     So we find the lexicographically smallest triangle.
+     
+     The complexity is the number of triples $(a, b, c)$ with $a < b < c$ and $a \sim b$ and $b \sim c$ checked before finding the triangle.
+     This is bounded by the total number of such triples $K = \sum_b d_{<}(b) d_{>}(b)$.
+     With $M=200,000$, $N=2000$.
+     Worst case $K \approx 4 \cdot 10^8$.
+     This is slightly risky for Python in 2s.
+     However, notice that if $K$ is large, it means there are many such paths.
+     If there are many paths, there is a high probability of finding a triangle?
+     Not necessarily.
+     But we have a constraint: we are guaranteed a triangle exists.
+     If we have many paths of length 2, say $M$ edges, and we check $M \cdot N$ pairs.
+     Actually, let's look at the example with $K \approx 4 \cdot 10^8$.
+     This requires $\sum \text{deg}(b)^2$ large.
+     This happens if degrees are large.
+     If degrees are large, the graph is dense.
+     In a dense graph, triangles are abundant.
+     If we have a dense graph, we will likely find a triangle very quickly (small $a, b, c$).
+     The only way to have many paths but few triangles is to have a bipartite structure (no triangles) or close to it.
+     But bipartite graphs have $\sum \text{deg}(b)^2$ large only if edges are concentrated.
+     But if edges are concentrated in bipartite graph, say $K_{N/2, N/2}$, then $M \approx N^2/4 = 10^6$.
+     But $M$ is limited to $200,000$.
+     So we cannot have a dense bipartite graph on 2000 vertices.
+     We can have a bipartite graph on 2000 vertices with $200,000$ edges.
+     For example, partition $1..1000$ and $1001..2000$.
+     Edges only between these sets.
+     Max edges is $10^6$. We use $2 \cdot 10^5$.
+     Degrees will be around 200.
+     $\sum \text{deg}(b)^2 \approx 2000 \cdot 200^2 = 2000 \cdot 40000 = 8 \cdot 10^7$.
+     This is $80$ million operations.
+     This is safe.
+     What if degrees are skewed?
+     Say one node has degree 2000 (impossible, max $N-1$).
+     Say one node has degree 2000.
+     Then $M \ge 2000$.
+     $\sum \text{deg}^2 \approx 2000^2 = 4 \cdot 10^6$.
+     Wait, if one node has degree $d$, $d \le 2000$.
+     Contribution $d^2$.
+     If one node has degree 2000, cost is $4 \cdot 10^6$.
+     If we have 100 nodes with degree 2000 (impossible, sum degrees would be $2 \cdot 10^5$).
+     Wait, sum of degrees is $2M = 400,000$.
+     If we have 200 nodes with degree 2000.
+     Then $\sum \text{deg}^2 = 200 \cdot 2000^2 = 8 \cdot 10^8$.
+     This is the $8 \cdot 10^8$ case.
+     But can we have 200 nodes with degree 2000 in a graph with $M=200,000$?
+     Sum of degrees = $200 \times 2000 = 400,000$.
+     Yes, this is valid.
+     Graph construction:
+     Vertices $1 \dots 200$ are connected to all vertices $1 \dots 2000$?
+     No, if vertices $1 \dots 200$ are connected to ALL $2000$ vertices.
+     Then edges are $200 \times 2000 = 400,000$.
+     Wait, edges between $1 \dots 200$ and $1 \dots 2000$?
+     No, simple graph.
+     If $1 \dots 200$ are connected to all other vertices.
+     Then for $u \in \{1 \dots 200\}$, $d(u) = 1999$.
+     Sum of degrees $\approx 200 \times 2000 = 400,000$.
+     Number of edges $M = 200,000$.
+     This is consistent.
+     So we can have 200 nodes with high degree.
+     Let's analyze the cost in this case.
+     We have 200 nodes with degree $\approx 2000$.
+     Let these be $U = \{1 \dots 200\}$.
+     Let $V = \{201 \dots 2000\}$.
+     Edges connect $U$ to $V$ and within $U$?
+     If $U$ is a clique, we have triangles.
+     If $U$ is a clique, then $(1, 2, 3)$ is a triangle. We find it immediately. Cost $O(1)$.
+     So we must avoid triangles in $U$.
+     So $U$ must be triangle-free.
+     Max edges in triangle-free graph on 200 vertices is $100^2 = 10,000$ (bipartite).
+     If $U$ is triangle-free, and all $u \in U$ are connected to all $v \in V$.
+     Then for $u \in U$, neighbors are $U \setminus \{u\}$ (triangle-free part) and $V$.
+     Let's check cost.
+     We iterate $a \in U$ (say $1 \dots 200$).
+     For each $a$, we iterate $b \in N(a)$.
+     $N(a)$ contains some nodes in $U$ and all nodes in $V$.
+     If $b \in U$, we check $c \in N(b)$.
+     If $b \in V$, we check $c \in N(b)$.
+     Since $V$ nodes are connected to all $U$ (assuming we want high degree for them too).
+     Wait, if $u \in U$ connected to all $v \in V$, then $v \in V$ has degree at least $|U|=200$.
+     To maximize $\sum \text{deg}^2$, we want high degrees.
+     Let's assume $U$ is independent set?
+     Then $u \in U$ connected to all $V$.
+     $v \in V$ connected to all $U$.
+     This is a complete bipartite graph $K_{200, 1800}$.
+     Edges $200 \times 1800 = 360,000 > 200,000$.
+     So we can't have all edges.
+     Let's adjust.
+     $U$ size $k$. $V$ size $N-k$.
+     Edges between $U$ and $V$.
+     To maximize $\sum d^2$, we want $U$ to have high degree (connected to $V$).
+     And $V$ to have high degree (connected to $U$).
+     Actually, if it's a complete bipartite graph, we have NO triangles.
+     But we are guaranteed a triangle exists.
+     So we must add some edges to create a triangle.
+     Let's add a triangle on vertices $200, 201, 202$.
+     Wait, if we have $K_{k, N-k}$, we have no triangles.
+     If we add edges to form a triangle, we find it.
+     If the triangle is on $u_1, u_2, v_1$ where $u_1, u_2 \in U, v_1 \in V$.
+     Then $(u_1, u_2, v_1)$ is a triangle.
+     We iterate $a=u_1$. $b=u_2$. $c=v_1$.
+     We find it quickly?
+     Wait, $a$ iterates $1 \dots 200$.
+     $b$ iterates neighbors of $a$.
+     If $a=1$, neighbors are $V$.
+     We iterate $b \in V$.
+     For each $b$, we iterate $c \in N(b)$.
+     $N(b)$ contains $U$.
+     If we check $c \in U$, we check if $c \in N(a)$.
+     $N(a)$ contains $V$.
+     So $c \in U$ is not in $N(a)$ (since $U$ is independent).
+     So we check all pairs $(b, c)$ where $b \in V, c \in U$.
+     For $a=1$, we iterate $b \in V$, then $c \in U$.
+     $|V| \approx 1800$, $|U| \approx 200$.
+     Operations $1800 \times 200 \approx 3.6 \cdot 10^5$.
+     This is small.
+     
+     It seems hard to construct a graph that triggers $O(N^3)$ or even $O(MN)$ with $M=200,000$.
+     The constraint $M \le 200,000$ is quite restrictive for dense graphs.
+     $N^2$ edges would be $4 \cdot 10^6$.
+     With $M=200,000$, the graph is sparse-ish (density 5%).
+     In sparse graphs, $O(M \sqrt{M})$ or $O(M \cdot N)$ is usually fine.
+     Actually, the number of paths of length 2 is bounded by $M \cdot N$.
+     Since we stop early, it's likely much faster.
+     The maximum number of paths of length 2 is when we have a star graph (center connected to all).
+     Star graph center degree $N-1$.
+     Number of paths of length 2 centered at center is $\binom{N-1}{2} \approx N^2/2$.
+     With $N=2000$, $N^2/2 = 2 \cdot 10^6$.
+     This is fast.
+     What if we have a path of length 2 for many vertices?
+     If we have a "spider" graph.
+     It seems the maximum number of paths of length 2 in a graph with $M$ edges is bounded by $O(M \sqrt{M})$?
+     No, in a star graph it is $O(M \cdot (M/1)) = M^2$? No.
+     Star graph: $M = N-1$. Paths $\approx M^2$.
+     So for $M=200,000$, $M^2 = 4 \cdot 10^{10}$? No.
+     Star graph with $M$ edges has $N=M+1$.
+     Paths $\approx M^2$.
+     If $M=200,000$, $M^2$ is huge.
+     BUT, in a star graph, there are NO triangles.
+     We are guaranteed a triangle exists.
+     Adding a triangle to a star graph (connecting two leaves) creates a triangle.
+     Leaf 1 and Leaf 2 connected. Center connected to both.
+     Triangle (Center, Leaf 1, Leaf 2).
+     Lexicographically, if Center is 1, and Leaves are $2, 3$.
+     Then $(1, 2, 3)$ is found immediately.
+     If Center is $N$, and Leaves are $1 \dots N-1$.
+     Triangle is on $(N, u, v)$.
+     Smallest $a$ is 1.
+     $a=1$. Neighbors: Center $N$.
+     $b=N$. Neighbors: $1, 2, \dots, N-1$.
+     But we need $b > a$. $N > 1$.
+     Then $c \in N(b)$ with $c > b$.
+     Neighbors of $N$ are $1 \dots N-1$.
+     We need $c > N$. No such neighbors.
+     So no triangle found with $a=1$.
+     Then $a=2$. Neighbors $N$.
+     $b=N$. $c > N$. None.
+     ...
+     Until $a = N-2$. Neighbors $N$.
+     $b=N$. $c > N$. None.
+     Wait, if we only have edges $(N, i)$ and $(1, 2)$.
+     Triangle $(N, 1, 2)$.
+     Sorted indices: $1 < 2 < N$.
+     So we need to find $(1, 2, N)$.
+     $a=1$. Neighbors: $2, N$.
+     $b=2$. Neighbors: $1, N$.
+     We need $c > 2$.
+     Neighbors of 2 with $>2$: only $N$.
+     So $c=N$.
+     Check if $N \in N(1)$. Yes.
+     So we find $(1, 2, N)$.
+     Cost:
+     $a=1$. $b=2$. $c=N$. Found.
+     This is fast.
+     
+     What if the triangle involves the largest indices?
+     Say vertices $N-2, N-1, N$ form a triangle.
+     And no other edges exist except those incident to them?
+     No, we need to traverse to reach them.
+     If graph has edges $(1, N-2), (1, N-1), (1, N)$ and $(N-2, N-1), (N-1, N), (N-2, N)$.
+     Wait, if $(1, N-2)$ exists.
+     $a=1$. Neighbors $N-2, N-1, N$.
+     $b=N-2$. Neighbors $1, N-1, N$.
+     $c$ from $N-2+1 \dots N$.
+     $c=N-1$. Check if $(N-2, N-1)$ edge. Yes.
+     Found $(1, N-2, N-1)$.
+     Wait, $(1, N-2, N-1)$ is a triangle?
+     $1 \sim N-2$ (yes). $1 \sim N-1$ (yes). $N-2 \sim N-1$ (yes).
+     So we find it at $a=1, b=N-2, c=N-1$.
+     We didn't scan much.
+     
+     It seems very hard to construct a case where we scan a lot.
+     The constraints $N \le 2000$ and $M \le 200,000$ allow $O(N^2)$ or $O(MN)$ or even $O(M\sqrt{M})$.
+     The solution using adjacency lists and a boolean matrix (or set) for edge check is $O(\sum \text{deg}(b)^2)$ worst case, which is bounded by $O(MN)$.
+     Given $M, N$, $MN = 4 \cdot 10^8$.
+     In C++, this passes easily. In Python, it's tight.
+     However, the average case is much better.
+     Is there a better approach?
+     We can iterate $a$ from 1 to $n$.
+     We want to find smallest $b > a$ and smallest $c > b$ such that $a \sim b, b \sim c, a \sim c$.
+     This is equivalent to finding the lexicographically smallest triangle.
+     
+     Optimization:
+     We can use the "forward" adjacency list for each vertex.
+     `adj[u]` contains neighbors $v > u$.
+     Then iterate $a$ from 1 to $n$.
+       Iterate $b \in adj[a]$.
+         Iterate $c \in adj[b]$. (Note: $c > b > a$).
+           Check if $c \in adj[a]$.
+             Wait, `adj[a]` stores neighbors of $a$ with index $> a$.
+             So checking `c in adj[a]` is $O(\log d_a)$ or $O(1)$ with hash set.
+             Since $N$ is small, we can use a boolean array `is_neighbor[a][c]`.
+     
+     This is essentially the same complexity.
+     But using sorted adjacency lists or boolean arrays is fast.
+     Given the time limit and Python, we should be careful with overhead.
+     Using `sys.stdin.read` for fast I/O.
+     Using `set` for adjacency might be slower due to hashing overhead than array/list.
+     Since $N \le 2000$, a 1D array of size $N+1$ representing `is_neighbor` for a specific $a$ is fast?
+     No, we need `is_neighbor[b][c]`.
+     We can use a global adjacency matrix `adj_mat[u][v]`.
+     `adj_mat` is $2000 \times 2000$ bools.
+     Access is $O(1)$.
+     The loops:
+     ```python
+     for a in range(1, n + 1):
+         for b in adj_list[a]:
+             if b <= a: continue # if adj_list contains all neighbors
+             # Actually if we sort adj_list, we can just start from index where > a
+             for c in adj_list[b]:
+                 if c <= b: continue
+                 if adj_mat[a][c]:
+                     print(a, b, c)
+                     return
+     ```
+     Wait, if `adj_list[a]` contains all neighbors.
+     Then `for b in adj_list[a]` iterates all.
+     This is correct.
+     To optimize, we can store `adj_list[a]` containing only neighbors $> a$.
+     Then `for b in adj_list[a]` implies $b > a$.
+     Then `for c in adj_list[b]` implies $c > b$.
+     Then check `adj_mat[a][c]`.
+     This is cleaner.
+     The complexity is $\sum_{(a, b) \in E, a < b} \text{deg}_{>}(b)$.
+     This is bounded by $\sum_{b} \text{deg}_{<}(b) \cdot \text{deg}_{>}(b)$.
+     Which is bounded by $O(MN)$.
+     
+     Wait, I should check if $O(MN)$ is acceptable in Python.
+     Usually $10^8$ operations in Python takes a few seconds.
+     With PyPy it's fine. The problem statement doesn't specify PyPy, but standard Python 3.
+     Usually CP platforms support PyPy or give loose limits.
+     But let's assume we need to be efficient.
+     Is there an $O(M \sqrt{M})$ approach?
+     Yes, standard algorithm for finding a triangle.
+     1. Orient edges from lower degree to higher degree (break ties with index).
+     2. Construct directed graph. Max out-degree is $O(\sqrt{M})$.
+     3. Iterate edges $(u, v)$ in directed graph, then iterate $w \in N(v)$ in directed graph.
+     4. Check if $w \in N(u)$ (using set).
+     
+     This guarantees $O(M \sqrt{M})$ complexity.
+     Since $M=200,000$, $\sqrt{M} \approx 450$.
+     $M \sqrt{M} \approx 9 \cdot 10^7$.
+     This is safer.
+     However, this finds *any* triangle. We need the *lexicographically smallest*.
+     The standard algorithm doesn't respect lexicographical order of $(a, b, c)$.
+     But we can adapt it?
+     Or maybe the simple $O(N^2)$ or $O(MN)$ is sufficient because the constant factor is small (just array lookups).
+     Also, the worst case for the simple algorithm is rare.
+     Given the constraints and problem type, the simple solution is likely intended.
+     $N=2000$ suggests $O(N^2)$ is fine.
+     Wait, the simple algorithm is $O(\sum \text{deg}(b)^2)$.
+     If the graph is sparse, $\sum \text{deg}^2$ is small.
+     If the graph is dense, we find a triangle quickly.
+     Is there a case where graph is dense but no small triangle?
+     We discussed this. If graph is dense, it has many triangles.
+     If graph is $K_{N/2, N/2}$, it's bipartite, no triangles. But we are guaranteed a triangle.
+     Adding a triangle to bipartite graph...
+     As seen before, the cost is low.
+     So I will stick with the simple solution but optimize the implementation.
+     
+     Implementation details:
+     - Read input efficiently.
+     - Build adjacency matrix `adj_mat` for $O(1)$ check.
+     - Build adjacency lists `adj`.
+     - Iterate $a, b, c$.
+     
+     Wait, one optimization:
+     When iterating $c \in \text{adj}[b]$, we check `adj_mat[a][c]`.
+     But we only need to check $c$ that are connected to $a$.
+     If $a$ has small degree, iterating $c$ from $\text{adj}[b]$ is wasteful if $a$ is not connected to most of them.
+     Better:
+     Iterate $a$.
+     Iterate $b \in \text{adj}[a]$ with $b > a$.
+     Iterate $c \in \text{adj}[a]$ with $c > b$.
+     Check `adj_mat[b][c]`.
+     This is iterating over the intersection of neighbors.
+     Wait, if we iterate $c \in \text{adj}[a]$ with $c > b$, we are iterating neighbors of $a$.
+     Then we check if $c$ is neighbor of $b$.
+     This is $O(\text{deg}(a)^2)$ roughly (for each pair of neighbors).
+     Actually, for each pair $(b, c)$ in $N(a)$ with $b < c$, we check edge $(b, c)$.
+     This is better if $\text{deg}(a)$ is small.
+     If $\text{deg}(a)$ is large, this is slow.
+     But if $\text{deg}(a)$ is large, we have many paths of length 2 starting at $a$.
+     Wait, the previous approach was $\sum_{b} \text{deg}_{<}(b) \text{deg}_{>}(b)$.
+     This is $\sum_{(a, b) \in E} \text{deg}(b)$.
+     This is $\sum_{b} \text{deg}(b)^2$.
+     The alternative approach: $\sum_{a} \binom{\text{deg}(a)}{2}$.
+     This is also bounded by $\sum \text{deg}(a)^2$.
+     They are essentially the same complexity.
+     However, checking `adj_mat[b][c]` inside the loop is fast.
+     We want to minimize the number of checks.
+     If we iterate $b$ (neighbors of $a$) and $c$ (neighbors of $a$), we do $\text{deg}(a)^2$ checks.
+     If we iterate $b$ (neighbors of $a$) and $c$ (neighbors of $b$), we do $\text{deg}(a) \cdot \text{deg}(b)$ checks.
+     Summing over all $a, b$, we get $\sum_{a} \sum_{b \in N(a)} \text{deg}(b) = \sum_{(a, b) \in E} \text{deg}(b) = \sum_b \text{deg}(b)^2$.
+     So both are similar.
+     But iterating $c \in \text{adj}[b]$ seems better because it naturally stops if no edge exists? No, we iterate all neighbors.
+     Actually, if we use the adjacency list approach:
+     ```python
+     for a in range(1, n + 1):
+         for b in adj[a]:
+             if b <= a: continue
+             for c in adj[b]:
+                 if c <= b: continue
+                 if adj_mat[a][c]:
+                     print(a, b, c)
+                     return
+     ```
+     This is the standard approach.
+     Let's check the constraints again. $N=2000$.
+     If I use a 1D boolean array for each vertex?
+     Or just one 2D array `adj_mat[2005][2005]`.
+     Memory: $2000^2 \times 1$ byte $\approx 4$ MB. OK.
+     
+     One small optimization:
+     In the inner loop, `if adj_mat[a][c]:`
+     We can iterate `c` in `adj[a]` instead of `adj[b]`?
+     If we iterate `c` in `adj[a]` with `c > b`, we check `adj_mat[b][c]`.
+     This is $\sum_{a} \binom{\text{deg}(a)}{2}$.
+     If the graph is sparse, $\text{deg}(a)$ is small, so this is faster.
+     If the graph is dense, `deg(a)` is large, but we find a triangle quickly.
+     If the graph is a star graph (center 1), `deg(1)` is large.
+     We check pairs of neighbors.
+     But if it's a star graph, no triangle.
+     But we are guaranteed a triangle.
+     So we stop early.
+     It seems iterating `c` in `adj[a]` is generally better or equal?
+     Wait, if we have a triangle $(1, 2, 3)$.
+     $a=1$.
+     Method 1 ($c \in \text{adj}[b]$):
+       $b=2$. $c \in \text{adj}[2]$. If $3 \in \text{adj}[2]$, check `adj_mat[1][3]`.
+       It's fast.
+     Method 2 ($c \in \text{adj}[a]$):
+       $b=2$. $c \in \text{adj}[1]$ (neighbors of 1).
+       $c=3$. Check `adj_mat[2][3]`.
+       It's fast.
+     
+     Which one is better for worst case?
+     $\sum \text{deg}(b)^2$ vs $\sum \text{deg}(a)^2$.
+     Since $a$ and $b$ are symmetric in the sum (sum over edges), it's the same.
+     However, iterating `c` in `adj[b]` means we iterate neighbors of $b$.
+     If $b$ has high degree, this is slow.
+     If we iterate `c` in `adj[a]`, we iterate neighbors of $a$.
+     If $a$ has high degree, this is slow.
+     But for the lexicographically smallest triple, we start with $a=1$.
+     If $1$ has high degree, we might do a lot.
+     But if $1$ has high degree, it's likely connected to many nodes.
+     If there is *any* edge among neighbors of 1, we find it.
+     If neighbors of 1 form an independent set (no edges), then we scan all pairs.
+     This is the case $O(\text{deg}(1)^2)$.
+     If $\text{deg}(1) \approx N$, this is $O(N^2)$.
+     Then we move to $a=2$.
+     If $\text{deg}(2)$ is also large and independent, $O(N^2)$.
+     Sum over $a=1 \dots k$: $k \cdot N^2$.
+     But if $\text{deg}(a)$ is large for many $a$, then $M$ must be large.
+     $M \approx k \cdot N / 2$.
+     If $M$ is limited to $200,000$, then we can't have many high degree nodes.
+     If $N=2000$, $\sum \text{deg}(a) = 400,000$.
+     If we have $k$ nodes with degree $N/2 = 1000$.
+     Then $k \cdot 1000 = 400,000 \implies k = 400$.
+     So we can have 400 nodes with degree 1000.
+     Then cost is $400 \cdot 1000^2 = 4 \cdot 10^8$.
+     This is the worst case.
+     But this requires 400 nodes with degree 1000 to have independent neighborhoods.
+     This implies a bipartite-like structure.
+     If we have 400 nodes $U$ connected to 2000 nodes $V$ (somehow).
+     Actually, if $U$ is independent set, and all $u \in U$ connected to all $v \in V$.
+     Then $k \cdot |V| \approx M$.
+     Here $M = 400 \times 2000 = 800,000$.
+     But $M \le 200,000$.
+     So we can't have that many edges.
+     With $M=200,000$, if we have $k$ high degree nodes.
+     $\sum_{u \in U} \text{deg}(u) \le M$.
+     If $\text{deg}(u) \approx D$, then $k \cdot D \le M$.
+     The cost is $\sum_{u \in U} \text{deg}(u)^2 \approx k \cdot D^2$.
+     We know $k \le M/D$. So cost $\le (M/D) \cdot D^2 = M \cdot D$.
+     Max $D$ is $N$. So cost $\le M \cdot N$.
+     This confirms $O(MN)$ upper bound.
+     With $M=200,000, N=2000$, $MN = 4 \cdot 10^8$.
+     This is the tightest bound.
+     Given 2 seconds, Python might struggle with $4 \cdot 10^8$ ops.
+     However, the constant factor is extremely small (array access and increment).
+     Also, we iterate $c$ only if $b$ is neighbor of $a$.
+     In the worst case (independent neighborhoods), we do the check.
+     Is there any way to optimize this to $O(M \sqrt{M})$?
+     Yes, the "degree orientation" method.
+     Sort edges by degrees. But we need lexicographical order.
+     Actually, we can iterate $a$ from 1 to $n$.
+     For each $a$, we want smallest $b > a$ with edge $a \sim b$.
+     And smallest $c > b$ with $a \sim c$ and $b \sim c$.
+     We can iterate $b$ in $\text{adj}[a]$ sorted.
+     For each $b$, we need to find smallest $c \in \text{adj}[a] \cap \text{adj}[b]$ with $c > b$.
+     If we maintain sorted lists, intersection is fast.
+     Intersection of two sorted lists of size $d_a$ and $d_b$ takes $O(d_a + d_b)$.
+     So for each pair $(a, b)$, we spend $O(d_a + d_b)$.
+     Total time $\sum_{(a, b) \in E, a < b} (d_a + d_b)$.
+     This is $\sum_{a} d_a^2 + \sum_{b} d_b^2 = 2 \sum d_i^2$.
+     Same complexity.
+     However, using sets for intersection:
+     `inter = set(adj[a]).intersection(adj[b])`
+     Then find min $c \in \text{inter}$ with $c > b$.
+     This is $O(\min(d_a, d_b))$.
+     Total time $\sum \min(d_a, d_b)$.
+     This is bounded by $\sum d_a \sqrt{M}$? No.
+     This is bounded by $\sum_{(a, b) \in E} \min(d_a, d_b)$.
+     It is known that $\sum_{(u, v) \in E} \min(d(u), d(v)) \le M \sqrt{M}$.
+     Proof: $\sum_{u} \sum_{v \in N(u)} \min(d(u), d(v))$.
+     Split neighbors into those with degree $\ge \sqrt{M}$ and $< \sqrt{M}$.
+     If $d(v) \ge \sqrt{M}$, there are at most $\sqrt{M}$ such neighbors (since sum of degrees is $2M$).
+     So contribution is $\sum d(v) \le 2M$.
+     Wait, standard bound:
+     $\sum_{(u, v) \in E} \min(d(u), d(v)) \le M \sqrt{M}$.
+     Let's verify.
+     Let $G$ be graph.
+     Sum is $\sum_{v} \sum_{u \in N(v), d(u) \le d(v)} d(u)$.
+     For each $v$, we sum $d(u)$ for neighbors with smaller degree.
+     If we orient edges $u \to v$ if $d(u) < d(v)$ (or $d(u)=d(v)$ and $u < v$).
+     Then out-degree of $v$ is at most $\sqrt{2M}$.
+     So total complexity is $M \sqrt{2M}$.
+     With $M=200,000$, $\sqrt{M} \approx 450$. $M \sqrt{M} \approx 9 \cdot 10^7$.
+     This is definitely fast enough for Python.
+     
+     So, the algorithm is:
+     1. Compute degrees of all vertices.
+     2. Sort adjacency lists? No, just iterate edges.
+     3. But we need lexicographical order $(a, b, c)$.
+     The standard triangle finding algorithm using degree orientation does not respect lexicographical order.
+     It finds *a* triangle.
+     We need the *lexicographically smallest*.
+     So we cannot simply use the orientation to skip checks, because we need to check in specific order.
+     BUT, we can use the property of degree orientation to speed up the check?
+     Not really, because the order of checking is fixed by $a, b, c$.
+     However, if we find that for a pair $(a, b)$, the intersection of neighbors is empty, we can skip.
+     The intersection of neighbors is what we need to find $c$.
+     If we use the degree-based orientation, we can construct a directed graph where max out-degree is $\sqrt{M}$.
+     But we are constrained to iterate $a < b < c$.
+     The orientation is based on degrees, not indices.
+     So it doesn't help with finding the smallest triple directly.
+     
+     Wait, if we use the intersection method with sets.
+     For fixed $a, b$, we need smallest $c \in \text{adj}[a] \cap \text{adj}[b]$ with $c > b$.
+     We can compute intersection of `adj[a]` and `adj[b]`.
+     Since we need this for many pairs.
+     Is it possible to optimize?
+     We iterate $a$ from 1 to $n$.
+     For each $a$, we iterate $b \in \text{adj}[a]$ with $b > a$.
+     Then we want smallest $c \in \text{adj}[a] \cap \text{adj}[b]$ with $c > b$.
+     Notice that `adj[b]` contains neighbors of $b$.
+     We can just iterate $c \in \text{adj}[a]$ with $c > b$ and check `c in adj[b]`.
+     To make `c in adj[b]` fast, we use a boolean array or hash set.
+     Using boolean array `is_neighbor[b][c]` is $O(1)$.
+     So the cost is iterating $c \in \text{adj}[a]$.
+     This is $\sum_{a} \sum_{b \in N(a), b>a} \text{count}(c \in N(a), c>b)$.
+     This is $\sum_a \binom{d_a}{2}$.
+     This is what we analyzed before, bounded by $MN$.
+     Wait, if we iterate $c \in \text{adj}[a]$, we are checking intersection.
+     Is it faster to iterate $c \in \text{adj}[b]$?
+     If $d_a < d_b$, iterating $\text{adj}[a]$ is better.
+     So we should iterate over the smaller adjacency list.
+     `if d[a] < d[b]: iterate c in adj[a] else: iterate c in adj[b]`.
+     Then check membership in the other.
+     This reduces the complexity to $\sum_{(a, b) \in E} \min(d_a, d_b)$.
+     This is $O(M \sqrt{M})$.
+     This works perfectly!
+     
+     Wait, does iterating over the smaller list guarantee we find the smallest $c$?
+     We need the smallest $c > b$.
+     If we iterate $c$ in `adj[a]`, we need `adj[a]` to be sorted.
+     If we iterate $c$ in `adj[b]`, we need `adj[b]` to be sorted.
+     Then we find the first valid $c$.
+     Yes, sorting adjacency lists takes $O(N \log N)$ or $O(M \log N)$ total.
+     With $N=2000, M=200,000$, sorting is fast.
+     
+     So the optimized algorithm:
+     1. Read input. Build adjacency lists `adj`.
+     2. Compute degrees `deg`.
+     3. For each vertex, sort `adj[u]`.
+     4. Build an adjacency matrix or hash sets for $O(1)$ membership check.
+        Since $N$ is small, `adj_mat[u][v]` is best.
+     5. Iterate $a$ from 1 to $n$.
+        Iterate $b$ in `adj[a]` such that $b > a$.
+        We want to find smallest $c > b$ in `adj[a]` $\cap$ `adj[b]`.
+        Let's decide which list to iterate based on size.
+        If `deg[a] < deg[b]`:
+           Iterate $c$ in `adj[a]`.
+           If $c > b$ and `adj_mat[b][c]`: Found!
+           (Wait, we need to check $c > b$. Since `adj[a]` is sorted, we can binary search or just iterate. Since we iterate $b$ in increasing order, the $c$'s in `adj[a]` are also checked. Wait, for a fixed $a$, $b$ changes. The condition $c > b$ changes.
+           Wait, if we iterate $c \in \text{adj}[a]$ where $c > b$, we might miss the optimal $c$ if we just iterate linearly?
+           No, we want the smallest $c$. `adj[a]` is sorted.
+           So we iterate $c \in \text{adj}[a]$. If $c > b$ and `adj_mat[b][c]`, then this $c$ is the candidate.
+           BUT, we need to ensure this is the *smallest* $c$ for this pair $(a, b)$.
+           Since `adj[a]` is sorted, the first $c$ we encounter with $c > b$ and `adj_mat[b][c]` is indeed the smallest $c > b$ in intersection.
+           So this logic holds.
+        Else (`deg[a] >= deg[b]`):
+           Iterate $c$ in `adj[b]`.
+           If $c > b$ and `adj_mat[a][c]`: Found!
+           Similar logic. `adj[b]` is sorted.
+           Wait, if we iterate $c \in \text{adj}[b]$, we must ensure $c > b$.
+           Since `adj[b]` contains neighbors, and we sort it, we can just iterate.
+           The condition `adj_mat[a][c]` checks intersection.
+           The first valid $c$ is the smallest.
+        
+        Is this correct?
+        Yes.
+        For a fixed pair $(a, b)$, we find the smallest $c > b$ such that $(a, c)$ and $(b, c)$ are edges.
+        This is exactly the smallest $c$ for the triple.
+        And since we iterate $a$ then $b$ in lexicographical order, the first time we find a valid triple, it is the lexicographically smallest.
+        
+     Complexity:
+     For each $a$, iterate $b \in N(a)$ with $b > a$.
+     For each such pair, iterate $\min(d_a, d_b)$ elements.
+     Total complexity $\sum_{(a, b) \in E, a < b} \min(d_a, d_b)$.
+     This is bounded by $M \sqrt{M}$.
+     $200,000 \times 450 \approx 9 \cdot 10^7$.
+     This is very safe for Python.
+     
+     Wait, checking $c > b$ is trivial.
+     We also need to handle the case where `adj[a]` or `adj[b]` has elements $< b$ or $< a$.
+     Since we iterate $b$ from `adj[a]` (which is sorted), we can just skip $b \le a$.
+     For the inner loop, we iterate $c$ in the chosen list.
+     If we choose `adj[a]`, we need $c > b$.
+     If we choose `adj[b]`, we need $c > b$.
+     Since lists are sorted, we can use `bisect` to find start index, or just iterate.
+     Since we iterate all $c$, just iterating is fine.
+     Wait, iterating all $c$ in `adj[b]` takes $O(d_b)$.
+     If $d_b$ is large, this is bad.
+     But we choose the smaller list.
+     So cost is bounded by $\min(d_a, d_b)$.
+     
+     Wait, one edge case:
+     If we choose `adj[a]` to iterate, but $d_a$ is large?
+     No, we choose `adj[a]` if $d_a < d_b$.
+     So we iterate a small list.
+     The check `adj_mat[b][c]` is $O(1)$.
+     So yes, complexity is $O(M \sqrt{M})$.
+     
+     Let's refine the implementation.
+     
+     Data structures:
+     - `adj`: list of lists. `adj[i]` stores neighbors of `i`.
+     - `adj_mat`: 2D array or dictionary of sets. 2D array is faster.
+       `adj_mat[u][v]` = 1 if edge exists.
+       Since $N \le 2000$, `adj_mat` size $2000 \times 2000$ is small.
+       Initialize with 0.
+     
+     Algorithm steps:
+     1. Read $n, m$.
+     2. Initialize `adj_mat` and `adj`.
+     3. Read edges. Update `adj_mat` and `adj`.
+        Since graph is undirected, add both directions.
+        Sort each `adj[u]`.
+     4. Iterate $a$ from 1 to $n$.
+        Iterate $b$ in `adj[a]`.
+        If $b \le a$: continue.
+        # We need to find smallest $c > b$ in intersection.
+        # Check degrees.
+        if `len(adj[a]) < len(adj[b])`:
+            # Iterate c in adj[a]
+            # Need c > b
+            # Since adj[a] is sorted, we can iterate.
+            # Optimization: use bisect_left to find first element > b.
+            # But iterating from start is O(deg(a)).
+            # Since deg(a) < deg(b), iterating all is fine?
+            # Wait, we only care about c > b.
+            # If we iterate all, we do O(deg(a)) checks.
+            # Since deg(a) < deg(b), this is O(min(deg(a), deg(b))).
+            # Wait, if we iterate all elements of adj[a], we might check elements <= b.
+            # That's fine, they just fail `c > b` check.
+            # But if we use bisect, we skip them.
+            # It's safer to use bisect to avoid checking `c <= b`.
+            # But iterating is also fine given the bound.
+            # Actually, iterating elements <= b is wasted work.
+            # But since we sort, we can just start from index.
+            # However, `adj[a]` contains neighbors.
+            # If we use bisect on `adj[a]` to find insertion point of `b`, we start there.
+            # Let's just iterate and check. It's simpler and likely fast enough.
+            pass
+        else:
+            # Iterate c in adj[b]
+            pass
+        
+        Let's refine the check logic.
+        We want first $c > b$ such that $c \in \text{adj}[a] \cap \text{adj}[b]$.
+        
+        Case 1: `len(adj[a]) < len(adj[b])`.
+        Iterate $c$ in `adj[a]`.
+        If $c > b$ and `adj_mat[b][c]`:
+            print(a, b, c); return.
+            
+        Case 2: `len(adj[a]) >= len(adj[b])`.
+        Iterate $c$ in `adj[b]`.
+        If $c > b$ and `adj_mat[a][c]`:
+            print(a, b, c); return.
+            
+        Wait, in Case 2, we iterate `adj[b]`. `adj[b]` contains neighbors of $b$.
+        We need $c > b$.
+        Since `adj[b]` is sorted, we can iterate all.
+        But `adj[b]` might contain elements $< b$.
+        If we iterate all, we do $O(d_b)$ work.
+        Since $d_b \le d_a$, this is $O(\min)$.
+        However, if $b$ is small, `adj[b]` has many elements $< b$.
+        But wait, $b$ is a neighbor of $a$.
+        $b$ can be anything.
+        If we iterate `adj[b]`, we check `adj_mat[a][c]`.
+        This works.
+        
+        Wait, if we use `adj_mat`, we need to make sure we handle indices correctly.
+        Vertices are 1-based.
+        `adj_mat` size $2001 \times 2001$.
+        
+     One detail:
+     Is it guaranteed that we find the smallest $c$?
+     In Case 1: we iterate $c \in \text{adj}[a]$. Since `adj[a]` is sorted, the first $c$ satisfying conditions is the smallest.
+     In Case 2: we iterate $c \in \text{adj}[b]$. Since `adj[b]` is sorted, the first $c$ satisfying conditions is the smallest.
+     Wait.
+     In Case 2, we iterate $c \in \text{adj}[b]$.
+     We check `adj_mat[a][c]`.
+     If true, then $c \in \text{adj}[a]$.
+     So $c$ is in intersection.
+     Since we iterate `adj[b]` in increasing order, the first such $c$ is the smallest in `adj[b]`.
+     Is it the smallest in intersection?
+     Yes, because intersection is a subset of `adj[b]`.
+     So the smallest element in intersection is the smallest element in `adj[b]` that is also in `adj[a]`.
+     So yes, it works.
+     
+     Wait, in Case 1, we iterate `adj[a]`.
+     We check `adj_mat[b][c]`.
+     If true, $c \in \text{adj}[b]$.
+     So $c$ is in intersection.
+     Since we iterate `adj[a]` in increasing order, the first such $c$ is smallest in `adj[a]`.
+     Since intersection is subset of `adj[a]`, it is smallest in intersection.
+     
+     So the logic is sound.
+     And complexity is $\sum_{(a, b) \in E, a < b} \min(d_a, d_b)$.
+     This is optimal.
+     
+     Wait, I should double check if `adj[b]` is sorted.
+     Yes, step 3 sorts all adjacency lists.
+     
+     Also, `adj_mat` lookup is $O(1)$.
+     
+     One edge case: `adj[a]` might contain $c < b$.
+     The condition `c > b` handles this.
+     Also `adj[a]` might contain $c < a$ (impossible if we only store neighbors, but neighbors can be smaller).
+     Since we iterate $b$ in `adj[a]` and check $b > a$, we ensure $a < b$.
+     If we iterate $c$ in `adj[a]`, we might get $c < a$.
+     But we need $c > b$. Since $b > a$, $c > b$ implies $c > a$.
+     So the condition `c > b` is sufficient.
+     
+     Wait, if we iterate `adj[b]` in Case 2.
+     We need $c > b$.
+     `adj[b]` contains neighbors of $b$. Some might be $< b$.
+     The condition `c > b` handles this.
+     
+     Wait, is it possible that `adj[b]` contains $c < b$ but $c \in \text{adj}[a]$?
+     Yes.
+     But we require $c > b$ for the triple $(a, b, c)$.
+     So we must enforce `c > b`.
+     
+     Correct.
+     
+     Final check on constraints.
+     Time limit 2s.
+     Python loops overhead.
+     $9 \cdot 10^7$ iterations.
+     In Python, a simple loop with check runs at about $10^7$-$10^8$ iterations per second.
+     Inside the loop:
+     `if c > b and adj_mat[b][c]:`
+     This is fast.
+     But we also have the overhead of iterating.
+     Maybe using `bisect` to skip small elements is better?
+     If we use `bisect`, we avoid iterating elements $\le b$.
+     This saves time if $b$ is small and we iterate a large list.
+     But we iterate the smaller list.
+     If the smaller list is still large (e.g. $d_a \approx \sqrt{M} \approx 450$), iterating 450 items is fast.
+     If $d_a$ is small, it's very fast.
+     So explicit iteration is fine.
+     However, if $b$ is very small (e.g. 2), and `adj[a]` has neighbors $1, 3, 4 \dots$.
+     We iterate $c=1$ (fail $c>b$), then $c=3$ (check).
+     We iterate over neighbors $< b$.
+     If $d_a$ is large, this is wasted.
+     But we only iterate `adj[a]` if $d_a < d_b$.
+     So $d_a$ is small.
+     Even if $d_a = 450$, 450 iterations is nothing.
+     So explicit iteration is fine.
+     
+     Wait, what if $d_a$ is small but $d_b$ is huge?
+     Then we iterate `adj[a]`.
+     We might check many $c \in \text{adj}[a]$ with $c < b$.
+     But since `adj[a]` is small, it's fast.
+     What if $d_a$ is large and $d_b$ is small?
+     We iterate `adj[b]`.
+     `adj[b]` is small.
+     So it's always fast.
+     The only concern is if both are large.
+     If both are large, say $d_a \approx d_b \approx D$.
+     Then we iterate $D$.
+     But this only happens if we have many edges with high degrees.
+     But sum of degrees is $2M$.
+     So we can't have too many such pairs.
+     Actually, the bound $\sum \min(d_a, d_b) \le M \sqrt{M}$ holds regardless.
+     So we are good.
+     
+     One small thing: `adj_mat` initialization.
+     Creating a $2000 \times 2000$ list of lists takes time.
+     `[[False] * (n + 1) for _ in range(n + 1)]`
+     $4 \cdot 10^6$ ops. Fast.
+     
+     Wait, `adj[a]` contains neighbors $v$.
+     If we iterate $b \in \text{adj}[a]$, we check $b > a$.
+     But `adj[a]` is sorted.
+     So we can use `bisect_right` to find start index where $b > a$.
+     This avoids iterating small $b$'s.
+     Is it worth it?
+     If $a$ is small (e.g. 1), `adj[a]` has many elements.
+     Most are $> a$.
+     So iterating all is fine.
+     If $a$ is large (e.g. $n-1$), `adj[a]` has few elements.
+     Iterating is fast.
+     So explicit loop is fine.
+     
+     Wait, `adj[a]` is sorted.
+     If we use `bisect` to skip elements $\le a$ in outer loop and $\le b$ in inner loop.
+     This might save some constant factor.
+     Since $N=2000$, `bisect` is fast.
+     Let's add it to be safe.
+     
+     ```python
+     import sys
+     from bisect import bisect_right
+     
+     # Read input
+     input = sys.stdin.read
+     data = input().split()
+     iterator = iter(data)
+     
+     n = int(next(iterator))
+     m = int(next(iterator))
+     
+     adj = [[] for _ in range(n + 1)]
+     # Using a 1D array for adj_mat to save memory/time? 
+     # 2D list is fine.
+     adj_mat = [[False] * (n + 1) for _ in range(n + 1)]
+     
+     for _ in range(m):
+         u = int(next(iterator))
+         v = int(next(iterator))
+         adj[u].append(v)
+         adj[v].append(u)
+         adj_mat[u][v] = True
+         adj_mat[v][u] = True
+     
+     for i in range(1, n + 1):
+         adj[i].sort()
+     
+     for a in range(1, n + 1):
+         # Find start index in adj[a] where b > a
+         # adj[a] is sorted
+         idx_a = bisect_right(adj[a], a)
+         # Iterate b
+         for b in adj[a][idx_a:]:
+             # We need smallest c > b in intersection
+             # Check sizes
+             if len(adj[a]) < len(adj[b]):
+                 # Iterate c in adj[a]
+                 # Find index in adj[a] where c > b
+                 # Wait, we are already in the loop for b.
+                 # We can just iterate from start of adj[a] again?
+                 # No, we need c > b.
+                 # Since adj[a] is sorted, we can find index.
+                 # But iterating from start and checking c > b is fine if list is small.
+                 # To be optimal, let's use bisect.
+                 idx_c = bisect_right(adj[a], b)
+                 for c in adj[a][idx_c:]:
+                     if adj_mat[b][c]:
+                         print(a, b, c)
+                         return
+             else:
+                 # Iterate c in adj[b]
+                 # Find index in adj[b] where c > b
+                 idx_c = bisect_right(adj[b], b)
+                 for c in adj[b][idx_c:]:
+                     if adj_mat[a][c]:
+                         print(a, b, c)
+                         return
+     ```
+     Wait, in the `if` block:
+     `for b in adj[a][idx_a:]`
+     Then inside: `for c in adj[a][idx_c:]`.
+     This iterates `adj[a]` again.
+     This is fine.
+     
+     One logic check:
+     If `len(adj[a]) < len(adj[b])`.
+     We iterate `c` in `adj[a]`.
+     We check `adj_mat[b][c]`.
+     Is it guaranteed that we find the smallest `c`?
+     We iterate `c` in increasing order (since `adj[a]` is sorted).
+     So the first `c` that satisfies `c > b` and `adj_mat[b][c]` is indeed the smallest such `c` in `adj[a]`.
+     And since `adj[a]` is the set we are scanning, and we want smallest `c` in intersection (subset of `adj[a]`), this is correct.
+     
+     Wait, if we chose `adj[a]` to iterate, it means `adj[a]` is smaller.
+     But `c` must be in `adj[b]` as well.
+     If `adj[b]` is larger, `adj[a]` is a subset of `adj[b]`? No.
+     But intersection is subset of `adj[a]`.
+     So finding smallest in intersection is equivalent to finding smallest in `adj[a]` that is also in `adj[b]`.
+     So yes, iterating `adj[a]` works.
+     Similarly for the else block.
+     
+     Wait, `idx_c` calculation: `bisect_right(adj[a], b)`.
+     This returns the index where `b` could be inserted while maintaining order.
+     So all elements at or after this index are $> b$.
+     Correct.
+     
+     Wait, `adj[a][idx_c:]` creates a slice copy.
+     This is $O(\text{len})$.
+     Iterating over it is fine.
+     
+     Is there any risk of `adj[b]` being accessed before `b` is fully processed?
+     No, `adj[b]` is precomputed.
+     
+     Wait, `adj_mat` access `adj_mat[b][c]`.
+     `b` and `c` are indices.
+     `adj_mat` is $N+1$ size.
+     Correct.
+     
+     One edge case: `bisect_right` on empty list. Returns 0. `adj[a][0:]` is empty. Loop doesn't run. Correct.
+     
+     The logic seems solid.
+     Complexity:
+     Outer loop runs $n$ times.
+     Inner loop runs over edges.
+     The check `len(adj[a]) < len(adj[b])` is $O(1)$.
+     The slicing and iteration is proportional to $\min(d_a, d_b)$ (actually slightly more due to bisect, but bisect is log).
+     Total complexity $O(M \sqrt{M})$.
+     With $M=200,000$, this is very safe.
+     
+     Wait, I should verify the constraints again.
+     $N \le 2000$.
+     Is it possible that `len(adj[a])` is used in condition?
+     Yes.
+     
+     Wait, does `adj[b]` change? No.
+     
+     One optimization:
+     `adj_mat` is accessed `adj_mat[b][c]`.
+     Since `b` is fixed in inner loop, we can access row `b`.
+     This is fast.
+     
+     Also, `sys.setrecursionlimit` is not needed.
+     
+     Double check the example 1.
+     4 5
+     1 2
+     1 3
+     2 3
+     2 4
+     3 4
+     
+     Edges: (1,2), (1,3), (2,3), (2,4), (3,4).
+     adj:
+     1: [2, 3]
+     2: [1, 3, 4]
+     3: [1, 2, 4]
+     4: [2, 3]
+     
+     Sorted adj:
+     1: [2, 3]
+     2: [1, 3, 4]
+     3: [1, 2, 4]
+     4: [2, 3]
+     
+     a=1.
+     b in [2, 3].
+     1. b=2.
+        len(adj[1])=2, len(adj[2])=3. 2 < 3.
+        Iterate c in adj[1]. Need c > 2.
+        adj[1] = [2, 3].
+        bisect_right([2, 3], 2) -> index 1 (value 3).
+        c = 3.
+        Check adj_mat[2][3]. True.
+        Found 1 2 3.
+        Output: 1 2 3. Correct.
+     
+     Example 2.
+     5 6
+     1 2
+     1 4
+     2 4
+     3 4
+     3 5
+     4 5
+     
+     Edges: (1,2), (1,4), (2,4), (3,4), (3,5), (4,5).
+     adj:
+     1: [2, 4]
+     2: [1, 4]
+     3: [4, 5]
+     4: [1, 2, 3, 5]
+     5: [3, 4]
+     
+     a=1.
+     b in [2, 4].
+     1. b=2.
+        len(adj[1])=2, len(adj[2])=2.
+        Else branch (len >= len).
+        Iterate c in adj[2] = [1, 4].
+        Need c > 2.
+        bisect_right([1, 4], 2) -> index 1 (value 4).
+        c = 4.
+        Check adj_mat[1][4]. True.
+        Found 1 2 4.
+        Output: 1 2 4. Correct.
+     
+     Seems correct.
+     
+     One detail:
+     The problem says "lexicographically smallest triple $(a, b, c)$".
+     My code iterates $a$ from 1..n.
+     Then $b$ from neighbors of $a$ (sorted).
+     Then $c$ from neighbors (smallest first).
+     This ensures $a$ is minimized, then $b$ is minimized (for that $a$), then $c$ is minimized (for that $a, b$).
+     Wait, does iterating neighbors of $a$ in sorted order guarantee $b$ is minimized?
+     Yes, because we process neighbors in increasing order.
+     The first $b$ we pick is the smallest neighbor $> a$.
+     For that $b$, we find the smallest $c$.
+     Is it possible that a larger $b'$ (neighbor of $a$) yields a smaller $c'$ such that $(a, b', c')$ is lexicographically smaller than $(a, b, c)$?
+     No, because $b' > b$ implies $(a, b', c') > (a, b, c)$.
+     So minimizing $b$ is the primary goal after $a$.
+     So yes, this order is correct.
+     
+     Wait, what if for $b$, we find NO $c$?
+     Then we continue to next $b$.
+     But in my code, I assume we find $c$ immediately if it exists.
+     Wait, I iterate $c$ and check `adj_mat`.
+     If `adj_mat` is true, I return.
+     But if there is no $c$ for a given $b$, the loop finishes and we go to next $b$.
+     This is correct.
+     The code returns the *first* valid triple found.
+     Since we iterate in lexicographical order of triples, the first one found is the answer.
+     
+     Wait, does the order of checking $(a, b, c)$ match the lexicographical order?
+     Outer loop: $a$ increasing.
+     Inner loop: $b$ increasing (neighbors of $a$).
+     Innermost loop: $c$ increasing (neighbors of chosen list).
+     Yes, this matches $(a, b, c)$ lexicographical order.
+     
+     Wait, in the innermost loop, we iterate $c$ from `adj[a]` or `adj[b]`.
+     If we iterate `adj[a]`, $c$ is sorted.
+     If we iterate `adj[b]`, $c$ is sorted.
+     So for a fixed $a, b$, we find the smallest $c$.
+     And since we iterate $b$ in increasing order, we find the smallest $b$ for that $a$.
+     So yes.
+     
+     One edge case: `bisect_right` returns index.
+     If index == len, loop over empty slice.
+     Correct.
+     
+     Wait, `adj[a]` contains all neighbors.
+     In `b` loop, we iterate `adj[a][idx_a:]`.
+     These are $b > a$.
+     Correct.
+     
+     What if `adj[a]` has duplicates?
+     "No pair of servers is listed more than once."
+     So no duplicates.
+     
+     Wait, one subtle point.
+     In the `else` block, we iterate `c` in `adj[b]`.
+     `adj[b]` is sorted.
+     We find smallest $c > b$ such that $c \in \text{adj}[a]$.
+     This $c$ is the smallest in `adj[b]` that is in `adj[a]`.
+     Is it the smallest in `adj[a]` that is in `adj[b]`?
+     Yes, intersection is the same.
+     The smallest element in a set $S$ is the same regardless of which superset we iterate, as long as we iterate in increasing order.
+     Wait, if we iterate `adj[b]` (which is a superset of intersection) in increasing order, the first element in intersection we encounter is indeed the smallest in intersection.
+     Because if there was a smaller element in intersection, it would be in `adj[b]` and would have been encountered earlier.
+     So yes.
+     
+     One final check: Time complexity again.
+     Is it possible that `len(adj[a]) < len(adj[b])` is false often?
+     It depends on degrees.
+     But the sum of $\min(d_a, d_b)$ over all edges is bounded by $M\sqrt{M}$.
+     So it's fine.
+     
+     Memory usage.
+     `adj_mat` is $2000 \times 2000$ bools.
+     In Python, a list of lists of bools.
+     Each bool is an object? No, in CPython `False` is singleton.
+     But the list structure takes memory.
+     $2000 \times 2000$ pointers. 8 bytes each.
+     $4 \cdot 10^6 \times 8 \approx 32$ MB.
+     Plus overhead.
+     $256$ MB limit. So 32 MB is fine.
+     Even better, use `bytearray`?
+     `adj_mat = [bytearray(n + 1) for _ in range(n + 1)]`.
+     This uses 1 byte per element. $4$ MB. Much better.
+     `adj_mat[u][v] = 1`
+     `if adj_mat[b][c]:`
+     This is faster and uses less memory.
+     
+     I will use `bytearray`.
+     
+     Code structure:
+     Read all input at once.
+     Parse.
+     Build structures.
+     Run loops.
+     Print.
+     
+     One small optimization:
+     In the inner loop, we do `if adj_mat[b][c]:`.
+     If using `bytearray`, `adj_mat[b][c]` returns an integer (0 or 1).
+     This is fast.
+     
+     Wait, `adj_mat` is $N+1$ size.
+     `bytearray(n + 1)` creates array of size $n+1$.
+     Indices 0 to $n$.
+     Correct.
+
+     Wait, $N$ can be up to 2000.
+     `n = int(next(iterator))`
+     `adj_mat = [bytearray(n + 1) for _ in range(n + 1)]`
+     This is correct.
+     
+     One edge case from constraints: $n=3$.
+     Loops work.
+     
+     Final verification of the problem statement:
+     "Output only the answer in the exact format specified."
+     "Print three space-separated integers".
+     
+     Everything looks good.
+
+```python
+import sys
+from bisect import bisect_right
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    # Use bytearray for adjacency matrix for memory efficiency and speed
+    # adj_mat[u][v] will be 1 if edge exists, 0 otherwise
+    adj_mat = [bytearray(n + 1) for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_mat[u][v] = 1
+        adj_mat[v][u] = 1
+
+    # Sort adjacency lists to facilitate lexicographical search
+    for i in range(1, n + 1):
+        adj[i].sort()
+
+    # Iterate through all possible a
+    for a in range(1, n + 1):
+        # Find neighbors b of a such that b > a
+        # Since adj[a] is sorted, we can slice from the first element > a
+        # Use bisect_right to find the index
+        idx_a = bisect_right(adj[a], a)
+        
+        # Iterate over valid b
+        for b in adj[a][idx_a:]:
+            # We want to find smallest c > b such that a-c and b-c exist.
+            # We need to check intersection of adj[a] and adj[b] for elements > b.
+            # To optimize, iterate over the smaller adjacency list.
+            
+            # Note: We are looking for c in adj[a] AND adj[b].
+            # If we iterate c in adj[a], we check if c in adj[b] using adj_mat.
+            # If we iterate c in adj[b], we check if c in adj[a] using adj_mat.
+            # We pick the list with smaller size to minimize iterations.
+            
+            if len(adj[a]) < len(adj[b]):
+                # Iterate over neighbors of a
+                # We need c > b.
+                # Find index in adj[a] where element > b
+                idx_c = bisect_right(adj[a], b)
+                for c in adj[a][idx_c:]:
+                    if adj_mat[b][c]:
+                        print(f"{a} {b} {c}")
+                        return
+            else:
+                # Iterate over neighbors of b
+                # We need c > b.
+                # Find index in adj[b] where element > b
+                idx_c = bisect_right(adj[b], b)
+                for c in adj[b][idx_c:]:
+                    if adj_mat[a][c]:
+                        print(f"{a} {b} {c}")
+                        return
+
+if __name__ == '__main__':
+    solve()
+```
+Wait, one small thing. `adj[a][idx_a:]` creates a slice.
+If `adj[a]` is large, this is a copy.
+But `adj[a]` is sorted.
+The slice copy is $O(N)$.
+Inside the loop, we do this for each $b$.
+Wait, `adj[a][idx_a:]` is computed once per $a$.
+Wait, no. `adj[a][idx_a:]` is inside the loop over `a`, but outside loop over `b`.
+Wait, `adj[a]` is iterated.
+`for b in adj[a][idx_a:]`
+This creates a list slice.
+Since `adj[a]` is sorted, this is just a view? No, lists slices are copies in Python.
+This copy takes $O(d_a)$.
+We do this once per $a$.
+So it's fine.
+Wait, actually `adj[a]` is sorted.
+`idx_a` is the start index.
+We iterate `b` from `adj[a]`.
+Wait, `for b in adj[a][idx_a:]` creates the list.
+Is it better to iterate by index?
+`for i in range(idx_a, len(adj[a])):`
+  `b = adj[a][i]`
+This avoids creating the slice object.
+Also, inside the loop, we do `adj[a][idx_c:]`.
+This creates another slice.
+To avoid slicing overhead, we can use indices or iterators.
+But since $N$ is small, slicing is probably fast enough.
+However, `adj[a]` can be up to 2000.
+Copy is fast.
+But we do it inside the loop over `a`?
+Wait, `for b in adj[a][idx_a:]` is executed once per `a`.
+So we copy `adj[a]` once per `a`. Total $O(N^2)$. Fine.
+Wait, inside the `if/else` block, we do `adj[a][idx_c:]` or `adj[b][idx_c:]`.
+This is inside the loop over `b`.
+So we might copy `adj[a]` up to $d_a$ times?
+Wait, if we are in `if` block, we iterate `c` in `adj[a]`.
+We do `adj[a][idx_c:]`.
+Since `idx_c` depends on `b`, and `b` changes.
+`idx_c` increases as `b` increases?
+`b` increases. `idx_c = bisect_right(adj[a], b)`.
+Since `b` increases, `idx_c` increases.
+So we are slicing different parts.
+Slicing creates a copy.
+If we do this $d_a$ times, and each copy is small (since `idx_c` is close to `b`?), well, worst case `idx_c` is 0.
+So we copy `adj[a]` many times.
+This could be $O(d_a^2)$.
+If $d_a \approx N$, this is $O(N^2)$ per $a$. Total $O(N^3)$.
+Wait, this is bad.
+We should avoid slicing.
+Use indices.
+`for c in adj[a][idx_c:]` -> `for k in range(idx_c, len(adj[a])): c = adj[a][k]`.
+This avoids copying.
+Similarly for `adj[b]`.
+Since `adj[b]` is accessed, we might copy it?
+But `adj[b]` is fixed for a given `b`.
+So per `b`, we copy `adj[b]` once.
+Sum of copies over all `b` is $\sum d_b = 2M$.
+So slicing `adj[b]` is fine.
+But slicing `adj[a]` inside the loop over `b` (where $a$ is fixed) is the problem.
+Wait, if we are in `if len(adj[a]) < len(adj[b])`, we iterate `adj[a]`.
+Here `adj[a]` is the list. `adj[b]` is the other.
+We do `adj[a][idx_c:]` for each `b`.
+So yes, we copy `adj[a]` multiple times.
+We should avoid this.
+Using a simple loop with index is better.
+
+Revised code to avoid slicing:
+```python
+            if len(adj[a]) < len(adj[b]):
+                # Iterate over neighbors of a
+                # We need c > b.
+                # Find index in adj[a] where element > b
+                idx_c = bisect_right(adj[a], b)
+                # Iterate c using index to avoid slicing
+                for k in range(idx_c, len(adj[a])):
+                    c = adj[a][k]
+                    if adj_mat[b][c]:
+                        print(f"{a} {b} {c}")
+                        return
+            else:
+                # Iterate over neighbors of b
+                # We need c > b.
+                # Find index in adj[b] where element > b
+                idx_c = bisect_right(adj[b], b)
+                # Iterate c using index
+                for k in range(idx_c, len(adj[b])):
+                    c = adj[b][k]
+                    if adj_mat[a][c]:
+                        print(f"{a} {b} {c}")
+                        return
+```
+This is safer.
+
+Double check: `adj[a]` is accessed inside the loop. `adj[b]` is accessed.
+`adj_mat` is accessed.
+This is optimal.
+
+One more thing: `adj[a]` is accessed many times?
+No, `adj[a]` is accessed.
+Wait, `adj[a]` is the list of neighbors of `a`.
+In the `if` branch, we iterate `c` in `adj[a]`.
+`idx_c` depends on `b`.
+So we iterate over a subsegment of `adj[a]`.
+Since we iterate `b` in increasing order, `idx_c` will also be non-decreasing?
+Yes, because `b` increases, so the value `b` increases, so `bisect_right` returns a larger or equal index.
+So we can optimize further by maintaining the index `idx_c`?
+If we maintain `idx_c` for `adj[a]` as `b` increases, we can avoid `bisect_right`.
+Wait, `b` is a neighbor of `a`.
+As we iterate `b` in `adj[a]`, `b` increases.
+So `idx_c` (index of first element $> b$ in `adj[a]`) will increase.
+So we can maintain a pointer `ptr_c` for `adj[a]`.
+Initially `ptr_c` is such that `adj[a][ptr_c] > b` (for the first `b`).
+Actually, since `b` is in `adj[a]`, `b` is some element.
+The elements in `adj[a]` are $n_1, n_2, \dots$.
+If current $b = n_i$, then we need $c > n_i$.
+The next elements in `adj[a]` are $n_{i+1}, \dots$.
+So `idx_c` is simply the index of `b` + 1?
+Wait, `adj[a]` contains $b$.
+So `bisect_right(adj[a], b)` returns index of `b` + 1 (assuming unique elements, which is true).
+So `idx_c` is the index of `b` in `adj[a]` plus 1.
+Wait, `b` is a neighbor.
+So `b` is in `adj[a]`.
+Since `adj[a]` is sorted, and we iterate `b` in `adj[a]`, we know the position of `b`.
+So we don't need `bisect_right`.
+Just use the index from the outer loop.
+Let's refine the loops.
+
+Outer loop:
+Iterate `b` in `adj[a]`.
+If `b <= a`: continue.
+We need `c` from `adj[a]` (or `adj[b]`) such that `c > b`.
+If we iterate `c` in `adj[a]`:
+Since `b` is in `adj[a]`, and we iterate `b` in increasing order.
+The elements in `adj[a]` greater than `b` are exactly the elements after `b`.
+So we can just iterate the rest of `adj[a]`.
+This avoids `bisect` and slicing completely!
+We just iterate `adj[a]` starting from the current `b`'s position + 1.
+Wait, `adj[b]` iteration?
+If we iterate `c` in `adj[b]`, we need `c > b`.
+`b` is not necessarily in `adj[b]`.
+So we need to find start in `adj[b]`.
+But `adj[b]` is sorted.
+We can use `bisect_right` on `adj[b]` to find start.
+Since `adj[b]` is not being iterated in the outer loop (except implicitly), we can't easily track index.
+But `adj[b]` is accessed only when we pick `b`.
+And we access `adj[b]` only once for each `b` (since we do it inside the `b` loop).
+So `bisect_right` on `adj[b]` is $O(\log d_b)$.
+This is negligible.
+The main optimization is for the case where we iterate `adj[a]`.
+In that case, we can just use the index.
+
+Wait, `adj[a]` is the list we are iterating `b` from.
+So we can iterate using an index `i` for `b`.
+`for i in range(len(adj[a])):`
+  `b = adj[a][i]`
+  `if b <= a: continue`
+  `# Now we need c > b in adj[a] or adj[b]`
+  `if len(adj[a]) < len(adj[b]):`
+     `# Iterate c in adj[a] starting from i + 1`
+     `for j in range(i + 1, len(adj[a])):`
+         `c = adj[a][j]`
+         `if adj_mat[b][c]: ...`
+  `else:`
+     `# Iterate c in adj[b] starting from index > b`
+     `idx_c = bisect_right(adj[b], b)`
+     `for k in range(idx_c, len(adj[b])):`
+         `c = adj[b][k]`
+         `if adj_mat[a][c]: ...`
+
+This looks very efficient.
+Avoids `bisect` for `adj[a]` (which was the problematic part if sliced).
+And `adj[b]` slice/iteration is fine.
+
+Wait, `adj[a]` contains all neighbors.
+Some might be $< a$.
+We skip them.
+But if `b` is a neighbor $< a$, we skip.
+If `b` is a neighbor $> a$, we process.
+If we use index `i` in `range(len(adj[a]))`, we get `b`.
+Check `b > a`. If so, proceed.
+Then if we use `adj[a]` for `c` loop, we start from `i + 1`.
+This guarantees `c` comes after `b` in `adj[a]`.
+Since `adj[a]` is sorted, `c > b` is satisfied.
+Wait, is it guaranteed that `c > b`?
+Yes, because `adj[a]` is sorted.
+So elements after index `i` are $> b$.
+Is it possible that `adj[a]` has duplicates? No.
+So yes.
+This logic holds.
+
+Wait, `adj[a]` is sorted.
+Is it possible `adj[a]` contains `b` and `c` such that `c < b`?
+No, sorted.
+So iterating from `i+1` gives elements strictly greater than `adj[a][i]` which is `b`.
+So `c > b` is guaranteed.
+And we don't need `bisect_right` on `adj[a]`.
+This is a nice optimization.
+
+Wait, `adj[b]` logic.
+We need `c > b`.
+`adj[b]` contains neighbors of `b`.
+`b` is not in `adj[b]`.
+So we use `bisect_right(adj[b], b)`.
+This is correct.
+
+One detail:
+We need to check `len(adj[a]) < len(adj[b])`.
+This is $O(1)$.
+But note that `len(adj[a])` is constant for the outer loop.
+`len(adj[b])` changes.
+
+Also, `adj_mat` access is $O(1)$.
+
+Final check on complexity.
+Outer loop `a`.
+Inner loop `b` (neighbors of `a`).
+If `len(adj[a]) < len(adj[b])`:
+  Iterate `c` in `adj[a]` starting `i+1`.
+  Number of iterations: `len(adj[a]) - 1 - i`.
+  Sum of iterations over `b`: $\sum_{i} (d_a - 1 - i) \approx d_a^2 / 2$.
+  This happens if `d_a < d_b`.
+  So we pay $O(d_a^2)$ for each `a` if $d_a$ is small.
+  Wait, if $d_a$ is small, $d_a^2$ is small.
+  If $d_a$ is large, we likely enter the `else` branch?
+  If $d_a$ is large, `len(adj[a])` might be $\ge len(adj[b])$.
+  Then we iterate `adj[b]`.
+  Cost $O(d_b)$.
+  So we pay $\sum_{b \in N(a), b>a} d_b$.
+  Summing over all `a`, we get $\sum_{(a, b) \in E} \min(d_a, d_b)$.
+  This confirms the $O(M \sqrt{M})$ complexity.
+
+Wait, the `if` branch cost is $\sum_{b \in N(a), b>a, d_a < d_b} (d_a - \text{pos}(b))$.
+Since $d_a < d_b$, we iterate `adj[a]`.
+We iterate up to $d_a$ times.
+Total cost for `a` is $\sum_{b} d_a = d_a \cdot (\text{number of neighbors with } d_b > d_a)$.
+This is bounded by $d_a^2$.
+Summing over `a`: $\sum \min(d_a, d_b)^2$? No.
+It is bounded by $\sum_{a} d_a \cdot d_a = \sum d_a^2$.
+Wait, if we are in `if` branch, we iterate `adj[a]`.
+We iterate $c$ in `adj[a]`.
+For each pair $(a, b)$ with $d_a < d_b$, we do $O(d_a)$ work.
+Sum is $\sum_{(a, b): d_a < d_b} d_a$.
+This is $\sum_{a} \sum_{b \in N(a), d_b > d_a} d_a = \sum_a d_a \cdot |\{b \in N(a) : d_b > d_a\}|$.
+This is bounded by $\sum_a d_a^2$.
+Wait, $\sum d_a^2$ can be $O(MN)$.
+But we established that $\sum \min(d_a, d_b) \le M \sqrt{M}$.
+Is $\sum d_a^2$ related?
+If we use the `else` branch, we do $O(d_b)$ work.
+Total work $\sum_{(a, b): d_a \ge d_b} d_b = \sum_b \sum_{a \in N(b), d_a \ge d_b} d_b$.
+This is bounded by $\sum_b d_b^2$.
+The total work is $\sum_{(a, b)} \min(d_a, d_b)$.
+Wait, in `if` branch we do $O(d_a)$ work (number of elements in `adj[a]` after `b`).
+Actually, the number of elements is at most $d_a$.
+So cost is $\min(d_a, d_b)$?
+In `if` branch, we iterate `adj[a]`. The number of elements is at most $d_a$.
+In `else` branch, we iterate `adj[b]`. The number of elements is at most $d_b$.
+So in both cases, we iterate at most $\min(d_a, d_b)$ elements?
+Wait, in `if` branch we iterate `adj[a]`. We iterate elements *after* `b`.
+The number of elements after `b` is at most $d_a$.
+So cost is $\le d_a$.
+In `else` branch, we iterate `adj[b]`. Elements after `b` (by index/value).
+Number of elements is $\le d_b$.
+So cost is $\le d_b$.
+So cost is $\le \min(d_a, d_b)$.
+Wait, strictly speaking, `adj[a]` elements after `b` is $< d_a$.
+So yes, cost is $\le \min(d_a, d_b)$.
+So the total complexity is $\sum_{(a, b) \in E} \min(d_a, d_b)$.
+This is exactly $O(M \sqrt{M})$.
+So the logic holds perfectly.
+
+Wait, `if len(adj[a]) < len(adj[b])`.
+If `len(adj[a])` is small, we iterate `adj[a]`.
+If `len(adj[a])` is large, we iterate `adj[b]`.
+Wait, if `len(adj[a])` is large, we go to `else`.
+Then we iterate `adj[b]`.
+So we iterate the smaller list.
+So yes, we iterate $\min(d_a, d_b)$ items.
+The complexity is optimal.
+
+One edge case: `idx_c` in `else` block.
+If `adj[b]` has no elements $> b$, `bisect_right` returns `len`.
+Loop range is empty. Correct.
+
+The solution seems solid.
+
+```python
+import sys
+from bisect import bisect_right
+
+# Set recursion depth just in case, though not used here.
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list
+    adj = [[] for _ in range(n + 1)]
+    # Adjacency matrix using bytearray for memory efficiency
+    adj_mat = [bytearray(n + 1) for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_mat[u][v] = 1
+        adj_mat[v][u] = 1
+
+    # Sort adjacency lists
+    for i in range(1, n + 1):
+        adj[i].sort()
+
+    # Iterate a from 1 to n
+    for a in range(1, n + 1):
+        # Iterate b in neighbors of a
+        # We iterate using index to avoid slicing and to easily access c's in adj[a]
+        for idx_b, b in enumerate(adj[a]):
+            if b <= a:
+                continue
+            
+            # We need smallest c > b such that c is connected to both a and b.
+            # We check intersection of adj[a] and adj[b].
+            # We choose to iterate over the smaller adjacency list.
+            
+            # Case 1: adj[a] is smaller (or equal) than adj[b]
+            # We iterate c in adj[a] starting from index after b.
+            # Since adj[a] is sorted and b is at idx_b, elements after idx_b are > b.
+            if len(adj[a]) <= len(adj[b]):
+                # Iterate c starting from idx_b + 1
+                for idx_c in range(idx_b + 1, len(adj[a])):
+                    c = adj[a][idx_c]
+                    # Check if c is connected to b
+                    if adj_mat[b][c]:
+                        print(f"{a} {b} {c}")
+                        return
+            else:
+                # Case 2: adj[b] is smaller
+                # We iterate c in adj[b] starting from first element > b.
+                # Use bisect_right to find start index.
+                idx_c = bisect_right(adj[b], b)
+                for k in range(idx_c, len(adj[b])):
+                    c = adj[b][k]
+                    # Check if c is connected to a
+                    if adj_mat[a][c]:
+                        print(f"{a} {b} {c}")
+                        return
+
+if __name__ == '__main__':
+    solve()
+```
+The logic `len(adj[a]) <= len(adj[b])` is used.
+If `len(adj[a]) == len(adj[b])`, we choose `adj[a]`.
+Is this safe?
+Yes, iterating `adj[a]` is safe because we have the index `idx_b`.
+Iterating `adj[b]` would require `bisect`.
+Either is fine.
+Wait, if `len(adj[a]) <= len(adj[b])`, we iterate `adj[a]`.
+This avoids `bisect` for `adj[a]` (since we use index) and saves `bisect` call overhead.
+But we iterate `adj[a]` which has length $d_a$.
+If $d_a$ is small, it's fast.
+If $d_a$ is large, then $d_b$ is also large.
+But if $d_a$ is large, we might want to iterate `adj[b]`?
+Wait, if $d_a = d_b$, it doesn't matter.
+If $d_a > d_b$, we go to `else` and iterate `adj[b]`.
+So we always iterate the smaller list (or equal).
+Wait, in `if` branch we iterate `adj[a]`.
+We iterate elements *after* `b`.
+Number of elements $\approx d_a$.
+Wait, actually it is $d_a - 1 - idx_b$.
+So it is definitely $\le d_a$.
+And since we are in `if` branch, $d_a \le d_b$.
+So we iterate $\le \min(d_a, d_b)$ elements.
+Wait, if we are in `else` branch, we iterate `adj[b]`.
+Number of elements $\le d_b$.
+And since we are in `else` branch, $d_b < d_a$.
+So we iterate $\le \min(d_a, d_b)$ elements.
+So yes, complexity is bounded by sum of mins.
+The logic holds.
+
+Wait, `bisect_right` on `adj[b]` is needed in `else` branch.
+Yes.
+
+One tiny optimization:
+In `else` branch, we iterate `adj[b]`.
+We check `adj_mat[a][c]`.
+If `adj_mat` is accessed, it's fast.
+Wait, `adj_mat` is `bytearray`.
+`adj_mat[a][c]` returns an int.
+In Python `if 0:` is False. `if 1:` is True.
+So `if adj_mat[a][c]:` works.
+
+Looks good.
+
+One detail: `sys.setrecursionlimit` is not needed but harmless.
+I will remove it to be clean.
+
+Final check on imports. `bisect` is standard.
+`sys` is standard.
+
+I am confident.
+
+One edge case: $a, b, c$ must be distinct.
+Since $a < b < c$, they are distinct.
+My code ensures $a < b$ (via `b > a`) and $b < c$ (via `c > b` or `c` after `b` in sorted list).
+And distinctness is guaranteed.
+
+Double check the `range` in `else`.
+`range(idx_c, len(adj[b]))`.
+If `idx_c >= len`, range is empty. Correct.
+
+The `enumerate` gives `idx_b`.
+If `b` is at `idx_b`, then `c` at `idx_b + 1` is strictly after `b`.
+Since list is sorted and unique, `adj[a][idx_b + 1] > adj[a][idx_b]`.
+So `c > b` holds.
+
+Correct.
+
+One thought:
+Is it possible that `adj_mat[b][c]` check is slow?
+No, it's array indexing.
+Is it possible `adj_mat` is too large for cache?
+$4$ MB fits in L3 cache of modern CPUs.
+Even if not, memory access is fast enough.
+
+Final check: Time limit 2s.
+Python loop overhead is the main concern.
+With $N=2000$, $M=200000$.
+Operations $\approx 10^8$.
+This is slightly high for Python.
+But `len(adj[a]) <= len(adj[b])` condition makes sure we iterate the smaller list.
+This minimizes operations significantly.
+Also `idx_c` optimization for `adj[a]` avoids `bisect`.
+So this should pass.
+
+One potential issue:
+`adj` is list of lists.
+`adj[a]` access is fast.
+`adj_mat[b]` access returns a bytearray.
+`adj_mat[b][c]` access is fast.
+Wait, `adj_mat[b]` is a reference to a bytearray.
+`adj_mat[b][c]` is item access.
+It's fast.
+
+The solution should be correct and efficient.
+
+One small check: what if `n` is small?
+Code works.
+What if `m` is small?
+Code works.
+
+I will formulate the final response now.

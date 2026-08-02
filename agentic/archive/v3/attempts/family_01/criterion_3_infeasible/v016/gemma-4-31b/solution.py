@@ -1,0 +1,57 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Adjacency list for graph
+    adj = [[] for _ in range(n + 1)]
+    # Adjacency matrix for O(1) lookup
+    # Using a bitset (represented by integers in Python) for efficiency
+    # bit_adj[i] will have the j-th bit set if there is an edge between i and j
+    bit_adj = [0] * (n + 1)
+    
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr + 1])
+        ptr += 2
+        if u > v:
+            u, v = v, u
+        adj[u].append(v)
+        bit_adj[u] |= (1 << v)
+        bit_adj[v] |= (1 << u)
+
+    # We want the lexicographically smallest (a, b, c) with a < b < c.
+    # Iterate a from 1 to n.
+    for a in range(1, n + 1):
+        # To find the smallest b, we sort the neighbors of a that are > a.
+        neighbors_a = sorted([v for v in adj[a] if v > a])
+        
+        # For each candidate b, check if there exists a c > b such that 
+        # c is connected to both a and b.
+        for b in neighbors_a:
+            # We need c > b such that (a, c) is an edge AND (b, c) is an edge.
+            # This is the intersection of neighbors of a and neighbors of b.
+            # Only consider bits > b.
+            
+            # mask for bits > b
+            mask = ~((1 << (b + 1)) - 1)
+            common = bit_adj[a] & bit_adj[b] & mask
+            
+            if common:
+                # Find the smallest set bit in 'common'
+                # common.bit_length() is the position of the highest bit.
+                # We need the lowest bit.
+                # (common & -common).bit_length() - 1 gives the index of the lowest set bit.
+                c = (common & -common).bit_length() - 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,47 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest triple (a, b, c),
+    # we iterate a from 1 to n, b from a+1 to n, and c from b+1 to n.
+    # To optimize, we only check b in adj[a] and c in adj[a] & adj[b].
+    
+    # Sort neighbors to ensure we find the lexicographically smallest triple first
+    adj_list = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    # Using an array of sets for O(1) lookup
+    # Pre-convert to sets for efficiency
+    adj_sets = [set(adj[i]) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        neighbors_a = adj_list[a]
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            if b <= a:
+                continue
+            
+            # Intersection of neighbors of a and b
+            # We want to find c such that c > b and c is in both
+            neighbors_b = adj_sets[b]
+            for c in neighbors_a[i+1:]:
+                if c in neighbors_b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

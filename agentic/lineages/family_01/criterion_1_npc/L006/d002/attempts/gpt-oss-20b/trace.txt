@@ -1,0 +1,181 @@
+We need 3-coloring of graph with n<=40. Need lexicographically smallest assignment (vector of colors). n small, we can backtrack with pruning, or use BFS/DP over subsets.
+
+We can treat as 3-coloring NP-hard but n=40 small. Backtracking with ordering by degree may be fine.
+
+We need lexicographically smallest sequence: we must try colors 1..3 in order for each vertex in natural order 1..n, but we need to consider constraints; we must find first lexicographically smallest assignment.
+
+So we can recursively assign color to vertex i from 1..3; backtrack. Use adjacency list.
+
+We can use forward checking: maintain for each vertex the available colors given assigned neighbors. When assign, we may prune if some unassigned vertex has no available color.
+
+We need to process vertices in order 1..n to ensure lexicographic. Because lexicographic order defined by s1..sn. So we cannot reorder vertices. We must assign in order.
+
+Thus simple recursion over i from 1 to n, try colors 1..3 if allowed by neighbors already assigned. Also keep track of available colors for unassigned vertices to prune: after assigning color to vertex i, for each unassigned neighbor j, if its available colors set loses a color and becomes empty, backtrack.
+
+We can maintain for each vertex a bitmask of available colors (3 bits). Initially all 0b111. When assign color c to vertex v, for each neighbor u not yet assigned, we remove color c from its mask. If mask becomes 0, fail.
+
+We need to restore masks on backtrack. We can store changes stack.
+
+Because n<=40, recursion depth <=40. For each assignment, we may iterate over neighbors; total edges m up to 780. Complexity fine.
+
+Implementation:
+
+adj list.
+
+assigned array size n+1, 0 means unassigned.
+
+avail array of masks length n+1, initially 0b111.
+
+Recursive function dfs(i):
+
+if i>n: success, output.
+
+color loop c in 1..3:
+
+if avail[i] has bit c set and no neighbor conflict? Actually neighbor conflict: if neighbor j assigned and j==c, can't assign. But avail[i] already removed colors used by neighbors. So we just check avail[i] bit for c.
+
+So if not (avail[i] >> (c-1)) &1: continue.
+
+Now assign: assigned[i]=c.
+
+We need to record changes: list of tuples (u, old_mask). For each neighbor u > i? Wait neighbor might be before i, but those already assigned, no change to avail. For unassigned neighbors u, we will remove color c from avail[u]. So for each neighbor u where assigned[u]==0:
+
+old = avail[u]
+new = old & ~(1 << (c-1))
+if new == old: nothing changed? Actually color c may not be present, so new==old; then no need to record.
+
+If new != old:
+
+record (u, old) in changes.
+
+avail[u] = new
+
+If new==0: fail.
+
+After all neighbors processed, if any neighbor becomes 0, we can early fail.
+
+If no failure, proceed to dfs(i+1). If success return True.
+
+After exploring, restore: for each (u, old) in reversed(changes): avail[u]=old
+
+assigned[i]=0
+
+If return True propagate.
+
+Edge case: if no color works, return False.
+
+Finally main: if dfs(1): print YES and assignment; else NO.
+
+Need to ensure lexicographic smallest: Because we iterate color 1..3 in order, and recursion in order of vertices.
+
+Should work.
+
+Test example.
+
+Let's do quick mental test.
+
+Example 1:
+
+n=4 edges given. DFS:
+
+i=1 avail[1]=111. try c=1. assign 1. neighbors: 2,3,4? edges 1-2,1-3,1-4. Remove color1 from avail[2],3,4. avail[2]=110,3=110,4=110 (if unassigned). No zero. dfs(2). avail[2]=110. try c=1? not allowed. color2 allowed. assign 2. neighbors: 1 already assigned, 3? edge 2-3. Remove color2 from avail[3] => avail[3] currently 110, remove bit2 => 100. avail[3] not zero. neighbor 4? edge 2-4. Remove color2 from avail[4] => 110->100. dfs(3). avail[3]=100. only color3 allowed. assign 3. neighbors: 1 assigned, 2 assigned. neighbor? none else. dfs(4). avail[4]=100. color3 allowed. assign 3. success. Print [1,2,3,3]. Good.
+
+Edge of lexicographic: Suppose multiple assignments; we will find first lexicographically.
+
+Complexities fine.
+
+Implementation details: store edges adjacency list as list of lists.
+
+We need to be careful to use bit positions: bit 0 for color1, bit1 for color2, bit2 for color3.
+
+Check avail[i] & (1 << (c-1)).
+
+Edge: If neighbor already assigned same color, we would have removed that color earlier when that neighbor was assigned? Actually when we assign vertex j, we removed color of j from neighbors avail. So for i, if neighbor assigned same color, that color will have been removed from avail[i]. So avail[i] will not contain that color. So we don't need to check again.
+
+Thus algorithm correct.
+
+Let's produce code.
+
+But we need to ensure recursion depth <= 40; Python recursion fine. Use sys.setrecursionlimit(10000).
+
+We must read input fast.
+
+Edge: n=1, no edges, avail[1]=111, assign 1, success.
+
+We need to output sequence space-separated.
+
+Implementation:
+
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().strip().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    assigned = [0]*(n+1)
+    avail = [0b111]*(n+1)
+    def dfs(i):
+        if i>n:
+            return True
+        mask = avail[i]
+        for c in (1,2,3):
+            if mask & (1 << (c-1)):
+                # try assign
+                assigned[i] = c
+                changes = []
+                fail = False
+                for u in adj[i]:
+                    if assigned[u]==0:
+                        old = avail[u]
+                        new = old & ~(1 << (c-1))
+                        if new != old:
+                            changes.append((u, old))
+                            avail[u] = new
+                            if new == 0:
+                                fail = True
+                                break
+                if not fail:
+                    if dfs(i+1):
+                        return True
+                # backtrack changes
+                for u, old in reversed(changes):
+                    avail[u] = old
+                assigned[i] = 0
+        return False
+    ok = dfs(1)
+    out = []
+    if not ok:
+        out.append("NO")
+    else:
+        out.append("YES")
+        seq = ' '.join(str(assigned[i]) for i in range(1,n+1))
+        out.append(seq)
+    sys.stdout.write('\n'.join(out))
+
+Edge: avail array is list, but we use same mask for all indices? We created avail = [0b111]*(n+1) which will share same object? Wait 0b111 is an int, so fine; each entry independent.
+
+But we need to initialize avail[0] not used.
+
+Potential bug: avail array mutated per vertex individually, fine.
+
+But we need to ensure avail[i] not changed inadvertently by referencing same int? ints immutable.
+
+Edge: When we assign, we modify avail[u] inside loop; but we also need to revert after recursion. We use changes stack. Good.
+
+Now final answer.
+
+Let's test quickly mentally with second example: full graph of 4 nodes all edges. Should fail.
+
+During dfs(1): try color1. assign 1. neighbors 2,3,4 remove color1 from avail[2],3,4 -> 110 each. dfs(2): avail[2]=110. try color1? not allowed. color2 allowed. assign 2. neighbors: 1 assigned, 3,4 remove color2 -> avail[3]=100, avail[4]=100. dfs(3): avail[3]=100. try color1? not allowed. color2? not allowed. color3 allowed. assign 3. neighbors: 1,2 assigned, 4? edge 3-4. Remove color3 from avail[4] -> avail[4] currently 100, new 0 -> fail. Backtrack: restore avail[4] to 100? Wait before removal avail[4] was 100. After removal new 0, fail. On backtrack changes, avail[4] restored to 100. assigned[3] cleared. Continue color loop for 3: no more colors. backtrack to node2: after trying color2, we backtrack changes (which removed color2 from 3,4). avail[3] back to 110, avail[4] back to 110. assigned[2] cleared. Now color3 for node2? avail[2] is 110, color3 not allowed. So node2 fails. Backtrack to node1: backtrack changes (removed color1 from 2,3,4). avail[2],3,4 back to 111. assigned[1] cleared. Now try color2 for node1. similar fail. color3 for node1 fail. So no solution. Ok.
+
+Return NO.
+
+Edge: lexicographic: Suppose there is solution with s1=1 but s2=3 etc. Our algorithm picks smallest colors as early as possible, but if earlier color leads to unsatisfiable later, it will backtrack and try next color. So final sequence lexicographically smallest among all solutions. Good.
+
+Now final code.

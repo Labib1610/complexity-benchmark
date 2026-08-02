@@ -1,0 +1,286 @@
+We need to find lexicographically smallest triangle in undirected graph with n <=2000, m up to 2e5. Guarantee at least one triangle.
+
+We need efficient algorithm.
+
+Brute force O(n^3) too high. Use adjacency lists and bitsets or adjacency matrix. n <=2000 so adjacency matrix of 2000x2000 boolean fits memory (4 million booleans ~ 4MB). Actually 2000*2000=4 million, each bool may be 1 byte ~4MB, fine.
+
+We can use bitset with Python's int or bitarray. But simple nested loops with adjacency matrix and adjacency lists may suffice.
+
+Goal: find smallest a<b<c such that edges (a,b),(a,c),(b,c) exist. Lexicographic min: iterate a from 1..n. For given a, iterate b from a+1..n. For each pair (a,b) that is an edge, we need to find c > b such that edges (a,c),(b,c) exist. We want smallest c. So for each a,b, we can iterate c from b+1..n and check. Complexity worst-case O(n^3) again. But we can use adjacency lists to get intersections.
+
+We can precompute adjacency lists sorted. For each a, for each b > a with edge, we can compute intersection of adjacency lists of a and b that are > b. Use set intersection or bitset.
+
+Since n <=2000, we can use bitset via Python int bit operations. Represent adjacency of each node as bitset of length n bits. For node i, adjacency bitset has bit j set if edge (i,j). Then for given a,b, intersection = adj[a] & adj[b]; we need smallest c > b such that bit c set. We can shift intersection >> (b) to drop bits <=b, then find lowest set bit index. Implementation: mask = (1 << (n - (b+1)))? Wait we can compute intersection, but to find min c > b with bit set, we can compute intersection >> (b+1) and then find least significant set bit. Use (intersection >> (b+1)).bit_length() to find position? Actually bit_length gives index of highest set bit. To find lowest set bit, can use (x & -x) to isolate lowest set bit. Then compute position via (x & -x).bit_length() - 1. But we need offset.
+
+Simpler: iterate c from b+1..n but n <=2000; worst-case loops may be high but maybe acceptable? Let's analyze worst-case: Suppose complete graph: n=2000, edges m ~ 2e6 > limit. Actually m limited to 2e5, so graph not complete. But still worst-case for loops: For each a,b, we may iterate c, but we can break early when found first triangle. Since lexicographically smallest triangle will be found early. In worst-case, the smallest triangle may be near the end? For example, if the graph is such that only triangle is (n-2, n-1, n). Then loops would iterate many pairs before hitting that. Let's compute worst-case loops: For each a from 1..n-3, for each b from a+1..n-2, check if edge exists. Suppose graph has few edges, but we still check all pairs. For each pair we may iterate c from b+1..n. That could be O(n^3). But we can optimize by using adjacency matrix and early break. But still worst-case maybe high.
+
+Better approach: Use adjacency lists and bitset intersection to quickly find c.
+
+Implementation approach:
+
+- Build adjacency matrix as list of ints bitset for each node. Use 0-indexed indices 0..n-1.
+
+- For a in range(n):
+   for b in range(a+1, n):
+       if there is edge between a and b (check adjacency matrix bit: adj[a] >> b & 1):
+           intersection = adj[a] & adj[b]
+           # remove bits <= b
+           mask = intersection >> (b+1)
+           if mask != 0:
+               # find lowest set bit position
+               low = mask & -mask
+               c_offset = (low.bit_length() - 1)  # position in mask
+               c = b+1 + c_offset
+               output a+1, b+1, c+1
+               exit
+
+This loops over a and b, but we only need to test edges. But we still iterate over all b for each a. Complexity O(n^2). n=2000 => 4 million iterations, fine.
+
+Edge check: adjacency matrix as bitset; but we also have adjacency list for edges to quickly check? The bitset check is O(1). So loops fine.
+
+Implementation details:
+
+- Build adjacency bitset list: adj = [0]*n
+
+- For each edge u,v (1-indexed), convert to 0-indexed: u-=1; v-=1; set bits: adj[u] |= 1 << v; adj[v] |= 1 << u.
+
+- Then loops.
+
+- We need to find lexicographically smallest triangle. Our loops iterate a from 0 to n-1, b from a+1 to n-1. For each pair with edge, we compute intersection. We find smallest c > b. Because we process a in increasing order, b increasing, and c minimal, we guarantee lexicographically smallest triangle.
+
+Edge case: There is guarantee at least one triangle.
+
+Complexities: building bitset uses shift 1<<v where v up to 1999, so shift by up to 1999 bits, which fits into Python int.
+
+Implementation: In loops, we need to shift intersection >> (b+1). But if b+1 > n-1, then shift by n bits, but intersection is int, shift by >= bit_length returns 0. So fine.
+
+We also need to ensure we don't find c where c <= b. But we mask by shifting.
+
+Implementation details:
+
+- For each a in range(n):
+   for b in range(a+1, n):
+       if (adj[a] >> b) & 1:
+           inter = adj[a] & adj[b]
+           mask = inter >> (b+1)
+           if mask:
+               low = mask & -mask
+               c_offset = low.bit_length() - 1
+               c = b+1 + c_offset
+               print(a+1, b+1, c+1)
+               return
+
+We need to ensure c > b and also adjacency ensures edges.
+
+Let's test with example.
+
+Example 1:
+
+n=4, edges: 1-2 (0-1),1-3(0-2),2-3(1-2),2-4(1-3),3-4(2-3)
+
+adj[0] bits: 1<<1 | 1<<2 = 0b110 = 6
+adj[1]: 1<<0 | 1<<2 | 1<<3 = 0b1011 = 11
+adj[2]: 1<<0 | 1<<1 | 1<<3 = 0b1101 = 13
+adj[3]: 1<<1 | 1<<2 = 0b110 = 6
+
+Loop a=0:
+  b=1: edge exists. inter=adj[0]&adj[1] = 6 & 11 = 0b010 = 2. mask= inter >> (1+1)=2 >> 2 = 0. So no c.
+  b=2: edge exists. inter=6 & 13 = 0b010 = 2. mask = 2 >> 3 = 0. no c.
+  b=3: edge? adj[0] has bit 3? 0? no.
+a=1:
+  b=2: edge exists. inter=11 & 13 = 0b1101 & 0b1011 = 0b1001 = 9. mask = 9 >> (2+1)=9>>3=1. low=1, offset=0, c=3+0=3. c=3? Wait indices 0-based, so c=3. That's 4th node. a=1->2, b=2->3, c=3->4. So triangle (2,3,4). But lexicographically smallest is (1,2,3). But we didn't find earlier because for a=0,b=1, mask=0, but there is triangle (0,1,2). Let's check: inter=6&11 = 2 (bit 1). mask=2>>2=0. Wait intersection had bit 1 (node 1). That's b itself. We need c > b but intersection may include b or a. We shifted by b+1 = 2. Node 2 is index 2. But intersection had bit 1 (node 1). So mask=0. So we didn't find triangle because intersection had only b, not c. Wait but triangle (0,1,2) requires c=2. But intersection between a=0 and b=1 should contain node 2. Let's check adjacency bitsets: adj[0] = 6 (bits 1 and 2). adj[1] = 11 (bits 0,2,3). Intersection = 6 & 11 = bits 2 only? Let's compute: 6=110 (bits 1,2). 11=1011 (bits 0,1,3). Intersection: bit1? 6 has bit1, 11 has bit1 => yes. bit2? 6 has bit2, 11 does not have bit2? Wait 11 binary 1011: bits 0,1,3. bit2 not set. So intersection only bit1. So intersection only b itself. So our approach fails because intersection excludes a and b; we need adjacency of a and b intersection excluding a and b. But a and b are not neighbors with themselves. However the triangle (0,1,2) requires node 2 to be adjacent to both 0 and 1. Node 2 adjacency: adj[2] has bits 0,1,3. For intersection of adj[0] and adj[1], bit2 is not set because 1's adjacency does not include 2? Wait 1's adjacency includes 2? Yes 1-2 edge exists, so 1's adjacency should include 2. But we saw 11 bits 0,1,3. Did we mis compute? Let's compute edges: 1-2 (0-1), 1-3 (0-2), 2-3 (1-2), 2-4 (1-3), 3-4 (2-3). So adjacency:
+
+node0: neighbors 1,2 -> bits 1,2
+node1: neighbors 0,2,3 -> bits 0,2,3
+node2: neighbors 0,1,3 -> bits 0,1,3
+node3: neighbors 1,2 -> bits 1,2
+
+So adj[1] should be bits 0,2,3. That's 1<<0 | 1<<2 | 1<<3 = 0b1101? Wait 1<<2 = 4, 1<<3=8, 1<<0=1 => 1+4+8=13. But earlier we had 11. So our earlier bit assignment wrong for node1. Let's recompute: 1<<0=1, 1<<2=4, 1<<3=8 => sum=13. So adj[1]=13 (bits 0,2,3). Similarly adj[0] = 1<<1 (2) + 1<<2 (4) =6. Intersection=6&13 = 4? 6=110, 13=1101 (bits 0,2,3). Intersection bits: bit1? 6 has bit1, 13 does not. bit2? 6 has bit2, 13 has bit2 => yes. So intersection=4 (bit2). Good. Then mask = 4 >> (1+1)=4 >> 2 = 1. low=1, offset=0, c=1+1+0=2? Wait c = b+1 + offset? b=1, b+1=2, offset=0 => c=2. That's node index 2. Good. So triangle found. So earlier we mis computed adjacency for node1.
+
+Thus algorithm works.
+
+Edge check: Use (adj[a] >> b) & 1. That's fine.
+
+Now complexity O(n^2) loops (4 million). In each loop, bit operations and maybe intersection. Intersection is O(1) for Python int. So fine.
+
+Let's test with example 2.
+
+Example 2 edges: 1-2,1-4,2-4,3-4,3-5,4-5. Let's compute adjacency.
+
+node1: neighbors 2,4 => bits 1,3 -> 2+8=10
+node2: neighbors 1,4 => bits 0,3 -> 1+8=9
+node3: neighbors 4,5 => bits 3,4 -> 8+16=24
+node4: neighbors 1,2,3,5 => bits 0,1,2,4 -> 1+2+4+16=23
+node5: neighbors 3,4 => bits 2,3 -> 4+8=12
+
+Now loops:
+
+a=0 (node1)
+ b=1: edge exists. inter = adj[0]&adj[1] = 10 & 9 = 8? 10=1010, 9=1001 => intersection 1000 = 8 (bit3). mask=8 >> (1+1)=8>>2=2 (10). low=2? 2 & -2 = 2. offset=1? low.bit_length()-1 = 2-1? Wait low=2 binary 10 -> bit_length=2 -> offset=1. c=1+1+1=3? Actually b=1, b+1=2, offset=1 => c=3. Node index 3 (node4). So triangle (1,2,4). Good. So algorithm finds lexicographically smallest.
+
+Edge cases: Suppose triangle (1,3,4) but no smaller. We will find when a=0, b=2, etc.
+
+Now we need to ensure we don't incorrectly find triangles where a,b not connected. We check edge.
+
+Now memory: adj list of ints length n.
+
+Implementation steps:
+
+1. Read n,m.
+2. Initialize adj = [0]*n
+3. For each of m edges: read u,v; u-=1; v-=1; adj[u] |= 1 << v; adj[v] |= 1 << u
+4. For a in range(n):
+     for b in range(a+1, n):
+         if (adj[a] >> b) & 1:
+             inter = adj[a] & adj[b]
+             mask = inter >> (b+1)
+             if mask:
+                 low = mask & -mask
+                 c_offset = low.bit_length() - 1
+                 c = b + 1 + c_offset
+                 print(a+1, b+1, c+1)
+                 return
+
+We should ensure that c is within n. The mask ensures that c > b and c < n. Because inter bits only up to n-1. After shift, mask bits correspond to c-b-1. So c_offset < n - (b+1). So c <= n-1. Good.
+
+Now complexity: loops 4M, each loop maybe constant time; fine.
+
+Potential improvement: Precompute adjacency bits for each node but we already did.
+
+Edge cases: Suppose there is triangle with a,b but intersection only contains nodes less than b? Then mask=0, skip. That's fine.
+
+Now let's test with some random graph to ensure algorithm returns lexicographically smallest.
+
+We can write quick test script but not necessary.
+
+Consider graph: n=5 edges: 1-2,2-3,3-1 forms triangle (1,2,3). Additional edges 1-4,1-5,4-5 etc. Lexicographically smallest triangle is (1,2,3). algorithm: a=0,b=1 -> intersection bits includes 2? yes. mask -> c=2. prints.
+
+Consider graph: only triangle is (3,4,5). a=0,b=1 edges? maybe none. a=0,b=2 edges? none. a=1,b=2 edges? none. a=2,b=3 edges? yes? Suppose edges 3-4. intersection includes 4? Wait but we need triangle 3-4-5. For a=2,b=3, intersection contains 4? Actually a=2 (node3), b=3 (node4). intersection contains nodes adjacent to both 3 and 4. For triangle 3-4-5, node5 adjacent to both 3 and 4. So intersection includes 4? Wait 3 and 4 are adjacent to each other but intersection of their adjacency lists includes 5. So mask yields c=4. Works. So algorithm finds triangle at a=2,b=3,c=4 (0-index). Good.
+
+Now we must ensure lexicographically smallest: Suppose there are triangles (1,3,4) and (2,3,4). Lexicographically smallest is (1,3,4). Our algorithm: a=0,b=2 edges? yes? Suppose edges 1-3. intersection includes 4? yes. So prints (1,3,4). Good.
+
+Now we must ensure we don't miss triangles where a,b not connected? No, triangle requires a,b connected. So we only consider edges.
+
+Now we also need to ensure that we don't mis-handle case when a,b are connected but intersection includes node a or b? Intersection of adjacency lists may include a or b? Since adjacency list does not include self. So intersection cannot contain a or b unless there is self-loop? Graph has no self-loops. So intersection only includes other nodes.
+
+But intersection may include nodes less than b. We skip those by shifting mask >> (b+1). So we only consider nodes with index > b.
+
+Now confirm that we don't incorrectly skip triangle where c < b? But we only consider c > b because we want a<b<c. So fine.
+
+Now we must produce output as a,b,c 1-indexed.
+
+Edge case: Suppose there are multiple triangles with same a and b but different c; we pick smallest c due to mask shift picking lowest bit. Good.
+
+Now we also need to handle the case where we didn't find triangle after loops; but problem guarantees at least one.
+
+Now complexity wise: For each a,b pair where edge exists, we compute intersection. But we also compute intersection for every pair regardless of edge? Actually we compute intersection after verifying edge. So we only compute intersection for actual edges. Number of edges m <= 2e5. So intersection computed at most 2e5 times. Good.
+
+Thus algorithm complexity O(n^2 + m) but with bit operations.
+
+Now we need to ensure we use fast I/O due to 2e5 edges.
+
+We'll use sys.stdin.buffer.read() and split.
+
+Implementation:
+
+import sys
+
+def main():
+    data = sys.stdin.buffer.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    for a in range(n):
+        for b in range(a+1, n):
+            if (adj[a] >> b) & 1:
+                inter = adj[a] & adj[b]
+                mask = inter >> (b+1)
+                if mask:
+                    low = mask & -mask
+                    c_offset = low.bit_length() - 1
+                    c = b + 1 + c_offset
+                    print(a+1, b+1, c+1)
+                    return
+
+if __name__ == "__main__":
+    main()
+
+Edge: We may need to ensure that we don't produce negative shift if b+1 > n-1? But shift by n bits or more yields 0. So mask=0.
+
+Now test with example.
+
+Edge: For n=2000, shift 1<<1999 is huge but Python int handles.
+
+Now we must ensure that we don't exceed recursion or memory.
+
+Now final code is ready.
+
+But we should think about potential pitfalls: In Python, 1 << v where v up to 1999 is fine. But building adj list with many bits may produce huge ints (~2^2000). But Python can handle.
+
+Now complexity of bit operations with large ints may be heavy but still fine.
+
+Now we may also consider using bitarray or set intersection but bitset is efficient.
+
+Now we produce final answer.
+
+Let's test with sample.
+
+We'll run mentally.
+
+Example 1: prints 1 2 3. Good.
+
+Example 2: prints 1 2 4. Good.
+
+Now think about potential case where triangle found but mask shift incorrectly because inter may have bit at position b? But shift >> (b+1) removes bits <= b. Good.
+
+Now we need to ensure that we don't mis-handle if mask has bit at position 0 corresponds to c=b+1. That is fine.
+
+Now we also need to ensure that we don't incorrectly find triangle where c > b but still less than b+1? impossible.
+
+Now final.
+
+Let's consider test: n=3, edges: 1-2,2-3,1-3. Then loops: a=0,b=1 -> inter = adj[0]&adj[1] = bit2? yes. mask = inter >> 2 = 1. low=1, offset=0, c=1+1+0=2. c=2 (index). So triangle (1,2,3). prints.
+
+Edge: Suppose edges: 1-2,1-4,2-4,3-4,3-5,4-5 (example). Works.
+
+Now consider a graph with triangle (2,3,4). edges: 2-3,3-4,2-4. n=4. Loops: a=0: no edges. a=1: b=2 edge exists. inter = adj[1]&adj[2] = bits? adj[1] bits 0,2,3? Wait edges: 1-2? no. Actually node indices: 0,1,2,3. Edges: 1-2 (node1 and node2?), Wait we need to define edges: 2-3 (1-2), 3-4 (2-3), 2-4 (1-3). So adjacency:
+
+node0: none
+node1: neighbors 2,3 -> bits 2,3
+node2: neighbors 1,3 -> bits 1,3
+node3: neighbors 1,2 -> bits 1,2
+
+Loop a=1 (node2) b=2 (node3) edge exists. inter = adj[1]&adj[2] = bits 1,2? Wait adj[1] bits 2,3; adj[2] bits 1,3. Intersection bits 3? No 3? Actually 3 is bit index 3, but adj[1] has bit3, adj[2] has bit3 => yes. So intersection bit3. mask = bit3 >> (2+1)= bit3 >> 3 = 1. c=2+1+0=3 -> node4. prints (2,3,4). Good.
+
+Now check that we don't find triangle incorrectly with a=0,b=2 etc. None.
+
+Edge: Suppose graph: n=5 edges: 1-2,1-3,2-3,1-4,1-5,4-5. Triangles: (1,2,3), (1,4,5). Lexicographically smallest is (1,2,3). algorithm: a=0,b=1 -> inter bits: adjacency[0] bits 1,2,3,4? Actually node1 neighbors 2,3,4,5 -> bits 1,2,3,4. adjacency[1] bits 0,2? Actually node2 neighbors 1,3 -> bits 0,2. intersection bits: 2. mask shift >> 2 -> 1. c=2. prints (1,2,3). Good.
+
+Now test graph where triangle (1,3,4) but no triangle with a=0,b=1. Suppose edges: 1-3,1-4,3-4. No edges involving 2. So loops:
+
+a=0,b=1: edge? No -> skip.
+a=0,b=2: edge? Yes? 1-3. intersection = adj[0]&adj[2] = adjacency[0] bits 2,3? Actually node1 neighbors 3,4 -> bits 2,3. adjacency[2] (node3) neighbors 1,4 -> bits 0,3. Intersection bits: 3? yes. mask shift >> (2+1)=3>>3=1. c=2+1+0=3 -> node4. prints (1,3,4). Good.
+
+Thus algorithm works.
+
+Now we just need to produce final code.
+
+Potential improvement: Use bit_length for low? Actually we use low.bit_length() - 1. For low=1, bit_length=1, offset=0. For low=2, bit_length=2, offset=1. Good.
+
+Now we should consider that shift >> (b+1) may produce huge number but still fine.
+
+Edge: Suppose intersection bits contain node index > n-1? But adjacency bits only up to n-1. So fine.
+
+Now finalize.
+
+Let's produce final code block.
+
+But we should think about memory: adj list of ints of size n. Each int may have up to n bits. So memory maybe 2000*2000 bits ~ 4 million bits ~ 0.5 MB. Fine.
+
+Now produce final solution.

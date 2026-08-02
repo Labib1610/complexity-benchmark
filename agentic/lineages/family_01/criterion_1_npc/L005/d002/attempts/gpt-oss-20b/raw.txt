@@ -1,0 +1,319 @@
+<think>
+We need to solve 3-coloring problem for n <= 40. Need lexicographically smallest assignment.
+
+Brute force 3^40 impossible. Use backtracking with pruning, maybe DSATUR or BFS? n small but edges up to 780. We can use backtracking with pruning, but worst-case 3^40 still large. However, 3-coloring on 40 nodes is NP-hard but with 3 colors maybe feasible with branch and bound? But we need lexicographically smallest, which means we prefer smaller colors earlier. So we can use DFS assigning nodes in order 1..n, trying colors 1,2,3. Backtrack when conflict.
+
+Worst-case might be large but n=40 maybe manageable with pruning due to constraints? But worst-case graph could be complete graph of 40 nodes, which is 3-colorable? Complete graph K_40 can't be 3-colored for n>3. So quickly fails. But worst-case many colorings maybe.
+
+We can also use graph coloring with bitmask representation and use DP? Since 3 colors, we can use meet-in-the-middle: split nodes into two halves (20 each). For each half, enumerate all assignments (3^20 ~ 3.5e9 too large). Not good.
+
+Better approach: use BFS search with constraint propagation (AC-3). But still might be many.
+
+Given constraints small, backtracking with pruning may work. Let's analyze worst-case number of solutions: e.g., bipartite graph with 3 colors, many possibilities. But lexicographically smallest is found early. The DFS tries color 1 first for each node. If many nodes can be color 1, we might find a solution quickly. But if no solution exists, we may explore many possibilities.
+
+We need maybe to use heuristic: choose node with most constraints or remaining uncolored? But lexicographically smallest requires order fixed. So we can't reorder nodes. But we can still prune: if we assign color that leads to conflict later, we can backtrack. But we might still explore many assignments.
+
+Maybe we can use SAT solver style? But implement ourselves.
+
+n <= 40, m up to 780. We can use backtracking with forward checking: maintain for each node available colors set. But we assign in order, so after assigning node i, we update neighbor's available colors. If any neighbor has no available colors, we backtrack.
+
+We can use recursion with stack, keep arrays of available bitmask per node. Initially all 111. When assign color c to node i, we set colors[i]=c, then for each neighbor j>i (since earlier nodes already colored), we remove c from avail[j]. If any becomes 0, backtrack. We'll need to restore the masks on backtrack.
+
+Implementation: adjacency list. Use recursion with iteration. Use bit operations: 3 bits mask. Initially 0b111 = 7.
+
+We need to keep track of changes to neighbor availabilities. For each neighbor j, if j not colored yet (index>i), we modify avail[j] by mask & ~(1<<(c-1)). Save previous value to restore.
+
+We also need to check for neighbors already colored earlier: if colors[j]==c conflict, then fail.
+
+We must maintain list of colored nodes indices.
+
+We can do recursion depth i from 0 to n-1. Use arrays: colors (size n, 0 if uncolored). avail (size n). Initially avail[i]=7.
+
+At recursion, try color 1,2,3:
+
+- If colors[i] already colored? But we process sequentially, so no.
+
+- Check if color allowed: avail[i] & (1<<(c-1)) != 0. If not allowed skip.
+
+- For each neighbor j of i:
+
+   if colors[j]==c: conflict -> skip.
+
+   else if colors[j]==0: (uncolored) we need to modify avail[j] removing c. If avail[j] after removal is 0 -> conflict -> revert and skip.
+
+We maintain a list of changes: list of tuples (j, prev_avail). After exploring, revert.
+
+If all neighbors processed ok, set colors[i]=c, recurse to i+1. If recursion returns true, propagate. Else revert colors[i]=0 and revert avail changes.
+
+This is basically backtracking with forward checking.
+
+Complexity: In worst-case graph with no constraints (empty graph), all nodes independent. Then at each node, we have 3 options, but we will find first solution with all 1's quickly. Because lexicographically smallest is all 1's. So algorithm will assign color 1 to all nodes, success. So quick.
+
+Worst-case where no solution: e.g., triangle graph (K3). At node 1 assign 1, node 2 cannot be 1, try 2 success, node3 cannot be 1 or 2, try 3 success. That works. But if graph is K4, no 3-coloring exists. Let's analyze algorithm: node1=1, node2 cannot be 1 -> try 2, node3 cannot be 1,2 -> try 3, node4 cannot be 1,2,3 -> fail. Backtrack. We'll try node2=3, node3=2, node4 fails, etc. The search may explore many permutations. But n=4, small.
+
+Worst-case no solution, but highly connected graph may cause many branches. However n=40, but maximum degree 39. Might still be okay? Let's approximate worst-case search tree size: each node has up to 3 choices, but many pruned due to conflicts. For a complete graph of 4 nodes, we had 3*2*1*0 = 6 possibilities. For 5 nodes, 3*2*1*0 fails early. Actually K5 not 3-colorable, but algorithm will try many assignments? Let's simulate: node1=1, node2=2, node3=3, node4=?? cannot be 1,2,3 -> fail. Backtrack node3=2? But node3 cannot be 2 because neighbor node2=2 conflict. So backtrack node2=3? Node2 cannot be 3 due to conflict with node1? Node1=1, node2=3 ok. Then node3 cannot be 1,3 -> try 2. Node4 cannot be 1,3,2 -> fail. Backtrack node3=?? none. Backtrack node2=?? none. Backtrack node1=2? etc. So many attempts but still limited.
+
+Worst-case for 3-coloring search is exponential but with n=40 maybe still okay due to pruning. We need to ensure recursion depth 40, each node exploring up to 3 colors. But edges produce constraints that prune early. Possibly worst-case graph with no edges: algorithm will assign all 1's and finish. So fine.
+
+Hence simple backtracking with forward-checking may pass.
+
+Edge case: n=40, m=0. Works.
+
+Let's implement.
+
+Implementation details:
+
+- Use adjacency list as list of lists.
+
+- colors array length n, initial 0.
+
+- avail array length n, initial 7.
+
+- recursion function dfs(i). If i==n: return True.
+
+- For color c in 1..3:
+
+    mask = 1<<(c-1)
+
+    if not (avail[i] & mask): continue
+
+    conflict = False
+
+    changes = []
+
+    for j in adj[i]:
+
+        if colors[j] == c: conflict=True; break
+
+        if colors[j] == 0:
+
+            prev = avail[j]
+
+            new = prev & ~mask
+
+            if new == 0: conflict=True; break
+
+            avail[j] = new
+
+            changes.append((j, prev))
+
+    if conflict:
+
+        # revert changes
+        for j, prev in changes: avail[j] = prev
+
+        continue
+
+    colors[i] = c
+
+    if dfs(i+1): return True
+
+    colors[i] = 0
+
+    for j, prev in changes: avail[j] = prev
+
+- return False
+
+Potential optimization: process neighbors only j>i? Because neighbors j<i already colored and we checked conflict earlier. But we also need to update avail for neighbors j>i. For neighbors j<i colored, we only check conflict. So we can iterate all neighbors, but skip j<i? But still need to modify avail for j>i to remove color. That's fine.
+
+Edge: adjacency duplicates? Input may list pair multiple times? Problem says distinct interfering pairs? Not guaranteed unique. We'll add to adjacency set or use list but duplicates may cause repeated processing. Use set per node to avoid duplicates.
+
+Implementation: list of sets.
+
+Complexities: O(n * (avg degree) * 3). Should be fine.
+
+Let's test small.
+
+Example1: 4 nodes, edges: many. Should find solution 1 2 3 3.
+
+Let's simulate quickly: Node1=1. Node2 cannot be 1 -> try 2. Node3 cannot be 1 or 2? edges: 1-3,2-3 => cannot be 1 or 2 -> try 3. Node4 edges:1-4,2-4. So cannot be 1 or 2. Can be 3. Works. Good.
+
+Example2: 4 nodes edges: K4 minus edge 1-3. Need 3-coloring? Let's check: Graph is 4 nodes with edges: 1-2,1-4,2-3,2-4,3-4. This is K4 minus edge 1-3. This graph is 3-colorable? Let's see: Try color 1 for node1. Node2 cannot be 1 -> 2. Node3 cannot be 2 -> try 1? But edge 1-3 doesn't exist, so 1 allowed. Node4 edges to 1,2,3: cannot be 1,2,1 => cannot be 1 or 2, but 1 used by node3? Node4 cannot be 1 or 2, try 3. Works: 1 2 1 3 is valid. Wait but example says NO. Let's check again: edges list: 1-2,1-4,2-3,2-4,3-4. Node3 not connected to 1. So coloring 1 2 1 3 works. But example says NO. Let's double-check example: Input 4 6 edges: 1 2, 1 4, 2 3, 2 4, 3 4. That's 5 edges, not 6. But they wrote 6 maybe mis. Graph: edges: 1-2,1-4,2-3,2-4,3-4. That's K4 minus edge 1-3 indeed. That graph is 3-colorable. So example says NO maybe because they added edges 1-3 as well? But they didn't. Wait maybe I'm missing 1-3? They wrote 4 6 edges but only listed 5. Maybe omitted 1-3. If K4 complete, not 3-colorable. So example had K4 complete but mis typed. So algorithm fine.
+
+Edge Cases: Graph may have isolated nodes. Works.
+
+We need to output YES and configuration.
+
+Let's implement reading input using sys.stdin.read().split().
+
+Implement recursion with stack recursion limit maybe 100. Depth 40 fine. But Python recursion default 1000.
+
+Let's code.
+
+Potential optimization: Use iterative stack? Recursion fine.
+
+Let's test: n=40 all edges none: algorithm picks color 1 for all, returns quickly.
+
+n=40 complete graph: will fail quickly: node1=1, node2=2, node3=3, node4 conflict -> backtrack node3=?? none -> backtrack node2=?? none -> backtrack node1=2 -> similar -> eventually fails. So exploring only 3+2+1 = 6 possibilities. Good.
+
+Worst-case graph with many colorings but none? maybe bipartite graph with many cycles but not 3-colorable? Wait bipartite graph always 3-colorable. So 3-coloring always exists unless graph contains K4 or odd cycle with constraints? Actually 3-coloring is NP-complete for general graphs. But with n=40, worst-case may involve many constraints but still might be solvable quickly? Not guaranteed but maybe.
+
+We can add additional pruning: If any uncolored node has avail mask 0, fail earlier. Already done.
+
+Also we can compute ordering of nodes for branching to reduce search: But lexicographic order fixed. So can't reorder.
+
+But we could use heuristic to try colors in order but also use additional constraints: For node i, we can try colors in order 1..3 but if avail[i] has only 1 color, skip others.
+
+Ok.
+
+Let's produce final code.
+
+Check memory: adjacency sets of size up to 780 edges.
+
+Let's implement.
+
+Edge duplicates: use set.
+
+Let's test quickly mentally.
+
+Also we need to store changes as list of (j,prev). We can pre-allocate list and use append/pop.
+
+Implementation details:
+
+dfs function:
+
+def dfs(idx):
+
+    if idx==n: return True
+
+    i=idx
+
+    for c in (1,2,3):
+
+        mask=1<<(c-1)
+
+        if not (avail[i] & mask): continue
+
+        conflict=False
+
+        changes=[]
+
+        for j in adj[i]:
+
+            if colors[j]==c:
+
+                conflict=True
+
+                break
+
+            if colors[j]==0:
+
+                prev=avail[j]
+
+                new=prev & ~mask
+
+                if new==0:
+
+                    conflict=True
+
+                    break
+
+                avail[j]=new
+
+                changes.append((j,prev))
+
+        if conflict:
+
+            for j,prev in changes: avail[j]=prev
+
+            continue
+
+        colors[i]=c
+
+        if dfs(i+1):
+
+            return True
+
+        colors[i]=0
+
+        for j,prev in changes: avail[j]=prev
+
+    return False
+
+Return bool.
+
+We need global arrays or pass them.
+
+Let's write as nested function for closure.
+
+Testing on sample.
+
+Edge: When conflict occurs due to neighbor color conflict, we don't need to revert changes? We already revert before continue. But we also had changes list partially added. So revert each change.
+
+Also ensure that for each neighbor j>i we only modify avail if colors[j]==0, else skip.
+
+Potential optimization: maintain 'available mask' for each node.
+
+Ok.
+
+Let's code.
+
+Corner: If n=0? Not allowed.
+
+Let's produce final code.
+</think>
+import sys
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u].add(v)
+        adj[v].add(u)
+
+    colors = [0] * n          # 0 = uncolored, else 1..3
+    avail = [0b111] * n       # bitmask of available colors
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(idx):
+        if idx == n:
+            return True
+        i = idx
+        for c in (1, 2, 3):
+            mask = 1 << (c - 1)
+            if not (avail[i] & mask):
+                continue
+            conflict = False
+            changes = []
+            for j in adj[i]:
+                if colors[j] == c:
+                    conflict = True
+                    break
+                if colors[j] == 0:
+                    prev = avail[j]
+                    new = prev & ~mask
+                    if new == 0:
+                        conflict = True
+                        break
+                    avail[j] = new
+                    changes.append((j, prev))
+            if conflict:
+                for j, prev in changes:
+                    avail[j] = prev
+                continue
+            colors[i] = c
+            if dfs(i + 1):
+                return True
+            colors[i] = 0
+            for j, prev in changes:
+                avail[j] = prev
+        return False
+
+    if dfs(0):
+        out = ["YES", "\n"] + [" ".join(map(str, colors))]
+        sys.stdout.write(out[0] + out[1] + out[2])
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    main()

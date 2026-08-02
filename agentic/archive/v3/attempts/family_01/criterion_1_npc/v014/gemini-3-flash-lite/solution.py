@@ -1,0 +1,47 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+        idx += 2
+        
+    shifts = [0] * n
+    
+    def backtrack(worker_idx):
+        if worker_idx == n:
+            return True
+        
+        # Try shifts 1, 2, 3 in order for lexicographical smallest
+        for s in range(1, 4):
+            can_assign = True
+            mask = 0
+            for i in range(worker_idx):
+                if shifts[i] == s:
+                    mask |= (1 << i)
+            
+            if (adj[worker_idx] & mask) == 0:
+                shifts[worker_idx] = s
+                if backtrack(worker_idx + 1):
+                    return True
+        
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(*(shifts))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

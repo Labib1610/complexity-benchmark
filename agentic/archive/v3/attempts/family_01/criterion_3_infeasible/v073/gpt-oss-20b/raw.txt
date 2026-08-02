@@ -1,0 +1,171 @@
+<think>
+We need lexicographically smallest triangle in undirected graph with n up to 2000, edges up to 200k. Guarantee at least one triangle. Need efficient algorithm.
+
+We can use adjacency sets for quick lookup. Since n small, we can use bitset or boolean matrix. n=2000, 2000x2000=4M booleans ~4MB, fine. We can have adjacency matrix (list of bitset). Then iterate over a from 1..n, b from a+1..n, if edge exists, then find c > b such that edges a-c and b-c exist. We can check by scanning c from b+1..n and check matrix[a][c] and matrix[b][c]. Complexity O(n^3) worst-case 8e9, not ok. But we can use intersection of adjacency lists.
+
+We need lexicographically smallest triangle. So we can iterate a increasing, then b increasing, and for each pair we search for c> b. We can use adjacency list sets to compute intersection quickly. Since n=2000, we could for each pair (a,b) compute intersection of adjacency lists of a and b that are > b, but we need to find smallest c. We can iterate over nodes c in adjacency list of a that are > b and check adjacency[b][c]. Since a<b, we need c> b. So we can iterate over adjacency list of a sorted and break at first c> b that also adjacent to b. Complexity: Each edge considered many times. But worst-case dense graph: each a with ~n neighbors, so each pair (a,b) could loop many neighbors. But we can early exit when find first triangle. Since we want lexicographically smallest, we will stop early anyway. The worst-case where first triangle is at high indices could still be high cost.
+
+But given constraints (n <=2000, edges <=200k), we can do O(n^3) worst-case but early break. But still might be high. Let's analyze worst-case when graph is almost complete, first triangle is at (1,2,3). Our algorithm will find quickly. If triangle at high indices, say (1998,1999,2000). For a=1998, b=1999, adjacency list of a includes many neighbors >1999 maybe only 2000, so check one. But we need to iterate over many pairs before hitting that. For a from 1 to 1998, we will check all b > a. Suppose graph complete: For each a, b loops from a+1 to n. For each pair, we loop over adjacency list of a to find c > b. But we can break early if we find c> b? Actually we need to find any c > b that is neighbor of both a and b. Graph complete, adjacency list of a has n-1 nodes. For each pair (a,b), the first c > b is simply b+1 (since all nodes >b). So we will find c quickly. So complexity about sum over a of (n-a) * O(1) ~ O(n^2). So fine.
+
+Worst-case sparse graph where first triangle is at high indices but many edges missing, causing many pairs to fail scanning long adjacency lists. But adjacency lists will be small causing scanning small. The worst-case scanning adjacency list of a for each pair might be large if a has many neighbors but none of them > b and adjacent to b. Suppose graph is bipartite with no triangles until high indices; but we guarantee at least one triangle. But could be constructed such that for many pairs, adjacency list of a is large but no intersection. However scanning adjacency list of a each time might lead to O(m*n) complexity. Let's estimate worst-case: m <=200k, n=2000. Suppose each node has degree ~100. For each pair (a,b), scanning adjacency list of a of size 100. Number of pairs is ~n^2/2 = 2M. 2M*100 = 200M operations might be heavy but still maybe okay in 2s Python? 200M is high.
+
+Better approach: Use adjacency bitsets for quick intersection and find min c. Represent adjacency of each node as bitset of length n. Then for each pair (a,b) with a<b, we compute intersection bitset = adj[a] & adj[b], then we need minimal index > b. We can precompute bitset as Python int bitmask (since n=2000 fits in 2000 bits). Intersection is bitwise AND of ints. Then to find minimal index > b, we can mask bits <= b and find first set bit. Implementation: mask = (1 << (b)) - 1  (bits 0..b-1). Then intersection_without_lower = intersection & ~mask. Then if intersection_without_lower != 0: c = (intersection_without_lower & -intersection_without_lower).bit_length() - 1? Wait bit_length gives position of highest bit, not lowest. To get lowest set bit index, we can use (x & -x) gives lowest set bit value. Then index = (x & -x).bit_length() - 1. That gives index 0-based. We'll need to shift to 1-based.
+
+Thus algorithm:
+
+- Read n,m.
+- Create list adj_int of length n+1, each 0.
+- For each edge u,v: set bit v-1 in adj[u], bit u-1 in adj[v].
+- For a from 1 to n:
+    for b from a+1 to n:
+        if not edge between a and b: skip (we can check via bit in adj[a], or adjacency matrix boolean). But we can just compute intersection anyway; if no edge, intersection may still have common neighbors but a-b not connected -> no triangle. But triangle requires a-b edge. So we skip if not edge. So we need adjacency matrix or we can check bit in adj[a] for b-1. Let's maintain adjacency boolean matrix as list of bitset but we can also use boolean matrix for quick check. But we can check via bit: (adj[a] >> (b-1)) & 1. That's O(1).
+        if edge:
+            inter = adj[a] & adj[b]
+            # remove bits <= b-1
+            mask = (1 << b) - 1
+            inter_masked = inter & ~mask
+            if inter_masked:
+                # get lowest set bit
+                low = inter_masked & -inter_masked
+                c = low.bit_length() - 1 + 1  # convert to 1-based
+                print(a, b, c); return
+
+But we also need to ensure c > b; we masked bits <= b-1, so all remaining bits > b-1, i.e., indices >= b. But we need c > b, not >= b. Since a < b < c. Since a<b, we need c > b. We masked bits <= b-1, but still includes bit at index b-1? Wait indices: 0-based. Node i corresponds to bit i-1? Actually we set bit v-1. So node index 1 corresponds to bit 0. So bit index b-1 corresponds to node b. We need c > b, i.e., node index >= b+1, bit index >= b. So we should mask bits <= b-1 (indices 0..b-1) to remove nodes <= b. That includes node b itself. Good. So after masking we only have nodes > b. So good.
+
+Edge case: Need to ensure we don't pick c <= n. But bitset length n, we have bits up to n-1.
+
+Complexity: For each pair (a,b) we do bit operations O(1). n=2000 => pairs ~2M, fine.
+
+Implementation details: The bitset integer may be up to 2000 bits (~250 bytes), operations fine.
+
+We need to compute mask = (1 << b) - 1. But for b up to 2000, 1 << 2000 is huge but Python handles big ints. However computing mask each time might cost. But still fine.
+
+We also need to check adjacency between a and b: we can compute as ((adj[a] >> (b-1)) & 1). That's fine.
+
+Let's test with example.
+
+Edge: 1-2,1-3,2-3 -> adjacency bitsets:
+adj[1] bits 2,3 => 110 (bits 1 and 2?). Actually bit 1 for node 2, bit 2 for node 3. So 0b110 = 6.
+adj[2] bits 1,3 => 101 = 5.
+adj[3] bits 1,2 => 011 = 3.
+
+Loop a=1,b=2: edge true. inter = 6 & 5 = 4 (bit 2). mask = (1<<2)-1=3 (bits 0,1). inter_masked = 4 & ~3 = 4. low=4, c= low.bit_length()-1+1 = 3? Let's compute: low=4 binary 100, bit_length=3, -1=2, +1=3. So output 1 2 3. Good.
+
+Edge cases: Graph might have triangle with a=1,b=2,c=4. Works.
+
+Let's implement.
+
+We need to read input fast. Use sys.stdin.buffer.read().
+
+Implementation steps:
+- data = list(map(int, sys.stdin.buffer.read().split()))
+- n=data[0]; m=data[1]
+- edges: iterate over pairs from data[2:] step 2.
+
+Edge: need to ensure no duplicates, but not needed.
+
+Compute adj = [0]*(n+1)
+For each u,v:
+    adj[u] |= 1 << (v-1)
+    adj[v] |= 1 << (u-1)
+
+Now loops.
+
+Potential optimization: For each a, compute list of neighbors > a? But not needed.
+
+Let's implement loops:
+for a in range(1, n-1):
+    for b in range(a+1, n):
+        if (adj[a] >> (b-1)) & 1:
+            inter = adj[a] & adj[b]
+            mask = (1 << b) - 1
+            inter_masked = inter & ~mask
+            if inter_masked:
+                low = inter_masked & -inter_masked
+                c = low.bit_length() - 1 + 1
+                print(a, b, c)
+                return
+
+Edge: need to ensure c > b. After masking, lowest set bit corresponds to bit index >= b. Since we masked bits <= b-1, bit index >= b. But if bit index == b, that corresponds to node b+1? Wait bit index b corresponds to node b+1? Because bit index i corresponds to node i+1. So if bit index = b, node = b+1. So c = b+1 minimal possible. Good.
+
+Now complexity: For each pair we allocate mask each time. We can precompute masks array of length n+1: mask[b] = (1 << b) - 1. But generating big ints each time may not be too expensive. But we can precompute to reduce overhead.
+
+Edge: for b up to 2000, precomputing (1 << b) - 1 for each b is fine.
+
+But we must be careful for b=2000, 1 << 2000 is huge but Python can handle.
+
+Let's precompute mask = [0]*(n+1)
+for i in range(n+1):
+    mask[i] = (1 << i) - 1
+
+Then in loop: inter_masked = inter & ~mask[b]
+
+Now we also need to ensure c <= n. But bitset only up to n bits, so fine.
+
+Ok.
+
+Testing with example 2: n=5 edges: 1-2,1-4,2-4,3-4,3-5,4-5. adjacency: 1 bits 2,4 => bits 1,3 => 0b1010? 1<<1=2, 1<<3=8, sum=10. 2 bits 1,4 => bits 0,3 => 0b1001=9. 3 bits 4,5 => bits 3,4 => 0b11000=24. 4 bits 1,2,3,5 => bits 0,1,2,4 => 0b11011=27. 5 bits 3,4 => bits 2,3 => 0b1100=12.
+
+Now loop a=1,b=2: edge yes. inter = 10 & 9 = 8 (bit 3). mask[2] = (1<<2)-1 = 3. inter & ~3 = 8. low=8 => bit_length=4 => -1=3 +1=4. Output 1 2 4. Good.
+
+Edge when triangle 1 3 5? Not lexicographically smaller.
+
+Edge: Guarantee at least one triangle. Program prints and returns.
+
+Edge: If no triangle found (shouldn't happen). But we can print nothing.
+
+Complexities fine.
+
+Let's check memory: adjacency list ints: n+1 ints each up to 2000 bits => 250 bytes each => 0.5 MB.
+
+Edge reading: fine.
+
+Let's implement.
+
+Potential bug: indexing of mask: we need mask[b] where b is index of node (1-based). mask[b] = (1 << b) - 1. That masks bits 0..b-1 inclusive? Actually 1<<b gives bit position b, subtract 1 gives bits 0..b-1 set to 1. So correct.
+
+Check for b=2000: 1<<2000 is huge but fine.
+
+Now we need to ensure that we don't shift by negative number; b-1 can be 0. For a=1,b=2, shift by 1.
+
+Edge: adjacency(a) >> (b-1) & 1; if b-1=0, shift by 0 fine.
+
+Ok.
+
+Let's produce final code.
+</think>
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [0] * (n + 1)
+    it = iter(data[2:])
+    for u, v in zip(it, it):
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+
+    # precompute masks for b (1..n)
+    masks = [0] * (n + 1)
+    for i in range(n + 1):
+        masks[i] = (1 << i) - 1
+
+    for a in range(1, n - 1):
+        adj_a = adj[a]
+        for b in range(a + 1, n + 1):
+            # check if edge a-b exists
+            if (adj_a >> (b - 1)) & 1:
+                inter = adj_a & adj[b]
+                inter_masked = inter & ~masks[b]
+                if inter_masked:
+                    low = inter_masked & -inter_masked
+                    c = low.bit_length() - 1 + 1  # convert to 1-based
+                    sys.stdout.write(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    main()
+```

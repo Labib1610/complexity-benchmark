@@ -1,0 +1,24 @@
+def find_triplet(n, m, pairs):
+    from collections import defaultdict
+
+    graph = defaultdict(set)
+    
+    for u, v in pairs:
+        graph[u].add(v)
+        graph[v].add(u)
+
+    for a in range(1, n + 1):
+        for b in graph[a]:
+            if b > a:  # Ensure we only consider b > a
+                for c in graph[b]:
+                    if c > b and c in graph[a]:  # Ensure c > b and (a, c) exists
+                        return a, b, c
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+n, m = map(int, data[0].split())
+pairs = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+result = find_triplet(n, m, pairs)
+print(*result)

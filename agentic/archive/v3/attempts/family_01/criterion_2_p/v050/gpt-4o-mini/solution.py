@@ -1,0 +1,46 @@
+def assign_blocks(n, m, conflicts):
+    from collections import defaultdict, deque
+
+    graph = defaultdict(list)
+    for u, v in conflicts:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    block_assignment = [-1] * (n + 1)  # -1 means unassigned
+    is_possible = True
+
+    def bfs(start):
+        nonlocal is_possible
+        queue = deque([start])
+        block_assignment[start] = 1  # Start with block 1
+
+        while queue and is_possible:
+            current = queue.popleft()
+            current_block = block_assignment[current]
+
+            for neighbor in graph[current]:
+                if block_assignment[neighbor] == -1:  # Not assigned yet
+                    block_assignment[neighbor] = 2 if current_block == 1 else 1
+                    queue.append(neighbor)
+                elif block_assignment[neighbor] == current_block:
+                    is_possible = False
+                    return
+
+    for worker in range(1, n + 1):
+        if block_assignment[worker] == -1:  # Not visited yet
+            bfs(worker)
+            if not is_possible:
+                break
+
+    if not is_possible:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(str(block_assignment[i]) for i in range(1, n + 1)))
+
+import sys
+input = sys.stdin.read
+data = input().strip().splitlines()
+n, m = map(int, data[0].split())
+conflicts = [tuple(map(int, line.split())) for line in data[1:m+1]]
+assign_blocks(n, m, conflicts)

@@ -1,0 +1,898 @@
+<think>
+The problem asks us to assign one of two work periods (1 or 2) to each of $n$ personnel such that for every pair of mutually exclusive personnel, they are assigned to different periods. We need to find if such an assignment exists. If it does, we need to find the one that is lexicographically smallest. The assignment is represented as a sequence $s_1, s_2, \dots, s_n$, where $s_i$ is the work period of person $i$.
+
+The constraint that mutually exclusive pairs must be in different periods is essentially the definition of a bipartite graph coloring problem with 2 colors. Each personnel is a node in a graph, and each mutual exclusivity constraint is an edge. We need to color the graph with 2 colors (say 1 and 2) such that no two adjacent nodes have the same color. If the graph is not bipartite, no such assignment exists.
+
+The graph consists of up to $n$ nodes and $m$ edges. Since the constraints are pairwise, the problem reduces to checking if the graph is bipartite. If it is bipartite, we need to find the lexicographically smallest valid coloring. The coloring is defined by the sequence $s_1, s_2, \dots, s_n$. We want to minimize $s_1$, then $s_2$, and so on. Since $s_i \in \{1, 2\}$, minimizing $s_1$ means we prefer 1 over 2. If $s_1$ is fixed, we prefer 1 for $s_2$ over 2, etc.
+
+Let's consider the connected components of the graph. The constraints apply independently within each connected component. However, the goal is lexicographical order for the global sequence $s$. This suggests we should process nodes $1, 2, \dots, n$ in order.
+
+Wait, if we have a connected component, once we fix the color of one node in that component, the colors of all other nodes in that component are determined (up to swapping 1 and 2). Specifically, if we fix node $u$'s color to $c$, then all neighbors must have color $3-c$, their neighbors must have color $c$, and so on. Since the graph must be bipartite, this assignment is consistent if and only if there are no odd cycles. If there is an odd cycle, we output NO.
+
+To achieve the lexicographically smallest sequence $s_1, s_2, \dots, s_n$, we should iterate through nodes $i$ from 1 to $n$. If node $i$ has not been assigned a color yet, we start a traversal (BFS or DFS) to color the connected component containing $i$. To minimize the sequence lexicographically, when we start coloring a new component, we should assign the current node $i$ the value 1. Why? Because $s_i$ is the first time this component appears in the sequence. If we assign $s_i = 1$, then $s_i$ is smaller than if we assigned $s_i = 2$. Since all nodes in the component are determined once $s_i$ is chosen, choosing $s_i=1$ is locally optimal for index $i$. Does it affect previous choices? No, because previous nodes $1, \dots, i-1$ are already processed. If $i$ was already processed, it belongs to a component that was already colored. If $i$ is not processed, it belongs to a new component. The choice for this component only affects nodes $\ge i$. To make the sequence lexicographically smallest, we want the earliest possible indices to have the smallest possible values. Since $i$ is the first uncolored node we encounter (assuming we iterate 1 to $n$), we greedily assign it 1. Then the rest of the component is determined relative to this choice.
+
+Let's double check this logic.
+Suppose we have nodes 1 and 2 connected.
+If we process 1, we assign $s_1 = 1$. Then $s_2$ must be 2. Sequence: 1, 2.
+If we assigned $s_1 = 2$, then $s_2$ must be 1. Sequence: 2, 1.
+1, 2 is lexicographically smaller than 2, 1. So for the first node in a component, we pick 1.
+Suppose we have nodes 1, 2, 3 forming a path 1-2-3.
+Processing 1: $s_1=1$. Then $s_2=2$ (neighbor of 1). Then $s_3=1$ (neighbor of 2). Sequence: 1, 2, 1.
+Is it possible to have a different valid assignment? The only other valid assignment is swapping 1 and 2 everywhere in the component. That would be 2, 1, 2.
+Comparing 1, 2, 1 and 2, 1, 2. Clearly 1, 2, 1 is smaller.
+So the strategy is: iterate $i$ from 1 to $n$. If $i$ is not colored, start BFS/DFS from $i$. Assign $color[i] = 1$. Propagate constraints. If a conflict is found (adjacent nodes have same color), output NO. If we finish and all nodes are colored, output YES and the colors.
+
+Wait, is it always optimal to start with 1?
+Suppose the component involves nodes $\{2, 3\}$ and we are at step $i=2$. Node 1 is already colored (say component $\{1\}$ colored with 1).
+We process node 2. It's uncolored. We assign $s_2=1$. Then $s_3=2$. Sequence so far: $s_1=1, s_2=1, s_3=2$.
+Alternative: $s_2=2, s_3=1$. Sequence: $1, 2, 1$.
+Comparing $(1, 1, 2)$ and $(1, 2, 1)$, the first one is smaller.
+So yes, whenever we encounter an uncolored node $i$ in the loop $1 \dots n$, it means $i$ is the "root" of a new component in the order of indices. To minimize the sequence at index $i$, we must set $s_i = 1$. Any other valid assignment for this component would require $s_i = 2$ (since the component has 2 valid colorings, and we chose the one starting with 1). Since $1 < 2$, this choice is locally optimal for the index $i$. Since previous indices $j < i$ are already fixed and don't depend on the coloring of this component (because $i$ is the first node of this component in $1 \dots n$), this greedy choice is globally optimal.
+
+Algorithm:
+1. Initialize an array `color` of size $n+1$ with 0 (unvisited).
+2. Construct the adjacency list for the graph.
+3. Iterate $i$ from 1 to $n$:
+    a. If `color[i]` is 0:
+        i. Perform BFS/DFS starting from $i$.
+        ii. Set `color[i] = 1`.
+        iii. Queue/Stack contains $i$.
+        iv. While queue is not empty:
+            - Pop $u$.
+            - For each neighbor $v$ of $u$:
+                - If `color[v]` is 0:
+                    - Set `color[v] = 3 - color[u]`.
+                    - Push $v$ to queue/stack.
+                - Else if `color[v] == color[u]`:
+                    - Return "NO".
+4. If loop finishes without conflict, print "YES" and the `color` array from 1 to $n$.
+
+Wait, there is a catch.
+The problem is 2-SAT or Graph Bipartitioning.
+The graph might be disconnected.
+The logic "If `color[i]` is 0, set `color[i] = 1`" works because $i$ is the first node in the current component that appears in the lexicographical sequence order.
+However, is it possible that assigning 1 to $i$ forces a conflict later that could have been avoided?
+No, the conflict check `color[v] == color[u]` happens during the traversal. If a conflict exists (odd cycle), no assignment is possible regardless of starting with 1 or 2. If no conflict exists, both assignments (coloring $C$ and its inverse $C'$) are valid locally. The global lexicographical order is determined by the first index $i$ where $C$ and $C'$ differ. Since $i$ is the first node of the component, $C[i]=1$ and $C'[i]=2$. Thus $C$ is lexicographically smaller.
+So the strategy holds.
+
+Data structures:
+- Adjacency list: `adj = [[] for _ in range(n + 1)]`
+- `color` array: `colors = [0] * (n + 1)`
+- Queue for BFS: `collections.deque`
+
+Constraints: $n, m \le 2 \cdot 10^5$.
+Time limit 1s.
+Python should be fast enough if implemented efficiently.
+Recursion limit for DFS might be an issue. Python's default recursion limit is 1000. For a line graph of $2 \cdot 10^5$, DFS will crash. BFS is safer or `sys.setrecursionlimit`. I'll use BFS to avoid recursion depth issues.
+
+Wait, input reading.
+The input can be large. `input().split()` might be slow if done line by line in a loop for many lines?
+Usually `sys.stdin.read().split()` is faster for bulk reading.
+Let's use `sys.stdin.read`.
+
+Let's trace Example 1:
+4 4
+1 2
+2 3
+3 4
+1 4
+
+Graph:
+1-2
+2-3
+3-4
+4-1
+This is a cycle 1-2-3-4-1. Even cycle. Bipartite.
+Bipartition sets: {1, 3} and {2, 4}.
+Algorithm trace:
+`colors` = [0, 0, 0, 0, 0]
+i=1. `colors[1]` is 0.
+BFS from 1.
+`colors[1] = 1`. Queue: [1]
+Pop 1. Neighbors 2, 4.
+`colors[2] = 2`. Queue: [2]
+`colors[4] = 2`. Queue: [2, 4]
+Pop 2. Neighbors 1, 3.
+1 is colored (1). `colors[2]` is 2. OK.
+3 is uncolored. `colors[3] = 3 - 2 = 1`. Queue: [4, 3]
+Pop 4. Neighbors 3, 1.
+3 is colored (1). `colors[4]` is 2. OK.
+1 is colored (1). `colors[4]` is 2. OK.
+Pop 3. Neighbors 2, 4.
+2 is colored (2). `colors[3]` is 1. OK.
+4 is colored (2). `colors[3]` is 1. OK.
+Queue empty.
+Loop i continues.
+i=2. `colors[2]` is 2. Skip.
+i=3. `colors[3]` is 1. Skip.
+i=4. `colors[4]` is 2. Skip.
+Result: 1 2 1 2.
+Output:
+YES
+1 2 1 2
+Matches example output.
+
+Example 2:
+3 3
+1 2
+1 3
+2 3
+Triangle 1-2-3.
+i=1.
+`colors[1] = 1`. Q=[1]
+Pop 1. Neighbors 2, 3.
+`colors[2] = 2`. Q=[2]
+`colors[3] = 2`. Q=[2, 3]
+Pop 2. Neighbors 1, 3.
+1 colored 1 != 2. OK.
+3 colored 2 == 2. Conflict!
+Output NO.
+Matches example output.
+
+Corner cases:
+- $m=0$: Everyone assigned 1. YES \n 1 1 ... 1.
+- Disconnected components. Handled by loop.
+- $n=1$. YES \n 1.
+- Graph is not connected, some component is bipartite, some not. Handled.
+- $u, v$ constraints might have duplicates or self-loops? "mutually exclusive pairs". Usually simple graph, but if self loop $u-u$, then $u$ and $u$ cannot be same period. Impossible. If $u=v$ is given, immediately NO. My logic: neighbor $v$ of $u$, if $u=v$, `colors[u] == colors[u]` => conflict. So self-loops are handled correctly.
+- Multiple edges? BFS handles correctly (checks neighbor, if colored, checks value).
+
+Implementation details:
+`sys.setrecursionlimit` not needed for BFS.
+Input parsing:
+`data = sys.stdin.read().split()`
+`iterator = iter(data)`
+`n = int(next(iterator))`
+`m = int(next(iterator))`
+`adj = [[] for _ in range(n + 1)]`
+Loop $m$ times:
+  `u = int(next(iterator))`
+  `v = int(next(iterator))`
+  `adj[u].append(v)`
+  `adj[v].append(u)`
+
+BFS queue:
+`from collections import deque`
+`q = deque()`
+`q.append(i)`
+`colors[i] = 1`
+Inside BFS loop:
+`u = q.popleft()`
+`current_color = colors[u]`
+`next_color = 3 - current_color`
+`for v in adj[u]:`
+  `if colors[v] == 0:`
+    `colors[v] = next_color`
+    `q.append(v)`
+  `elif colors[v] == current_color:`
+    `print("NO")`
+    `return` (or exit)
+
+After loops, print YES and `*colors[1:]`.
+
+Complexity:
+Building graph: $O(N + M)$.
+BFS: Each node visited once, each edge traversed twice. $O(N + M)$.
+Total time: $O(N + M)$.
+Space: $O(N + M)$ for graph and colors.
+Limits: $N, M \le 2 \cdot 10^5$. Time 1s is generous for Python if IO is fast.
+
+Wait, memory limit 256MB.
+Adjacency list: $2 \cdot 10^5$ lists, total $4 \cdot 10^5$ integers. Python integers are objects (28 bytes). List overhead.
+$4 \cdot 10^5 \times 28 \approx 11$ MB. Plus list overhead.
+Should be well within 256MB.
+
+One optimization:
+Instead of `sys.stdin.read().split()`, which loads all tokens into a list of strings, consuming memory.
+For $2 \cdot 10^5$ lines, that's $4 \cdot 10^5$ tokens.
+String objects + list pointers.
+Maybe $4 \cdot 10^5$ strings is around 20-30MB.
+It is safe. `sys.stdin.read().split()` is standard competitive programming IO in Python.
+
+Let's write the code structure.
+
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case, though we use BFS
+sys.setrecursionlimit(200005)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    colors = [0] * (n + 1)
+    
+    # To handle the lexicographical requirement
+    # We iterate 1 to n. If uncolored, color it 1 and propagate.
+    # If conflict, print NO and exit.
+    
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start BFS/DFS for this component
+            colors[i] = 1
+            q = deque([i])
+            
+            while q:
+                u = q.popleft()
+                c = colors[u]
+                next_c = 3 - c # 1 -> 2, 2 -> 1
+                
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = next_c
+                        q.append(v)
+                    elif colors[v] == c:
+                        print("NO")
+                        return
+
+    print("YES")
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, is there any case where `sys.stdin.read().split()` fails or is too slow?
+For $2 \cdot 10^5$ integers, it's very fast.
+Memory usage:
+The `input_data` list will hold all tokens.
+Max integers: $2 + 2 \cdot 200000 \approx 400002$.
+List of strings.
+If memory is tight, we can use a generator or read line by line. But 256MB is quite large.
+Usually $10^5-10^6$ input is fine with `read().split()`.
+Let's double check if I missed anything.
+Lexicographically smallest sequence $s_1, \dots, s_n$.
+My logic: iterate $i$ from 1 to $n$. If $i$ is uncolored, it means it belongs to a component that has not been visited yet. Since we want to minimize $s_1$, then $s_2$, etc., and nodes $1 \dots i-1$ are already fixed (either colored or part of components colored before), we focus on $s_i$. $s_i$ can be 1 or 2. If we pick 1, we fix the component. If we pick 2, we fix the component differently. Since 1 < 2, we prefer 1.
+Wait, what if node $i$ was already visited? Then $s_i$ is already determined. We just move to $i+1$.
+The only freedom we have is when we encounter a node $i$ that is the first node of a new component (in the order $1 \dots n$). In that case, we can choose the coloring of this component. There are exactly 2 valid colorings for a connected bipartite component. They are inverses of each other. One starts with 1 at $i$, the other starts with 2 at $i$. The one starting with 1 gives a smaller value at index $i$ than the one starting with 2. Since all indices $j < i$ are unaffected (they belong to previously processed components or are just not in this component), choosing 1 at $i$ is optimal.
+This logic seems solid.
+
+One small check: Is it possible that the input contains $u, v$ such that $u=v$?
+Problem says "mutually exclusive: if person u and person v ... cannot be assigned to the same work period".
+If $u=v$, then $u$ cannot be assigned to the same period as $u$. This is a contradiction ($u \neq u$ is false).
+If input has $u=v$, my code sets `colors[u]=1` (or whatever), sees neighbor $u$ with same color, prints NO. Correct.
+What if input has duplicate edges?
+`adj[u].append(v)` twice.
+When processing $u$, we see $v$ twice.
+First time: `colors[v]` set to opposite.
+Second time: `colors[v]` is opposite, check passes.
+Correct.
+
+The solution seems robust.
+
+Wait, looking at the code, I used `sys.setrecursionlimit`. Since I use BFS, I don't need it. I can remove it to be clean.
+Also, `print(*(colors[1:]))` is efficient.
+
+Wait, is there any case where $N$ is large but $M=0$?
+Loop runs $N$ times. Inside, if `colors[i] == 0`, we start BFS.
+If $M=0$, `adj` is empty lists. BFS queue pops $i$, loop over neighbors empty.
+Then `colors[i]` becomes 1.
+Next $i+1$, `colors` is 0, sets to 1.
+So all become 1. Correct.
+Output YES \n 1 1 ... 1.
+Lexicographically smallest. Yes, 1 is smallest possible value.
+
+Wait, what if the graph has multiple connected components?
+We handle each component.
+For each component, we pick the root node as the one with the smallest index in that component that hasn't been visited.
+Actually, my loop `for i in range(1, n + 1)` ensures that we encounter nodes in increasing order.
+The first time we see a node belonging to a component, it is the node with the smallest index in that component (among those not yet visited).
+Wait, suppose component is $\{2, 5\}$.
+$i=1$: processed (say component $\{1\}$).
+$i=2$: uncolored. It is the first node of component $\{2, 5\}$ encountered.
+We set $s_2=1$, then $s_5=2$.
+Is it possible that $s_2$ should be 2?
+If $s_2=2$, $s_5=1$.
+Sequence: $s_1, 2, s_3, s_4, 1$.
+vs $s_1, 1, s_3, s_4, 2$.
+Comparing at index 2: 2 vs 1. 1 is smaller.
+So yes, assigning 1 to the first uncolored node is correct.
+
+There is one subtle point. The problem statement says "lexicographically smallest when represented as the sequence $s_1, s_2, \dots, s_n$".
+Suppose we have a component with nodes $\{2, 5\}$.
+We assign $s_2=1, s_5=2$.
+Is it possible to have another valid assignment for this component that makes the sequence smaller?
+The only valid assignments for a bipartite component are $C$ and $\bar{C}$.
+In our case, $C$ has $s_2=1, s_5=2$.
+$\bar{C}$ has $s_2=2, s_5=1$.
+Comparing $C$ and $\bar{C}$ as sequences:
+Index 2: $1$ vs $2$. $1 < 2$. So $C$ is smaller.
+Since $s_2$ is the first position where these two assignments differ (because 2 is the first node in the component), determining $s_2$ first is the lexicographical priority.
+So the greedy strategy works.
+
+Wait, what if the component is $\{2, 3, 4\}$ with edges (2,3), (3,4).
+My code:
+$i=2$. Uncolored. `colors[2]=1`.
+BFS:
+Pop 2. Neighbors 3. `colors[3]=2`.
+Pop 3. Neighbors 2, 4. 2 colored. 4 uncolored. `colors[4]=1`.
+Result: $s_2=1, s_3=2, s_4=1$.
+Alternative: $s_2=2, s_3=1, s_4=2$.
+Compare $(1, 2, 1)$ vs $(2, 1, 2)$.
+First element (index 2) is 1 vs 2. So $(1, 2, 1)$ wins.
+Correct.
+
+Wait, I should verify the time complexity again.
+The `adj` list construction takes $O(M)$.
+The loop runs $N$ times.
+Inside the loop, BFS runs. Each node is added to `q` and popped once. Each edge is examined twice (once from each end).
+Total operations proportional to $N + M$.
+With $N, M = 2 \cdot 10^5$, operations $\approx 4 \cdot 10^5$.
+Python handles $\approx 10^7-10^8$ ops per second.
+This is well within 1 second.
+Input reading $O(N+M)$, output writing $O(N)$.
+Memory $O(N+M)$.
+Seems optimal.
+
+One edge case: inputs might be large so `sys.setrecursionlimit` is not needed for BFS but good practice if I used DFS. I'll stick to BFS.
+Also, `input_data` splitting might consume memory.
+If input is $200000$ lines, the string size is roughly $200000 \times 10$ bytes $\approx 2$ MB.
+The list of strings is roughly $400000$ elements.
+This is negligible compared to 256MB.
+
+Let's double check imports.
+`import sys`
+`from collections import deque`
+Standard.
+
+One specific detail:
+"Output only the answer in the exact format specified."
+"print NO" or "YES\n1 2 ...".
+My code does exactly this.
+
+One detail: `sys.stdin.read` reads until EOF.
+In competitive programming environments, input is piped in, so EOF is well defined.
+If run interactively, it waits for Ctrl-D. This is standard.
+
+Let's re-verify the constraints.
+$N, M \le 2 \cdot 10^5$.
+Time limit 1s.
+Python might be slow with tight loops.
+`adj` list of lists.
+`colors` list.
+`deque` is fast.
+`print(*(colors[1:]))` constructs a string.
+This should be fine.
+
+I will structure the code to be clean and within the single block.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list
+    adj = [[] for _ in range(n + 1)]
+    
+    # Read edges
+    # We expect 2*m integers
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Colors array: 0 = uncolored, 1 = color 1, 2 = color 2
+    colors = [0] * (n + 1)
+    
+    # Iterate through all nodes to handle all connected components
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start a new component traversal
+            # To achieve lexicographically smallest sequence, assign the first node 
+            # encountered in the loop (which is the smallest index in this component)
+            # the value 1.
+            colors[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_color = colors[u]
+                next_color = 3 - current_color # 1 -> 2, 2 -> 1
+                
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = next_color
+                        queue.append(v)
+                    elif colors[v] == current_color:
+                        # Conflict detected: adjacent nodes have same color
+                        print("NO")
+                        return
+    
+    # If no conflicts found
+    print("YES")
+    # Print the colors from index 1 to n
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, I should confirm the constraints on $u, v$.
+$1 \le u, v \le n$.
+The loop range `range(m)` assumes $m$ lines follow.
+If $m=0$, the loop doesn't run, `adj` remains empty lists. Correct.
+The `iterator` logic handles the tokens linearly.
+If $m$ is large, `next(iterator)` is fast.
+
+One minor thing: `sys.setrecursionlimit` is not needed since I am not using recursion.
+The memory usage of `input_data` list.
+If $M=200000$, input string is $\approx 1.5$ MB.
+List of strings is $\approx 400000$ items.
+Each item is a small string.
+In Python, small strings are interned or take $\approx 50$ bytes.
+$400000 \times 50 \approx 20$ MB.
+Plus the list overhead (pointers) $\approx 3.2$ MB.
+Total $\approx 25$ MB.
+This is safe.
+
+Final check on the logic for "lexicographically smallest".
+Is it possible that choosing 1 for the "root" of a component forces a conflict that could be avoided?
+No, because conflict (odd cycle) is invariant under color swapping (1->2, 2->1).
+If a component is not bipartite, neither 1 nor 2 starting assignment works.
+If it is bipartite, both work.
+Between the two valid assignments, they differ at every node in the component.
+Let the component nodes be $c_1, c_2, \dots$ sorted by index.
+The first node $c_1$ will have $s_{c_1} = 1$ in one assignment and $s_{c_1} = 2$ in the other.
+Since $1 < 2$, the assignment with $s_{c_1}=1$ is lexicographically smaller.
+Since $c_1$ is the smallest index in the component, this choice is determined by the order of processing in the main loop.
+So yes, the logic is sound.
+
+Wait, the loop `for i in range(1, n + 1)` processes nodes in increasing order of index.
+The first time we encounter a node belonging to a component, say node $k$, it is guaranteed that $k$ is the smallest index in that component because if there was a smaller index $j < k$ in the same component, we would have visited $j$ earlier in the loop, colored its component, and thus $k$ would already be colored.
+So $k$ is indeed the minimal index in its component.
+Thus, setting `colors[k] = 1` is the correct greedy choice.
+
+One edge case: $N$ is up to $200,000$.
+Is `print(*(colors[1:]))` safe?
+It creates a tuple of arguments for print.
+Tuple creation might take some memory/time.
+Alternatively, `' '.join(map(str, colors[1:]))`.
+`print` with `*` unpacks the list.
+In Python 3, this is efficient enough.
+However, constructing the string might be slightly faster than unpacking for huge outputs?
+Actually `print(*list)` is usually implemented to convert elements to strings and join them.
+With $2 \cdot 10^5$ integers, the output string is $\approx 400$ KB.
+`print` handles this easily.
+
+One tiny optimization:
+`sys.stdout.write` might be faster than `print`.
+But `print` with default arguments is usually fine for 1s limit.
+Given 1s limit, I'll stick to `print`.
+
+Wait, the prompt says "Output only the answer in the exact format specified."
+My code prints `YES` then the sequence.
+Example 1:
+YES
+1 2 1 2
+My code:
+YES
+1 2 1 2
+Correct.
+
+Example 2:
+NO
+My code:
+NO
+Correct.
+
+I'll put the code inside the block.
+
+```python
+import sys
+from collections import deque
+
+# Increase recursion depth just in case, though we use BFS
+sys.setrecursionlimit(200005)
+
+def solve():
+    # Read all input from stdin efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for the graph
+    # Using 1-based indexing for convenience to match problem statement
+    adj = [[] for _ in range(n + 1)]
+    
+    # Read m edges
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    # Colors array: 0 = uncolored, 1 = color 1, 2 = color 2
+    colors = [0] * (n + 1)
+    
+    # Iterate through all nodes to handle all connected components
+    # Iterating in increasing order ensures we pick the lexicographically smallest assignment
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start a new component traversal
+            # Since i is the smallest index in this component (due to the loop order),
+            # setting colors[i] = 1 minimizes the sequence at this position.
+            colors[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_color = colors[u]
+                next_color = 3 - current_color # 1 -> 2, 2 -> 1
+                
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = next_color
+                        queue.append(v)
+                    elif colors[v] == current_color:
+                        # Conflict detected: adjacent nodes have same color
+                        # This implies the graph is not bipartite
+                        print("NO")
+                        return
+    
+    # If no conflicts found after checking all nodes
+    print("YES")
+    # Print the colors from index 1 to n
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+The try-except block inside the loop is technically not needed if input is guaranteed to be correct, but good for robustness.
+The problem statement guarantees $m$ lines follow.
+I'll simplify the reading loop slightly to be cleaner.
+Also, the recursion limit is not needed for BFS, I will remove it to avoid confusion.
+Actually, I will keep the imports and standard structure.
+
+Wait, `print(*(colors[1:]))` will print separated by spaces. The example output shows space separated.
+Correct.
+
+One last check on constraints.
+$N, M \ge 0$.
+$M$ can be 0.
+$N$ can be 1.
+All handled.
+
+Double check the memory limit. 256MB.
+My solution uses $O(N+M)$ space.
+With $N=2 \cdot 10^5, M=2 \cdot 10^5$.
+Integers are small.
+Python lists have overhead.
+`adj` list: $2 \cdot 10^5$ list objects. Each empty list takes $\approx 64$ bytes + pointers.
+Total edges $4 \cdot 10^5$.
+$4 \cdot 10^5 \times 8$ bytes (pointer) $\approx 3.2$ MB.
+Objects for integers? Small integers are cached.
+If not cached, 28 bytes each.
+$4 \cdot 10^5 \times 28 \approx 11$ MB.
+Total graph memory $\approx 20-30$ MB.
+Input data string + list: $\approx 25$ MB.
+`colors` array: $2 \cdot 10^5 \times 4$ bytes (if C array) or pointers. Python list of ints.
+$2 \cdot 10^5 \times 8$ bytes $\approx 1.6$ MB.
+Total memory usage well under 100MB. Safe.
+
+Time complexity $O(N+M)$.
+Safe.
+
+Final check of the code logic.
+The problem asks for lexicographically smallest $s_1, \dots, s_n$.
+My logic:
+1. Iterate $i$ from 1 to $n$.
+2. If $i$ uncolored, it is the first node of a new component in the sequence.
+3. Assign $s_i = 1$. This is the smallest possible value for $s_i$.
+4. Propagate constraints. If conflict, impossible -> NO.
+5. If successful, all $s_i$ are determined.
+Since $s_i$ is determined at step $i$ (or earlier if it was part of a component started by $j < i$), and we always choose the smallest valid option for the first node of a component, the resulting sequence is lexicographically minimal.
+Specifically, for any two valid assignments $A$ and $B$, let $k$ be the first index where they differ.
+If $k$ is part of a component where the root was $r \le k$.
+Since $r$ was processed at step $r$, and we chose $s_r=1$ (min value), $A$ must have $s_r=1$.
+If $B$ had $s_r=2$, then $B$ would differ from $A$ at $r$.
+Since $r \le k$, if $r < k$, then $A$ and $B$ differ at $r$, contradiction to $k$ being first difference.
+If $r = k$, then $A$ has 1, $B$ has 2. $A < B$.
+So my construction yields the minimal assignment.
+
+One edge case: Is it possible that for a component, picking 1 for the root is valid, but picking 2 for the root is also valid (always true for bipartite), but picking 1 forces a choice later that is suboptimal?
+No. Once the root is fixed, the rest of the component is fixed (because the graph is connected and bipartite, there is a unique coloring relative to the root). There are no other degrees of freedom within the component.
+Wait, if the component was not connected?
+We process components one by one. The choice for one component does not affect the coloring of another component (no edges between them).
+So we can optimize each component independently.
+Within a component, the only freedom is swapping 1 and 2.
+So the greedy choice at the root is globally optimal.
+
+Looks good.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    # Read all input from standard input at once
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for the graph
+    # Using 1-based indexing
+    adj = [[] for _ in range(n + 1)]
+    
+    # Read m edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+            
+    # Colors array: 0 = uncolored, 1 = work period 1, 2 = work period 2
+    colors = [0] * (n + 1)
+    
+    # Iterate through all nodes from 1 to n
+    # This ensures we process components in an order that respects the lexicographical requirement
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start a BFS for the connected component containing i
+            # To minimize the sequence lexicographically, we assign the first node 
+            # encountered (which is the smallest index in this component) to work period 1.
+            colors[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_color = colors[u]
+                next_color = 3 - current_color # Toggle between 1 and 2
+                
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = next_color
+                        queue.append(v)
+                    elif colors[v] == current_color:
+                        # Conflict: adjacent nodes have the same color
+                        # This means the graph is not bipartite
+                        print("NO")
+                        return
+    
+    # If we successfully colored the entire graph
+    print("YES")
+    # Output the work periods for personnel 1 to n
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+The code is complete.
+
+One thing: `input_data` might be empty.
+`if not input_data: return` handles it.
+But $n, m$ are guaranteed $\ge 1, \ge 0$.
+The problem says $1 \le n$. So input won't be empty.
+But good to be safe.
+
+I will remove comments to make it concise as requested?
+"Output only the answer in the exact format specified."
+"Return only one Python 3 code block."
+Usually comments are fine inside the code block.
+I will keep them minimal.
+
+One detail: `print(*(colors[1:]))`
+If $n=0$ (not possible per constraints), it prints nothing.
+If $n=1$, prints `colors[1]`.
+The slicing `colors[1:]` creates a new list.
+Memory wise, it's fine.
+Time wise, copying list of size $2 \cdot 10^5$ is fast.
+
+I think I'm ready.
+
+One small check. The example 1 output is `1 2 1 2`.
+My trace:
+1 -> 1
+2 -> 2
+3 -> 1
+4 -> 2
+Sequence: 1 2 1 2.
+Correct.
+Example 2:
+1-2, 1-3, 2-3.
+1 -> 1
+2 -> 2
+3 -> 2 (neighbor of 2)
+3 -> 2 (neighbor of 1, conflict)
+Output NO.
+Correct.
+
+Final code.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    colors = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            colors[i] = 1
+            q = deque([i])
+            while q:
+                u = q.popleft()
+                c = colors[u]
+                nc = 3 - c
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = nc
+                        q.append(v)
+                    elif colors[v] == c:
+                        print("NO")
+                        return
+                        
+    print("YES")
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+This is compact and correct.
+
+One minor point: `sys.setrecursionlimit` is not used, so I don't include it.
+The constraints are satisfied.
+The solution uses BFS, avoiding recursion depth issues.
+Lexicographical order is handled by iterating 1 to n and picking 1 for the root of each component.
+Bipartiteness check is standard.
+Input reading is optimized.
+Output format is correct.
+
+I'm confident.
+
+Wait, I should check if `m` can be 0.
+If `m=0`, loop `range(m)` does nothing. `adj` is all empty.
+Loop `1` to `n`. `colors[i]` is 0. `colors[i]=1`. Queue `[i]`. Pop `i`. `adj` empty.
+Next `i`. `colors[i]` is 1. Skip.
+Result `1 1 ... 1`.
+Correct.
+
+Double check indentation and syntax.
+Looks good.
+
+One detail: `sys.stdin.read` might block if run interactively without EOF.
+This is standard for CP.
+I will assume standard CP environment.
+
+Final check on memory limit 256MB.
+Python's `sys.stdin.read().split()` creates a list of strings.
+If input file is very large (e.g. max constraints), it's about 2-3 MB of text.
+The list of strings is the main memory consumer but for $4 \cdot 10^5$ elements it is roughly 20-30 MB.
+This is safe.
+
+I will provide the solution now.
+</think>
+```python
+import sys
+from collections import deque
+
+def solve():
+    # Read all input from standard input at once for efficiency
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for the graph, 1-based indexing
+    adj = [[] for _ in range(n + 1)]
+    
+    # Read m edges
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+            
+    # Colors array: 0 = uncolored, 1 = work period 1, 2 = work period 2
+    colors = [0] * (n + 1)
+    
+    # Iterate through all nodes from 1 to n
+    # Iterating in increasing order ensures we encounter the smallest index of each component first.
+    # To achieve the lexicographically smallest sequence, we assign the first node of a component
+    # (which is the smallest index in that component) to work period 1.
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start a BFS for the connected component containing i
+            colors[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                current_color = colors[u]
+                next_color = 3 - current_color # Toggle between 1 and 2
+                
+                for v in adj[u]:
+                    if colors[v] == 0:
+                        colors[v] = next_color
+                        queue.append(v)
+                    elif colors[v] == current_color:
+                        # Conflict detected: adjacent nodes have the same color
+                        # This implies the graph is not bipartite
+                        print("NO")
+                        return
+    
+    # If no conflicts found after checking all nodes
+    print("YES")
+    # Print the work periods for personnel 1 to n separated by spaces
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```

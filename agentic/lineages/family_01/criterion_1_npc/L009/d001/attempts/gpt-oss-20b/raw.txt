@@ -1,0 +1,220 @@
+<think>
+We need 3-coloring of graph up to n=40. Need lexicographically smallest assignment (1,2,3). We can use backtracking with pruning. n small enough 40, but 3^40 huge. But constraints small due to m edges. We can use DSATUR or backtracking with ordering. We also need lexicographically smallest: assign colors to nodes in order 1..n with minimal colors possible at each step that leads to solution. So we can attempt DFS with recursion on node index, try colors 1..3 in order, but need to prune unsatisfiable.
+
+We can also use bipartite test for each pair of colors? Another idea: Since only 3 colors, we can attempt to check if graph is 3-colorable. n=40 small, we can do backtracking with bitmasks.
+
+We need efficient pruning: maintain adjacency list bitmasks. For each node, keep mask of nodes already assigned with each color.
+
+During recursion, we attempt to assign color c to node i if no neighbor j with same color already assigned. That is, for color c, maintain bitmask of nodes colored c. Then check adjacency: if (adj[i] & mask_c) == 0.
+
+We also need to enforce lexicographic minimal: we try colors 1..3 in order; first found solution is lexicographically minimal because we assign nodes sequentially.
+
+But backtracking might still be large. n=40, but branching factor 3, worst-case 3^40. Need pruning: maybe use ordering by degree or recursion with minimal colors first? But lexicographic minimal requires order of nodes fixed, but we can still choose order? Actually lexicographic minimal sequence is over s_1..s_n. So we cannot permute nodes. Colors for each person are fixed by index. So we must assign nodes in order 1..n. That may cause many branches but maybe still manageable due to constraints? But worst-case graph with no edges: any assignment works, first assignment all 1 is valid, we will find quickly. Worst-case near color-critical graph might require exploring many possibilities. n=40 could be tough but maybe backtracking with pruning is okay.
+
+We can incorporate forward checking: maintain for each unassigned node the available colors remaining. We can propagate constraints: when assign color c to node i, for each neighbor j unassigned, remove color c from j's available set. If any neighbor becomes empty, backtrack.
+
+Represent available colors as bitmask (3 bits). Initially all 7 (111). We'll maintain array avail[n]. When assign, we update neighbors by bitwise AND with ~color_bit.
+
+We need to revert changes on backtrack; can use stack of modifications.
+
+Implementation: recursion function dfs(pos). If pos==n: solution found.
+
+We maintain arrays color[0..n-1] with 0=unassigned else 1..3.
+
+Also avail[0..n-1] bitmask of available colors.
+
+When assign node pos with color c:
+- color[pos]=c
+- For each neighbor j>pos? Actually neighbors maybe any, but we only need to update avail for unassigned neighbors j>pos? Because earlier nodes already assigned; but we need to ensure consistency but they already have colors. For neighbors already assigned we ensure no conflict, that's checked before.
+
+For unassigned neighbors j>pos, we need to remove color c from avail[j]. We'll push previous avail[j] onto stack.
+
+Also we need to check if any neighbor's avail becomes 0 -> backtrack.
+
+We also need to maintain for nodes <pos maybe we don't need to modify because they are assigned.
+
+But we might also need to handle neighbors j < pos that are unassigned? Actually at pos we are assigning node pos, all nodes with index < pos are already assigned. So all unassigned nodes have index > pos. So only need to handle j>pos.
+
+Thus recursion depth 40, branching 3.
+
+We also need to propagate forward checking to reduce branching.
+
+We also might use heuristic: choose next node with minimal available colors among remaining nodes. But that would change order affecting lexicographic minimal? We cannot reorder. The lexicographic minimal is determined by assignment order. But if we choose to assign node pos according to order, we can't reorder. So no.
+
+Thus simple recursion might be enough.
+
+But we should incorporate pruning using graph coloring unsolvable detection: If any node has no available colors -> backtrack.
+
+Also we could use a simple heuristic for early failure: if at any point we see that the unassigned subgraph cannot be colored with remaining colors (like if it contains a clique of size 4, impossible). But that might be heavy.
+
+Given n=40, 3^40 huge but due to constraints maybe graph is sparse? m up to n(n-1)/2 but worst-case clique of 40 -> 3-colorable only if clique size <=3. So if clique size 4 then no solution. But backtracking would detect quickly because early nodes conflict.
+
+But still worst-case: 3-colorable random graph with many possibilities may require exploring many assignments. But backtracking with forward checking might prune many.
+
+I think it's fine.
+
+Implementation details:
+
+- adjacency list as list of sets or bitmask. Since n<=40, we can use bitmask of 64-bit integer.
+
+- For each node, neighbors bitmask.
+
+Algorithm:
+
+- Read input.
+
+- Build neighbor bitmask array neigh[n].
+
+- color array init 0.
+
+- avail array init 7.
+
+- stack for modifications: list of tuples (node, previous avail) to revert.
+
+Define recursive function dfs(pos):
+
+if pos==n: return True
+
+node = pos
+
+for c in (1,2,3):
+    if avail[node] & (1<<(c-1)):
+        # check no neighbor assigned same color
+        conflict = False
+        for neighbor in neighbors: if color[neighbor]==c -> conflict
+But we can check using mask of nodes of color c: maintain color_mask[3] bitmask. Then conflict if (neigh[node] & color_mask[c-1]) != 0. That is faster.
+
+So maintain color_mask[3] each bit i set if node i colored with that color.
+
+So before assignment, check conflict.
+
+If conflict -> continue.
+
+Else proceed:
+
+- color[node]=c
+
+- color_mask[c-1] |= (1<<node)
+
+- Record modifications list: We'll push list of nodes modified (neighbors > pos) to revert avail.
+
+For each neighbor j where (neigh[node]>>j)&1 and color[j]==0:
+
+    prev = avail[j]
+    avail[j] &= ~(1<<(c-1))
+    if avail[j]==0: conflict2, revert changes, break.
+
+We need to revert all changes made before leaving recursion.
+
+Simplify: we can gather list of modified nodes and their previous avail; after recursion or conflict, revert.
+
+Implementation:
+
+modified = []
+
+for each neighbor j unassigned:
+    prev = avail[j]
+    new = prev & ~(1<<(c-1))
+    if new != prev:
+        avail[j] = new
+        modified.append((j, prev))
+    if avail[j]==0:
+        conflict2=True; break
+
+If conflict2: revert modifications and continue to next color.
+
+Else: if dfs(pos+1): return True
+
+After recursion, revert: for j,prev in modified: avail[j]=prev
+
+Also revert color[node]=0, color_mask[c-1] &= ~(1<<node)
+
+Return False at end.
+
+This will produce lexicographically minimal.
+
+Complexity: each recursion step loops over neighbors to update avail. Each edge considered at most twice? Because each node may be neighbor to many nodes. In worst-case dense graph, each node has ~n neighbors. For each assignment we iterate over neighbors of node. That's O(n^2) per level? But n=40, fine.
+
+We must ensure recursion limit high enough.
+
+Edge case: n up to 40, recursion depth 40 fine.
+
+Now implement.
+
+Test with example.
+
+Potential optimization: use 'neighbors' list for each node.
+
+Let's code.
+</think>
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    neigh = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        neigh[u] |= 1 << v
+        neigh[v] |= 1 << u
+
+    color = [0] * n          # 0 = unassigned, else 1..3
+    avail = [7] * n          # bitmask of available colors (bits 0,1,2)
+    color_mask = [0, 0, 0]  # nodes colored with color 1,2,3
+
+    def dfs(pos: int) -> bool:
+        if pos == n:
+            return True
+        node = pos
+        for c in (1, 2, 3):
+            bit = 1 << (c - 1)
+            if not (avail[node] & bit):
+                continue
+            # conflict check with already colored neighbors
+            if neigh[node] & color_mask[c - 1]:
+                continue
+            # assign
+            color[node] = c
+            color_mask[c - 1] |= 1 << node
+            modified = []
+            conflict = False
+            nb = neigh[node]
+            j = 0
+            while nb:
+                if nb & 1:
+                    if not color[j]:
+                        prev = avail[j]
+                        new = prev & ~bit
+                        if new != prev:
+                            avail[j] = new
+                            modified.append((j, prev))
+                        if not new:
+                            conflict = True
+                            break
+                nb >>= 1
+                j += 1
+            if not conflict and dfs(pos + 1):
+                return True
+            # revert modifications
+            for j, prev in modified:
+                avail[j] = prev
+            color[node] = 0
+            color_mask[c - 1] &= ~(1 << node)
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(str(color[i]) for i in range(n)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()
+```

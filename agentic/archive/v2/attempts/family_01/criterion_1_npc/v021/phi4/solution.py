@@ -1,0 +1,43 @@
+import sys
+
+def main():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    conflicts = [[] for _ in range(n)]
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index + 1]) - 1
+        conflicts[u].append(v)
+        conflicts[v].append(u)
+        index += 2
+    
+    def is_valid(assignment, asset, zone):
+        for neighbor in conflicts[asset]:
+            if assignment[neighbor] == zone:
+                return False
+        return True
+
+    def solve(asset, assignment):
+        if asset == n:
+            print("YES")
+            print(' '.join(map(str, assignment)))
+            sys.exit()
+        
+        for zone in range(1, 4):
+            if is_valid(assignment, asset, zone):
+                assignment[asset] = zone
+                solve(asset + 1, assignment)
+                assignment[asset] = 0
+    
+    assignment = [0] * n
+    solve(0, assignment)
+    
+    print("NO")
+
+if __name__ == "__main__":
+    main()

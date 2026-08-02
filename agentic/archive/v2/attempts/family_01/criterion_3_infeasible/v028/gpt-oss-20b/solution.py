@@ -1,0 +1,38 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adjacency = [[] for _ in range(n + 1)]
+    bitsets = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adjacency[u].append(v)
+        adjacency[v].append(u)
+        bitsets[u] |= 1 << (v - 1)
+        bitsets[v] |= 1 << (u - 1)
+
+    for i in range(1, n + 1):
+        adjacency[i].sort()
+
+    for a in range(1, n - 1):
+        for b in adjacency[a]:
+            if b <= a:
+                continue
+            # intersection of neighbors of a and b
+            inter = bitsets[a] & bitsets[b]
+            shift = inter >> b          # drop bits <= b (node numbers 1..b)
+            if shift:
+                low = shift & -shift
+                offset = low.bit_length() - 1
+                c = b + offset + 1
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    solve()

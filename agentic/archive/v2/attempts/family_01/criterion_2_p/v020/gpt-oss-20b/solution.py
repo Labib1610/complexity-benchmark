@@ -1,0 +1,43 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * (n + 1)
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS for this component, assign start color 0
+        dq = deque([start])
+        color[start] = 0
+        while dq:
+            u = dq.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                cv = color[v]
+                if cv == -1:
+                    color[v] = cu ^ 1
+                    dq.append(v)
+                elif cv == cu:
+                    # not bipartite
+                    sys.stdout.write("NO")
+                    return
+    # All components bipartite
+    out = ['YES', '\n']
+    seq = ['1' if c == 0 else '2' for c in color[1:]]
+    out.append(' '.join(seq))
+    sys.stdout.write(''.join(out))
+
+if __name__ == "__main__":
+    solve()

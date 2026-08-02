@@ -1,0 +1,139 @@
+<think>
+We need find smallest triangle in graph defined by edges (incompatible). n up to 2000, m up to 2e5. We can store adjacency sets or bitsets. To find lexicographically smallest triangle (a<b<c). Approach: iterate a from 1..n. For each a, consider neighbors b > a. For each such b, we need find c > b such that a-c edge exists and b-c edge exists. Among all candidates, choose min lexicographically. Since we iterate a increasing, first found will be minimal a. For that a, we want minimal b. So for each a, we should iterate b in increasing order. For each b, we need to find minimal c > b that is neighbor of both a and b. We can find intersection of adjacency lists of a and b, restricted to > b. Since n small, we can use adjacency bitset per node using Python's int bitset or set. n=2000, bitset length 2000 fits in Python int (~250 bytes). Intersection is bitwise &. Then find minimal set bit greater than b. Use bit_length trick. Approach: For a, we have bitset adj[a]. For each neighbor b > a, we compute common = adj[a] & adj[b] & mask_greater_than_b. Then find lowest set bit. Implementation details: Build list of bitset ints: adj_bit[i] where bit j-1 set if edge i-j exists. Since graph undirected, set both ways. Then for a in 1..n: get neighbors list: iterate through bits of adj_bit[a], but we need only those > a. We can precompute adjacency list sorted. For small n, just loop through neighbors list. For each b in sorted neighbors where b > a: compute common = adj_bit[a] & adj_bit[b]. Then we need to find c > b. We can mask: mask = ((1 << (n - b)) - 1) << b. But indexing bits 0-based. Let's define bit k corresponds to node k+1. So for node id v, bit index v-1. For c > b, we want bits >= b. So mask = (~((1 << b) - 1)) & ((1 << n) - 1). Then common_masked = common & mask. Then if common_masked != 0: get lowest set bit: c_bit = (common_masked & -common_masked). Then c = bit_length(c_bit)  # returns position+1? Actually bit_length gives number of bits needed to represent. For 1-based index: c = c_bit.bit_length(). Because bit_length of 8 (1000) is 4; index 3 -> node 4. Good. Then we have triangle (a,b,c). Since we iterate a increasing, b increasing, c minimal found, we can output first found. Complexity: For each a, for each neighbor b. In worst case, graph dense, each a has O(n) neighbors, so O(n^2) operations. Each intersection is O(1) bit operations. So fine for n=2000.
+
+Edge Cases: Need to ensure we compute mask correctly. For n bits, we can precompute all_ones = (1 << n) - 1. For mask greater than b: mask = all_ones ^ ((1 << b) - 1). Because we want to clear bits 0..b-1. Equivalent: mask = all_ones & ~((1 << b) - 1). Then common_masked = common & mask. We then find lowest set bit.
+
+Alternatively we can use adjacency lists and set intersection of python sets, but bitset is fast.
+
+Implementation steps:
+
+- Read n,m.
+- adj_bit = [0] * (n+1)
+- For each edge u,v:
+    adj_bit[u] |= 1 << (v-1)
+    adj_bit[v] |= 1 << (u-1)
+
+- all_ones = (1 << n) - 1
+
+- For a in range(1, n+1):
+    neigh = []
+    bits = adj_bit[a]
+    # iterate bits: we can loop through set bits using while bits: lsb = bits & -bits; idx = lsb.bit_length()-1; node = idx+1; bits ^= lsb
+    # But we need only those > a, so we can check node > a.
+    # However iterating all bits each time may be O(n^2). n=2000, fine. But we can precompute sorted adjacency lists to avoid scanning all bits each time.
+    # Let's precompute adjacency list: adj_list[a] = sorted neighbors.
+    # Build after reading edges.
+
+- So create adj_list = [sorted list of neighbors] for each node.
+
+- Then loop:
+
+    for a in range(1, n+1):
+        for b in adj_list[a]:
+            if b <= a: continue
+            common = adj_bit[a] & adj_bit[b]
+            mask = all_ones ^ ((1 << b) - 1)  # clears bits <= b-1
+            common_masked = common & mask
+            if common_masked:
+                c_bit = common_masked & -common_masked
+                c = c_bit.bit_length()
+                print(a, b, c)
+                return
+
+The mask: For b=1, (1 << 1) - 1 = 1, mask = all_ones ^ 1 => all bits except bit 0. But we want > b, so bits >= b (index b-1 +1?). Wait careful: bit index of node k is k-1. For b node, we want c > b, so c's index >= b. That means bits from index b to n-1. So we need to clear bits 0..b-1. Bits 0..b-1 correspond to nodes 1..b. So we should clear bits up to b-1 inclusive. So mask should be all_ones ^ ((1 << b) - 1). Because (1 << b) - 1 has bits 0..b-1 set. XOR with all_ones flips those bits to 0, leaving bits b..n-1 as 1. Good.
+
+Check: if b=2, (1<<2)-1 = 3 (bits 0 and 1). XOR all_ones -> clears bits 0 and 1, leaving bits 2..n-1 set. That's nodes 3..n. Good.
+
+Edge: b may equal n? but then mask will have no bits set > n? If b=n, (1<<n)-1 = all_ones, XOR => 0, no candidate, fine.
+
+Now we need to ensure we produce lexicographically smallest triangle. Since we iterate a ascending, and for each a, we iterate b ascending (adj_list sorted). For each (a,b), we find minimal c via lowest set bit. But there could be other c also bigger but smaller than our found? No, we find minimal c for that (a,b). But maybe there is another b'>b with same a but smaller c? But lexicographic order: a same, b smaller is preferred. So if we found any triangle with current b, we should output it immediately, regardless of c. Because any other b' > b would give larger b. So we output first found. Good.
+
+We also need to ensure the found c is > b. Our mask ensures that. So triangle a<b<c.
+
+Complexities fine.
+
+Test example.
+
+Let's test with sample 1: n=4 edges: 1-2,1-3,2-3,2-4,3-4.
+
+adj_bit: 1: 2,3; 2:1,3,4; 3:1,2,4; 4:2,3.
+
+adj_list: 1:[2,3]; 2:[1,3,4]; 3:[1,2,4]; 4:[2,3].
+
+Loop a=1: b=2>1: common = adj_bit[1]&adj_bit[2] = bits for 3? 1 has 2,3. 2 has 1,3,4. Intersection: 3. mask for b=2: all_ones=1111 (bits 0-3). (1<<2)-1=11. mask=1111 ^ 0011 = 1100. common_masked = 0100 & 1100 = 0100. c_bit=0100. c=3. Output 1 2 3. Works.
+
+Second sample: edges: 1-2,1-4,2-4,3-4,3-5,4-5.
+
+adj_list: 1:[2,4]; 2:[1,4]; 3:[4,5]; 4:[1,2,3,5]; 5:[3,4].
+
+a=1: b=2>1: common = adj_bit[1]&adj_bit[2] = 2 has 1,4. 1 has 2,4. Intersection: 4? Node 4 bit. mask b=2: bits > 2 => nodes 3-5. So mask: bits 2-4. common 4 is node 4 index3 => bit 3 => within mask. so c=4. Output 1 2 4. Good.
+
+Edge: Suppose there is triangle 1-3-4 but 2-4-1 also? We choose minimal a. Works.
+
+Implementation details: Build adj_bit list of ints length n+1. Build adj_list as lists.
+
+Reading input: use sys.stdin.read().split() for speed.
+
+Also need to consider that edges may be repeated? Not specified; assume no duplicates maybe but we can ignore duplicates.
+
+All good.
+
+Let's write code.
+
+Potential pitfalls: bit_length of 0? Not used. bit_length of c_bit returns position+1. For bit 8 (1000), bit_length=4 => node 4. Good.
+
+Compute all_ones: (1<<n)-1. For n=2000, shift 1<<2000 is huge but okay in Python. 1<<2000 results in big int with 2001 bits. Memory fine.
+
+Try to avoid using '^' for mask; use all_ones & ~((1 << b) - 1). Equivalent.
+
+We'll test with some random.
+
+Let's produce final code.
+</think>
+```python
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+
+    adj_bit = [0] * (n + 1)
+    adj_list = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        if u == v:
+            continue
+        bit_u = 1 << (v - 1)
+        bit_v = 1 << (u - 1)
+        adj_bit[u] |= bit_u
+        adj_bit[v] |= bit_v
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+
+    for lst in adj_list:
+        lst.sort()
+
+    all_ones = (1 << n) - 1
+
+    for a in range(1, n + 1):
+        for b in adj_list[a]:
+            if b <= a:
+                continue
+            common = adj_bit[a] & adj_bit[b]
+            mask = all_ones & ~((1 << b) - 1)  # bits for nodes > b
+            common_masked = common & mask
+            if common_masked:
+                c_bit = common_masked & -common_masked
+                c = c_bit.bit_length()
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```

@@ -1,0 +1,168 @@
+We need to find lexicographically smallest triangle in an undirected graph with up to n=2000, m up to 2e5. Need efficient enumeration.
+
+We can store adjacency lists as sorted lists or bitsets. Since n is 2000, we can use bitset of 2000 bits per node (~250 bytes). 2000*250=500k bytes, fine. Then triangle detection: iterate over edges (u,v) with u<v, find intersection of adjacency sets of u and v, but we only need lexicographically smallest triple. We can iterate a from 1 to n, for each b > a such that (a,b) is edge, then find c > b such that (a,c) and (b,c). To get lexicographically smallest, we can break early.
+
+Approach: For each a from 1 to n:
+  For each neighbor b > a, sorted ascending:
+    Compute intersection of adjacency sets of a and b, but only c > b. Since we store adjacency as bitset, we can bitwise AND, then iterate bits > b.
+
+We need lexicographically smallest a,b,c. So we can break when found first.
+
+Time: For each a,b pair, we intersect bitsets of size n/wordsize. n=2000, words 32 or 64? Python int bit operations can handle large ints; we can use bitset as int bitmask with n bits: bit i set if neighbor i+1. Then intersection is &. Then we need to find first set bit > b. We can mask out lower bits: mask = (~((1 << (b)) - 1))? Actually we need bits > b. So we can compute x = (adj[a] & adj[b]) & (~((1 << (b)) - 1)). Then find lowest set bit using bit_length? For int, we can get x.bit_length() gives position of highest set bit. To get lowest set bit, we can do x & -x gives lowest set bit. Then get index via (x & -x).bit_length() -1.
+
+But careful: bits indexed from 0 corresponding to node 1? We'll map node i to bit i-1. So for node 1, bit 0. For node b, we need bits > b => those with index >= b (since 0-based). So we need to mask out bits <= b-1. So mask = ~((1 << b) - 1). Because bits 0..b-1 are <= b-1. For node b (index b-1), we want > b-1, i.e., index >= b. So we mask.
+
+Then x = (adj[a] & adj[b]) & mask. If x>0, get c = (x & -x).bit_length() ; this gives index+1. Since bit index = position of lowest set bit. Actually (x & -x) is power of two with index k. Then k = (x & -x).bit_length() -1. Node number c = k+1.
+
+But we also need c > b. The mask ensures that.
+
+Then we can output a,b,c.
+
+We need to ensure we iterate neighbors in ascending order. We'll store adjacency list as sorted list of neighbors for each node. We'll also have adjacency bitmask per node.
+
+n up to 2000, building adjacency lists and bitmasks from input lines.
+
+Edge duplicates? Not specified; but we can ignore duplicates.
+
+Implementation steps:
+
+- Read n,m.
+- Initialize adjacency list: neighbors = [list() for _ in range(n+1)].
+- adjacency bitmask: adj_bits = [0]*(n+1).
+- For each edge u,v:
+   if v not in neighbors[u] (or we can add anyway and deduplicate later). Since m up to 2e5, duplicates unlikely but handle.
+   Append.
+   set bit: adj_bits[u] |= 1 << (v-1); adj_bits[v] |= 1 << (u-1).
+
+After reading, sort neighbors lists.
+
+Then for a in 1..n:
+  for b in neighbors[a]:
+    if b <= a: continue (we want a<b)
+    mask = ~((1 << b) - 1)
+    x = (adj_bits[a] & adj_bits[b]) & mask
+    if x:
+        k = (x & -x).bit_length() -1
+        c = k+1
+        print(a,b,c); return
+
+Edge case: need to ensure we only consider b > a. Since neighbors[a] may contain <a.
+
+But we need lexicographically smallest triple. We iterate a ascending, b ascending. For each pair, we take smallest c > b. That yields lexicographically minimal.
+
+Proof: For given a,b triplet lexicographically minimal among those with same a,b, we choose smallest c. Since we iterate b ascending, first found is minimal.
+
+Edge: Suppose there is triangle (a,b,c) where a is minimal, but there may be triangle with same a but smaller b; we will find that first because we iterate b ascending. Good.
+
+Complexities: For each pair (a,b) we compute bitwise ops O(1). Number of pairs is number of edges m. So O(m). Perfect.
+
+Need to ensure bit operations with big ints. n=2000 bits, masked. 1 << b may overflow? b up to 2000, Python big int fine.
+
+But we need to compute mask = ~((1 << b) - 1). Since we only care about bits up to n, mask will have infinite ones above n. But x & mask will zero lower bits, keep higher bits. But if mask has higher bits 1 beyond n, they will keep them. But x only contains bits up to n-1, because adjacency bits only set within n. So mask beyond n doesn't matter.
+
+Alternatively we can mask with (adj_bits[a] & adj_bits[b]) >> b, then bit_length.
+
+Simpler: intersect = adj_bits[a] & adj_bits[b]
+We need smallest set bit with index >= b. We can find first set bit >= b by shifting: y = intersect >> b; if y==0: continue; c = b + y.bit_length() -1? Wait, y.bit_length() gives position of highest set bit, not lowest. For lowest set bit, we can use (y & -y).bit_length() -1. So:
+
+y = intersect >> b
+if y:
+    low = y & -y
+    k = low.bit_length() -1
+    c = b + k + 1? Wait: y bits correspond to original indices offset by b. So if low has bit at position k (0-based), original index = b + k. Node number = (b + k) +1 -> b + k +1? But since b is node number, index is b-1. We shift by b, meaning we moved index b to position 0? Let's test: Suppose we have bit at index 5 (node 6). b=4 (node 5). shift >>4: bit at position 1. So low bit position k=1. original index = b + k = 4 +1 =5. Node number = index+1 =6. So c = b + k +1? Wait node number formula: index = b-1 + k? Actually original index (0-based) = b-1 + k? Let's derive: original index = b + k? But b is node number, not index. Node number node = index+1. So index = node-1. For node b, index = b-1. When we shift >> (b), we shift by b? That would shift index b to position? Example: node 5 index 4, shift >> 4: index 4 becomes bit 0. So shift amount should be b-1, not b. Let's compute: shift amount s = b -1. Then y = intersect >> (b-1). Then bit position k corresponds to original index = (b-1)+k. Node number = original index+1 = b + k. So c = b + k. Good.
+
+So we can use shift by (b-1). Implementation:
+
+shift = b-1
+y = intersect >> shift
+if y:
+    low = y & -y
+    k = low.bit_length() - 1
+    c = b + k
+    print(a,b,c)
+
+This avoids mask.
+
+Edge: ensure shift is not negative: b>=2 so shift>=1. But for b=1, shift=0, fine.
+
+Now complexity fine.
+
+Test with examples.
+
+Example1:
+n=4, edges etc. Triangles: 1-2-3. a=1, neighbors [2,3]. b=2: intersect of adj(1) and adj(2) = {3}. shift=1, y = bit at index 2? Wait shift=1: 3 index 2, shift >>1 => bit at index1. low=2. k=1. c=2+1=3. Works.
+
+Edge: tri 1-2-4? But a=1, b=2, intersect includes 3? Actually 4 also? edges 1-4? yes, then intersect includes 3 and 4. Shift=1, y bits at positions 1(3) and 2(4). low = 2 (bit at pos1). k=1 -> c=3. So we output 1,2,3 before 1,2,4. Good.
+
+Need to also consider that we may find triangle with same a but earlier b? We iterate b ascending.
+
+Ok.
+
+Implementation details: Build neighbors as list of ints; also maybe use set to avoid duplicates.
+
+We can create adjacency bitmask as int.
+
+Edge duplicates: we should skip adding duplicate to neighbors list. We'll use a set per node: neighbor_set = [set() for _ in range(n+1)]. For each edge, if v not in set[u], add to both sets. After all edges, convert each set to sorted list.
+
+But set of size up to n, total memory fine.
+
+Alternatively, we could just add duplicates; but in loops we might process duplicate edges leading to same triangle multiple times but still produce same lexicographic triple; but might cause inefficiency but fine. But duplicates may cause we output wrong? Not likely. But we should deduplicate.
+
+We'll use set.
+
+Time limit 2s, memory 256MB.
+
+Now produce code.
+
+Edge: need to read input quickly. Use sys.stdin.buffer.read.
+
+Implementation:
+
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data: return
+    n,m = data[0], data[1]
+    idx=2
+    neighbor_sets=[set() for _ in range(n+1)]
+    adj_bits=[0]*(n+1)
+    for _ in range(m):
+        u=data[idx]; v=data[idx+1]; idx+=2
+        if v not in neighbor_sets[u]:
+            neighbor_sets[u].add(v)
+            neighbor_sets[v].add(u)
+            adj_bits[u] |= 1 << (v-1)
+            adj_bits[v] |= 1 << (u-1)
+    neighbors=[sorted(neighbor_sets[i]) for i in range(n+1)]
+    for a in range(1,n+1):
+        for b in neighbors[a]:
+            if b<=a: continue
+            intersect = adj_bits[a] & adj_bits[b]
+            shift = b-1
+            y = intersect >> shift
+            if y:
+                low = y & -y
+                k = low.bit_length() -1
+                c = b + k
+                print(a,b,c)
+                return
+
+if __name__=="__main__":
+    main()
+
+Check for off-by-one: Suppose b=2, shift=1; intersection bit for node 3 at index2. y = shift >>1 => bit at position1. low bit 2 -> k=1 -> c=2+1=3. Good.
+
+Suppose intersection includes node 4 index3: y shift >>1 => bit pos2; low=4; k=2; c=2+2=4. Good.
+
+Edge: Suppose intersection includes node 5 index4: shift 1 -> bit pos3; low=8; k=3; c=2+3=5. Good.
+
+Now confirm lexicographic minimal. Good.
+
+Edge: Suppose there is triangle 2-3-4 but not with 1. Our loop a=1: no triangle. a=2: neighbors sorted: maybe 3,4, etc. For b=3: intersection = {4}. shift=2; y = shift >>2 => bit pos? Node4 index3 shift 2 => bit pos1. low=2; k=1; c=3+1=4. Good.
+
+Output 2 3 4.
+
+Now complexity fine.
+
+Let's produce final code.

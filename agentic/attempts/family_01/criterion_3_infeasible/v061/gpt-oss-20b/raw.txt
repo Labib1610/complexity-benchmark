@@ -1,0 +1,105 @@
+<think>
+We need lexicographically smallest triangle in undirected graph with n up to 2000, m up to 2e5. Need efficient method. Brute force O(n^3) too large. Since n small (2000), we can use adjacency bitsets or sets. We need to find smallest a then b then c. Approach: iterate a from 1 to n. For each a, consider neighbors b > a. For each such b, we need to find c > b that is neighbor to both a and b. To get lexicographically smallest, we should for each a, iterate b in increasing order >a that is neighbor. For each such pair, we need smallest c > b that is neighbor to both a and b. So we need intersection of adjacency of a and b, then find smallest > b.
+
+With n=2000, adjacency matrix bitset of 2000 bits each can be represented by Python int bitset or set. Use bitset with Python's int: bit i corresponds to vertex i (0-index). For each vertex v, create bitmask of neighbors > v? But we only need intersection and min > b. We can precompute adjacency as bitset of all neighbors.
+
+To find smallest c > b that's in intersection, we can compute mask = adjacency[a] & adjacency[b]. Then we need to find minimal index > b in mask. We can shift mask >> (b) to discard lower bits <= b. Then find lowest set bit. In Python, we can use mask >> b and then find bit_length or trailing zeros. Actually we can find least significant set bit via (mask & -mask). But we need index. Let's do:
+
+mask_ab = adj[a] & adj[b]
+mask_ab >>= (b+1)  # shift right by b+1 bits to drop bits <= b
+if mask_ab:
+    c_index = (mask_ab.bit_length() - 1)  # index of highest set bit? Wait bit_length gives position of highest set bit +1. But we want lowest set bit, so we need trailing zeros: use (mask_ab & -mask_ab). Then c_bit = mask_ab & -mask_ab; c_index = c_bit.bit_length() - 1. But mask_ab has bits relative to original positions shifted; so index = c_bit.bit_length() - 1 + (b+1). That yields c index.
+
+Alternatively, we can use bit_length of mask_ab and subtract 1 for highest bit, but we need lowest. Use (mask_ab & -mask_ab). Then bit_length-1 + b+1.
+
+Edge case: bit_length 0 -> no bits.
+
+Complexity: For each a up to n, for each neighbor b > a (worst-case n^2). But n=2000, 4 million pairs, intersection and bit operations cheap. Should fit.
+
+We must ensure adjacency bitset includes all neighbors regardless of index, but we need find c > b. So we shift accordingly.
+
+Implementation details: vertices 1-indexed; we convert to 0-index for bit positions. adjacency: list of ints length n. For edge u,v: subtract 1, set bits: adj[u] |= 1 << v; adj[v] |= 1 << u.
+
+Algorithm:
+
+for a in range(n):
+    # iterate b > a that is neighbor of a
+    neighbors_a = adj[a]
+    # get bits > a from neighbors_a: shift right by a+1 then << a+1? Not needed. We'll iterate b by scanning bits > a.
+    # We can iterate over bits set in neighbors_a where b > a.
+    mask_a = neighbors_a >> (a+1)  # drop bits <= a
+    while mask_a:
+        # get lowest set bit
+        lsb = mask_a & -mask_a
+        b_rel = lsb.bit_length() - 1  # index relative to a+1
+        b = a + 1 + b_rel
+        # now intersection
+        mask_ab = adj[a] & adj[b]
+        # shift to > b
+        mask_ab_shift = mask_ab >> (b+1)
+        if mask_ab_shift:
+            lsb2 = mask_ab_shift & -mask_ab_shift
+            c_rel2 = lsb2.bit_length() - 1
+            c = b + 1 + c_rel2
+            print(a+1, b+1, c+1) but we already 1-index? Wait a,b,c are 0-index. Need +1
+            return
+        # remove processed bit
+        mask_a -= lsb
+
+But careful: mask_a was neighbors_a >> (a+1). So bits correspond to indices > a. When we compute lsb, we get index relative to a+1. So b = a+1 + rel. Good.
+
+Similarly, for mask_ab_shift, shift right by b+1. lsb2 bits index relative to b+1. So c = b+1 + rel2.
+
+We must output a+1, b+1, c+1? Wait a,b,c we computed are 0-index? We had a as 0-index. We computed b as a+1 + rel, so b is 0-index? Let's confirm: a is 0-index. a+1 is 1-index? Actually a is 0-index; a+1 is 1-index. But b_rel is relative to a+1 index. So b = a+1 + b_rel. Example: a=0, neighbors 1,2; mask_a >> 1; lsb=1 (bit 0 relative), b_rel=0, b = 0+1+0 =1 -> 0-index 1? Actually 0+1=1, +0=1. That's 1-index? Wait 0-index 1 is vertex 2. But a=0 is vertex1. So b=1 corresponds to vertex2 (1-index 2). So we need to output a+1=1, b+1=2. That's correct. So a+1, b+1, c+1.
+
+But we computed a is 0-index; we output a+1. For b we computed 0-index? b= a+1 + b_rel. Since a+1 is 1-index? No, a+1 is 1-index but we treat as 0-index? Let's test: a=0 (vertex1). a+1=1 (vertex2). Suppose neighbor is vertex2. In 0-index, vertex2 is index1. So b should be 1. Our formula gives b=1 indeed. So b is 0-index. So output b+1=2. Works.
+
+Similarly c formula gives 0-index.
+
+Thus algorithm works.
+
+Edge cases: we need to find lexicographically smallest triple. Since we iterate a increasing, and for each a iterate b increasing via lowest set bit extraction, we will find smallest b. For each pair, we compute smallest c > b. This ensures lexicographically smallest.
+
+Complexity: For each a, we scan all neighbors > a. In worst-case complete graph: n=2000, neighbors > a ~ n-a-1. So total pairs ~ n^2/2 ~ 2 million. Each pair intersection bit ops constant. So fine.
+
+Implementation details: Use sys.stdin.read().split() for speed.
+
+Let's produce code.
+</think>
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(n):
+        mask_a = adj[a] >> (a + 1)  # neighbors with index > a
+        while mask_a:
+            lsb = mask_a & -mask_a
+            b_rel = lsb.bit_length() - 1
+            b = a + 1 + b_rel  # 0‑index of b
+            # intersection of neighbors of a and b
+            mask_ab = adj[a] & adj[b]
+            mask_ab_shift = mask_ab >> (b + 1)  # keep c > b
+            if mask_ab_shift:
+                lsb2 = mask_ab_shift & -mask_ab_shift
+                c_rel = lsb2.bit_length() - 1
+                c = b + 1 + c_rel  # 0‑index of c
+                print(a + 1, b + 1, c + 1)
+                return
+            mask_a -= lsb
+
+if __name__ == "__main__":
+    solve()
+```

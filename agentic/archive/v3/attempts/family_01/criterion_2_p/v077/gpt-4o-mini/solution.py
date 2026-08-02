@@ -1,0 +1,41 @@
+def assign_frequencies(n, m, conflicts):
+    from collections import defaultdict, deque
+
+    graph = defaultdict(list)
+    
+    for u, v in conflicts:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    color = [0] * (n + 1)
+
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 1  # Start coloring with 1
+        while queue:
+            node = queue.popleft()
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:  # Not colored
+                    color[neighbor] = 3 - color[node]  # Alternate colors (1 <-> 2)
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:  # Conflict
+                    return False
+        return True
+    
+    for unit in range(1, n + 1):
+        if color[unit] == 0:  # Not visited
+            if not bfs(unit):
+                return "NO"
+    
+    # Prepare the output with lexicographically smallest sequence
+    result = [str(color[i]) for i in range(1, n + 1)]
+    return "YES\n" + " ".join(result)
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+conflicts = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+
+print(assign_frequencies(n, m, conflicts))

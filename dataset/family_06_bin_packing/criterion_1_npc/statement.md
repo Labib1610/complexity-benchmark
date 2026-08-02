@@ -10,7 +10,7 @@ Determine whether all items can be loaded into the **k** containers, and if so r
 
 ## Input
 
-The first line contains three integers **n**, **k**, and **C** (1 ≤ n ≤ 18, 1 ≤ k ≤ 18, 1 ≤ C ≤ 1 000 000 000).
+The first line contains three integers **n**, **k**, and **C** (1 ≤ n ≤ 28, 1 ≤ k ≤ 18, 1 ≤ C ≤ 1 000 000 000).
 The second line contains **n** integers **w[1] … w[n]** (1 ≤ w[i] ≤ C), the item weights.
 
 ## Output

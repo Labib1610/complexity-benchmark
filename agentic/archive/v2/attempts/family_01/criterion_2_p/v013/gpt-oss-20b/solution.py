@@ -1,0 +1,50 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    visited = [False] * (n + 1)
+    color = [0] * (n + 1)   # internal bipartite color
+    out = [0] * (n + 1)
+
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+        # BFS for this component
+        comp_nodes = []
+        dq = deque([start])
+        visited[start] = True
+        color[start] = 0
+        comp_nodes.append(start)
+        while dq:
+            u = dq.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = color[u] ^ 1
+                    dq.append(v)
+                    comp_nodes.append(v)
+                else:
+                    if color[v] == color[u]:
+                        print("NO")
+                        return
+        # Assign final colors: set0 -> 1, set1 -> 2
+        for v in comp_nodes:
+            out[v] = 1 if color[v] == 0 else 2
+
+    print("YES")
+    sys.stdout.write(" ".join(str(out[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

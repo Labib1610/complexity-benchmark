@@ -12,7 +12,7 @@ Find the **minimum** number of guards needed to watch every corridor.
 
 ## Input
 
-The first line contains three integers **nA**, **nB**, and **m** (1 ≤ nA, nB ≤ 100000, 0 ≤ m ≤ 200000).
+The first line contains three integers **nA**, **nB**, and **m** (1 ≤ nA, nB ≤ 100000, 0 ≤ m ≤ 800000).
 Each of the next **m** lines contains two integers **a** and **b** (1 ≤ a ≤ nA, 1 ≤ b ≤ nB): a corridor between west-wing junction a and east-wing junction b. No corridor is listed twice.
 
 ## Output

@@ -1,0 +1,47 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Use bitsets (Python integers) for adjacency representation to speed up intersection
+    adj = [0] * (n + 1)
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+        idx += 2
+        
+    # We need the lexicographically smallest triplet (a, b, c) with a < b < c
+    # Iterate a from 1 to n-2
+    for a in range(1, n + 1):
+        # Iterate b from a+1 to n-1
+        # Only consider b if it's connected to a
+        adj_a = adj[a]
+        # Optimization: iterate over bits set in adj_a that are > a
+        # Or just iterate b and check connectivity
+        for b in range(a + 1, n + 1):
+            if (adj_a >> b) & 1:
+                # Need c > b such that c is connected to both a and b
+                # c must be in adj[a] AND adj[b]
+                common = adj[a] & adj[b]
+                # Filter bits > b
+                common &= ~((1 << (b + 1)) - 1)
+                
+                if common:
+                    # Find the smallest c
+                    # (common & -common) gives the lowest set bit
+                    c = (common & -common).bit_length() - 1
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

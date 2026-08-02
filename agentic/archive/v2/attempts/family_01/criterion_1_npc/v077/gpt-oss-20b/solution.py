@@ -1,0 +1,41 @@
+import sys
+
+def main():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    color_mask = [0, 0, 0, 0]  # indices 1..3
+    assign = [0] * n
+    sys.setrecursionlimit(10000)
+
+    def dfs(idx):
+        if idx == n:
+            return True
+        for c in (1, 2, 3):
+            if adj[idx] & color_mask[c]:
+                continue
+            color_mask[c] |= 1 << idx
+            assign[idx] = c
+            if dfs(idx + 1):
+                return True
+            color_mask[c] ^= 1 << idx
+        return False
+
+    if dfs(0):
+        out = ['YES', ' '.join(str(assign[i]) for i in range(n))]
+    else:
+        out = ['NO']
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,57 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate through each possible 'a' from 1 to n-2.
+    # For a fixed 'a', iterate through neighbors 'b' of 'a' such that b > a.
+    # For fixed 'a' and 'b', check if there exists a 'c' such that c > b
+    # and c is in both adj[a] and adj[b].
+    
+    # Sorting neighbors helps in finding smallest c quickly
+    for i in range(1, n + 1):
+        adj[i] = sorted(list(adj[i]))
+        
+    # We want smallest a, then b, then c.
+    # We iterate a from 1 to n.
+    for a in range(1, n + 1):
+        neighbors_a = adj[a]
+        # We only care about neighbors b > a
+        for idx_b, b in enumerate(neighbors_a):
+            if b <= a:
+                continue
+            
+            # Now we have a and b. We need the smallest c > b such that
+            # c is in neighbors_a and c is in neighbors_b.
+            # Since neighbors_a is sorted, we can intersect or just check.
+            # Intersecting neighbors_a[idx_b + 1:] with neighbors_b
+            
+            # Using set for O(1) lookup for one of the neighbors
+            set_b = set(adj[b])
+            for c in neighbors_a:
+                if c > b and c in set_b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

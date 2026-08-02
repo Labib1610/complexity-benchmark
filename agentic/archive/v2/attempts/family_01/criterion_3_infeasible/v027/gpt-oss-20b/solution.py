@@ -1,0 +1,33 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    mask = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        mask[u] |= 1 << (v - 1)
+        mask[v] |= 1 << (u - 1)
+
+    suffix_mask = [0] * (n + 2)
+    for i in range(n - 1, 0, -1):
+        suffix_mask[i] = suffix_mask[i + 1] | (1 << i)
+
+    for a in range(1, n - 1):
+        ma = mask[a]
+        for b in range(a + 1, n):
+            if (ma >> (b - 1)) & 1:
+                inter = ma & mask[b] & suffix_mask[b]
+                if inter:
+                    c = inter.bit_length()
+                    sys.stdout.write(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

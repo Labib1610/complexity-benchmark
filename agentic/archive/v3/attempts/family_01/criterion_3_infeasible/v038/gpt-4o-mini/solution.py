@@ -1,0 +1,22 @@
+import sys
+from collections import defaultdict
+
+input = sys.stdin.read
+data = input().splitlines()
+n, m = map(int, data[0].split())
+
+# Build the incompatibility graph
+graph = defaultdict(set)
+for i in range(1, m + 1):
+    u, v = map(int, data[i].split())
+    graph[u].add(v)
+    graph[v].add(u)
+
+# Find the lexicographically smallest triplet
+for a in range(1, n + 1):
+    for b in range(a + 1, n + 1):
+        if b in graph[a]:  # check if a and b are incompatible
+            for c in range(b + 1, n + 1):
+                if c in graph[a] and c in graph[b]:  # check if a and c, b and c are incompatible
+                    print(a, b, c)
+                    sys.exit()

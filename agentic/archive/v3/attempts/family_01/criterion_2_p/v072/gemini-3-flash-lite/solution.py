@@ -1,0 +1,81 @@
+import sys
+
+# Increase recursion depth for deep DFS
+sys.setrecursionlimit(10**6)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    assignment = [0] * (n + 1)
+    
+    # We want the lexicographically smallest assignment.
+    # We iterate i from 1 to n. If i is not assigned, we try assigning it 1.
+    # Then we propagate the constraints using BFS/DFS.
+    
+    for i in range(1, n + 1):
+        if assignment[i] == 0:
+            # Try assigning 1 to i
+            stack = [(i, 1)]
+            assignment[i] = 1
+            component = [i]
+            
+            possible = True
+            while stack:
+                u, color = stack.pop()
+                for v in adj[u]:
+                    if assignment[v] == 0:
+                        assignment[v] = 3 - color
+                        stack.append((v, 3 - color))
+                        component.append(v)
+                    elif assignment[v] == color:
+                        possible = False
+                        break
+                if not possible:
+                    break
+            
+            if not possible:
+                # If 1 failed, try 2 for the entire component
+                # Reset component
+                for node in component:
+                    assignment[node] = 0
+                
+                stack = [(i, 2)]
+                assignment[i] = 2
+                possible = True
+                while stack:
+                    u, color = stack.pop()
+                    for v in adj[u]:
+                        if assignment[v] == 0:
+                            assignment[v] = 3 - color
+                            stack.append((v, 3 - color))
+                        elif assignment[v] == color:
+                            possible = False
+                            break
+                    if not possible:
+                        break
+                
+                if not possible:
+                    print("NO")
+                    return
+
+    print("YES")
+    print(*(assignment[1:]))
+
+solve()

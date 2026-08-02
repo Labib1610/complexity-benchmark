@@ -1,0 +1,1236 @@
+<think>
+The problem asks us to assign each of $n$ operators to one of three time slots $\{1, 2, 3\}$ such that for every pair of incompatible operators $(u, v)$, they are assigned to different slots ($s_u \neq s_v$). We need to find the lexicographically smallest assignment $(s_1, s_2, \dots, s_n)$, or report if no such assignment exists. The constraints are $n \le 40$ and $m \le n(n-1)/2$.
+
+This problem is equivalent to finding a valid 3-coloring of a graph where nodes are operators and edges represent incompatibilities. We want the lexicographically smallest coloring using colors $\{1, 2, 3\}$.
+The lexicographically smallest condition means we want $s_1$ to be as small as possible (i.e., 1 if possible), then $s_2$ as small as possible given $s_1$, and so on.
+
+Since $n$ is up to 40, a naive backtracking solution might be too slow if the graph is dense or has many valid colorings. However, 3-coloring is NP-complete in general. $n=40$ is on the boundary. But usually, backtracking works well for small $n$ unless the graph is specifically constructed to be hard. Here, $m$ can be large, but if $m$ is large, the constraints are tight, which might prune the search space quickly. If $m$ is small, constraints are loose, but we want lexicographically smallest, which might still be hard if there are many valid colorings. Wait, actually, if $m$ is small, it's easy to color, but we need the *lexicographically smallest*.
+
+Let's consider the constraints again. $n \le 40$. Time limit 2s. Python 3.
+Standard backtracking with pruning is the most likely approach.
+We assign slots to operators $1, 2, \dots, n$ in order.
+For operator $i$, we try slot $1$, then $2$, then $3$.
+Before committing to a slot, we check if it conflicts with any already assigned operator $j < i$ such that $(j, i)$ is an incompatibility.
+If we reach $n+1$, we found a valid assignment. Since we try slots in increasing order, the first valid assignment found will be lexicographically smallest.
+
+To optimize, we can use some heuristics or data structures.
+With $n=40$, simple backtracking $3^{40}$ is impossible. However, we only explore valid partial colorings. The number of valid 3-colorings can be large, but usually, we find one quickly or determine impossibility quickly.
+Is $n=40$ too big for 3-coloring?
+For general graphs, 3-coloring is hard. But maybe the test cases aren't worst-case. Or maybe there's a specific property.
+Actually, 3-coloring is NP-complete. The problem statement asks for a solution within 2 seconds. This implies either the inputs are weak, or there's a specific algorithmic trick, or maybe $N=40$ is small enough for a good implementation.
+Actually, with $N=40$, typical 3-coloring solvers (like DPLL) can handle it if the graph isn't adversarial. But Python might be slow.
+Let's double check if there are constraints I missed. No, just standard 3-coloring.
+Wait, is it just 3-coloring? Yes.
+Lexicographically smallest means we fix $s_1$, then $s_2$, etc. This is a specific path in the search tree. We just need the first leaf in DFS order that satisfies constraints.
+
+Let's refine the backtracking approach.
+State: current operator index `idx` (from 1 to $n$), current assignment array `s`.
+Function `solve(idx)`:
+  If `idx > n`: return True
+  For `color` in 1, 2, 3:
+    Check if `color` is compatible with all already assigned neighbors of `idx`.
+    If compatible:
+      `s[idx] = color`
+      If `solve(idx + 1)`: return True
+      `s[idx] = 0` (backtrack)
+  Return False
+
+Since we want lexicographically smallest, we try colors 1, 2, 3 in order. The first solution found is the answer.
+To speed up checking compatibility:
+We can maintain for each node the set of colors used by its assigned neighbors.
+Actually, since we process nodes $1 \dots n$ in order, when we are at `idx`, only neighbors $j < idx$ are assigned. Neighbors $k > idx$ are not assigned yet.
+So for node `idx`, we just check `s[j]` for all $j < idx$ such that $(j, idx)$ is an edge. If any such `s[j] == color`, then `color` is invalid.
+This check takes $O(\text{degree})$.
+With adjacency list, this is efficient.
+The worst case is still exponential, but let's hope for the best or optimize further.
+Wait, is there a case where backtracking takes too long?
+If the graph allows many colorings, we find one quickly.
+If the graph allows few, we prune quickly.
+The problematic case is when we have to search deep before finding nothing or finding the first one far down.
+However, since $N=40$ is small, maybe standard backtracking passes.
+Let's consider optimizations.
+1. Forward checking: If we assign `s[idx]`, we can check if any unassigned neighbor has all 3 colors forbidden. If so, backtrack immediately.
+   Unassigned neighbors are $k > idx$. If neighbor $k$ has neighbors in $\{1, \dots, idx\}$ (already assigned) using all 3 colors $\{1, 2, 3\}$, then $k$ cannot be colored, so the current partial assignment is dead.
+   This is a powerful pruning technique.
+   We need to maintain for each unassigned node $k$, the set of colors used by its assigned neighbors. If this set becomes $\{1, 2, 3\}$, we stop.
+   Note: $k$ is unassigned, so $k > idx$. The condition is: for all $k > idx$, `used_colors[k] != {1, 2, 3}`.
+   Wait, strictly speaking, `used_colors[k]` is the set of colors assigned to neighbors of $k$ in $\{1, \dots, idx\}$.
+   If `len(used_colors[k]) == 3`, then $k$ has no valid color.
+   This is forward checking.
+
+2. Degree ordering? No, we need lexicographically smallest, so the order of variables is fixed: $1, 2, \dots, n$. We cannot reorder variables.
+
+3. MRV (Minimum Remaining Values)? No, order is fixed.
+
+So, standard backtracking with Forward Checking is the way to go.
+Implementation details:
+- Adjacency list `adj`.
+- Array `s` of size $n+1$, initialized to 0.
+- Array `used_colors` of size $n+1$, storing a bitmask or set of colors used by assigned neighbors.
+  Actually, since we only care about colors $\{1, 2, 3\}$, a bitmask is efficient. Bit $c$ is set if color $c$ is used by a neighbor.
+  When assigning `s[idx] = c`, we update `used_colors` for all unassigned neighbors $k > idx$.
+  Specifically, for each neighbor $k$ of `idx`:
+    If $k > idx$:
+      Mark bit $c$ in `used_colors[k]`.
+      If `used_colors[k]` becomes 111 (binary) = 7, then we can't extend this path.
+  When backtracking, we need to revert these changes.
+
+Since $N$ is up to 40, recursion depth is 40.
+Python recursion limit is usually 1000, so 40 is fine.
+We need to be careful with performance.
+Updating `used_colors` takes $O(\text{degree})$.
+Backtracking involves undoing updates.
+This should be fast enough.
+
+Let's trace the logic with the "forward checking" pruning.
+Global state:
+`s`: current assignment (0 for unassigned).
+`used_mask`: bitmask for each node, representing colors forbidden by assigned neighbors.
+Initially all 0.
+
+`solve(idx)`:
+  If `idx > n`: return True
+  For `c` in 1, 2, 3:
+    Check if `c` is valid for `idx`.
+      `c` is invalid if `used_mask[idx]` has bit `c` set?
+      Wait, `used_mask[idx]` should track colors used by assigned neighbors.
+      Since we iterate $1 \dots n$, when we are at `idx`, neighbors $< idx$ are assigned. Neighbors $> idx$ are not.
+      So `used_mask[idx]` correctly tracks forbidden colors from $j < idx$.
+      Wait, if `used_mask[idx]` tracks colors from $\{1, \dots, idx-1\}$, then yes, if bit `c` is set, we can't pick `c`.
+      But we also need to check if picking `c` will kill future nodes.
+      
+      Actually, it's better to maintain `used_mask` dynamically.
+      When we are about to assign `s[idx] = c`:
+        1. Check if `c` conflicts with any assigned neighbor $j < idx$. (i.e., `adj[idx]` contains $j$ and `s[j] == c`).
+           This is equivalent to checking if bit `c` is set in `used_mask[idx]` IF `used_mask` is maintained correctly.
+           Yes, if `used_mask[i]` accumulates colors of assigned neighbors, then checking `used_mask[idx] & (1 << (c-1))` is sufficient.
+        2. If valid, tentatively assign `s[idx] = c`.
+        3. Update `used_mask` for unassigned neighbors $k > idx$.
+           For each neighbor $k$ of `idx`:
+             If `s[k] == 0` (unassigned):
+               `old_mask = used_mask[k]`
+               `used_mask[k] |= (1 << (c-1))`
+               If `used_mask[k] == 0b111` (7):
+                 This means all colors are forbidden for $k$.
+                 We must backtrack immediately.
+                 So we need to revert the change to `used_mask[k]` and return False.
+                 Wait, if we update `used_mask` and find it's invalid, we revert and return False.
+                 But we might update multiple neighbors. We should revert all updates if one fails.
+                 To do this efficiently:
+                 Collect neighbors that need update. Update them. If any becomes 7, mark as fail, revert all, return False.
+                 If all ok, recurse.
+        4. If recursion returns True, propagate True.
+        5. If recursion returns False, revert `s[idx]` and revert `used_mask` changes for neighbors.
+           Reverting `used_mask` is tricky because we OR-ed bits.
+           We should store the old `used_mask` values or just subtract?
+           Since we only add bits, we can store the old value or recompute.
+           Recomputing `used_mask[k]` from scratch for unassigned neighbors is costly? No, degree is small.
+           Or just store a list of `(neighbor, old_mask)` tuples modified in this step.
+           When backtracking, iterate this list and restore `old_mask`.
+           This is clean.
+
+      Wait, step 1 check: `c` is valid if `used_mask[idx]` does NOT have bit `c`.
+      Wait, `used_mask` tracks colors used by assigned neighbors.
+      Is it possible that `used_mask[idx]` has bit `c` set but there is no neighbor with color `c`?
+      No, we only set bits when we assign a color to a neighbor.
+      So `used_mask[idx] & (1 << (c-1))` correctly checks conflict.
+      
+      Wait, is it possible `used_mask[idx]` is not fully up to date?
+      We update `used_mask` for unassigned neighbors when we assign a color.
+      So `used_mask[idx]` contains colors from neighbors $j < idx$ that have been assigned.
+      Since we process $1 \dots n$, all neighbors $j < idx$ are assigned.
+      So `used_mask[idx]` is correct.
+      
+      Wait, one detail. `used_mask` for `idx` is updated when we process neighbors $j < idx$.
+      So when we are at `idx`, `used_mask[idx]` reflects constraints from $1 \dots idx-1$.
+      Correct.
+
+      Wait, is it possible that `used_mask[idx]` has bit `c` set, but the neighbor that set it was actually assigned `c`?
+      Yes, that's the conflict.
+      So condition `if (used_mask[idx] >> (c-1)) & 1: continue` is correct for checking local validity.
+
+      Wait, optimization:
+      Instead of `used_mask`, we can just check neighbors directly?
+      Checking neighbors $j < idx$ takes $O(\text{degree})$.
+      Maintaining `used_mask` takes $O(\text{degree})$ on assignment.
+      So complexity is similar.
+      However, `used_mask` allows $O(1)$ check for `idx`.
+      And forward checking is crucial.
+      So maintaining `used_mask` is better.
+
+      Wait, `used_mask` update logic:
+      When assigning `s[idx] = c`:
+      For each neighbor `k` of `idx`:
+        If `k > idx` (unassigned):
+          `used_mask[k] |= (1 << (c-1))`
+          If `used_mask[k] == 7`:
+            Prune.
+      
+      Wait, if `used_mask[k]` becomes 7, it means `k` has neighbors in $\{1 \dots idx\}$ using colors 1, 2, 3.
+      Since `k` is unassigned, it must be assigned a color later.
+      But all colors are forbidden by already assigned neighbors.
+      So `k` cannot be colored.
+      So this is a valid pruning condition (Forward Checking).
+
+      Wait, what if `k` has no neighbors in $\{1 \dots idx\}$? Then `used_mask[k]` is 0.
+      What if `k` has neighbors but not all 3 colors? Then `used_mask[k] < 7`.
+      So condition `used_mask[k] == 7` is correct.
+
+      Wait, there is a small catch.
+      We need to revert `used_mask` changes on backtracking.
+      Since we only OR bits, we can't easily subtract.
+      We should save the state of `used_mask[k]` before modification.
+      Since we only modify `used_mask[k]` for neighbors $k > idx$, and we modify it at most once per color (well, multiple neighbors might set bits), actually we modify it multiple times as we assign $1 \dots idx$.
+      But at step `idx`, we only modify `used_mask` for neighbors of `idx`.
+      So we can save a list of `(k, old_val)` for neighbors $k > idx$ of `idx`.
+      When backtracking, restore `used_mask[k] = old_val`.
+
+      Wait, is it possible that `used_mask[k]` was modified by a neighbor $j < idx$ and now modified by `idx`?
+      Yes. `used_mask[k]` accumulates bits.
+      When we backtrack from `idx`, we are undoing the effect of `s[idx]=c`.
+      So we only need to remove bit `c` from `used_mask[k]` for all $k > idx$.
+      But since we used OR, we can't just remove.
+      However, since we are backtracking immediately after trying `c`, no other color for `idx` will be tried yet.
+      Wait, if we try `c=1`, update masks, recurse, fail, backtrack.
+      Then we try `c=2`.
+      The state of `used_mask` for neighbors $k > idx$ should be restored to what it was before trying `c=1`.
+      So yes, we need to store the old values.
+      Since we only modify `used_mask[k]` by setting bits corresponding to `c`, and we do this for all neighbors $k$ of `idx$.
+      Wait, if we have multiple neighbors, we might update the same `used_mask[k]` multiple times?
+      No, `idx` is a single node. It has multiple neighbors `k`. We iterate over neighbors `k`.
+      For each `k`, we update `used_mask[k]`.
+      So we just need to save `used_mask[k]` before updating.
+      Since `used_mask` is a global array, we need to be careful not to overwrite saved values if we visit multiple neighbors?
+      No, we save `old_val = used_mask[k]`, then `used_mask[k] |= bit`.
+      If we fail, we restore `used_mask[k] = old_val`.
+      Since we only touch `used_mask` for neighbors of `idx`, and we restore them all before returning from this `solve(idx)` call (whether success or failure), this is consistent.
+      Wait, if we succeed, we don't need to restore `used_mask` because we return up the stack, and the caller will handle its own restoration.
+      Wait, if `solve(idx)` returns True, we return True to `solve(idx-1)`.
+      `solve(idx-1)` will try next color for `idx-1`, which requires restoring state.
+      So `solve(idx)` must NOT modify global state permanently if it returns True?
+      Actually, if it returns True, we are done (since we want lexicographically smallest and we found one).
+      Wait, if we find a solution, we can just print and exit. We don't need to backtrack further.
+      So we can print and `sys.exit(0)`.
+      This simplifies things. We don't need to backtrack fully on success.
+      On failure, we MUST restore state.
+
+      So:
+      In `solve(idx)`:
+        For `c` in 1, 2, 3:
+          Check local conflict (using `used_mask[idx]`).
+          If conflict, continue.
+          
+          Save state: `changes = []`
+          `s[idx] = c`
+          For `k` in `adj[idx]`:
+             If `k > idx`:
+                `old = used_mask[k]`
+                `new = old | (1 << (c-1))`
+                If `new == 7`:
+                  `valid = False`
+                  `break`
+                `used_mask[k] = new`
+                `changes.append((k, old))`
+          
+          If `not valid`:
+             `s[idx] = 0`
+             continue
+          
+          If `solve(idx+1)`:
+             return True
+          
+          # Backtrack
+          `s[idx] = 0`
+          For `k, old` in `changes`:
+             `used_mask[k] = old`
+          
+          continue
+
+      Wait, the check `new == 7` is forward checking.
+      But we also need to check if `s[idx]=c` is compatible with `idx`'s assigned neighbors.
+      We check this using `used_mask[idx]`.
+      Wait, does `used_mask[idx]` contain colors from neighbors $j < idx$?
+      Yes, because when we assigned `s[j]=color`, we updated `used_mask` for all unassigned neighbors.
+      Since `idx > j`, `idx` was an unassigned neighbor at step `j`.
+      So `used_mask[idx]` has the bits set.
+      So `if (used_mask[idx] >> (c-1)) & 1: continue` is correct.
+      
+      Wait, is `used_mask` initialized to 0? Yes.
+      Is `s` initialized to 0? Yes.
+      
+      One detail: `adj` should be 1-based or 0-based. Input is 1-based.
+      Let's use 1-based indexing for convenience.
+      `n` up to 40.
+      
+      Wait, there is a case: `m=0`. No constraints.
+      Then `solve(1)` tries 1, `solve(2)` tries 1... output `1 1 ... 1`.
+      Lexicographically smallest. Correct.
+      
+      Example 1:
+      4 5
+      1 2, 1 3, 2 3, 1 4, 2 4
+      Graph:
+      1 connected to 2, 3, 4
+      2 connected to 1, 3, 4
+      3 connected to 1, 2
+      4 connected to 1, 2
+      
+      Solve(1):
+        Try 1. s[1]=1.
+        Update neighbors of 1 (2, 3, 4).
+        used_mask[2] |= 1 (bit 1 set, val 1)
+        used_mask[3] |= 1
+        used_mask[4] |= 1
+        changes = [(2,0), (3,0), (4,0)]
+        Solve(2):
+          Try 1. used_mask[2] has bit 1 set. Conflict.
+          Try 2.
+          Check used_mask[2] & bit 2. (1 & 2 = 0). OK.
+          s[2]=2.
+          Update neighbors of 2 (1, 3, 4).
+          1 is assigned (<2), ignore.
+          3 (>2). used_mask[3] was 1. new = 1 | (1<<(2-1)) = 1 | 2 = 3 (binary 011). Not 7.
+          4 (>2). used_mask[4] was 1. new = 1 | 2 = 3. Not 7.
+          changes = [(3,1), (4,1)]
+          Solve(3):
+            Try 1. used_mask[3] has bit 1 set (from 1). Conflict.
+            Try 2. used_mask[3] has bit 2 set (from 2). Conflict.
+            Try 3. used_mask[3] has bits 1, 2 set. OK (bit 3 not set).
+            s[3]=3.
+            Update neighbors of 3 (1, 2).
+            1, 2 assigned (<3). Ignore.
+            No unassigned neighbors.
+            Solve(4):
+              Try 1. used_mask[4] has bit 1 set (from 1). Conflict.
+              Try 2. used_mask[4] has bit 2 set (from 2). Conflict.
+              Try 3. used_mask[4] has bits 1, 2 set. OK.
+              s[4]=3.
+              Neighbors of 4 (1, 2). Assigned.
+              Solve(5): Return True.
+            Return True.
+          Return True.
+        Return True.
+      Output: 1 2 3 3. Matches example.
+
+      Example 2:
+      4 6 (Complete graph K4)
+      1-2, 1-3, 1-4, 2-3, 2-4, 3-4
+      Solve(1): 1.
+      Solve(2): 2.
+      Solve(3): 3.
+      Solve(4):
+        used_mask[4] will have bits 1, 2, 3 set (from 1, 2, 3).
+        Try 1: conflict.
+        Try 2: conflict.
+        Try 3: conflict.
+        Return False.
+      Backtrack to 3.
+      Try other colors... none work.
+      Backtrack to 2.
+      ...
+      Eventually all fail. Return NO.
+      Matches example.
+
+      Complexity:
+      With forward checking, it prunes effectively.
+      Given N=40, it should pass.
+      Python might be slow due to recursion and list operations.
+      Use iterative stack or optimize recursion.
+      But recursion depth 40 is small.
+      The main overhead is the inner loops.
+      Adjacency list can be stored as list of lists.
+      
+      Wait, `used_mask` update logic:
+      `adj[idx]` contains all neighbors.
+      We iterate `k` in `adj[idx]`.
+      If `k > idx`: update.
+      This is correct.
+      
+      One optimization:
+      The `used_mask` check `new == 7` is fast.
+      The list `changes` might grow up to degree of `idx`.
+      Iterating `changes` to restore is fast.
+      
+      Is there any case where this fails?
+      Maybe time limit. 2 seconds is generous for Python if complexity is not worst-case.
+      Worst case for 3-coloring is dense graphs or specific structures.
+      But for lexicographically smallest, we fix order.
+      If the graph is bipartite, 3-coloring is easy.
+      If graph is not bipartite, we need 3 colors.
+      The constraints $N \le 40$ suggests that exponential time is acceptable provided it's not $3^{40}$.
+      With forward checking, we prune branches where a node has 3 forbidden colors.
+      This is quite strong.
+      
+      Input reading:
+      Read $n, m$.
+      Read edges.
+      Build adjacency list.
+      Call `solve(1)`.
+      If returns True, print YES and array.
+      Else print NO.
+      
+      Wait, one edge case: $n=1$.
+      Loop 1 to 1. Works.
+      $m=0$. Works.
+      
+      Wait, memory limit 256MB. We use very little memory.
+      Time limit 2s.
+      
+      Let's write the code.
+      Need to handle input efficiently. `sys.stdin.read().split()`.
+      
+      One thing: `used_mask` array should be size $n+1$.
+      `s` array size $n+1$.
+      
+      Wait, is it possible that `solve(1)` returns False? Yes, if no solution.
+      
+      Wait, I should check if `sys.setrecursionlimit` is needed. Default is 1000. $N=40$ is fine.
+      
+      One potential issue:
+      In `solve(idx)`, we iterate `c` in 1, 2, 3.
+      We need to check `used_mask[idx]` first.
+      But `used_mask[idx]` is updated by neighbors $j < idx$.
+      Wait, `used_mask[idx]` is updated when we process $j$.
+      So when we are at `idx`, `used_mask[idx]` is fully updated by $1 \dots idx-1$.
+      Correct.
+      
+      Wait, what if `idx` has no neighbors $j < idx$? `used_mask[idx]` is 0.
+      Then all colors valid locally.
+      
+      Wait, forward checking:
+      When we assign `s[idx] = c`, we update `used_mask[k]` for $k > idx$.
+      If `used_mask[k]` becomes 7, we prune.
+      This is correct.
+      
+      Wait, one detail.
+      If `solve(idx)` returns True, we print and exit.
+      If we exit, we don't need to restore state.
+      But we need to ensure we don't print `YES` multiple times or something.
+      Just `print` and `sys.exit(0)` is fine.
+      
+      Wait, `sys.exit` inside a function is fine.
+      
+      Let's double check the constraints and types.
+      $n \le 40$.
+      $m \le n(n-1)/2$.
+      IDs 1 to $n$.
+      
+      Wait, one edge case:
+      What if `solve(idx)` finds a solution, but we need to ensure it's lexicographically smallest?
+      Since we try colors 1, 2, 3 in order, the first solution found is lexicographically smallest.
+      DFS naturally finds the first leaf in lexicographical order of the path.
+      Since path corresponds to $(s_1, s_2, \dots, s_n)$, and we try $s_i$ in increasing order, the first full assignment found is minimal.
+      So standard DFS works.
+      
+      Wait, is it possible that a partial assignment $(s_1, \dots, s_k)$ can be extended to a solution, but there is another extension $(s_1, \dots, s_k, \dots)$ that is smaller?
+      No, because we fix $s_1$, then $s_2$, etc.
+      The first time we reach $n+1$, we have fixed $s_1 \dots s_n$.
+      Since we try $s_1=1$ first, if a solution exists with $s_1=1$, we find it before any with $s_1=2$.
+      Within $s_1=1$, we try $s_2=1$. If valid, we go deeper.
+      So yes, it is lexicographically smallest.
+      
+      Code structure:
+      ```python
+      import sys
+      
+      # Increase recursion depth just in case, though 40 is small
+      sys.setrecursionlimit(2000)
+      
+      def solve():
+          input_data = sys.stdin.read().split()
+          if not input_data:
+              return
+          
+          iterator = iter(input_data)
+          n = int(next(iterator))
+          m = int(next(iterator))
+          
+          adj = [[] for _ in range(n + 1)]
+          for _ in range(m):
+              u = int(next(iterator))
+              v = int(next(iterator))
+              adj[u].append(v)
+              adj[v].append(u)
+          
+          s = [0] * (n + 1)
+          used_mask = [0] * (n + 1)
+          
+          # We need to access adj efficiently.
+          # Since n is small, list is fine.
+          
+          # To speed up, maybe pre-sort adj? Not needed.
+          
+          def dfs(idx):
+              if idx > n:
+                  return True
+              
+              # Try colors 1, 2, 3
+              for c in range(1, 4):
+                  # Check if c is valid for idx
+                  # Check conflict with assigned neighbors
+                  if (used_mask[idx] >> (c - 1)) & 1:
+                      continue
+                  
+                  # Tentatively assign
+                  s[idx] = c
+                  
+                  # Update neighbors and check forward checking
+                  changes = []
+                  valid_forward = True
+                  
+                  for neighbor in adj[idx]:
+                      if neighbor > idx:
+                          old_mask = used_mask[neighbor]
+                          new_mask = old_mask | (1 << (c - 1))
+                          if new_mask == 7: # 111 binary
+                              valid_forward = False
+                              # We don't need to restore immediately if we break
+                              # But we need to store changes to restore if we backtrack
+                              break
+                          used_mask[neighbor] = new_mask
+                          changes.append((neighbor, old_mask))
+                  
+                  if valid_forward:
+                      if dfs(idx + 1):
+                          return True
+                  
+                  # Backtrack
+                  for neighbor, old_mask in changes:
+                      used_mask[neighbor] = old_mask
+                  s[idx] = 0
+              
+              return False
+
+          if dfs(1):
+              print("YES")
+              print(*(s[1:]))
+          else:
+              print("NO")
+      
+      if __name__ == '__main__':
+          solve()
+      ```
+      
+      Wait, one optimization on `changes`.
+      If `valid_forward` is False, we break the loop.
+      `changes` contains updates done before the failure.
+      We need to restore them.
+      My code does this: `for neighbor, old_mask in changes: used_mask[neighbor] = old_mask`.
+      This is correct.
+      However, `s[idx] = 0` is also needed.
+      Yes, `s[idx] = 0` is after the loop.
+      Wait, `s[idx] = 0` is inside the backtracking block?
+      In my code:
+      ```python
+                  if valid_forward:
+                      if dfs(idx + 1):
+                          return True
+                  
+                  # Backtrack
+                  for neighbor, old_mask in changes:
+                      used_mask[neighbor] = old_mask
+                  s[idx] = 0
+      ```
+      This is correct. `s[idx]` must be reset to 0 for the next iteration of `c`.
+      Wait, `s[idx] = c` is at the beginning of loop.
+      So yes, `s[idx] = 0` at end of loop iteration is correct.
+      
+      Wait, `changes` list creation.
+      `changes` is local to the loop iteration.
+      So it's cleared for next `c`.
+      Correct.
+      
+      One detail: `used_mask` update.
+      If `neighbor > idx`, we update `used_mask[neighbor]`.
+      Is it possible `neighbor` was already updated by another neighbor $j < idx$?
+      Yes. `used_mask[neighbor]` accumulates bits.
+      We save `old_mask` before update.
+      When restoring, we restore to `old_mask`.
+      This is correct because `old_mask` represents the state before `s[idx]=c`.
+      The updates from $j < idx$ are already in `old_mask`.
+      We only add bit `c` from `idx`.
+      So restoring `old_mask` correctly removes the effect of `idx`.
+      Correct.
+      
+      Wait, is it possible that `used_mask[neighbor]` was modified by `idx` in a previous iteration of `c` (inside the same `dfs(idx)` call)?
+      No, we backtrack and restore `changes` before trying next `c`.
+      So `used_mask` is clean at start of each `c` iteration.
+      Correct.
+      
+      Wait, what about `s` array?
+      `s[idx] = c`.
+      We restore `s[idx] = 0`.
+      Correct.
+      
+      Wait, one small optimization.
+      `adj` list can be large? $N=40$, max degree 39.
+      It's small.
+      `changes` list max size 39.
+      It's small.
+      
+      Wait, is there any case where `used_mask` check `new_mask == 7` is insufficient?
+      Forward checking says: if any unassigned variable has no legal values, prune.
+      Legal values for `neighbor` are $\{1, 2, 3\} \setminus \text{forbidden}$.
+      Forbidden is `used_mask[neighbor]`.
+      If `used_mask[neighbor]` has bits 1, 2, 3 set (i.e. value 7), then no legal values.
+      So prune.
+      Is it possible that `neighbor` has no neighbors in $1 \dots idx$?
+      Then `used_mask[neighbor]` is 0.
+      Is it possible `neighbor` has neighbors but not all 3 colors?
+      Then `used_mask[neighbor] < 7`.
+      So condition is necessary and sufficient for "no values available".
+      Correct.
+      
+      Wait, what if `neighbor` is not connected to any of $1 \dots idx$?
+      Then `used_mask[neighbor]` is 0.
+      Then `new_mask` becomes `1<<(c-1)`. Not 7.
+      Correct.
+      
+      Wait, I should verify the `sys.setrecursionlimit`.
+      Standard is 1000. $N=40$ is well within.
+      But good practice.
+      
+      Wait, input reading.
+      `sys.stdin.read().split()` reads all tokens.
+      This handles newlines and spaces uniformly.
+      Efficient.
+      
+      One more thing: `print(*(s[1:]))` prints space separated.
+      Correct.
+      
+      Wait, is there any case where `dfs` returns True but `s` is not fully filled?
+      `dfs(idx)` returns True only if `idx > n`.
+      So `s` is filled for $1 \dots n$.
+      Correct.
+      
+      Wait, I should check if `m` can be 0.
+      If `m=0`, `adj` is empty lists.
+      `dfs(1)`:
+        `c=1`. `used_mask[1]` is 0. OK.
+        `s[1]=1`.
+        Neighbors: none.
+        `valid_forward` = True.
+        `dfs(2)`...
+        Eventually `dfs(n+1)` returns True.
+        Output `1 1 ... 1`.
+        Correct.
+      
+      Wait, is it possible that `used_mask` array is accessed out of bounds?
+      `neighbor` is from `adj`, which contains $1 \dots n$.
+      `used_mask` size $n+1$.
+      Safe.
+      
+      Wait, time complexity again.
+      In worst case, we explore the tree.
+      With forward checking, we prune heavily.
+      For $N=40$, it should be fine.
+      Is there a case where forward checking doesn't prune?
+      If the graph is sparse, we might have many valid colorings.
+      But we stop at the first one.
+      If we find one quickly, good.
+      If we have to search deep, it means constraints are tight but not dead.
+      This is the "hard" region for SAT/Coloring.
+      But usually $N=40$ is small enough for heuristics.
+      And since we need lexicographically first, we don't use random restarts or MRV.
+      MRV would reorder variables to find solution faster, but that would destroy lexicographical order.
+      To find lexicographically smallest solution, we MUST fix order $1 \dots n$.
+      However, we can use "look-ahead" (forward checking) which we are doing.
+      This is consistent with fixed variable ordering.
+      
+      One detail: `used_mask` logic.
+      When we backtrack, we restore `used_mask`.
+      Is it possible that `used_mask` needs to be updated for `neighbor < idx`?
+      No, `neighbor < idx` are already assigned.
+      Their `used_mask` doesn't matter for validity of `neighbor` (it's assigned).
+      It might matter for their neighbors $k > idx$.
+      But `used_mask` for $k$ was updated when `neighbor` was assigned.
+      So `used_mask` state is consistent.
+      We only update `used_mask` for unassigned nodes ($> idx$).
+      Correct.
+
+      Wait, what if `neighbor < idx`?
+      We don't update `used_mask[neighbor]` because it's assigned.
+      We only care about `used_mask[k]` for unassigned $k$.
+      Correct.
+      
+      Wait, `s[idx] = c`.
+      We check `used_mask[idx]`.
+      `used_mask[idx]` was updated by all neighbors $j < idx$.
+      So it reflects constraints from $j < idx$.
+      Correct.
+      
+      Wait, what if `idx` has a neighbor $k < idx$ that was assigned `c`?
+      Then `used_mask[idx]` has bit `c` set.
+      So we skip `c`.
+      Correct.
+      
+      Wait, I need to make sure `sys.setrecursionlimit` is sufficient.
+      40 is small.
+      
+      Wait, I should check if `m` lines are correctly read.
+      Yes, loop `range(m)`.
+      
+      Wait, `input_data` might be empty?
+      Problem says $n, m$ on first line.
+      So input exists.
+      
+      Wait, one edge case.
+      If `dfs` returns False, we print NO.
+      Correct.
+      
+      Wait, is there any possibility that `adj` contains duplicates?
+      "No incompatible pair appears more than once".
+      So `adj` is simple.
+      
+      Wait, can `u == v`?
+      "u != v".
+      So no self loops.
+      
+      Wait, is it possible `n` is large?
+      $n \le 40$.
+      Wait, memory limit 256MB.
+      We use minimal memory.
+      
+      Wait, I should ensure that `sys.stdin.read` doesn't block or something.
+      It reads until EOF.
+      Standard for competitive programming.
+      
+      One final check on logic.
+      Suppose we have 1-2, 2-3, 3-1 (Triangle).
+      dfs(1): c=1. s[1]=1.
+      adj[1] has 2, 3.
+      used_mask[2] |= 1.
+      used_mask[3] |= 1.
+      dfs(2):
+        c=1. used_mask[2] has 1. Skip.
+        c=2. used_mask[2] has 0 at bit 2. OK.
+        s[2]=2.
+        adj[2] has 1, 3.
+        1 < 2, ignore.
+        3 > 2. used_mask[3] was 1. new = 1|2 = 3. OK.
+        dfs(3):
+          c=1. used_mask[3] has 1. Skip.
+          c=2. used_mask[3] has 2. Skip.
+          c=3. used_mask[3] has 1, 2. OK.
+          s[3]=3.
+          adj[3] has 1, 2. Both < 3.
+          dfs(4): return True.
+        return True.
+      return True.
+      Output: 1 2 3.
+      Correct.
+      
+      Suppose 1-2, 2-3, 3-1, 1-4, 2-4, 3-4 (K4).
+      dfs(1): 1. used_mask[2,3,4] |= 1.
+      dfs(2): 2. used_mask[3,4] |= 2. (3: 1|2=3, 4: 1|2=3)
+      dfs(3):
+        c=1,2 skip.
+        c=3. used_mask[3] is 3. OK.
+        s[3]=3.
+        adj[3] has 1,2,4.
+        1,2 < 3.
+        4 > 3. used_mask[4] was 3. new = 3|4 = 7.
+        valid_forward = False.
+        Backtrack s[3].
+      dfs(2):
+        c=3. used_mask[2] is 1. OK.
+        s[2]=3.
+        adj[2] has 1,3,4.
+        1 < 2.
+        3 > 2. used_mask[3] was 1. new = 1|4 = 5.
+        4 > 2. used_mask[4] was 1. new = 1|4 = 5.
+        dfs(3):
+          c=1. used_mask[3] has 1. Skip.
+          c=2. used_mask[3] is 5 (101). OK.
+          s[3]=2.
+          adj[3] has 1,2,4.
+          1,2 < 3.
+          4 > 3. used_mask[4] was 5. new = 5|2 = 7.
+          valid_forward = False.
+          Backtrack.
+          c=3. used_mask[3] has 4 (bit 3). Skip.
+        Backtrack s[2].
+      dfs(1):
+        c=2. ...
+      Eventually fail.
+      Correct.
+      
+      Wait, `used_mask[3]` in dfs(2) step `c=3`.
+      `used_mask[3]` was 1 (from 1).
+      `c=3` is bit 3 (value 4).
+      `new = 1 | 4 = 5`.
+      Correct.
+      
+      Wait, one detail. `c` values 1, 2, 3.
+      Bits:
+      1 -> 1 (bit 0)
+      2 -> 2 (bit 1)
+      3 -> 4 (bit 2)
+      Mask 7 is 111 binary = 1+2+4.
+      My code: `(1 << (c-1))`.
+      c=1 -> 1<<0 = 1.
+      c=2 -> 1<<1 = 2.
+      c=3 -> 1<<2 = 4.
+      Sum = 7.
+      Correct.
+
+      One thing: `used_mask` array initialization.
+      `[0] * (n + 1)`.
+      Correct.
+      
+      Wait, I should verify the output format.
+      `YES` newline `s1 s2 ... sn`.
+      `NO`.
+      Correct.
+      
+      Final check on imports.
+      `import sys`.
+      `sys.setrecursionlimit`.
+      
+      The code seems solid.
+      
+      Wait, I should consider if `adj` needs to be sorted?
+      No, order of neighbors doesn't matter for correctness.
+      For performance, maybe iterating `adj` in order helps cache?
+      Not significant.
+      
+      One minor optimization:
+      `adj` can be stored as list of lists.
+      Access `adj[idx]` is fast.
+      
+      Wait, `sys.stdin.read().split()` consumes memory for all input tokens.
+      For $N=40, M \approx 800$, input size is tiny.
+      Memory is fine.
+      
+      Wait, `print(*(s[1:]))`
+      `s` is list of ints.
+      `*` unpacks.
+      `print` separates by space by default.
+      Correct.
+      
+      Wait, is `s` 0-indexed or 1-indexed?
+      `s = [0] * (n + 1)`.
+      `s[1]` to `s[n]` used.
+      `s[1:]` gives `s[1], s[2], ..., s[n]`.
+      Correct.
+
+      One case: `n=1`.
+      `s` size 2.
+      `dfs(1)`. `dfs(2)` returns True.
+      `s[1]` set.
+      `print(*(s[1:]))` -> `s[1]`.
+      Correct.
+      
+      One case: `n=40`.
+      Recursion depth 40.
+      Stack frames small.
+      Time limit 2s.
+      Should be fine.
+
+      Wait, is there any Python specific overhead?
+      Function calls are expensive.
+      But 40 depth is small.
+      The branching factor is at most 3.
+      With pruning, effective branching factor is small.
+      So it should pass.
+      
+      Wait, I should check if `used_mask` update logic is correct regarding `changes`.
+      `changes` stores `(neighbor, old_mask)`.
+      If `neighbor` was updated multiple times?
+      No, inside `dfs(idx)`, we iterate `adj[idx]`.
+      Each `neighbor` appears once in `adj[idx]`.
+      So `changes` has unique entries.
+      Correct.
+      
+      Wait, what if `neighbor` is `idx`?
+      No self loops.
+      
+      Wait, `adj` contains `neighbor`.
+      `neighbor` can be `< idx` or `> idx`.
+      We only process `> idx`.
+      Correct.
+      
+      Wait, `adj` might not be sorted.
+      `neighbor > idx` check works regardless of order.
+      Correct.
+      
+      Wait, is it possible `neighbor` is `> idx` but `adj[idx]` order is arbitrary?
+      Yes.
+      Does it matter?
+      No.
+      
+      Wait, one detail.
+      `valid_forward` logic.
+      If `new_mask == 7`, we set `valid_forward = False` and `break`.
+      But we have already updated `used_mask` for previous neighbors in the loop?
+      Yes.
+      So we need to restore them.
+      My code:
+      `changes` collects updates.
+      If `break`, `changes` has partial updates.
+      The backtrack loop restores them.
+      Correct.
+      
+      Wait, `s[idx] = 0` is after the loop.
+      Correct.
+      
+      Wait, I should ensure `sys.setrecursionlimit` is called.
+      Yes.
+      
+      Wait, I should consider if `m` is large, `adj` construction takes time?
+      $M \le 800$. Very fast.
+      
+      Wait, I should check if `dfs` can be optimized.
+      Maybe iterative?
+      Recursive is easier to implement.
+      Given time limit, recursive is likely fine.
+      
+      Wait, what if `n` is up to 40 and graph is empty?
+      Then `dfs` goes depth 40, returns True immediately.
+      Fast.
+      
+      What if graph is complete?
+      Pruning happens very early.
+      Fast.
+      
+      So the cases where it's slow are intermediate.
+      But with forward checking, it's quite robust.
+
+      Final check on output.
+      `YES`
+      `1 2 3 3`
+      (space separated).
+      My code: `print(*(s[1:]))`.
+      Produces `1 2 3 3`.
+      Correct.
+
+```python
+import sys
+
+# Increase recursion depth to handle N=40 safely
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    s = [0] * (n + 1)
+    used_mask = [0] * (n + 1)
+
+    # DFS function to find lexicographically smallest assignment
+    def dfs(idx):
+        if idx > n:
+            return True
+
+        # Try colors 1, 2, 3
+        for c in range(1, 4):
+            # Check if color c is valid for current node idx
+            # used_mask[idx] contains colors used by assigned neighbors (j < idx)
+            if (used_mask[idx] >> (c - 1)) & 1:
+                continue
+            
+            # Tentatively assign color c
+            s[idx] = c
+            
+            # Forward checking: update used_mask for unassigned neighbors
+            # and check if any unassigned neighbor becomes impossible (mask == 7)
+            changes = []
+            valid_forward = True
+            
+            for neighbor in adj[idx]:
+                if neighbor > idx:
+                    old_mask = used_mask[neighbor]
+                    new_mask = old_mask | (1 << (c - 1))
+                    
+                    if new_mask == 7: # Binary 111, all colors forbidden
+                        valid_forward = False
+                        break
+                    
+                    used_mask[neighbor] = new_mask
+                    changes.append((neighbor, old_mask))
+            
+            if valid_forward:
+                if dfs(idx + 1):
+                    return True
+            
+            # Backtrack: restore used_mask and s
+            for neighbor, old_mask in changes:
+                used_mask[neighbor] = old_mask
+            s[idx] = 0
+            
+        return False
+
+    if dfs(1):
+        print("YES")
+        print(*(s[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+One small thing: `sys.setrecursionlimit(5000)` is safe.
+The logic seems solid.
+The constraints $N \le 40$ are small enough for this backtracking with forward checking.
+The forward checking is crucial to prune branches where a future node has no valid colors.
+The lexicographical requirement is satisfied by trying colors 1, 2, 3 in order.
+Input reading is robust.
+Output format is correct.
+
+Double check: "Output only a single Python 3 code block and nothing else".
+I will wrap the code in ```python ... ```.
+
+Wait, one edge case: `m` lines might not be fully present if input is malformed?
+Problem statement guarantees valid input.
+"No incompatible pair appears more than once".
+"1 <= u, v <= n".
+So no need to worry about invalid input.
+
+One more check: `used_mask` initialization.
+`used_mask` is 0 initially.
+When `idx=1`, `used_mask[1]` is 0.
+Neighbors $k > 1$ get updated.
+Correct.
+
+Is it possible `adj` contains duplicates?
+"No incompatible pair appears more than once".
+So `adj` is unique.
+
+Final check on time limit. 2s.
+Python is slower than C++.
+But $N=40$ with pruning is usually accepted for 3-coloring.
+The number of valid 3-colorings can be exponential, but we stop at first.
+If no solution, we search whole space.
+But with forward checking, we detect impossibility quickly.
+So worst case is when solution exists but is deep, or no solution but hard to detect.
+Given constraints and problem type, this is the intended solution.
+
+Wait, is there any bit manipulation issue?
+`1 << (c-1)`
+c=1 -> 1
+c=2 -> 2
+c=3 -> 4
+`new_mask == 7` checks 1, 2, 4 set.
+Correct.
+
+One detail: `input_data` might be large?
+No, $N, M \le 820$.
+String size is small.
+
+Okay, ready.
+
+```python
+import sys
+
+# Increase recursion depth to accommodate the recursion for N=40
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from standard input efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    # s[i] stores the slot assigned to operator i
+    s = [0] * (n + 1)
+    # used_mask[i] stores a bitmask of colors forbidden for operator i by already assigned neighbors
+    # Bit k (0-indexed) is set if color k+1 is used by a neighbor
+    used_mask = [0] * (n + 1)
+
+    # Depth First Search to find the lexicographically smallest valid assignment
+    def dfs(idx):
+        # Base case: all operators assigned
+        if idx > n:
+            return True
+
+        # Try assigning slots 1, 2, 3 in order for lexicographical minimality
+        for c in range(1, 4):
+            # Check if color c is valid for current operator idx
+            # A color is invalid if any already assigned neighbor uses it
+            # Since we iterate 1..n, neighbors < idx are already assigned
+            if (used_mask[idx] >> (c - 1)) & 1:
+                continue
+            
+            # Tentatively assign color c
+            s[idx] = c
+            
+            # Forward Checking:
+            # Update the forbidden masks for unassigned neighbors (> idx)
+            # and check if any unassigned neighbor becomes impossible to color (mask == 7)
+            changes = []
+            valid_forward = True
+            
+            for neighbor in adj[idx]:
+                if neighbor > idx:
+                    old_mask = used_mask[neighbor]
+                    new_mask = old_mask | (1 << (c - 1))
+                    
+                    # If all 3 colors are forbidden for this neighbor, this path is invalid
+                    if new_mask == 7: # 111 in binary
+                        valid_forward = False
+                        break
+                    
+                    used_mask[neighbor] = new_mask
+                    changes.append((neighbor, old_mask))
+            
+            if valid_forward:
+                if dfs(idx + 1):
+                    return True
+            
+            # Backtrack: restore state
+            for neighbor, old_mask in changes:
+                used_mask[neighbor] = old_mask
+            s[idx] = 0
+            
+        return False
+
+    # Start DFS from the first operator
+    if dfs(1):
+        print("YES")
+        # Print the assignment for operators 1 to n
+        print(*(s[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+Looks good.
+</think>
+```python
+import sys
+
+# Increase recursion depth to accommodate the recursion for N=40
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from standard input efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    # s[i] stores the slot assigned to operator i
+    s = [0] * (n + 1)
+    # used_mask[i] stores a bitmask of colors forbidden for operator i by already assigned neighbors
+    # Bit k (0-indexed) is set if color k+1 is used by a neighbor
+    used_mask = [0] * (n + 1)
+
+    # Depth First Search to find the lexicographically smallest valid assignment
+    def dfs(idx):
+        # Base case: all operators assigned
+        if idx > n:
+            return True
+
+        # Try assigning slots 1, 2, 3 in order for lexicographical minimality
+        for c in range(1, 4):
+            # Check if color c is valid for current operator idx
+            # A color is invalid if any already assigned neighbor uses it
+            # Since we iterate 1..n, neighbors < idx are already assigned
+            if (used_mask[idx] >> (c - 1)) & 1:
+                continue
+            
+            # Tentatively assign color c
+            s[idx] = c
+            
+            # Forward Checking:
+            # Update the forbidden masks for unassigned neighbors (> idx)
+            # and check if any unassigned neighbor becomes impossible to color (mask == 7)
+            changes = []
+            valid_forward = True
+            
+            for neighbor in adj[idx]:
+                if neighbor > idx:
+                    old_mask = used_mask[neighbor]
+                    new_mask = old_mask | (1 << (c - 1))
+                    
+                    # If all 3 colors are forbidden for this neighbor, this path is invalid
+                    if new_mask == 7: # 111 in binary
+                        valid_forward = False
+                        break
+                    
+                    used_mask[neighbor] = new_mask
+                    changes.append((neighbor, old_mask))
+            
+            if valid_forward:
+                if dfs(idx + 1):
+                    return True
+            
+            # Backtrack: restore state
+            for neighbor, old_mask in changes:
+                used_mask[neighbor] = old_mask
+            s[idx] = 0
+            
+        return False
+
+    # Start DFS from the first operator
+    if dfs(1):
+        print("YES")
+        # Print the assignment for operators 1 to n
+        print(*(s[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

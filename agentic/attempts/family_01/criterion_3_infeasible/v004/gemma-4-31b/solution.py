@@ -1,0 +1,67 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Adjacency list for graph representation
+    adj = [[] for _ in range(n + 1)]
+    # Bitsets for fast intersection check (using Python's large integers)
+    bitsets = [0] * (n + 1)
+    
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        ptr += 2
+        if u > v:
+            u, v = v, u
+        adj[u].append(v)
+        bitsets[u] |= (1 << v)
+        bitsets[v] |= (1 << u)
+
+    # To find the lexicographically smallest triple (a, b, c) with a < b < c:
+    # We iterate a from 1 to n, then b from a+1 to n.
+    # If (a, b) is an edge, we check for the smallest c > b such that (a, c) and (b, c) are edges.
+    
+    # Pre-sort adjacency lists to ensure we process neighbors in increasing order
+    for i in range(1, n + 1):
+        adj[i].sort()
+
+    for a in range(1, n - 1):
+        # We only care about neighbors of a that are greater than a
+        neighbors_a = [v for v in adj[a] if v > a]
+        if not neighbors_a:
+            continue
+            
+        # Create a bitmask of neighbors of a that are > a
+        mask_a = 0
+        for v in neighbors_a:
+            mask_a |= (1 << v)
+            
+        for b in neighbors_a:
+            # We need c > b such that c is a neighbor of both a and b
+            # mask_a contains all neighbors of a > a
+            # bitsets[b] contains all neighbors of b
+            # Intersection gives all c such that (a, c) and (b, c) are edges
+            common = mask_a & bitsets[b]
+            
+            # We need the smallest c > b. 
+            # To remove bits <= b, we can mask with ~((1 << (b + 1)) - 1)
+            valid_c_mask = common & ~((1 << (b + 1)) - 1)
+            
+            if valid_c_mask:
+                # Find the lowest set bit in valid_c_mask
+                # .bit_length() - 1 of (valid_c_mask & -valid_c_mask) gives the index
+                # Or simply use (valid_c_mask & -valid_c_mask).bit_length() - 1
+                c = (valid_c_mask & -valid_c_mask).bit_length() - 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

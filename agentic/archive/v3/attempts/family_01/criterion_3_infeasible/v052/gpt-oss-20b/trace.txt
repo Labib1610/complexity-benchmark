@@ -1,0 +1,133 @@
+We need to find lexicographically smallest triangle in undirected graph with n up to 2000, m up to 2e5. We need efficient detection. Since n small, we can use adjacency bitsets or sets. We need lex smallest triple a<b<c such that edges exist.
+
+Brute force all triples would be O(n^3). Not feasible. We can iterate over edges (a,b) with a<b, then find common neighbors >b to complete triangle. Need lex minimal. Approach: For each pair (a,b) sorted by a then b, find smallest c> b that connects to both. That ensures lex min. Since edges maybe many but m up to 2e5, iterating over edges is okay.
+
+We need quick intersection of adjacency lists of a and b with filtering >b. Use adjacency bitset: Python's ints as bitset of length n. n <=2000 fits in 2000 bits ~ 250 bytes. Intersection is bitwise AND. Then find lowest set bit index >b. For each edge iterate. Complexity: O(m * (n/wordsize)) ~ 2e5 * 32 = 6.4e6 operations. Acceptable.
+
+Implementation: Build adjacency bitmask list of ints of length n+1. For each edge (u,v) with u<v store adjacency[u] |= 1 << (v-1) and adjacency[v] similarly.
+
+Then iterate for a in 1..n:
+    for b in sorted neighbors of a where b > a: but we need to iterate edges sorted by a then b. We can precompute neighbor list sorted. For each a, iterate over neighbors b > a. For each pair, compute common = adjacency[a] & adjacency[b]. Need to mask to bits > b. Compute mask = common >> b. Then if mask != 0, find lowest set bit index via bit_length or trailing zeros. In Python, we can use (mask & -mask) to get lowest set bit. Then c = b + trailing_zeros + 1? Actually bit positions are 0-indexed. Our bit positions correspond to worker index-1. So if we shift by b, then bits correspond to indices >b. So trailing_zeros gives position of lowest set bit relative to b. So c = b + trailing_zeros +1? Wait: shift right by b, so bit 0 corresponds to worker b+1. So c_index = b + tz +1? Let's example: b=2 (index 2). Bits >2 start at 3. Suppose mask has bit0 set => c=3. tz=0 => c = b + 1? Actually 2 + 0 +1 =3 correct. So c = b + tz +1.
+
+Compute tz = (mask & -mask).bit_length() -1? Actually to get index of lowest set bit: tz = (mask & -mask).bit_length() -1. Or use (mask & -mask).bit_length() -1.
+
+Alternatively, use (mask & -mask).bit_length() -1.
+
+Then c = b + tz +1.
+
+Return a,b,c.
+
+Edge iteration order: For a from 1..n, neighbors sorted ascending. So first triangle found will be lex min? Need to confirm. Lexicographically smallest triple (a,b,c) with a<b<c. We iterate increasing a. For each a, we iterate b in increasing order among neighbors > a. For each pair (a,b), we find smallest c> b that completes triangle. Since we choose minimal c for that pair, the earliest (a,b,c) found in the iteration order will be lexicographically minimal overall: Because a is minimal, then b minimal, then c minimal. For a fixed a,b, minimal c is chosen. And we stop at first found. So algorithm: iterate a ascending, b ascending, compute best c, if found return.
+
+Implementation details: Need neighbor list sorted. Build adjacency list of sets or lists and sort. But we can also iterate over all pair edges sorted. But easier: for a in 1..n: for b in neighbors_sorted[a] where b>a. Then compute c.
+
+Need adjacency bitmask for intersection. Build adjacency bitmask as integer of n bits. adjacency[i] bit j-1 set if edge i-j exists.
+
+Edge reading: store edges in list, but we need neighbor lists. We'll build adjacency list as list of lists.
+
+n up to 2000, edges up to 2e5. adjacency list building fine.
+
+Algorithm O(n + m + sum over nodes deg^2?) Wait we iterating for each a neighbor b: total pairs is m edges considered once. For each pair we compute intersection using bitwise AND of two ints (size roughly 2000 bits). That's fast.
+
+Implementation:
+
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj_mask = [0]*(n+1)
+    neigh = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u,v = map(int, input().split())
+        if u>v:
+            u,v = v,u
+        adj_mask[u] |= 1 << (v-1)
+        adj_mask[v] |= 1 << (u-1)
+        neigh[u].append(v)
+        neigh[v].append(u)
+    # sort neighbor lists
+    for a in range(1, n+1):
+        neigh[a].sort()
+    for a in range(1, n+1):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            common = adj_mask[a] & adj_mask[b]
+            # mask bits > b
+            mask = common >> b
+            if mask:
+                tz = (mask & -mask).bit_length() - 1
+                c = b + tz + 1
+                print(a, b, c)
+                return
+
+We need to ensure we find minimal c over common intersection of neighbors > b. Is our mask >> b correct? Bits correspond to indices > b. But if there is neighbor c <= b but > b? Wait we shift by b. For example, if b=5 (index 5). Bits positions 0..n-1. Bits >5 correspond to indices 6..n. So shifting by 5 moves bit 5 to position 0? Actually shift right by b: bit index j-1 becomes position (j-1)-b. So if j-1 >= b, then new position >=0. For j = b+1, j-1 = b, so new position 0. Good. So mask bits > b correspond to indices > b. So we ignore c <= b. Good.
+
+Edge case: We might find common neighbor c such that c <= b? But we shift by b so those bits become negative? shift right by b will drop bits with indices < b. So mask won't include them. Good.
+
+We choose minimal tz: the lowest set bit in mask. So minimal c.
+
+This algorithm returns lex minimal triple.
+
+Test with example 1: edges: 1-2,1-3,2-3,2-4,3-4. adj. Works.
+
+Edge case: Suppose multiple triangles with same a,b but different c; we choose smallest c. Good.
+
+Edge case: Suppose triangle a,b,c but also a,b,d with d<c. Since we choose smallest c, we return triangle with smallest c for that pair. But lex minimal triple among all is determined first by a, then b, then c. So if there is triangle with same a,b but smaller c, we would return that. Good.
+
+Complexities: bit_length on 2000-bit ints is fine.
+
+Memory: adjacency bitmask array of n+1 ints each ~ 250 bytes. Good.
+
+Potential bug: When reading edges, we don't need to sort neighbor lists each time; we can just store unsorted and later sort. Sorting each list costs O(m log m). But m <= 2e5; sorting each adjacency list individually may sum to O(m log deg). But deg up to 2000, but total sorting cost O(sum deg_i log deg_i). Worst-case deg_i ~ 2000, m ~ 2e5, average deg ~ 200. Sorting each list is okay.
+
+Alternatively, we can create neighbor lists unsorted, but we need sorted order to ensure lex minimal. So we sort.
+
+Edge reading: we need to avoid duplicate edges? Input may contain duplicates? Not specified but likely no duplicates. Even if duplicates, adjacency mask will handle duplicates; neighbor list may contain duplicates. Sorting duplicates might cause repeated b values. In loop we check if b <= a and continue; duplicates maybe repeated. But intersection will produce same result; but duplicates may cause repeated work but fine. But we might produce same triangle multiple times? We break after first found, so fine.
+
+Let's test with example 2: edges: 1-2,1-4,2-4,3-4,3-5,4-5. Triangles: 1-2-4 is triangle. Others? 3-4-5 also triangle. Lex minimal? a=1,b=2,c=4 vs a=3,b=4,c=5. a=1 is smaller. So output 1 2 4. Works.
+
+Edge case: Suppose triangle 1-3-4 and 2-3-4; lex minimal a=1, b=3, c=4. Our algorithm: For a=1: neighbors: 2,4? Wait edges: 1-2,1-4. Triangles: 1-2-4? Actually 1-2-4 exists. That's triangle a=1,b=2,c=4. Lex minimal. Works.
+
+Edge case: Suppose triangle 1-3-4 only. Our algorithm: a=1: neighbors: 3,4. For b=3: common neighbors of 1 and 3: 4. c=4 >3. Good.
+
+Edge case: Suppose triangle 1-4-5. a=1 neighbors: 4,5. For b=4: common neighbors of 1 and 4: 5. c=5. Works.
+
+Edge case: Suppose multiple triangles with same a,b but different c. We choose minimal c.
+
+Edge case: Suppose triangle a,b,c with a=1,b=2,c=3 but there is also triangle 1,2,4. Lex minimal is 1 2 3. Our algorithm: For a=1, b=2: intersection gives both 3 and 4. Mask >> 2 will include bits positions 3-1=2? Wait b=2; shift right by 2. Bits: indices 3 (bit2) and 4(bit3). Lowest set bit index 0 corresponds to c=3. So c=3. Good.
+
+Edge case: Suppose triangle a,b,c where a=1,b=3,c=4 but there is triangle a=1,b=2,c=5. Lex minimal is a=1,b=2,c=5 because b=2 smaller. Our algorithm: For a=1, neighbors sorted: 2,3,... For b=2: find c=5? Only triangle with 2? Suppose edges: 1-2,2-5,1-5. So triangle 1-2-5. So we find c=5. Output 1 2 5. Good.
+
+Edge case: Suppose no triangle for a=1 but triangles for a=2, etc. Then algorithm will skip a=1 and find earliest a with triangle. Good.
+
+Thus algorithm correct.
+
+We must ensure we handle indices correctly: adjacency bit position j-1 for node j. So shift right by b (the node index) but we need shift by b? Wait we want to ignore bits <= b. Bits positions j-1 <= b-1 correspond to nodes <= b. So shift right by b to drop those bits? Let's test: Suppose b=2. Bits positions 0,1 correspond to nodes 1,2. shift right by 2: bits at positions 0,1 dropped. Good. So shift by b indeed removes bits for nodes <= b. Good.
+
+Edge case: Suppose b=2000; shift right by 2000 yields 0? But we need to find c > 2000? None. But triangle cannot have c>2000. So no triangle. So fine.
+
+Implementation details: Use 0-indexed bits. Works.
+
+Large shift: shift right by large may produce zero quickly. Fine.
+
+Potential performance: for each pair, we compute mask = common >> b. However common is int of up to 2000 bits; shifting by b up to 2000 is fine.
+
+Computing tz: tz = (mask & -mask).bit_length() - 1. But if mask is large, bit_length might be up to 2000 bits. That's fine.
+
+Edge case: mask may be zero. We skip.
+
+Let's test quickly by reasoning.
+
+Let's test with Python snippet mentally. Suppose n=2000, m many. Works.
+
+Thus final solution code.
+
+Double-check reading: Use sys.stdin.buffer.
+
+Return after printing.
+
+Edge case: Guarantee at least one triangle. So algorithm will find and print.
+
+Let's produce final code.

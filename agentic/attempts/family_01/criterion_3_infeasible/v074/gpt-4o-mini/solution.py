@@ -1,0 +1,22 @@
+import sys
+from collections import defaultdict
+
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+incompatibilities = defaultdict(set)
+
+for i in range(1, m + 1):
+    u, v = map(int, data[i].split())
+    incompatibilities[u].add(v)
+    incompatibilities[v].add(u)
+
+# Check all combinations of three distinct workers
+for a in range(1, n + 1):
+    for b in range(a + 1, n + 1):
+        if b in incompatibilities[a]:
+            for c in range(b + 1, n + 1):
+                if c in incompatibilities[a] and c in incompatibilities[b]:
+                    print(a, b, c)
+                    sys.exit()

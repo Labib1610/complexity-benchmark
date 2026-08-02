@@ -1,0 +1,22 @@
+import sys
+from collections import defaultdict
+
+input = sys.stdin.read
+data = input().splitlines()
+
+n, m = map(int, data[0].split())
+restrictions = defaultdict(set)
+
+for line in data[1:m + 1]:
+    u, v = map(int, line.split())
+    restrictions[u].add(v)
+    restrictions[v].add(u)
+
+# To find the lexicographically smallest triple
+for a in range(1, n + 1):
+    for b in range(a + 1, n + 1):
+        if b in restrictions[a]:  # Check if a and b restrict each other
+            for c in range(b + 1, n + 1):
+                if c in restrictions[a] and c in restrictions[b]:  # Check if c restricts both a and b
+                    print(a, b, c)
+                    sys.exit()

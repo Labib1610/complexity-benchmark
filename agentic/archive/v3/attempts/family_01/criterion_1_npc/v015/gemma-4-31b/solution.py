@@ -1,0 +1,147 @@
+import sys
+
+def solve():
+    # Read n and m
+    try:
+        line1 = sys.stdin.readline().split()
+        if not line1:
+            return
+        n, m = map(int, line1)
+    except ValueError:
+        return
+
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # The goal is to find the lexicographically smallest assignment.
+    # Since n is small (up to 40), we can use backtracking with pruning.
+    # To ensure lexicographical smallest, we try assigning window 1, then 2, then 3.
+    
+    assignment = [0] * n
+
+    def is_safe(u, color):
+        # Check if any neighbor of u already has the same color
+        # We only need to check neighbors v < u because we assign in order
+        mask = adj[u]
+        for v in range(u):
+            if (mask & (1 << v)) and assignment[v] == color:
+                return False
+        return True
+
+    def can_color(u, current_assignment):
+        # A simple backtracking check to see if a valid 3-coloring exists
+        # given the assignments made so far.
+        if u == n:
+            return True
+        
+        # Try colors 1, 2, 3 for technician u
+        # To optimize, we only check if a valid coloring exists, not the smallest.
+        # However, the state space is small enough that we can use a bit of heuristics.
+        
+        # Heuristic: Most constrained variable first (MRV) could be used, 
+        # but for n=40, simple backtracking with the fixed order might be slow.
+        # Let's use a more robust 3-coloring check.
+        pass
+
+    # Since n=40 is small but too large for naive backtracking (3^40),
+    # we need a way to check if a partial assignment can be completed.
+    # 3-coloring is NP-complete, but for n=40, we can use backtracking with pruning.
+    
+    def check_possible(u):
+        # Check if the remaining technicians [u, n-1] can be colored
+        # given the current assignments of [0, u-1].
+        temp_assignment = list(assignment)
+        
+        def backtrack_check(idx):
+            if idx == n:
+                return True
+            
+            # Try colors for idx
+            # To speed up, check which colors are available
+            forbidden = 0
+            mask = adj[idx]
+            for v in range(n):
+                if (mask & (1 << v)) and temp_assignment[v] != 0:
+                    forbidden |= (1 << temp_assignment[v])
+            
+            for color in (1, 2, 3):
+                if not (forbidden & (1 << color)):
+                    temp_assignment[idx] = color
+                    if backtrack_check(idx + 1):
+                        return True
+                    temp_assignment[idx] = 0
+            return False
+        
+        return backtrack_check(u)
+
+    # To find the lexicographically smallest, we greedily pick the smallest color for each i
+    # and check if the remaining graph is still 3-colorable.
+    
+    # Optimization: The 3-coloring check is expensive. 
+    # We can use a simpler backtracking for the whole process.
+    
+    final_res = [0] * n
+    def find_lex_smallest(u):
+        if u == n:
+            return True
+        
+        for color in (1, 2, 3):
+            if is_safe(u, color):
+                assignment[u] = color
+                # Use a more efficient check or just backtrack.
+                # Given n=40 and the time limit, a well-pruned backtrack might pass.
+                if find_lex_smallest(u + 1):
+                    return True
+                assignment[u] = 0
+        return False
+
+    # The simple backtracking might be too slow. Let's refine it.
+    # We use a simple backtracking with a basic pruning: 
+    # if we can't color the current node, backtrack.
+    
+    # To make it faster, we can use bitmasks to track available colors for each node.
+    available = [(1 << 1) | (1 << 2) | (1 << 3)] * n
+    
+    def solve_recursive(u):
+        if u == n:
+            return True
+        
+        # Try colors 1, 2, 3 in order
+        for color in (1, 2, 3):
+            if (available[u] & (1 << color)):
+                # Save state of available colors for neighbors
+                changed = []
+                possible = True
+                mask = adj[u]
+                for v in range(u + 1, n):
+                    if (mask & (1 << v)):
+                        if (available[v] & (1 << color)):
+                            available[v] &= ~(1 << color)
+                            changed.append(v)
+                            if available[v] == 0:
+                                possible = False
+                                break
+                
+                if possible:
+                    assignment[u] = color
+                    if solve_recursive(u + 1):
+                        return True
+                
+                # Restore state
+                for v in changed:
+                    available[v] |= (1 << color)
+                assignment[u] = 0
+        return False
+
+    if solve_recursive(0):
+        print("YES")
+        print(*(assignment))
+    else:
+        print("NO")
+
+solve()

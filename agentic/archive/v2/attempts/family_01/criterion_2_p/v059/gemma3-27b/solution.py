@@ -1,0 +1,35 @@
+def solve():
+    n, m = map(int, input().split())
+    constraints = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        constraints.append((u, v))
+    
+    def is_valid(config):
+        for u, v in constraints:
+            if config[u-1] == config[v-1]:
+                return False
+        return True
+    
+    def find_lexicographically_smallest_config():
+        for i in range(2**n):
+            config = []
+            for j in range(n):
+                if (i >> j) & 1:
+                    config.append(2)
+                else:
+                    config.append(1)
+            
+            if is_valid(config):
+                return config
+        return None
+    
+    config = find_lexicographically_smallest_config()
+    
+    if config is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*config)
+
+solve()

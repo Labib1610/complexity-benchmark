@@ -1,0 +1,22 @@
+n, m = map(int, input().split())
+edges = [set() for _ in range(n + 1)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    edges[u].add(v)
+    edges[v].add(u)
+
+# Find the lexicographically smallest triplet
+found = False
+for a in range(1, n - 1):
+    if found:
+        break
+    for b in edges[a]:
+        if b <= a:
+            continue
+        for c in edges[a]:
+            if c <= b:
+                continue
+            if c in edges[b]:
+                print(a, b, c)
+                found = True
+                break

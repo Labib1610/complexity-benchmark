@@ -1,0 +1,50 @@
+def can_assign_frequencies(n, m, pairs):
+    from collections import defaultdict, deque
+    
+    graph = defaultdict(list)
+    
+    for u, v in pairs:
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    assignment = [0] * (n + 1)  # 0 means unassigned, 1, 2, 3 will be used for bands
+    
+    def bfs(start):
+        queue = deque([start])
+        assignment[start] = 1  # Start with band 1
+        
+        while queue:
+            node = queue.popleft()
+            current_band = assignment[node]
+            next_band = 1
+            
+            for neighbor in graph[node]:
+                if assignment[neighbor] == 0:  # Unassigned
+                    while next_band == current_band or any(assignment[neigh] == next_band for neigh in graph[neighbor]):
+                        next_band += 1
+                    assignment[neighbor] = next_band
+                    queue.append(neighbor)
+                elif assignment[neighbor] == current_band:
+                    return False  # Conflict found
+        return True
+    
+    for technician in range(1, n + 1):
+        if assignment[technician] == 0:  # Not yet assigned
+            if not bfs(technician):
+                print("NO")
+                return
+    
+    # Adjusting the assignment to be lexicographically smallest
+    for i in range(1, n + 1):
+        if assignment[i] == 0:
+            assignment[i] = 1  # Assign to band 1 if unassigned
+            
+    print("YES")
+    print(" ".join(map(str, assignment[1:])))
+
+import sys
+input = sys.stdin.read
+data = input().splitlines()
+n, m = map(int, data[0].split())
+pairs = [tuple(map(int, line.split())) for line in data[1:m + 1]]
+can_assign_frequencies(n, m, pairs)

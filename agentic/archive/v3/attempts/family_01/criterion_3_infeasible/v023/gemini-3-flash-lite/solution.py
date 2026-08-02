@@ -1,0 +1,55 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append(tuple(sorted((u, v))))
+    
+    # Sort edges to ensure we check potential 'a' and 'b' in lexicographical order
+    edges.sort()
+    
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # We iterate through all sorted edges (a, b) and check for a common neighbor c
+    # Since we want the smallest (a, b, c), we check edges (a, b) in order.
+    # For a fixed (a, b), we look for a c > b such that c is in both adj[a] and adj[b].
+    
+    # Pre-sort neighbors for consistency if needed, though set intersection is fast
+    for i in range(1, n + 1):
+        adj[i] = sorted(list(adj[i]))
+        
+    # We want smallest a, then smallest b, then smallest c.
+    # The edges are already sorted by a then b.
+    for a, b in edges:
+        # Find common neighbors c such that c > b
+        # Since adj[a] and adj[b] are sorted, we can use two pointers or set intersection
+        # Given n=2000, simple iteration or set intersection is fine.
+        
+        # Optimization: iterate through the smaller adjacency list
+        if len(adj[a]) < len(adj[b]):
+            candidates = adj[a]
+            other = set(adj[b])
+        else:
+            candidates = adj[b]
+            other = set(adj[a])
+            
+        for c in candidates:
+            if c > b and c in other:
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == '__main__':
+    solve()

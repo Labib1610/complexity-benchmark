@@ -10,7 +10,7 @@ A location is **covered** if it has a sensor or is directly linked to a location
 
 ## Input
 
-The first line contains three integers **n**, **m**, and **k** (1 ≤ n ≤ 30, 0 ≤ m ≤ n·(n−1)/2, 0 ≤ k ≤ n).
+The first line contains three integers **n**, **m**, and **k** (1 ≤ n ≤ 48, 0 ≤ m ≤ n·(n−1)/2, 0 ≤ k ≤ n).
 Each of the next **m** lines contains two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v): a direct link between locations u and v. No link is listed twice.
 
 ## Output

@@ -1,0 +1,425 @@
+**Solution Explanation**
+
+For every vertex we have to choose one of the two parking lots.
+All edges have to be satisfied:
+
+```
+u and v are neighbours   →   they must be parked in different lots
+```
+
+If it is possible we also have to output the lexicographically smallest
+assignment – i.e. lot **1** (`0`) should be chosen whenever it is still
+possible.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Observations
+
+* The graph is a *bipartite graph* test problem.
+  A graph is bipartite iff it contains no odd cycle.
+* While building a bipartite graph we can merge vertices with
+  a Disjoint Set Union (DSU) that keeps also the parity
+  (distance modulo `2`) to the component root.
+* After all edges are processed every connected component is
+  represented by one DSU root.
+  Inside a component the whole component is determined by the value of
+  this root.  
+  If the root is fixed to `0`, every vertex `x` must satisfy
+
+```
+parity(x) XOR root_value == 0          (slot 1)
+parity(x) XOR root_value == 1          (slot 2)
+```
+
+* While assigning lots we go through the vertices in the natural
+  order `1 … N`.  
+  For the first vertex of a component we may freely choose the root
+  value – we choose the value that gives the smallest lot for this
+  vertex.  
+  All later vertices of the same component must agree with this
+  already chosen root value.  
+  If at some moment no value is possible the whole task is impossible.
+
+--------------------------------------------------------------------
+
+#### 2.   Data structures
+
+`DSU` keeps
+
+```
+parent[x]   – DSU parent
+parity[x]   – parity of x to its parent (0/1)
+root_color[r]  – value of the root of component r
+                 0 : component root is in lot 1
+                 1 : component root is in lot 2
+                 None : not fixed yet
+```
+
+All operations are `O(α(n))` (`α` – inverse Ackermann).
+
+--------------------------------------------------------------------
+
+#### 3.   Building the DSU
+
+For each edge `(u , v)` we try to merge the two components.
+The parity constraint for an edge is
+
+```
+parity[u] XOR parity[v] == 1          (they must be in different lots)
+```
+
+During a merge
+
+```
+parity of old root ru to new root rv =
+        parity[u] XOR parity[v] XOR 1
+```
+
+The root colours are also merged:
+
+```
+new_root_color[rv] = root_color[ru] XOR parity_of_merged_root
+```
+
+If at any time a parity contradiction is detected
+the whole graph is not bipartite → output `NO`.
+
+--------------------------------------------------------------------
+
+#### 4.   Assigning lots – lexicographically smallest
+
+We iterate vertices `1 … N`.
+
+For the current vertex `x`
+
+```
+r = find(x)          (root of its component)
+p = parity[x]        (parity of x to this root)
+```
+
+We try the two lot values (`0` = lot 1, `1` = lot 2).
+
+```
+desired_root_value = p XOR 0            →  gives lot 0 for x
+if root r has no colour yet:
+        set it to desired_root_value
+        assign lot 0 to x
+else if the colour of r equals desired_root_value:
+        assign lot 0 to x
+else:
+        try lot 1 (value 1)
+        same procedure
+        if still impossible → output NO
+```
+
+Because we scan vertices in increasing order,
+the first successful lot is the smallest possible for this vertex.
+All later vertices of the same component are forced to use the colour
+already chosen for their root.  
+If no colour works for some vertex we output `NO`.
+
+--------------------------------------------------------------------
+
+#### 5.   Correctness Proof  
+
+We prove that the algorithm prints a correct assignment
+iff one exists, and that the printed assignment is lexicographically
+minimal.
+
+---
+
+##### Lemma 1  
+After processing all edges, for every edge `(u , v)` the DSU satisfies
+
+```
+parity[u] XOR parity[v] == 1 .
+```
+
+**Proof.**
+
+During the merge of `(u , v)` we check the above condition.
+If it is false we abort with `NO`.  
+Therefore, when the algorithm finishes the edge list,
+every edge satisfies the parity constraint. ∎
+
+
+
+##### Lemma 2  
+If during building the DSU a parity contradiction is found,
+the input graph is not bipartite.
+
+**Proof.**
+
+A parity contradiction means that for some edge `(u , v)` we have
+
+```
+parity[u] XOR parity[v] == 0 .
+```
+
+But by Lemma&nbsp;1 all already processed edges satisfy
+`parity[u] XOR parity[v] == 1`.  
+Thus the contradiction can only happen when
+an edge connects two vertices that are already in the same component
+and would have to be in the *same* lot.
+That happens exactly when an odd cycle exists, i.e. the graph is not
+bipartite. ∎
+
+
+
+##### Lemma 3  
+After building the DSU, for every component `C`
+all its vertices are in lot `0` iff  
+`root_color[root(C)] == 0`,  
+and in lot `1` iff `root_color[root(C)] == 1`.
+
+**Proof.**
+
+All vertices of a component have a fixed parity to its root.
+If the root is in lot `0`, a vertex `x` is in lot `0` precisely when
+
+```
+parity(x) XOR root_value == 0
+```
+
+(the same for lot `1`).  
+Thus the whole component is determined by the value of its root
+(`root_color`). ∎
+
+
+
+##### Lemma 4  
+During the assignment phase, when we first visit a component,
+the chosen `root_color` guarantees that the current vertex receives the
+smallest possible lot among all feasible assignments.
+
+**Proof.**
+
+For the first visited vertex `x` of a component we try lot `0` first.
+If `root_color` is not fixed, we set it to the value that gives
+lot `0` for `x`.  
+If this is impossible we try lot `1` (setting the root colour
+accordingly).  
+Thus, for vertex `x` we always choose the minimal lot
+that still allows a feasible assignment for `x`. ∎
+
+
+
+##### Lemma 5  
+All vertices processed after the first vertex of a component
+receive a lot that is consistent with the fixed `root_color`
+chosen earlier.
+
+**Proof.**
+
+Consider a later vertex `y` of the same component.
+Let `r` be the component root (fixed earlier) and `p_y` the parity of
+`y` to this root.  
+The algorithm first looks at the current `root_color[r]`.
+
+*If the colour equals the one that gives the desired lot for `y`,
+the algorithm accepts it.*
+
+If the colour does not allow any lot for `y`, the algorithm outputs
+`NO`.  
+Otherwise, the colour already chosen for the component
+determines uniquely the lot of every vertex in the component
+(Lemma&nbsp;3).  
+Hence the assignment for `y` is forced and consistent with the
+previously fixed root colour. ∎
+
+
+
+##### Lemma 6  
+If the algorithm outputs `YES`, all edges are satisfied.
+
+**Proof.**
+
+During the DSU building we verified that
+every edge connects vertices with different parity
+(Lemma&nbsp;1).  
+After the assignment phase each component keeps a fixed root colour.
+By Lemma&nbsp;3 every vertex receives a lot that respects this colour,
+therefore every edge connects two different lots. ∎
+
+
+
+##### Lemma 7  
+If the algorithm outputs `YES`, the produced assignment is
+lexicographically smallest among all feasible assignments.
+
+**Proof.**
+
+We process vertices in the natural order.
+For each vertex we try lot `0` before lot `1`.
+If lot `0` is still possible, we fix the component colour
+to make this vertex use lot `0`.  
+All later vertices of the same component cannot change this choice
+(Lemma&nbsp;5).  
+Therefore, for the first position where a choice exists,
+the algorithm chooses the smallest possible lot.
+This is exactly the definition of a lexicographically minimal
+binary sequence. ∎
+
+
+
+##### Theorem  
+The algorithm prints **YES** and a parking lot assignment
+iff a feasible assignment exists.
+When it prints **YES**, the assignment is the lexicographically smallest
+among all feasible ones.
+
+**Proof.**
+
+*If a `NO` is printed*  
+by Lemma&nbsp;2 the graph is not bipartite, hence no feasible assignment
+exists.
+
+*If a `YES` is printed*  
+Lemma&nbsp;6 shows that all edges are satisfied,
+so the assignment is feasible.
+Lemma&nbsp;7 shows that it is lexicographically smallest. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Complexity Analysis
+
+```
+Let N be the number of vertices,  M the number of edges.
+
+Building the DSU :  O(M · α(N))
+Assigning lots     :  O(N · α(N))
+
+Memory usage       :  3 arrays of size N+1   →  O(N)
+```
+
+`α(N)` is a very slowly growing function
+(less than 5 for all practical input sizes).
+
+--------------------------------------------------------------------
+
+#### 6.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+# ------------------------------------------------------------
+# Disjoint Set Union with parity (distance modulo 2)
+# ------------------------------------------------------------
+class DSU:
+    __slots__ = ('parent', 'parity', 'root_color')
+
+    def __init__(self, n: int):
+        # 1‑based indexing
+        self.parent = list(range(n + 1))
+        self.parity = [0] * (n + 1)          # parity to parent
+        self.root_color = [None] * (n + 1)   # colour of DSU root
+
+    # recursive find with path compression
+    def find(self, x: int) -> int:
+        if self.parent[x] != x:
+            p = self.parent[x]
+            r = self.find(p)
+            self.parity[x] ^= self.parity[p]
+            self.parent[x] = r
+        return self.parent[x]
+
+    # try to merge u and v (they must be in different lots)
+    def union(self, u: int, v: int) -> bool:
+        ru = self.find(u)
+        rv = self.find(v)
+        if ru == rv:
+            # same component: parity must be 1
+            return (self.parity[u] ^ self.parity[v]) == 1
+
+        # parity of the old root ru to the new root rv
+        parity_ru_to_rv = self.parity[u] ^ self.parity[v] ^ 1
+
+        # attach old root ru under rv
+        self.parent[ru] = rv
+        self.parity[ru] = parity_ru_to_rv
+
+        # merge root colours
+        color_ru = self.root_color[ru]
+        color_rv = self.root_color[rv]
+
+        if color_ru is not None:
+            # component colour of rv changes accordingly
+            self.root_color[rv] = color_ru ^ parity_ru_to_rv
+            # old colour is now irrelevant
+            self.root_color[ru] = None
+        elif color_rv is not None:
+            # rv already fixed, nothing changes
+            pass
+        # otherwise both are None → nothing to do
+
+        return True
+
+
+# ------------------------------------------------------------
+# Main solving routine
+# ------------------------------------------------------------
+def solve() -> None:
+    sys.setrecursionlimit(1_000_000)
+
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+
+    dsu = DSU(n)
+    idx = 2
+    for _ in range(m):
+        u, v = data[idx], data[idx + 1]
+        idx += 2
+        if not dsu.union(u, v):
+            print("NO")
+            return
+
+    # assignment of lots: 0 -> lot 1, 1 -> lot 2
+    lot = [0] * (n + 1)
+
+    for v in range(1, n + 1):
+        r = dsu.find(v)
+        p = dsu.parity[v]
+
+        # try lot 0 first (lot 1)
+        desired_root = p ^ 0
+        current_root = dsu.root_color[r]
+        if current_root is None:
+            dsu.root_color[r] = desired_root
+            lot[v] = 0
+            continue
+        if current_root == desired_root:
+            lot[v] = 0
+            continue
+
+        # try lot 1
+        desired_root = p ^ 1
+        if current_root is None:
+            dsu.root_color[r] = desired_root
+            lot[v] = 1
+            continue
+        if current_root == desired_root:
+            lot[v] = 1
+            continue
+
+        # neither lot possible
+        print("NO")
+        return
+
+    # print result
+    print("YES")
+    print(' '.join(str(l) for l in lot[1:]))
+
+
+# ------------------------------------------------------------
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input and output format.

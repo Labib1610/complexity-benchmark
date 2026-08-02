@@ -1,0 +1,22 @@
+def solve():
+    n, m = map(int, input().split())
+    incompatibilities = set()
+    for _ in range(m):
+        u, v = map(int, input().split())
+        incompatibilities.add(tuple(sorted((u, v))))
+    
+    best_triplet = None
+    
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            for c in range(b + 1, n + 1):
+                if (a, b) in incompatibilities and (a, c) in incompatibilities and (b, c) in incompatibilities:
+                    if best_triplet is None:
+                        best_triplet = (a, b, c)
+                    else:
+                        if (a, b, c) < best_triplet:
+                            best_triplet = (a, b, c)
+    
+    print(best_triplet[0], best_triplet[1], best_triplet[2])
+
+solve()

@@ -12,7 +12,7 @@ Hire the **fewest** consultants so that every frontend skill and every backend s
 
 ## Input
 
-The first line contains three integers **uA**, **uB**, and **s** (1 ≤ uA, uB ≤ 100000, 1 ≤ s ≤ 200000).
+The first line contains three integers **uA**, **uB**, and **s** (1 ≤ uA, uB ≤ 100000, 1 ≤ s ≤ 800000).
 Each of the next **s** lines contains two integers **a** and **b** (1 ≤ a ≤ uA, 1 ≤ b ≤ uB): a consultant bringing frontend skill **a** and backend skill **b**. It is guaranteed every frontend skill and every backend skill appears in at least one consultant.
 
 ## Output

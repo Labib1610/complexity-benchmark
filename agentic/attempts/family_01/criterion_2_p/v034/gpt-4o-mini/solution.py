@@ -1,0 +1,42 @@
+def factory_roster_separation():
+    import sys
+    from collections import deque
+
+    input = sys.stdin.read
+    data = input().splitlines()
+    
+    n, m = map(int, data[0].split())
+    graph = [[] for _ in range(n + 1)]
+    
+    for i in range(1, m + 1):
+        u, v = map(int, data[i].split())
+        graph[u].append(v)
+        graph[v].append(u)
+
+    colors = [0] * (n + 1)
+
+    def bfs(start):
+        queue = deque([start])
+        colors[start] = 1  # Start coloring with 1
+        while queue:
+            node = queue.popleft()
+            current_color = colors[node]
+            next_color = 2 if current_color == 1 else 1
+            for neighbor in graph[node]:
+                if colors[neighbor] == 0:
+                    colors[neighbor] = next_color
+                    queue.append(neighbor)
+                elif colors[neighbor] == current_color:
+                    return False
+        return True
+
+    for person in range(1, n + 1):
+        if colors[person] == 0:  # Not colored yet
+            if not bfs(person):
+                print("NO")
+                return
+
+    print("YES")
+    print(" ".join(map(str, colors[1:n + 1])))
+
+factory_roster_separation()

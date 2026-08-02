@@ -1,0 +1,57 @@
+import sys
+
+# Increase recursion depth for deep DFS
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    color = [0] * (n + 1)
+    
+    # We want the lexicographically smallest sequence.
+    # For each connected component, we can choose the color of the first visited node.
+    # To make the sequence lexicographically smallest, we try setting color[i] = 1.
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start DFS/BFS from node i. Set color[i] = 1 to keep it lexicographically smallest.
+            stack = [(i, 1)]
+            color[i] = 1
+            component = []
+            
+            # Use a stack-based DFS to avoid recursion depth issues
+            # We need to process nodes in a way that respects the 2-coloring constraint.
+            # However, the lexicographical requirement applies to the whole sequence (s1, s2, ..., sn).
+            # We iterate i from 1 to n. If node i is uncolored, we MUST start a component.
+            # To minimize the sequence, we assign color 1 to the first node i.
+            
+            q = [i]
+            color[i] = 1
+            while q:
+                u = q.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+                        
+    print("YES")
+    print(*(color[1:]))
+
+solve()

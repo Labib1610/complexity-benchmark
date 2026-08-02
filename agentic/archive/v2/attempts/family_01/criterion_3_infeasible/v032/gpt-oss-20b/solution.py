@@ -1,0 +1,34 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(n):
+        neigh_a = adj[a]
+        for b in range(a + 1, n):
+            if not (neigh_a >> b) & 1:
+                continue
+            # common neighbors of a and b
+            common = adj[a] & adj[b]
+            # shift right so that bits > b become low bits
+            tmp = common >> (b + 1)
+            if tmp:
+                # position of lowest set bit
+                pos = (tmp & -tmp).bit_length() - 1
+                c = b + 1 + pos
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()

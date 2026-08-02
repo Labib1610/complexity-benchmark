@@ -1,0 +1,54 @@
+def spectrum_division_protocol():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    index = 0
+    n, m = int(data[index]), int(data[index + 1])
+    index += 2
+    
+    from collections import defaultdict
+    
+    # Create adjacency list for interfering pairs
+    graph = defaultdict(list)
+    for _ in range(m):
+        u, v = int(data[index]), int(data[index + 1])
+        index += 2
+        graph[u].append(v)
+        graph[v].append(u)
+
+    # Initialize frequencies with None (unassigned)
+    freqs = [None] * n
+    
+    def assign_frequency(unit, forbidden):
+        # Try to assign the smallest lexicographical frequency not in `forbidden`
+        for f in range(1, 4):
+            if f not in forbidden:
+                return f
+        return -1
+
+    def backtrack(unit=0):
+        if unit == n:
+            return True
+        
+        assigned = set(freqs[u-1] for u in graph[unit+1])
+        
+        freq = assign_frequency(unit + 1, assigned)
+        while freq != -1:
+            freqs[unit] = freq
+            if backtrack(unit + 1):
+                return True
+            freqs[unit] = None
+            freq = assign_frequency(unit + 1, assigned | {freq})
+        
+        return False
+    
+    if backtrack():
+        print("YES")
+        print(' '.join(map(str, freqs)))
+    else:
+        print("NO")
+
+# Entry point for the script
+if __name__ == "__main__":
+    spectrum_division_protocol()

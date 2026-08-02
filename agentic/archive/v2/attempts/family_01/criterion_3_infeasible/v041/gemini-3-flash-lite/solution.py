@@ -1,0 +1,47 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Represent the graph using an adjacency list of sets or bitsets for fast lookup
+    # Given n <= 2000, an adjacency list of sorted lists or sets is efficient
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest triple (a, b, c) with a < b < c:
+    # Iterate a from 1 to n-2
+    #   Iterate b from a+1 to n-1
+    #     If a and b are in conflict:
+    #       Find common neighbors c such that c > b
+    #       If any such c exists, the smallest such c gives the smallest triple for (a, b)
+    
+    for a in range(1, n + 1):
+        # Sort neighbors to ensure we check potential b and c in order
+        neighbors_a = sorted(list(adj[a]))
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            if b <= a:
+                continue
+            
+            # Now we need to find smallest c > b such that c is in adj[a] and adj[b]
+            # Since neighbors_a is sorted, we can intersect efficiently
+            # However, for small n, a simple loop is sufficient
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                if c > b and c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+solve()

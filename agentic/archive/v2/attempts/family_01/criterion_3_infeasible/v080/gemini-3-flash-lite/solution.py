@@ -1,0 +1,46 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Represent the graph using adjacency sets for O(1) lookup
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # Convert adjacency sets to sorted lists for deterministic iteration
+    adj_list = [sorted(list(s)) for s in adj]
+    
+    # We need the lexicographically smallest triplet (a, b, c) with a < b < c.
+    # Iterate a from 1 to n-2
+    for a in range(1, n - 1):
+        # Candidates for b must be > a and connected to a
+        neighbors_a = [x for x in adj_list[a] if x > a]
+        
+        for b in neighbors_a:
+            # Candidates for c must be > b and connected to both a and b
+            # We intersect neighbors of a and neighbors of b
+            # Since neighbors are sorted, we can find intersection efficiently
+            # However, with N=2000, checking all c > b in adj[a] is fine
+            
+            # Optimization: check if any common neighbor exists that is > b
+            # Using set intersection is fast
+            common = adj[a].intersection(adj[b])
+            for c in sorted(list(common)):
+                if c > b:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

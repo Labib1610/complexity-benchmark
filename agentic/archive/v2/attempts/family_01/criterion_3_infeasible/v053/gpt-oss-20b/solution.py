@@ -1,0 +1,31 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    bit_adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        bit_adj[u] |= 1 << (v - 1)
+        bit_adj[v] |= 1 << (u - 1)
+
+    for a in range(1, n + 1):
+        neigh_a = bit_adj[a]
+        for b in range(a + 1, n + 1):
+            if (neigh_a >> (b - 1)) & 1:
+                common = neigh_a & bit_adj[b]
+                mask = common >> b          # bits for vertices > b
+                if mask:
+                    lsb = mask & -mask
+                    offset = lsb.bit_length() - 1
+                    c = b + offset + 1
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()

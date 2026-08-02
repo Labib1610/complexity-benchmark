@@ -1,0 +1,152 @@
+<think>
+We need lexicographically smallest triangle in undirected graph up to n=2000, m up to 2e5. We need efficient detection.
+
+Brute O(n^3) too big. We can for each pair (u,v) check common neighbors intersection. Use adjacency sets bitsets? n=2000 fits 2000 bits ~ 32 ints of 64 bits. Use Python's int bitset.
+
+Approach: Build adjacency bitmask for each node (0-index). For each pair (i<j) that are edges, compute intersection = adj[i] & adj[j]; if non-zero, find smallest k > j? Actually need lexicographic: want smallest a,b,c. So we iterate a from 1..n, then b > a edges, then find smallest c > b that is common neighbor of a,b. We can precompute adjacency sets as bitset of neighbors > index? But we need c > b.
+
+We can for each a, for each b > a that is neighbor, compute intersection of neighbors of a and b, but restrict to > b. We can maintain adjacency bitsets for all nodes; then for candidate pair (a,b) we compute mask = adj[a] & adj[b] & greater_mask[b], where greater_mask[b] has bits set for indices > b. Then we find lowest set bit index c. That gives minimal c for that (a,b). Since we iterate a ascending, then b ascending, first found triangle is lexicographically smallest. Because for given a, we consider b in ascending order; the smallest c found will be minimized.
+
+Edge list may not be sorted. But we can iterate for a from 0..n-1: for each neighbor b > a: we need to iterate neighbors in ascending order. For each a, we can get list of neighbors > a sorted. We precompute adjacency list and maybe sorted.
+
+Implementation details:
+- Use 0-index internally.
+- adj_bit[i] as int with bit j set if edge i-j.
+- greater_mask[b] can be precomputed as ((1 << (n - (b+1))) - 1) << (b+1). But easier compute mask = ((1 << n) - 1) ^ ((1 << (b+1)) - 1) to get bits > b.
+
+But n <= 2000, (1 << n) is huge (2^2000) cannot store as int? Python int arbitrary big, but 2^2000 is huge but still fits memory (~250 bytes). That's fine.
+
+But building (1 << n) might be heavy but okay.
+
+We'll precompute prefix bit masks: greater_mask array of length n. For each b: greater_mask[b] = (~((1 << (b+1)) - 1)) & ((1 << n) - 1). But using big ints okay.
+
+Alternatively, compute mask = adj[a] & adj[b]; then find c > b by iterating from b+1 to n-1 and checking bit. But that's O(n) per pair worst-case.
+
+Better use bit ops: mask &= greater_mask[b]; then if mask !=0, find lowest set bit index: mask.bit_length() gives position of highest bit. For lowest, we can use mask & -mask to isolate lowest set bit, then index = (mask & -mask).bit_length() -1. That gives index of lowest set bit.
+
+So algorithm:
+
+- Read n,m
+- Initialize adj_bit = [0]*n
+- For each edge u,v (1-indexed):
+    u-=1; v-=1
+    adj_bit[u] |= 1 << v
+    adj_bit[v] |= 1 << u
+- Precompute greater_mask: base_all = (1 << n) -1
+  greater_mask = [0]*n
+  for b in range(n):
+      greater_mask[b] = base_all ^ ((1 << (b+1)) -1)
+- For a in range(n):
+    # iterate neighbors b > a
+    # get neighbor list? we can iterate all b from a+1..n-1 and check bit
+    # but that is O(n^2). n=2000 => 4e6 okay.
+    for b in range(a+1, n):
+        if (adj_bit[a] >> b) & 1:
+            mask = adj_bit[a] & adj_bit[b] & greater_mask[b]
+            if mask:
+                low = mask & -mask
+                c = (low.bit_length() -1)
+                print a+1,b+1,c+1
+                return
+
+Complexity: Outer loops n^2 /2 ~ 2e6, each mask compute is O(1). Good.
+
+Edge guarantee ensures found.
+
+Let's test quickly mentally.
+
+Example 1:
+adj bits:
+1: 2,3
+2:1,3,4
+3:1,2,4
+4:2,3
+
+a=0 (1)
+neighbors b>0: b=1 (2) edge yes
+mask=adj[0]&adj[1]&mask>1: adj0 bits 1,2 ; adj1 bits 0,2,3 -> intersection bits 2 ; greater_mask[1] bits >1: 2,3 -> intersection still 2 => low bit 2 -> c=2 (index 2). Output 1 2 3 correct.
+
+Example 2: Works.
+
+Edge cases: multiple triangles. Lexicographic minimal: algorithm ensures.
+
+Time memory fine.
+
+Let's produce code.
+
+Need to use sys.stdin.read for speed. Use ints.
+
+Also handle n up to 2000; m up to 2e5.
+
+Implementation:
+
+import sys
+def main():
+    data=list(map(int, sys.stdin.read().split()))
+    n,m=data[0],data[1]
+    adj=[0]*n
+    idx=2
+    for _ in range(m):
+        u=data[idx]-1; v=data[idx+1]-1; idx+=2
+        adj[u]|=1<<v
+        adj[v]|=1<<u
+    base=(1<<n)-1
+    greater=[0]*n
+    for b in range(n):
+        greater[b]= base ^ ((1<<(b+1))-1)
+    for a in range(n):
+        for b in range(a+1,n):
+            if (adj[a]>>b)&1:
+                mask= adj[a] & adj[b] & greater[b]
+                if mask:
+                    low= mask & -mask
+                    c= low.bit_length()-1
+                    print(a+1, b+1, c+1)
+                    return
+
+if __name__=="__main__":
+    main()
+
+Let's double-check bit operations for large n: 1<<2000 is huge but Python handles. The shift loops may be heavy but only done n times.
+
+Edge case: mask & -mask works for big ints.
+
+Ok.
+
+Return code.
+</think>
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    base_all = (1 << n) - 1
+    greater_mask = [0] * n
+    for b in range(n):
+        greater_mask[b] = base_all ^ ((1 << (b + 1)) - 1)
+
+    for a in range(n):
+        for b in range(a + 1, n):
+            if (adj[a] >> b) & 1:
+                mask = adj[a] & adj[b] & greater_mask[b]
+                if mask:
+                    low = mask & -mask
+                    c = low.bit_length() - 1
+                    print(a + 1, b + 1, c + 1)
+                    return
+
+if __name__ == "__main__":
+    main()
+```

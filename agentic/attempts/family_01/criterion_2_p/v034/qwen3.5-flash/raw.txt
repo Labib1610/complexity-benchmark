@@ -1,0 +1,1219 @@
+<think>
+The problem asks us to assign each of the $n$ personnel to one of two work slots (1 or 2) such that no incompatible pair is assigned to the same slot. We are given $m$ pairs of incompatible personnel. If a valid assignment exists, we need to find the lexicographically smallest assignment sequence $s_1, s_2, \ldots, s_n$, where $s_i$ is the slot assigned to person $i$. If no valid assignment exists, we output "NO".
+
+This problem can be modeled as checking if a graph is bipartite. The personnel are vertices, and the incompatibilities are edges. If the graph is bipartite, a valid assignment exists (assigning vertices in one partition to slot 1 and the other partition to slot 2). If it is not bipartite, no valid assignment exists.
+
+However, there is a second requirement: the assignment must be lexicographically smallest. This means we want to minimize $s_1$, then $s_2$, and so on. Since $s_i \in \{1, 2\}$, we want $s_1$ to be 1 if possible. If $s_1$ is fixed to 1, we want $s_2$ to be 1 if possible, etc.
+
+Wait, simply checking bipartiteness isn't enough because a bipartite graph can have multiple valid 2-colorings. A connected component with $V_c$ vertices and $E_c$ edges has exactly two valid colorings (swapping colors). We need to choose the coloring for each component such that the resulting sequence $s_1, \ldots, s_n$ is lexicographically smallest.
+
+Let's break down the constraints: $n, m \le 200,000$. An $O(n+m)$ solution is required.
+
+The strategy would be:
+1. Represent the graph using an adjacency list.
+2. Iterate through all vertices $i$ from 1 to $n$.
+3. If vertex $i$ has not been visited yet, it belongs to a new connected component.
+4. Perform a BFS or DFS on this component to check for bipartiteness and to establish the two possible colorings.
+5. Since we want the lexicographically smallest result, we need to decide which of the two colorings to apply for each component.
+6. Let the two possible colorings for a component be $C_1$ and $C_2$. $C_2$ is just $C_1$ with 1s and 2s swapped.
+7. We need to compare the partial sequences formed by $C_1$ and $C_2$ restricted to the indices present in this component. However, we process components in some order. To make the global sequence lexicographically smallest, we must greedily pick the assignment that makes the first available (unassigned) person have slot 1 if possible.
+
+Wait, simply iterating 1 to $n$ and assigning 1 if possible works?
+Suppose we are at vertex $i$. If $i$ is already assigned a color, we just continue. If $i$ is not assigned, we start a traversal (BFS/DFS) from $i$.
+In the traversal, we assign $i$ to 1. Then we propagate the constraints to neighbors.
+If we encounter a conflict (neighbor already assigned same color), then the graph is not bipartite $\to$ output NO.
+If the component is bipartite, we have fixed the colors for all vertices in this component based on the decision that $i$ gets color 1.
+Is it always optimal to assign color 1 to the first unvisited vertex $i$?
+Yes, because we want $s_i$ to be as small as possible. Since $i$ is the smallest index in this component (because we iterate $1$ to $n$ and pick unvisited), picking $s_i=1$ is better than $s_i=2$ for the lexicographical comparison of the full sequence.
+Since the component is disjoint from all previously processed components (which are fully assigned), and $i$ is smaller than any other unassigned vertex in the component, fixing $s_i=1$ forces a specific assignment for all other vertices in the component.
+Wait, does fixing $s_i=1$ force the assignment for the *entire* component?
+Yes, in a connected component, once the color of one node is fixed, the colors of all other nodes are determined if the graph is bipartite.
+So the algorithm is:
+1. Initialize `colors` array of size $n+1$ with 0 (unassigned).
+2. Iterate $i$ from 1 to $n$:
+    a. If `colors[i]` is not 0, continue.
+    b. Start BFS/DFS from $i$. Assign `colors[i] = 1`.
+    c. During traversal, if we find a neighbor $v$ with `colors[v] == colors[u]`, then it's impossible. Return NO.
+    d. If neighbor $v$ is unassigned, assign `colors[v] = 3 - colors[u]` (swapping 1 and 2).
+    e. If `colors[v]` is already assigned and valid, continue.
+3. If loop finishes without conflicts, print YES and the `colors` array.
+
+Let's double check the "lexicographically smallest" requirement.
+We want the sequence $s_1, s_2, \dots, s_n$ to be minimized.
+The first element $s_1$ is determined by the component containing 1.
+If 1 is unvisited, we must assign it. To minimize $s_1$, we *must* assign 1 to slot 1.
+Once $s_1$ is fixed to 1, the colors of all other nodes in the component of 1 are determined (up to bipartiteness check).
+Then we move to $s_2$. If 2 is already visited (in 1's component), its color is fixed. If not, we are at the start of a new component. To minimize $s_2$, we must assign 2 to slot 1.
+This logic holds because the decision for a component is constrained only by the bipartition property within that component. There are no edges between components, so the choice of coloring for one component does not affect the feasibility of another.
+Within a component, there are exactly two valid colorings: $A$ and $\bar{A}$ (where $\bar{A}$ is $A$ with 1s and 2s swapped).
+Suppose the vertices in a component are $v_1, v_2, \dots, v_k$ in increasing order of index. We encounter the smallest index $v_{min}$ when iterating 1 to $n$.
+If we assign $v_{min}$ color 1, we get coloring $A$. If we assign $v_{min}$ color 2, we get coloring $\bar{A}$.
+Since $v_{min}$ is the smallest index in this component, and all indices smaller than $v_{min}$ belong to other components (already processed), the value of $s_{v_{min}}$ is the first point of difference between the two options for this component in the global sequence.
+Since we want to minimize the global sequence, we must choose the option that makes $s_{v_{min}}$ smaller.
+Thus, we must assign $s_{v_{min}} = 1$.
+This confirms the greedy strategy: whenever we encounter an unvisited node $i$, we treat it as the "root" of a new component traversal and assign it slot 1.
+
+Wait, is it possible that assigning $s_i=1$ leads to a conflict later in the component, but assigning $s_i=2$ would work?
+No. If a valid coloring exists, both colorings $A$ and $\bar{A}$ are valid (they are just color swaps). If one leads to a conflict (e.g., an edge between two nodes of same color), the other will also lead to a conflict because the conflict is structural (odd cycle). If the graph is not bipartite, neither coloring works. If it is bipartite, both work, and we just pick the one where the root is 1.
+
+So the algorithm is simply:
+1. Build adjacency list.
+2. Array `ans` initialized to 0.
+3. Loop $i$ from 1 to $n$:
+    If `ans[i]` != 0: continue
+    `ans[i] = 1`
+    Queue $Q = [i]$
+    While $Q$ not empty:
+        $u = Q.pop()$
+        For $v$ in adj[$u$]:
+            If `ans[v]` == 0:
+                `ans[v] = 3 - ans[u]`
+                $Q.push(v)$
+            Else:
+                If `ans[v]` == `ans[u]`:
+                    Print NO
+                    Return
+4. Print YES
+5. Print `ans[1:]`
+
+Wait, there's a subtle point. Is it possible that for a component, assigning the root 1 is not optimal?
+The root is the smallest index $i$ in the component.
+The sequence is $s_1, s_2, \dots, s_n$.
+The first time we encounter a node from this component, it is at index $i$.
+Since we iterate $1 \dots n$, any index $j < i$ is either not in this component or has been processed.
+If $j < i$ is in this component, then $i$ wouldn't be the first unvisited node in the loop.
+So $i$ is indeed the smallest index in the component.
+The value $s_i$ appears at position $i$ in the output sequence.
+To minimize the sequence lexicographically, we want $s_i$ to be 1 rather than 2.
+Since we must pick one of the two valid colorings, and one has $s_i=1$ and the other $s_i=2$, we must pick the one with $s_i=1$.
+This logic seems solid.
+
+Let's check constraints.
+$N, M \le 200,000$.
+Python recursion limit might be an issue for DFS. BFS is safer or increase recursion limit.
+Given the memory limit 256MB, adjacency list is fine.
+Time limit 1s. Python might be slow with raw loops if not careful.
+Using `sys.stdin.read` and fast I/O is recommended.
+Using iterative BFS (queue) avoids recursion depth issues.
+
+Example 1:
+4 4
+1 2
+2 3
+3 4
+1 4
+
+Adj:
+1: [2, 4]
+2: [1, 3]
+3: [2, 4]
+4: [3, 1]
+
+i=1: unvisited. ans[1]=1. Q=[1].
+Pop 1. Neighbors 2, 4.
+  ans[2]=0 -> ans[2]=2. Q=[2].
+  ans[4]=0 -> ans[4]=2. Q=[2, 4].
+Pop 2. Neighbors 1, 3.
+  ans[1]=1 (ok, !=2).
+  ans[3]=0 -> ans[3]=1. Q=[4, 3].
+Pop 4. Neighbors 3, 1.
+  ans[3]=1 (ok, !=2).
+  ans[1]=1 (ok, !=2).
+Pop 3. Neighbors 2, 4.
+  ans[2]=2 (ok, !=1).
+  ans[4]=2 (ok, !=1).
+Loop ends.
+ans = [0, 1, 2, 1, 2] (1-based index)
+Output: 1 2 1 2. Correct.
+
+Example 2:
+3 3
+1 2
+1 3
+2 3
+
+Adj:
+1: [2, 3]
+2: [1, 3]
+3: [1, 2]
+
+i=1: unvisited. ans[1]=1. Q=[1].
+Pop 1. Neighbors 2, 3.
+  ans[2]=2. Q=[2].
+  ans[3]=2. Q=[2, 3].
+Pop 2. Neighbors 1, 3.
+  ans[1]=1 (ok).
+  ans[3]=2. Conflict! ans[3] is 2, ans[2] is 2.
+Print NO. Correct.
+
+Implementation details:
+- Use `sys.stdin.read().split()` to parse all integers quickly.
+- Adjacency list using list of lists.
+- `ans` array.
+- BFS queue using `collections.deque` or just a list as a stack for DFS (BFS vs DFS doesn't matter for correctness on bipartiteness, but BFS is iterative by nature). Actually, since we just need to traverse, a simple list used as a stack (DFS) is slightly faster in Python than deque due to overhead, but recursion limit is the killer. Iterative DFS with a list is fine.
+- Wait, BFS is safer regarding stack depth. Iterative DFS also uses heap memory.
+- Let's use a list as a queue for BFS to keep it simple, or `collections.deque`. `deque` is $O(1)$ popleft, list is $O(N)$ popleft. Since $N=200,000$, list.pop(0) is too slow. `collections.deque` is better. Or just use a list as a stack for DFS (pop from end is $O(1)$). DFS order doesn't matter for validity.
+- Actually, for this problem, any traversal works. I will use a list as a stack for DFS to avoid importing deque, though importing deque is fine. Wait, standard `list` pop is $O(1)$ from end. So DFS is easy.
+- Wait, BFS is conceptually cleaner for "levels", but for bipartiteness checking, DFS is perfectly fine.
+- Let's stick to DFS with a stack to avoid imports if possible, but `sys.setrecursionlimit` is also an option. I'll use iterative DFS with a list stack.
+
+Wait, input parsing.
+The input format:
+First line: n m
+Next m lines: u v
+It's possible `m=0`.
+The input might be large. `sys.stdin.read().split()` creates a list of strings. Converting all to int might take memory but $400,000$ integers is about 1.6MB text, list of ints is small.
+Memory limit 256MB is plenty.
+
+Wait, one edge case: disconnected graph. The loop `for i in range(1, n+1)` handles disconnected components correctly.
+
+Code Structure:
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    colors = [0] * (n + 1)
+    
+    # We can use a stack for DFS
+    # Or just iterate.
+    
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start component
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            c = colors[u]
+            next_c = 3 - c
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_c
+                    stack.append(v)
+                elif colors[v] != next_c:
+                    print("NO")
+                    return
+
+    print("YES")
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, is `stack` traversal order important for lexicographical smallest?
+As discussed, the greedy choice is determined by the order we visit the *roots* of the components, which is $1, 2, \dots, n$.
+Once a root is picked and assigned 1, the rest of the component is forced.
+Does the order of traversal inside the component matter? No, because the constraints are local.
+Wait, let's re-verify.
+Suppose we have a component. We pick the smallest index $r$ in that component. We set $colors[r] = 1$.
+This forces $colors[v] = 3 - colors[u]$ for all neighbors.
+This propagates to the whole component.
+Since it's a tree/bipartite graph, there is a unique path (modulo cycles) from $r$ to any $v$.
+If there are cycles, they must be even length.
+If we encounter a visited node, we check consistency.
+If consistent, the values are fixed.
+If inconsistent, we fail.
+So the traversal order inside the component does not change the final assignment of the component, provided we start with $colors[r]=1$.
+So DFS or BFS doesn't matter.
+
+Wait, is it possible that `sys.setrecursionlimit` is needed?
+I am using iterative DFS (stack), so recursion limit is irrelevant.
+The memory usage for `adj` list: $2 \times M$ integers. $M=200,000 \implies 400,000$ ints. Python integers are objects, 28 bytes. List overhead.
+$400,000 \times 28 \approx 11$ MB.
+Adjacency list structure is fine.
+`input_data` list of strings: $400,000$ strings. Might be around 20-30 MB.
+Total memory well within 256 MB.
+
+Time complexity:
+Building graph: $O(M)$.
+Traversal: Each vertex and edge visited once. $O(N+M)$.
+Printing: $O(N)$.
+Total time $O(N+M)$. With $N, M = 2 \cdot 10^5$, this is well within 1 second (typically $10^7-10^8$ ops/sec in C++, Python maybe $10^6-10^7$).
+Python might be tight.
+Using `sys.stdin.read` is fast.
+`print(*(colors[1:]))` creates a large string. This is standard.
+One optimization: `colors` array access is fast.
+Inside the loop `for v in adj[u]`:
+If `adj` contains many neighbors, this is the bottleneck.
+But total iterations is $2M$.
+So it should pass.
+
+Wait, I should check if the problem statement implies anything else.
+"lexicographically smallest sequence of slot numbers".
+My logic: iterate $1 \dots n$. If unvisited, set to 1. This minimizes the first element of the unassigned part.
+Since components are disjoint, minimizing the first element of each component (which corresponds to the smallest index in that component) ensures the global sequence is minimized.
+Why?
+Let the sequence be $S$.
+Suppose we have two valid assignments $A$ and $B$.
+Let $k$ be the first index where $A_k \neq B_k$.
+We want $A_k < B_k$.
+In my algorithm, for the component containing $k$, let $r$ be the smallest index in that component.
+Since $k$ is the first index where assignments differ, for all $j < k$, the assignments are the same.
+This implies that the components for all $j < k$ are already decided and match.
+If $k$ is in a component with root $r \le k$.
+If $r < k$, then $r$ was processed earlier. Its color was fixed by my algorithm (to 1).
+If both $A$ and $B$ are valid, they must satisfy the bipartite constraints.
+For a component, there are only 2 valid colorings.
+If $r$ is processed first, one coloring has $c_r=1$, the other $c_r=2$.
+My algorithm picks $c_r=1$.
+If $A$ and $B$ differ at $k$, and $k$ is in the component of $r$.
+Then $A$ and $B$ must be the two different colorings for this component.
+One has $c_r=1$, the other $c_r=2$.
+Since $r \le k$, if $r < k$, then $c_r$ differs at $r$, not $k$. So $k$ wouldn't be the first difference.
+Thus, $k$ must be equal to $r$ (or the first difference is at $r$).
+If $k=r$, my algorithm sets $c_k=1$. The other option would be $c_k=2$.
+So my algorithm chooses $1$, which is smaller than $2$.
+So yes, it produces the lexicographically smallest sequence.
+
+One detail: `stack.pop()` in Python is $O(1)$. `adj[u]` iteration is fine.
+However, for deep graphs, Python function calls are slow, but here it's iterative.
+The only concern is input reading speed.
+`sys.stdin.read().split()` consumes a lot of memory?
+For $4 \cdot 10^5$ tokens, the string is maybe 2-3 MB. The list of strings is overhead.
+Should be fine.
+
+Wait, I should be careful about the `stack` logic.
+In DFS, we push neighbors to stack.
+If I use `stack.append(v)`, and iterate `for v in adj[u]`, the order of processing neighbors depends on their order in `adj`.
+This doesn't affect correctness, just the order of visiting.
+However, `adj` is built in order of edges.
+Does the order of neighbors matter? No.
+
+Let's double check Example 1 with the code logic.
+Input:
+4 4
+1 2
+2 3
+3 4
+1 4
+
+adj:
+1: [2, 4]
+2: [1, 3]
+3: [2, 4]
+4: [3, 1]
+
+Loop i=1. colors[1]=0.
+colors[1] = 1. stack=[1].
+Pop 1. u=1. c=1. next_c=2.
+adj[1] = [2, 4].
+v=2. colors[2]=0 -> colors[2]=2. stack=[2].
+v=4. colors[4]=0 -> colors[4]=2. stack=[2, 4].
+Pop 4. u=4. c=2. next_c=1.
+adj[4] = [3, 1].
+v=3. colors[3]=0 -> colors[3]=1. stack=[2, 3].
+v=1. colors[1]=1. next_c=1. Match. OK.
+Pop 3. u=3. c=1. next_c=2.
+adj[3] = [2, 4].
+v=2. colors[2]=2. next_c=2. Match. OK.
+v=4. colors[4]=2. next_c=2. Match. OK.
+Pop 2. u=2. c=2. next_c=1.
+adj[2] = [1, 3].
+v=1. colors[1]=1. Match.
+v=3. colors[3]=1. Match.
+Stack empty.
+Loop i=2, 3, 4 skipped.
+Output YES \n 1 2 1 2.
+Matches example output.
+
+One small thing:
+`print(*(colors[1:]))`
+This will print `1 2 1 2`.
+If `colors` is `[0, 1, 2, 1, 2]`. `colors[1:]` is `[1, 2, 1, 2]`.
+Correct.
+
+Wait, is there any case where `sys.setrecursionlimit` is implicitly needed?
+No, I'm not using recursion.
+Is `sys.stdin.read` blocking?
+It reads until EOF. In competitive programming, input is piped or redirected, so it works.
+If run interactively, one needs to send EOF (Ctrl+D). This is standard.
+
+One edge case: $N=1, M=0$.
+Loop i=1. colors[1]=0 -> colors[1]=1. stack=[1].
+Pop 1. adj[1]=[].
+Loop ends.
+Output YES \n 1. Correct.
+
+Another edge case: $N=2, M=1$, 1-2.
+i=1. colors[1]=1. stack=[1].
+Pop 1. adj[1]=[2]. v=2. colors[2]=2. stack=[2].
+Pop 2. adj[2]=[1]. v=1. colors[1]=1. OK.
+Output YES \n 1 2. Correct.
+
+What if $M=0, N=3$.
+i=1. colors[1]=1. stack=[1]. Empty adj.
+i=2. colors[2]=1. stack=[2].
+i=3. colors[3]=1. stack=[3].
+Output YES \n 1 1 1. Correct. (Lexicographically smallest).
+
+What if the graph is bipartite but disconnected?
+Already handled by the outer loop.
+What if the graph is not bipartite?
+Handled by `elif colors[v] != next_c`.
+
+Wait, there is a potential issue.
+If `adj[u]` has duplicates? The problem says "pairs of personnel ... mutually incompatible". Usually implies simple graph. But if input has duplicate edges, `adj` will have duplicates.
+If `u` is connected to `v` twice.
+When processing `u`, we see `v` twice.
+First time: `colors[v]` set.
+Second time: `colors[v]` checked. Since it's the same check, it will pass or fail consistently.
+No problem.
+
+What about self loops? $u \neq v$ is given.
+So no self loops.
+
+Wait, memory limit is 256MB.
+Python lists have overhead.
+`adj` is list of lists.
+Each list has some overhead.
+If many small lists, overhead adds up.
+$N=200,000$.
+Empty list overhead in Python is roughly 56 bytes + pointer.
+$200,000 \times 56 \approx 11$ MB.
+If edges are distributed, `adj` elements are integers.
+Total integers stored $400,000$.
+Each int object 28 bytes.
+$400,000 \times 28 \approx 11$ MB.
+References in lists: 8 bytes per reference.
+$400,000 \times 8 \approx 3.2$ MB.
+Total memory for graph structure $\approx 25-30$ MB.
+Input string buffer $\approx 5$ MB.
+Input list $\approx 20$ MB.
+`colors` array $\approx 2$ MB.
+Total is well under 256MB.
+
+Speed optimization:
+`sys.stdin.read().split()` creates a list of all tokens.
+For $400,000$ integers, this is fine.
+Using an iterator is efficient.
+`adj` construction loop runs $M$ times.
+BFS/DFS runs $O(N+M)$.
+Printing takes $O(N)$.
+Should be fine.
+
+Wait, I should check if `sys.stdin.read` is available in all environments. Yes, standard.
+Also `print` with `*` unpacking is efficient.
+
+Wait, one more check on the "lexicographically smallest" logic.
+Is it possible that assigning `colors[i]=1` forces a later node `j > i` in the same component to be 2, whereas assigning `colors[i]=2` would allow `j` to be 1?
+Yes.
+Example: Component is 1 - 2.
+If `colors[1]=1`, then `colors[2]=2`. Sequence: 1, 2.
+If `colors[1]=2`, then `colors[2]=1`. Sequence: 2, 1.
+1, 2 is lexicographically smaller than 2, 1.
+So we prefer `colors[1]=1`.
+What if component is 1 - 2 - 3.
+Option A (1->1): 1, 2, 1.
+Option B (1->2): 2, 1, 2.
+A < B.
+What if component is 1 - 2, 1 - 3, 2 - 3 (Triangle - not bipartite).
+Handled.
+What if component is 1 - 2, 2 - 3, 3 - 4, 4 - 1 (Cycle 4).
+Option A (1->1): 1, 2, 1, 2.
+Option B (1->2): 2, 1, 2, 1.
+A < B.
+It seems for any component, the coloring where the smallest index node gets 1 is always lexicographically smaller than the one where it gets 2, because the comparison is done index by index starting from 1.
+The first index in the component is $r$.
+In Option A, $s_r = 1$.
+In Option B, $s_r = 2$.
+Since $r$ is the first index belonging to this component (all $j < r$ are in other components already processed and fixed), the difference at index $r$ determines the lexicographical order of the two full sequences restricted to this component and subsequent components.
+Since $1 < 2$, Option A is better.
+So the greedy strategy is correct.
+
+Wait, is it possible that for some $j > r$, $s_j$ in Option A is larger than $s_j$ in Option B, and this outweighs the difference at $r$?
+No, lexicographical comparison is determined by the *first* difference.
+Since $r$ is the first index where the two assignments differ (because for all $k < r$, they are not in this component, so their values are fixed by previous components and are identical in both options), the value at $r$ decides the order.
+Wait, are values at $k < r$ identical?
+Yes, because components are disjoint. The assignment of component $C_1$ does not affect component $C_2$.
+The algorithm processes components in increasing order of their minimum index.
+So when we are at $r$, all components with min index $< r$ are already fully assigned and fixed.
+So for any $k < r$, $s_k$ is the same in any valid assignment.
+Thus, the first difference between any two valid assignments must occur at the minimum index of some component where the two assignments differ in coloring choice.
+To minimize the sequence, at the first such component (which is the one with the smallest minimum index), we must choose the coloring that gives 1 at the minimum index.
+My algorithm does exactly this.
+
+One minor thing: `input_data` might be empty?
+The problem says $1 \le n$. So input is not empty.
+The `try-except` block is just safety.
+
+Final check on imports.
+`import sys`
+`from collections import deque` (optional, I used list as stack)
+I'll stick to `sys`.
+I will use a list for the stack.
+
+One thing: `colors` array size `n+1`.
+`adj` size `n+1`.
+Everything 1-based.
+Output `colors[1:]`.
+Looks good.
+
+Wait, I should verify the constraints on $u, v$. $1 \le u, v \le n$.
+Yes.
+
+Is there any case where `sys.setrecursionlimit` is needed?
+No, iterative.
+
+Wait, could the stack grow too large?
+Maximum depth is $N$.
+In Python, list can hold 200,000 integers easily.
+Memory is fine.
+
+```python
+import sys
+
+# Increase recursion depth just in case, though we use iterative approach.
+sys.setrecursionlimit(200005)
+
+def solve():
+    # Read all input at once
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    colors = [0] * (n + 1)
+    
+    # Iterate through all nodes to handle disconnected components
+    # We want the lexicographically smallest assignment, so for each component,
+    # we force the smallest index node in that component to be color 1.
+    # Since we iterate i from 1 to n, the first time we encounter an unvisited node,
+    # it is the smallest index in its component among unvisited nodes (and thus 
+    # globally smallest unvisited).
+    
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start a traversal (DFS) for the component containing i
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            c = colors[u]
+            next_c = 3 - c  # If c is 1, next_c is 2; if c is 2, next_c is 1
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_c
+                    stack.append(v)
+                elif colors[v] != next_c:
+                    # Conflict detected: graph is not bipartite
+                    print("NO")
+                    return
+
+    # If we reach here, a valid assignment exists
+    print("YES")
+    # Print the colors for 1 to n
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+The logic holds.
+Double check time complexity again.
+Reading input: $O(N+M)$ (string splitting).
+Building graph: $O(M)$.
+DFS: Each node pushed once, each edge checked twice. $O(N+M)$.
+Printing: $O(N)$.
+Total $O(N+M)$.
+With $N, M = 200,000$, operations $\approx 10^6$. Python handles $\approx 10^7$ simple ops/sec. Should pass 1s limit.
+One potential slowdown is `sys.stdin.read().split()` on very large inputs creating many string objects.
+However, $4 \cdot 10^5$ strings is not that large.
+In competitive programming with Python, this is the standard fast I/O.
+Using `map(int, ...)` on split might be slightly cleaner but iterator is fine.
+Actually, `map` returns an iterator in Python 3.
+`input_data = sys.stdin.read().split()` creates the list.
+`iterator = map(int, input_data)`
+This avoids manual `int()` calls inside the loop, moving it to C level.
+Let's optimize that.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(200005)
+
+def solve():
+    # Read all input
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    # Create an iterator for faster access
+    iterator = map(int, input_data)
+    
+    try:
+        n = next(iterator)
+        m = next(iterator)
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    
+    # Process edges
+    # We can iterate m times
+    for _ in range(m):
+        u = next(iterator)
+        v = next(iterator)
+        adj[u].append(v)
+        adj[v].append(u)
+            
+    colors = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            c = colors[u]
+            next_c = 3 - c
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_c
+                    stack.append(v)
+                elif colors[v] != next_c:
+                    print("NO")
+                    return
+
+    print("YES")
+    print(*(colors[1:]))
+
+if __name__ == '__main__':
+    solve()
+```
+This looks cleaner and slightly faster.
+Wait, `map` in Python 3 returns an iterator. `next(iterator)` works.
+If `m=0`, the loop `range(m)` does nothing. Correct.
+If `input_data` ends prematurely (malformed input), `next(iterator)` raises `StopIteration`.
+The problem guarantees valid input format usually.
+But I should wrap in try-except or just assume valid.
+Given it's a competitive programming problem, input is guaranteed to match format.
+
+Wait, `adj` list initialization: `[[] for _ in range(n + 1)]`.
+This creates `n+1` distinct list objects. Correct.
+If I did `[[]] * (n+1)`, they would be the same object. I used list comprehension, so it's correct.
+
+One detail: `print(*(colors[1:]))`
+If `n` is large, creating the slice `colors[1:]` copies the list.
+$200,000$ integers copy is fast enough.
+`print` with `*` unpacking is generally efficient.
+Alternatively `print(' '.join(map(str, colors[1:])))` might be faster or slower depending on implementation, but `*` is usually fine.
+Actually `join` is often faster for huge outputs.
+`sys.stdout.write(' '.join(map(str, colors[1:])) + '\n')`
+This avoids creating the tuple from `*` and `print` formatting overhead.
+Given 1s limit, optimization is good.
+Let's use `sys.stdout.write`.
+
+Wait, `map(str, colors[1:])` creates string objects.
+`' '.join(...)` creates a huge string.
+Memory for huge string: $200,000 \times 2$ chars $\approx 400$ KB. Trivial.
+So `sys.stdout.write` is good practice.
+
+Final check on logic.
+Is it possible that `stack` logic visits nodes in an order that misses checking a conflict?
+DFS checks every edge.
+When at `u`, we iterate all `v` in `adj[u]`.
+If `v` is unvisited, we assign and push.
+If `v` is visited, we check color.
+This ensures every edge `(u, v)` is checked when processing `u` (to check `v`) and when processing `v` (to check `u` - assuming `v` was pushed before `u` was popped, or vice versa).
+Actually, in DFS, an edge `(u, v)` is considered when `u` is popped (if `v` is unvisited, push `v`; if `v` visited, check).
+If `v` was already visited and popped, we check consistency.
+If `v` is in stack (visiting), we check consistency.
+Since it's an undirected graph, we might check the edge twice.
+Once from `u` to `v`, once from `v` to `u`.
+Both checks must pass.
+If `colors[v] != next_c`, it fails.
+Is it possible that `colors[v]` is set to something that makes it consistent with `u` but inconsistent with another neighbor?
+The consistency check is local.
+If the graph is not bipartite, there exists an odd cycle.
+In an odd cycle, we will eventually find an edge connecting two nodes of the same color.
+Since we traverse the whole component, we will encounter this edge.
+So BFS/DFS works for bipartiteness check.
+
+One detail: `stack.pop()` takes from end.
+This is DFS.
+DFS order:
+1 -> 2 -> 3 -> 4 (if path exists)
+Backtracking happens when stack pops.
+Correct.
+
+The code seems solid.
+
+```python
+import sys
+
+# Increase recursion depth just in case, though we use iterative approach.
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    # Use an iterator to traverse the input efficiently
+    iterator = map(int, input_data)
+    
+    try:
+        n = next(iterator)
+        m = next(iterator)
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        try:
+            u = next(iterator)
+            v = next(iterator)
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    colors = [0] * (n + 1)
+    
+    # Iterate through all nodes to handle disconnected components
+    # We want the lexicographically smallest assignment.
+    # For each component, the first node we encounter (smallest index)
+    # should be assigned color 1 to minimize the sequence.
+    
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start a traversal (DFS) for the component containing i
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            c = colors[u]
+            next_c = 3 - c  # Switch between 1 and 2
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_c
+                    stack.append(v)
+                elif colors[v] != next_c:
+                    # Conflict detected: graph is not bipartite
+                    print("NO")
+                    return
+
+    # If we reach here, a valid assignment exists
+    print("YES")
+    # Print the colors for 1 to n
+    # Using sys.stdout.write for potentially faster output
+    sys.stdout.write(" ".join(map(str, colors[1:])) + "\n")
+
+if __name__ == '__main__':
+    solve()
+```
+Wait, `map` returns an iterator. `next(iterator)` works.
+But `input_data` is a list of strings. `map(int, input_data)` creates an iterator over integers.
+This is correct.
+One detail: `sys.setrecursionlimit` is not needed for iterative solution, but doesn't hurt.
+I'll keep it or remove it. I'll remove it to be clean, as I'm not using recursion.
+The `try-except` inside the loop is good for safety against malformed input, though not strictly required.
+The `try-except` around `n, m` is good.
+
+Wait, `sys.stdout.write` expects a string. `map(str, colors[1:])` returns an iterator. `join` consumes it. Correct.
+
+One final check: `colors` array is 0-initialized. `1` and `2` are assigned.
+If `colors[i]` is checked, it's non-zero.
+The logic `colors[v] != next_c` correctly identifies conflict.
+If `colors[v]` is 0, it's unvisited.
+If `colors[v]` is 1 or 2, it's visited.
+If `c` is 1, `next_c` is 2. If `colors[v]` is 1, conflict.
+If `c` is 2, `next_c` is 1. If `colors[v]` is 2, conflict.
+Correct.
+
+The solution looks complete.
+
+```python
+import sys
+
+# Set recursion limit just in case, though iterative DFS is used.
+sys.setrecursionlimit(200005)
+
+def solve():
+    # Read all input from standard input efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    # Create an iterator to parse integers
+    iterator = map(int, input_data)
+    
+    try:
+        n = next(iterator)
+        m = next(iterator)
+    except StopIteration:
+        return
+
+    # Build adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        try:
+            u = next(iterator)
+            v = next(iterator)
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    # Array to store the slot assignment (1 or 2) for each person
+    # 0 indicates unassigned
+    colors = [0] * (n + 1)
+    
+    # Iterate through each person to handle disconnected components
+    # To achieve the lexicographically smallest sequence, when we encounter
+    # the first unassigned person in a component (which is the smallest index
+    # in that component), we assign them slot 1. This forces the rest of the
+    # component's assignment based on the bipartite constraint.
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start DFS traversal for the component
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            current_color = colors[u]
+            next_color = 3 - current_color  # Toggle between 1 and 2
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_color
+                    stack.append(v)
+                elif colors[v] != next_color:
+                    # If a neighbor has the same color, the graph is not bipartite
+                    print("NO")
+                    return
+
+    # If we successfully assign colors to all nodes without conflicts
+    print("YES")
+    # Output the assignment for persons 1 to n
+    sys.stdout.write(" ".join(map(str, colors[1:])) + "\n")
+
+if __name__ == '__main__':
+    solve()
+```
+This looks perfect.
+
+One check: memory limit.
+`input_data` holds all tokens.
+`adj` holds all edges.
+`colors` holds nodes.
+Stack holds nodes.
+All within limits.
+
+Time limit: 1s.
+Python `split` and `map` are fast.
+Graph building $O(M)$.
+DFS $O(N+M)$.
+Output $O(N)$.
+Should pass.
+
+One edge case: `m=0`.
+Loop `range(0)` doesn't run. `adj` is empty lists.
+Loop `range(1, n+1)` assigns 1 to everyone.
+Correct.
+
+Another edge case: `n=1, m=0`.
+Assigns 1. YES \n 1. Correct.
+
+Another: `n=2, m=1`, 1-2.
+i=1. colors[1]=1. stack=[1].
+Pop 1. v=2. colors[2]=2. stack=[2].
+Pop 2. v=1. colors[1]=1 (next_c=1). Match.
+YES \n 1 2. Correct.
+
+Another: `n=3, m=3`, 1-2, 2-3, 1-3.
+i=1. c[1]=1. stack=[1].
+Pop 1. v=2 -> c[2]=2. stack=[2].
+Pop 1. v=3 -> c[3]=2. stack=[2, 3].
+Pop 3. v=2. c[2]=2. next_c=1. Conflict (2==2).
+Wait, `colors[v] != next_c`.
+`c[3]=2`. `next_c` for 3 (which is neighbor of 1, c[1]=1) is 2.
+Wait, inside loop for `u=3`. `c[3]=2`. `next_c=1`.
+Neighbor `v=2`. `c[2]=2`.
+`c[2] != next_c` (2 != 1) -> True.
+So conflict detected.
+Wait, `elif colors[v] != next_c:`
+If `c[2]` is 2, and `next_c` is 1. Then `2 != 1` is True.
+So it prints NO.
+Correct. Triangle is not bipartite.
+
+Wait, my manual trace earlier for Example 2 said:
+"Pop 2. Neighbors 1, 3. ans[1]=1 (ok). ans[3]=2. Conflict! ans[3] is 2, ans[2] is 2."
+In my code trace just now:
+`u=1`. `c[1]=1`. `next_c=2`.
+`v=2`. `c[2]=0` -> `c[2]=2`. Stack `[2]`.
+`v=3`. `c[3]=0` -> `c[3]=2`. Stack `[2, 3]`.
+`u=3`. `c[3]=2`. `next_c=1`.
+`v=1`. `c[1]=1`. `next_c=1`. `1 != 1` False. OK.
+`v=2`. `c[2]=2`. `next_c=1`. `2 != 1` True. Conflict. NO.
+Correct.
+
+Wait, `stack` order.
+`stack.append(v)` adds to end.
+`stack.pop()` removes from end.
+So it's LIFO (DFS).
+If `stack` was `[2, 3]`. `pop()` gives `3`.
+So we process `3` before `2`.
+This is fine. Bipartiteness check is order-independent.
+
+Seems good.
+
+One detail: `sys.setrecursionlimit` is not needed for iterative. I will remove it to be cleaner.
+The `try-except` blocks are good practice.
+
+One small optimization: `adj` list can be preallocated?
+No, list comprehension is fine.
+
+Double check the `sys.stdin.read` behavior.
+It reads until EOF.
+If run locally, user must press Ctrl+D.
+This is standard for such problems.
+
+Final check on output format.
+"YES" on first line.
+"space-separated integers" on second line.
+My code does exactly this.
+
+I'll put the code in the block.
+
+```python
+import sys
+
+# Increase recursion depth just in case, though iterative approach is used.
+sys.setrecursionlimit(200005)
+
+def solve():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    # Create an iterator to parse integers efficiently
+    iterator = map(int, input_data)
+    
+    try:
+        n = next(iterator)
+        m = next(iterator)
+    except StopIteration:
+        return
+
+    # Build adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        try:
+            u = next(iterator)
+            v = next(iterator)
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    # Array to store the slot assignment (1 or 2) for each person
+    # 0 indicates unassigned
+    colors = [0] * (n + 1)
+    
+    # Iterate through each person to handle disconnected components
+    # To achieve the lexicographically smallest sequence, when we encounter
+    # the first unassigned person in a component (which is the smallest index
+    # in that component), we assign them slot 1. This forces the rest of the
+    # component's assignment based on the bipartite constraint.
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start DFS traversal for the component
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            current_color = colors[u]
+            next_color = 3 - current_color  # Toggle between 1 and 2
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_color
+                    stack.append(v)
+                elif colors[v] != next_color:
+                    # If a neighbor has the same color, the graph is not bipartite
+                    print("NO")
+                    return
+
+    # If we successfully assign colors to all nodes without conflicts
+    print("YES")
+    # Output the assignment for persons 1 to n
+    sys.stdout.write(" ".join(map(str, colors[1:])) + "\n")
+
+if __name__ == '__main__':
+    solve()
+```
+Looks ready.
+
+Wait, I should check if `sys.setrecursionlimit` is needed for the `stack` logic? No.
+I'll keep it just in case I missed something, but it's not used. Actually, I'll remove it to be strictly correct about iterative.
+Wait, `map` returns iterator. `next` is fine.
+Is there any chance `input_data` is huge and `split` fails?
+200,000 lines, 2 ints each -> 400,000 ints.
+String size ~ 2-3 MB.
+Split list ~ 400k items.
+Python handles this easily.
+Memory limit 256MB.
+It is safe.
+
+One last check: `print("YES")` vs `sys.stdout.write("YES\n")`.
+`print` adds newline.
+`sys.stdout.write` needs explicit newline.
+My code uses `print("YES")` and `sys.stdout.write(... + "\n")`.
+Consistent.
+
+I will remove `sys.setrecursionlimit` to avoid confusion.
+
+```python
+import sys
+
+def solve():
+    # Read all input from standard input
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    # Create an iterator to parse integers efficiently
+    iterator = map(int, input_data)
+    
+    try:
+        n = next(iterator)
+        m = next(iterator)
+    except StopIteration:
+        return
+
+    # Build adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        try:
+            u = next(iterator)
+            v = next(iterator)
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    # Array to store the slot assignment (1 or 2) for each person
+    # 0 indicates unassigned
+    colors = [0] * (n + 1)
+    
+    # Iterate through each person to handle disconnected components
+    # To achieve the lexicographically smallest sequence, when we encounter
+    # the first unassigned person in a component (which is the smallest index
+    # in that component), we assign them slot 1. This forces the rest of the
+    # component's assignment based on the bipartite constraint.
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start DFS traversal for the component
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            current_color = colors[u]
+            next_color = 3 - current_color  # Toggle between 1 and 2
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_color
+                    stack.append(v)
+                elif colors[v] != next_color:
+                    # If a neighbor has the same color, the graph is not bipartite
+                    print("NO")
+                    return
+
+    # If we successfully assign colors to all nodes without conflicts
+    print("YES")
+    # Output the assignment for persons 1 to n
+    sys.stdout.write(" ".join(map(str, colors[1:])) + "\n")
+
+if __name__ == '__main__':
+    solve()
+```
+This is the final code.
+
+Wait, I should verify the Example 1 input parsing.
+`4 4`
+`1 2`
+`2 3`
+`3 4`
+`1 4`
+`input_data` = `['4', '4', '1', '2', '2', '3', '3', '4', '1', '4']`
+`n=4`, `m=4`.
+Loop 4 times.
+1-2, 2-3, 3-4, 1-4.
+Correct.
+
+The code is good.
+
+One final thought: Is it possible that `adj[u]` contains duplicates?
+If input has duplicate edges, `adj` will have duplicates.
+My code handles duplicates gracefully (checks same edge twice, result is same).
+Time complexity might increase slightly if many duplicates, but problem constraints usually imply simple graph or at least $M$ edges given. $M$ is up to 200,000. So total iterations is bounded by $M$.
+So it's fine.
+
+One detail: `map(int, input_data)` consumes memory for the mapping?
+In Python 3, `map` returns an iterator, it doesn't create a list.
+So memory is efficient.
+The `input_data` list is the main memory consumer.
+It's fine.
+
+I'm confident.
+</think>
+```python
+import sys
+
+# Increase recursion depth just in case, though iterative approach is used.
+sys.setrecursionlimit(300000)
+
+def solve():
+    # Read all input from standard input efficiently
+    # sys.stdin.read() reads the entire input into a string
+    # .split() splits it by whitespace into a list of strings
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    # Create an iterator to parse integers efficiently
+    # map(int, input_data) returns an iterator that yields integers
+    iterator = map(int, input_data)
+    
+    try:
+        n = next(iterator)
+        m = next(iterator)
+    except StopIteration:
+        return
+
+    # Build adjacency list for the graph
+    # adj[i] will store the list of personnel incompatible with person i
+    adj = [[] for _ in range(n + 1)]
+    
+    for _ in range(m):
+        try:
+            u = next(iterator)
+            v = next(iterator)
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+            
+    # Array to store the slot assignment (1 or 2) for each person
+    # 0 indicates unassigned
+    colors = [0] * (n + 1)
+    
+    # Iterate through each person to handle disconnected components
+    # We want the lexicographically smallest sequence s_1, s_2, ..., s_n.
+    # This means we want s_1 to be 1 if possible. If s_1 is fixed (by a previous component or choice),
+    # we move to s_2, and so on.
+    # When we encounter an unassigned person 'i' in the loop (1 to n), it is the smallest index
+    # in its connected component that hasn't been assigned yet.
+    # To minimize the sequence, we must assign 'i' to slot 1.
+    # Once 'i' is assigned to 1, the bipartite constraints force the assignments for all other
+    # nodes in this component. If this leads to a conflict, then no valid assignment exists.
+    
+    for i in range(1, n + 1):
+        if colors[i] != 0:
+            continue
+        
+        # Start DFS traversal for the component containing i
+        colors[i] = 1
+        stack = [i]
+        
+        while stack:
+            u = stack.pop()
+            current_color = colors[u]
+            next_color = 3 - current_color  # Toggle between 1 and 2
+            
+            for v in adj[u]:
+                if colors[v] == 0:
+                    colors[v] = next_color
+                    stack.append(v)
+                elif colors[v] != next_color:
+                    # If a neighbor has the same color, the graph is not bipartite
+                    print("NO")
+                    return
+
+    # If we successfully assign colors to all nodes without conflicts
+    print("YES")
+    # Output the assignment for persons 1 to n
+    # Using sys.stdout.write for efficient output
+    sys.stdout.write(" ".join(map(str, colors[1:])) + "\n")
+
+if __name__ == '__main__':
+    solve()
+```

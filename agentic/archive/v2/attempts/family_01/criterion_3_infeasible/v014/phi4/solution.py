@@ -1,0 +1,33 @@
+from sys import stdin
+
+def find_incompatible_triplet(n, m, frictions):
+    # Create an adjacency matrix for pairwise frictions
+    friction_matrix = [[False] * (n + 1) for _ in range(n + 1)]
+    
+    for u, v in frictions:
+        friction_matrix[u][v] = True
+        friction_matrix[v][u] = True
+    
+    # Check for the lexicographically smallest triplet with all pairwise frictions
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            if friction_matrix[a][b]:
+                for c in range(b + 1, n + 1):
+                    if friction_matrix[a][c] and friction_matrix[b][c]:
+                        return f"{a} {b} {c}"
+
+# Read input
+input_data = stdin.read().strip().split()
+n = int(input_data[0])
+m = int(input_data[1])
+
+frictions = []
+index = 2
+for _ in range(m):
+    u = int(input_data[index])
+    v = int(input_data[index + 1])
+    frictions.append((u, v))
+    index += 2
+
+# Find and print the lexicographically smallest incompatible triplet
+print(find_incompatible_triplet(n, m, frictions))

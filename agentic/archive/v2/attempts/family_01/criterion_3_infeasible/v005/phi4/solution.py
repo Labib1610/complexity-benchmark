@@ -1,0 +1,25 @@
+import sys
+
+def find_critical_incompatibility_group():
+    # Read n and m from input
+    n, m = map(int, input().split())
+    
+    # Create an adjacency matrix for incompatibilities
+    incompatible = [[False] * (n + 1) for _ in range(n + 1)]
+    
+    # Fill the adjacency matrix with given pairs of incompatibilities
+    for _ in range(m):
+        u, v = map(int, input().split())
+        incompatible[u][v] = True
+        incompatible[v][u] = True
+    
+    # Iterate over all possible triples (a, b, c) to find the lexicographically smallest one
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            if incompatible[a][b]:
+                for c in range(b + 1, n + 1):
+                    if incompatible[a][c] and incompatible[b][c]:
+                        print(a, b, c)
+                        return
+
+find_critical_incompatibility_group()

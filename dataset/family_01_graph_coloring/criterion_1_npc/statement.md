@@ -9,7 +9,7 @@ shift, or report that it is impossible.
 
 ## Input
 The first line contains two integers n and m — the number of workers and the
-number of conflict pairs (1 ≤ n ≤ 20, 0 ≤ m ≤ n·(n−1)/2).
+number of conflict pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
 Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output

@@ -1,0 +1,65 @@
+import sys
+
+def factory_duty_allocation():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
+        index += 2
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+
+    # Create adjacency list
+    adj_list = {i: [] for i in range(1, n + 1)}
+    for u, v in edges:
+        adj_list[u].append(v)
+        adj_list[v].append(u)
+
+    # Try to assign work periods
+    assignment = [0] * (n + 1)
+    
+    def is_valid(node, period):
+        for neighbor in adj_list[node]:
+            if assignment[neighbor] == period:
+                return False
+        return True
+    
+    def dfs(node, period):
+        if assignment[node] != 0:
+            return assignment[node] == period
+        
+        assignment[node] = period
+        next_period = 3 - period
+        
+        for neighbor in adj_list[node]:
+            if not dfs(neighbor, next_period):
+                return False
+        
+        return True
+    
+    for i in range(1, n + 1):
+        if assignment[i] == 0:
+            if not dfs(i, 1):
+                print("NO")
+                return
+    
+    # Generate the lexicographically smallest assignment
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(assignment[i]))
+    
+    print("YES")
+    print(" ".join(result))
+
+factory_duty_allocation()

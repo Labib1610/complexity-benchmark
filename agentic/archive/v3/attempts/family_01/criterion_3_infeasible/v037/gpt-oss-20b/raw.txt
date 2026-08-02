@@ -1,0 +1,252 @@
+<think>
+We need to find lexicographically smallest triangle in an undirected graph with n up to 2000, m up to 200k. We need algorithm efficient.
+
+We can store adjacency as bitset or boolean matrix. n=2000, adjacency matrix 2000x2000 booleans fits 4 million bits ~ 0.5 MB. Actually 2000*2000=4e6 booleans, each bool 1 byte maybe 4MB, okay. We can store as list of bitarrays or python set.
+
+Simpler: adjacency as list of bitset using Python's built-in set of integers for neighbors. But to check existence quickly, we need O(1) membership. We can use adjacency matrix of bool using list of bytearray or list of array('b').
+
+We can create adjacency matrix as list of bytearray of length n+1.
+
+Then iterate a from 1..n-2: for each neighbor b > a where adjacency[a][b] true. For each pair (a,b), find c > b that is neighbor of both a and b. We can iterate over neighbors of a or b. We need lexicographically smallest, so we want minimal a, then minimal b, then minimal c. So we can iterate a ascending, then b ascending (b > a), then find minimal c > b that satisfies adjacency[a][c] and adjacency[b][c]. We can find minimal c by iterating c ascending from b+1 to n. But that would be O(n^3). Instead we can use intersection of adjacency lists.
+
+Given adjacency bitset, we can compute intersection quickly: use bitset AND and find first set bit > b. For n <=2000, we can represent bitset as Python int bitmask of length n. Then adjacency[a] is bitmask of neighbors. Then intersection = adjacency[a] & adjacency[b]. Then we need minimal bit index > b. We can shift right by (b). But careful: indices are 1-based. We'll store bits 1..n inclusive. Use bit 0 unused.
+
+Alternatively, we can precompute adjacency list as list of sorted neighbors. For each a,b pair, we can iterate over smaller neighbor list to find intersection > b. But we need lexicographically smallest, so for each (a,b) we need to find smallest c > b.
+
+We can use adjacency bitmask: adjacency_mask[a] is int with bits for neighbors. Then intersection = adjacency_mask[a] & adjacency_mask[b]. We then need minimal c > b: we can compute mask >> (b) (shift right by b) and find lowest set bit. If not zero, we can compute c = (b + 1 + trailing_zeros). trailing_zeros can be found using (mask & -mask). We'll get least significant bit.
+
+Implementation steps:
+
+- Read n,m.
+- Create adjacency_mask list of size n+1, each 0.
+- For each edge u,v: set adjacency_mask[u] |= 1 << v; adjacency_mask[v] |= 1 << u.
+
+But 1 << v for v up to 2000 -> shift by 2000 bits -> Python int fine.
+
+- Then iterate a from 1 to n-2:
+    for b in neighbors of a greater than a: we can iterate over all possible b > a where adjacency_mask[a] has bit set. We can get neighbors via bit iteration. But we can also precompute neighbor list per node sorted ascending.
+
+We can create neighbor lists: neighbors[a] sorted ascending. Then for each a, iterate over b in neighbors[a] where b > a. That ensures b > a.
+
+- For each pair (a,b), compute intersection = adjacency_mask[a] & adjacency_mask[b]. We need to find minimal c > b. So we need to shift mask by (b). Let's compute mask = intersection >> (b). Because we want bits starting from b+1. But note shift by b removes bits <= b. So mask bits correspond to indices c where original index = bit position + b. Then find least significant set bit: if mask == 0: none.
+
+- else: lsb = mask & -mask; c = (b) + lsb.bit_length()  # Because lsb has 1 at position k (0-based). bit_length gives position+1. For example, lsb=1 -> bit_length=1 -> c=b+1. Works.
+
+- Once we find c, we output a,b,c and exit.
+
+Because we iterate a ascending, b ascending, and find minimal c via lowest set bit, this will produce lexicographically smallest triangle.
+
+Edge case: need to ensure we only consider b > a. neighbors list may contain lower indices. We'll filter.
+
+Complexities: For each a, for each neighbor b > a. In worst-case graph dense: each node connected to many others. Number of edges m up to 2e5. So loops will be ~m. For each pair we compute intersection bit operations O(1). Good.
+
+Implementation details:
+
+- Build neighbor list: using adjacency_mask, we can build neighbor list by iterating bits. But easier: while reading edges, also append to list. After reading all edges, sort each list.
+
+- But we need neighbors sorted ascending for each node. So we can use list and then sort.
+
+- For each a, iterate for b in neighbors[a]: if b > a, process.
+
+- Since we only need to iterate each directed pair once? Actually we will process each unordered pair twice if we don't handle. But we only process when b > a, so each unordered pair processed once.
+
+- For each pair, compute intersection. Need to compute adjacency_mask[a] & adjacency_mask[b].
+
+- Compute mask = intersection >> (b). If mask == 0: skip. Else lsb = mask & -mask; c = b + lsb.bit_length(); output.
+
+Test examples.
+
+Edge Cases: Suppose triangle (1,2,3). adjacency_mask[1] has bit 2,3 etc. For a=1, neighbors sorted [2,3,...]. b=2 >1. intersection = mask of neighbors common to 1 and 2: should contain 3. intersection >> 2 => shift 2 bits: bit 3 becomes bit 1? Wait: original bit 3 index 3. After shift by 2, 3-2=1 bit. So mask has lsb=1. lsb.bit_length()=1, so c=2+1=3. Good.
+
+We must ensure that bit positions correspond to node numbers. We'll index bits starting at 1. So bit position i corresponds to node i. So we set 1 << v. For v=2000, shift 2000 bits.
+
+Potential performance: bit_length for lsb; lsb is int up to 2^2000, but bit_length is fast.
+
+We need to handle shift by large numbers: intersection >> b may be large shift but fine.
+
+Complexities: m up to 200k, n 2000. We store adjacency_mask as list of ints of length n+1.
+
+Implementation code: read input, build adjacency_mask, neighbors list. Then loops.
+
+Return answer.
+
+Let's test with example.
+
+Example 1:
+
+n=4, edges:
+1-2,1-3,2-3,2-4,3-4.
+
+Neighbors:
+1:[2,3]
+2:[1,3,4]
+3:[1,2,4]
+4:[2,3]
+
+Loop a=1: neighbors [2,3]
+b=2: intersection of 1 and 2 -> neighbors of both: 3. shift >>2 => mask bits: 1. lsb=1 => c=3. Output 1 2 3. Works.
+
+Example 2:
+
+Edges: 1-2,1-4,2-4,3-4,3-5,4-5.
+
+Neighbors:
+1:[2,4]
+2:[1,4]
+3:[4,5]
+4:[1,2,3,5]
+5:[3,4]
+
+a=1: neighbors [2,4]
+b=2: intersection of 1,2 -> 4. shift >>2 => mask bits: 1? Wait bit index 4 shift by 2 => 2. mask=1 << 2? Actually intersection has bit 4 set. intersection >>2 -> bit 2 set. lsb bit_length=3? Let's compute: intersection=1<<4=16, >>2 -> 4 (binary 100). lsb=4 & -4 =4. bit_length=3. c =2+3=5? That's wrong. Wait: shift by b=2. Should shift by (b). That gives bits for indices > b. For bit 4, after shift 2, it becomes bit 2 (index 2). lsb=4, bit_length=3? No, bit_length of 4 is 3 because 4 in binary is 100 which has length 3 bits. That corresponds to position 2 (0-index). bit_length-1 = position. So to compute c we need b + position+1? Let's re-evaluate.
+
+Better: we can compute c = b + (lsb.bit_length())? Let's test: b=2, lsb=4, bit_length=3, c=5. But actual c=4. So wrong.
+
+We need correct formula: after shifting by b, position k corresponds to original index = b + k. But k is zero-based index of bit. So if lsb is 1<<k, then k = lsb.bit_length() -1. Then original index = b + k. So c = b + (lsb.bit_length() -1). Let's test: lsb=4 (100), bit_length=3, k=2, c=2+2=4. Right.
+
+Thus c = b + (lsb.bit_length() -1). Or we can compute c = b + (lsb.bit_length() -1).
+
+So fix formula.
+
+Let's test earlier example 1: intersection=1<<3=8, shift by b=2 => 8>>2 = 2 (10). lsb=2, bit_length=2 => k=1, c=2+1=3. Good.
+
+Edge case: if lsb=1, bit_length=1, k=0, c=b+0= b? Wait c should be b+1. If lsb=1 after shift, that means original c=b+1? Let's test: Suppose intersection has bit b+1 set. intersection>>b => bit 1 set (value 1). lsb=1, bit_length=1, k=0, c=b+0 = b. That's wrong. Wait we lost +1. Because shift by b - not b-1? Let's think.
+
+We shift intersection by b (not b-1). For original index c = b+1: after shift by b, bit position becomes 1? Actually original bit index c. After shifting right by b, the bit for index c moves to position c-b. For c=b+1, c-b=1. So we need bit position 1. But shift by b? For c=b+1, after shift by b, we get 1 <<1? Wait: example: b=2, c=3. intersection bit 3 => 1<<3=8. shift >>2 => 8>>2=2 (10). That's bit 1 (value 2). Not 1. So shift by b yields bit position c-b. For c=b+1, c-b=1 => bit 1 (value 2). So after shift, the bit is 2. So lsb=2, bit_length=2, k=1, c= b + k = 2+1=3 correct.
+
+Thus shift by b correct; we need to compute k = lsb.bit_length() -1. Then c = b + k.
+
+Example earlier: for 1<<4 shift by 2 -> 16>>2=4 (100). lsb=4, bit_length=3, k=2, c=2+2=4 correct.
+
+So formula works.
+
+Edge case: When lsb=1? That would mean original index c=b? But we only consider c > b. So lsb cannot be 1 because after shift by b, bit 0 would correspond to original index b. So lsb=1 means there is an edge (a,b) with itself? Not possible. So lsb always at least 2. So fine.
+
+Thus algorithm stands.
+
+Implementation details: For each a, iterate neighbors[b] > a. For each such b, compute intersection and shift.
+
+We need adjacency_mask for each node. Build.
+
+Edge reading: For each (u,v), set adjacency_mask[u] |= 1 << v; adjacency_mask[v] |= 1 << u.
+
+Neighbors list: we can after reading edges, we can generate by iterating over bits of mask or just store while reading. We'll just store while reading: neighbors[u].append(v); neighbors[v].append(u). After reading all edges, sort each list.
+
+Complexities fine.
+
+Let's produce code.
+
+We need to output a,b,c as ints.
+
+Input reading: use sys.stdin.read().split().
+
+Edge cases: Guarantee at least one triangle.
+
+We must break after output.
+
+Let's test with example 2 again.
+
+Neighbors:
+
+1:[2,4]
+2:[1,4]
+3:[4,5]
+4:[1,2,3,5]
+5:[3,4]
+
+For a=1, neighbors>1: b=2,4.
+
+b=2: intersection = adjacency_mask[1] & adjacency_mask[2] = neighbors common: 4. intersection >> 2 => 4>>2? Wait intersection 1<<4 = 16. >>2 => 4. lsb=4, bit_length=3, k=2, c=2+2=4. So triangle 1,2,4. That's lexicographically smallest. Output 1 2 4. Good.
+
+Ok.
+
+Now let's test with scenario where triangle uses a=1,b=3,c=4. For a=1, neighbors >1: b=2,4. 2 may produce triangle 1,2,4. 4 maybe produce triangle 1,4,? but 4's neighbors >4 none. So output correct.
+
+Edge where triangle uses a=2,b=4,c=5. Suppose earlier a=1 not produce triangle. Then a=2 next, neighbors >2: 4,5? Actually 2's neighbors >2 maybe 4. intersection of 2 and 4 includes 5. shift >>4 etc. Works.
+
+Ok.
+
+Let's test with small graph: n=3, m=3 edges all pairs. adjacency mask as 1<<2, etc. For a=1, neighbors>1: b=2. intersection: mask of 1 and 2 includes 3. shift >>2 => 1<<1? Wait intersection bit3=8 >>2=2. lsb=2, bit_length=2, k=1, c=2+1=3. Output 1 2 3. Good.
+
+Now for n=2000, m large. Implementation fine.
+
+Let's produce code.
+
+Potential pitfalls: shift by b may exceed bit length of intersection; but shift >> returns 0 if shift > bits. Good.
+
+Compute intersection: adjacency_mask[a] & adjacency_mask[b]. Int.
+
+Compute mask = intersection >> b. If mask == 0: continue.
+
+Compute lsb = mask & -mask. c = b + (lsb.bit_length() - 1)
+
+Print a,b,c.
+
+Return.
+
+Let's test with random small graphs with brute force to confirm lexicographic smallest.
+
+We'll write a test harness to check.
+
+But as ChatGPT we can't run code; but we can reason.
+
+Edge case: Suppose there exists triangle (a,b,c) but a has neighbor b and c but there is also triangle (a,b,d) where d>c. Our algorithm will find first pair (a,b) with intersection containing at least one >b. We find minimal c among common neighbors >b via shift. That yields minimal c. Good.
+
+What about situation where for a,b pair, minimal c > b is not minimal lexicographically among all triangles? Suppose there is triangle (a',b',c') with a'<a? Not possible because we iterate a ascending. So lexicographic minimal a ensures minimal a. Among triangles with same a, we iterate b ascending. So if there is triangle (a,b',c') with b'<b but same a, we would have processed earlier because we iterate over neighbors ascending. So minimal b is found. For that pair (a,b'), we find minimal c. So lexicographically minimal triangle found.
+
+Thus algorithm correct.
+
+Time complexity: O(m + sum over directed pairs of intersection?). But intersection computed as bit operations O(1). So O(m). m up to 2e5 fine.
+
+Memory: adjacency_mask list of ints size n+1, each int up to 2^2000 bits: memory small.
+
+Implementation details: Use sys.stdin.buffer read.
+
+Let's produce final code.
+</think>
+```python
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+
+    adjacency_mask = [0] * (n + 1)
+    neighbors = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        adjacency_mask[u] |= 1 << v
+        adjacency_mask[v] |= 1 << u
+        neighbors[u].append(v)
+        neighbors[v].append(u)
+
+    for a in range(1, n - 1):
+        neigh_a = neighbors[a]
+        # sort neighbors once for each node
+        neigh_a.sort()
+        for b in neigh_a:
+            if b <= a:
+                continue
+            # intersection of neighbors of a and b
+            common = adjacency_mask[a] & adjacency_mask[b]
+            # shift right by b to consider only c > b
+            mask = common >> b
+            if mask == 0:
+                continue
+            # least significant bit
+            lsb = mask & -mask
+            # k = position of this bit (0‑based)
+            k = lsb.bit_length() - 1
+            c = b + k
+            print(a, b, c)
+            return
+
+if __name__ == "__main__":
+    solve()
+```

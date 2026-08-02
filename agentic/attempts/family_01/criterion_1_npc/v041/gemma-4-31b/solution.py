@@ -1,0 +1,59 @@
+import sys
+
+def solve():
+    # Increase recursion depth for deep backtracking
+    sys.setrecursionlimit(2000)
+    
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    ptr = 2
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        ptr += 2
+        
+    # assignment[i] stores the shift of staff member i (1, 2, or 3)
+    assignment = [0] * (n + 1)
+    
+    def is_valid(u, shift):
+        for v in adj[u]:
+            if assignment[v] == shift:
+                return False
+        return True
+
+    def backtrack(u):
+        if u > n:
+            return True
+        
+        # To find the lexicographically smallest sequence, try shifts in order 1, 2, 3
+        for shift in (1, 2, 3):
+            if is_valid(u, shift):
+                assignment[u] = shift
+                # Heuristic: check if the remaining graph is still 3-colorable
+                # Given n=40, pure backtracking with pruning or simple order might pass.
+                # To be safer, we just backtrack.
+                if backtrack(u + 1):
+                    return True
+                assignment[u] = 0
+        return False
+
+    # The problem is equivalent to finding the lexicographically smallest 3-coloring.
+    # Since N is small (40), backtracking might work, but 3-coloring is NP-complete.
+    # However, for N=40, a well-implemented backtracking often passes.
+    
+    if backtrack(1):
+        print("YES")
+        print(*(assignment[1:]))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

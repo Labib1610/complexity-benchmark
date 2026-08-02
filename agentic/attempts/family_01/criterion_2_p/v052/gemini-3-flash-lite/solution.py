@@ -1,0 +1,69 @@
+import sys
+
+# Increase recursion depth for deep DFS
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    assignment = [0] * (n + 1)
+    
+    # We want the lexicographically smallest assignment.
+    # This means we prefer 1 over 2 for each node i from 1 to n.
+    # Since the graph is bipartite (checked via 2-coloring), 
+    # each connected component has exactly two possible colorings.
+    # For each component, we try setting the first unassigned node 
+    # to 1 and see if it propagates validly.
+    
+    for i in range(1, n + 1):
+        if assignment[i] == 0:
+            # New component. Try setting node i to 1.
+            component = []
+            stack = [(i, 1)]
+            assignment[i] = 1
+            component.append((i, 1))
+            
+            possible = True
+            while stack:
+                u, color = stack.pop()
+                for v in adj[u]:
+                    if assignment[v] == 0:
+                        assignment[v] = 3 - color
+                        stack.append((v, 3 - color))
+                        component.append((v, 3 - color))
+                    elif assignment[v] == color:
+                        print("NO")
+                        return
+            
+            # Now we have a candidate assignment for this component.
+            # However, we must ensure it's lexicographically smallest.
+            # In a bipartite component, there are only two colorings (swap 1s and 2s).
+            # We pick the one that results in the smaller value at the 
+            # smallest index in the component.
+            
+            # Find the smallest index node in this component
+            min_node = min(node for node, color in component)
+            if assignment[min_node] == 2:
+                # Flip the colors for this entire component
+                for node, color in component:
+                    assignment[node] = 3 - color
+                    
+    print("YES")
+    print(*(assignment[1:]))
+
+if __name__ == '__main__':
+    solve()

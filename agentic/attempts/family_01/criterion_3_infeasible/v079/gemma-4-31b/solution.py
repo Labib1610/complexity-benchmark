@@ -1,0 +1,61 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Adjacency list for graph
+    adj = [[] for _ in range(n + 1)]
+    # Adjacency matrix using bitsets for fast intersection
+    # Python's large integers act as bitsets
+    bit_adj = [0] * (n + 1)
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].append(v)
+        bit_adj[u] |= (1 << v)
+        bit_adj[v] |= (1 << u)
+
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate through a from 1 to n
+    # Iterate through b from a + 1 to n
+    # If (a, b) is an edge, find the smallest c > b such that (a, c) and (b, c) are edges.
+    
+    # Sort adjacency lists to iterate through b in increasing order
+    for i in range(1, n + 1):
+        adj[i].sort()
+
+    for a in range(1, n + 1):
+        # We only need to check b that are neighbors of a and b > a
+        for b in adj[a]:
+            if b <= a:
+                continue
+            
+            # We need c > b such that c is a neighbor of both a and b.
+            # This is the intersection of bit_adj[a] and bit_adj[b].
+            common = bit_adj[a] & bit_adj[b]
+            
+            # We need the smallest c such that c > b.
+            # Shift right by b to remove bits <= b, then find the lowest set bit.
+            common >>= (b + 1)
+            if common:
+                # Find the position of the lowest set bit
+                # (common & -common).bit_length() - 1 gives the index of the first 1
+                # But since we shifted by (b+1), the actual c is (index + b + 1)
+                lsb = (common & -common).bit_length() - 1
+                c = lsb + b + 1
+                print(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

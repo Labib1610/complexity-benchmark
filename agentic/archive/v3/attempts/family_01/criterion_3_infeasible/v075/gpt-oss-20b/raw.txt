@@ -1,0 +1,189 @@
+<think>
+We need to find lexicographically smallest triangle in undirected graph with up to n=2000, m up to 2e5. We must output smallest a<b<c such that edges exist between each pair.
+
+Brute force O(n^3) too high. Use adjacency bitsets or adjacency lists with ordering.
+
+We can iterate over all edges (u,v) with u<v, then find common neighbors w > v? Actually we need lexicographically smallest triple sorted ascending. So we need to find triple with minimal a then b then c. We can iterate a from 1..n, then for each a, find all neighbors b > a. For each such b, we need to find c > b such that edges (a,c) and (b,c) exist. We want minimal c. So we can for each a, iterate b in sorted neighbors > a. For each b, find intersection of adjacency lists of a and b but only c > b. Then pick minimal c. Among all b, the first triple found with minimal a,b,c will be lexicographically smallest. Because we iterate a ascending, then b ascending, then c ascending. Once we find a triple, we can output and stop.
+
+We need efficient intersection. n <=2000, adjacency list size up to m. Intersection naive O(deg(a)+deg(b)). But we will do it for each pair (a,b). In worst case, m up to 2e5, deg average 200? Actually n=2000, m=200k, average degree 200. For each a, for each b neighbor, we intersect sets. That could be heavy: number of pairs edges ~200k. For each we might scan both adjacency lists. But we can restrict to neighbors > a and > b, but still could be big.
+
+Better: Use bitset representation. n=2000 fits into 2000 bits, which is about 32 64-bit ints. Python int bit operations are fast. Represent adjacency as bitset using Python int: for each node i, bitset[i] is integer with bit j set if edge exists between i and j. Then intersection bitset[a] & bitset[b] gives common neighbors. Then we need to find minimal c > b. We can mask bits <= b. Compute mask = (1 << (b+1)) - 1 (bits 0..b). But Python ints are 0-indexed bit positions. Node indices 1..n. We'll map node id to bit position id-1. So for node a, bitset[a] has bits for neighbors j-1. For intersection, we compute common = bitset[a] & bitset[b]. Then we need to find minimal c > b, i.e., bit position >= b (since b id). Actually c > b. So we need to find lowest set bit with position >= b. So we can shift right by b bits? Let's compute shift = common >> b. Then if shift != 0, the least significant bit of shift corresponds to c-1 - b? Wait: if we shift right by b, then bit position 0 corresponds to original bit position b. But we need c > b, so bit position >= b+1. So shift by (b+1). Then if shift != 0, lowest set bit index t = (shift & -shift). Then c = (b+1) + t.bit_length() -1? Actually t is a power of two. t.bit_length() - 1 gives index. So c = (b+1) + idx. But we can use (shift & -shift).bit_length() -1. Let's compute idx = (shift & -shift).bit_length() - 1. Then c = b + 1 + idx. That gives minimal c > b.
+
+Alternatively, we can find minimal set bit in common after masking. We can create mask = ~((1 << (b+1)) - 1) to zero bits <= b. Then common_masked = common & mask. Then if common_masked != 0: c = (common_masked & -common_masked).bit_length() (since bits are 0-indexed). Actually if we take lowest set bit position pos, then c = pos + 1. Because pos = c-1. So c = pos + 1. So we can compute pos = (common_masked & -common_masked).bit_length() - 1. Then c = pos + 1.
+
+Thus algorithm:
+
+- Read n,m.
+- Initialize adjacency bitset list of size n+1 with 0 ints.
+- For each edge u,v: set bit for v-1 in bitset[u], and bit for u-1 in bitset[v].
+- For a in 1..n:
+    - For each b in neighbors of a where b > a. We need neighbors list or we can iterate over all b > a with bit set? We can get list of neighbors via bitset. For small n we could precompute sorted neighbor list for each node. Let's create adjacency list as list of sorted neighbor ids. We'll also have bitset for intersection.
+    - For each b in neighbors_sorted[a] where b > a:
+        - common = bitset[a] & bitset[b]
+        - mask = ~((1 << (b)) - 1)  # zero bits 0..b-1
+        - common_masked = common & mask
+        - if common_masked != 0:
+            - pos = (common_masked & -common_masked).bit_length() - 1
+            - c = pos + 1
+            - print a,b,c; return
+
+Need to ensure we only consider c > b and c distinct. The bitset intersection includes all neighbors, but mask ensures c > b. Also we need c > b. Good.
+
+Complexities: For each a, we iterate over its neighbors > a. In worst-case complete graph, each node has n-1 neighbors. For a=1, iterate 1999 b's. For each, intersection cost O(1) bit operations. So O(n^2) ~ 4 million operations, fine.
+
+Edge case: need to ensure we find at least one triangle. Problem guarantees at least one.
+
+Implementation details: building adjacency bitset and adjacency list. Use list of ints for bitset.
+
+When building adjacency list for each node: we can create list of neighbors sorted. We'll add each edge to lists for both nodes. After reading all edges, for each node, sort list.
+
+Alternatively, we can use adjacency bitset and neighbor iteration via scanning bits. But scanning bits for each node each loop would be heavy. So better to store list.
+
+Also need to ensure mask calculation for large b: (1 << b) may overflow? In Python fine.
+
+However, note that n <= 2000, so 1 << 2000 is fine.
+
+But need to create mask for each b: (~((1 << b) - 1)) will produce infinite bits with ones beyond bit b. But we only care up to n bits. So we can also mask with (1 << n) - 1 to keep only n bits. But since we are using common_masked = common & mask, and common already has only bits up to n-1, we can use mask = ~((1 << b) - 1) & ((1 << n) - 1). This ensures mask only bits >= b. But if we use ~((1 << b) - 1) it will have infinite ones beyond n-1. However & with common (which only has bits up to n-1) will zero out beyond n-1 anyway. So fine.
+
+But Python int has infinite bits, but common has only bits up to n-1 set. So masking with negative mask will still produce correct result. Because common & (~((1 << b) - 1)) will keep bits that are 1 in common and also 1 in mask. For bits beyond n-1, common is 0, so & will produce 0. So fine.
+
+Edge: b may equal n? No b <= n-1 because we only consider b > a and a <= n-2. But still b may be n. But b cannot be n because a < b <= n. For a < b, b could be n. Then mask = ~((1 << n) - 1). That will have ones beyond n-1. That is fine, as common has only bits up to n-1. So common_masked = common & mask will zero out all bits because all bits <= n-1 are masked out (since mask has zeros for bits 0..n-1). So no c found. That's fine.
+
+Now to find minimal c among possible for given b, we used mask to get minimal c > b. Good.
+
+We need to be careful about bit_length for zero. But we check if common_masked != 0 before.
+
+Let's test with example.
+
+Implementation:
+
+```
+import sys
+
+def solve():
+    import sys
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    bitset = [0]*(n+1)
+    neighbors = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u,v = map(int, input().split())
+        bitset[u] |= 1 << (v-1)
+        bitset[v] |= 1 << (u-1)
+        neighbors[u].append(v)
+        neighbors[v].append(u)
+    for i in range(1,n+1):
+        neighbors[i].sort()
+    for a in range(1,n+1):
+        for b in neighbors[a]:
+            if b <= a:
+                continue
+            common = bitset[a] & bitset[b]
+            mask = ~((1 << b) - 1)
+            common_masked = common & mask
+            if common_masked:
+                pos = (common_masked & -common_masked).bit_length() - 1
+                c = pos + 1
+                print(a,b,c)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+We should test with sample.
+
+Edge case: If we find triangle with a,b but c is not > b? But mask ensures c > b. So fine.
+
+But we need to ensure that c > b. Since mask uses ~((1 << b) - 1), zeros bits 0..b-1 inclusive. Wait: For b=2, (1 << 2)-1 = 3 binary 11. ~3 => ...11111100. Bits 0 and 1 are 0. So mask zeros bits 0..1. That's correct since positions 0 and 1 correspond to nodes 1 and 2. But we need to exclude node b itself also. Since b id is b, bit position b-1 corresponds to node b. We need to zero that as well. Our mask zeros bits 0..b-1 inclusive? For b=2, bit positions 0 and 1 correspond to nodes 1 and 2. So yes, it zeros node 2. For general b, we need to zero bits positions 0..b-1 inclusive? Actually we need to zero bits <= b-1? Let's think: Node id = p, bit position = p-1. We want c > b. So we want bit position >= b. Because if bit position = b-1 corresponds to node b, we don't want that. So we need to zero bits 0..b-1, inclusive. That corresponds to (~((1 << b) - 1)). For b=3, (1 << 3)-1 = 7 (111). ~7 = ...11111000. Bits 0,1,2 zero. That's correct.
+
+Thus mask is correct.
+
+Now we compute pos: (common_masked & -common_masked).bit_length() - 1. For example, if common_masked has bit at position p, then (common_masked & -common_masked) is power of two 1 << p. bit_length() - 1 gives p. So c = p+1. Good.
+
+Now complexity fine.
+
+Let's test mentally with sample 1.
+
+n=4, edges: 1-2,1-3,2-3,2-4,3-4.
+
+bitset[1] bits for 2,3 => 0b1100? Actually positions 1,2? Wait mapping: node 2 -> bit1, node3->bit2. So bitset[1] = 0b110 (bits 1,2). Node1 bits 2: 0b110? positions 1,2. Node2 bits for 1,3,4 => bits 0,2,3 => 0b1101? Node3 bits for 1,2,4 => bits 0,1,3 => 0b1011? Node4 bits for 2,3 => bits 1,2 => 0b110? fine.
+
+Now loops:
+a=1: neighbors [2,3]. b=2: common = bitset[1]&bitset[2] => bits 1? Wait bitset[1]=0b110, bitset[2]=0b1101 => common=0b010? Actually compute: 0b110 & 0b1101 = 0b010? Let's compute: 0b0110 & 0b1101 = 0b0100? 0b0110 (bits 1,2) = 0b0110, bitset[2] 0b1101 (bits0,2,3). AND => 0b0100 => bit position 2 (node3). mask = ~((1<<2)-1)=~3=...11111100. common_masked = 0b0100 & mask = 0b0100. pos = 2, c=3. Output 1 2 3. Good.
+
+Thus correct.
+
+Edge: if we have multiple triangles with same a,b but different c, we pick minimal c due to mask. Good.
+
+Edge: if we have triangles where a< b< c but a not minimal? We will find at a minimal a that has any triangle. Since we iterate a ascending and break after first found, we guarantee minimal a. For that a, we iterate neighbors b ascending. For each b, we find minimal c > b. So we get minimal b and c. Good.
+
+Now about memory: bitset list of size n+1 each int ~ n bits. Fine.
+
+Let's test with second sample: edges: 1-2,1-4,2-4,3-4,3-5,4-5.
+
+Triangles: 1-2-4 and 3-4-5. Minimal a=1, b=2, c=4. We'll find a=1, neighbors [2,4]. b=2: common = bitset[1]&bitset[2] => bits 4? Actually node 4 bit position 3. bitset[1] has bits for 2,4 => bits1,3. bitset[2] has bits for 1,4 => bits0,3. AND => bit3. mask=~((1<<2)-1)=~3. common_masked=bit3. pos=3, c=4. Output 1 2 4. Good.
+
+Edge: Suppose triangle uses nodes 1,3,4 with edges 1-3,1-4,3-4. a=1,b=3,c=4. But if there is also triangle 1,2,4, then 1,2,4 is lexicographically smaller because b=2 <3. So algorithm will find b=2 before b=3, so output 1 2 4. Good.
+
+Edge: if there is triangle 2,3,4 minimal a=2. But if no triangle with a=1, we will find a=2. Good.
+
+Time: For each a, we iterate over neighbors a. In worst-case complete graph, each node has n-1 neighbors. So complexity O(n^2). For n=2000, that's 4 million pair checks. Each check uses bit operations only. Good.
+
+Implementation details: reading input with sys.stdin.readline.
+
+Potential bug: We need to ensure we skip neighbor edges that are not > a. We do if b <= a: continue. Good.
+
+Edge: If we use neighbors sorted ascending, we guarantee b ascending.
+
+Edge: For each a, neighbor list sorted ascending; but we need to ensure we skip duplicates? Input may not contain duplicate edges? It might, but problem doesn't guarantee uniqueness. If duplicates exist, adjacency lists may contain duplicate neighbor entries leading to repeated checks. That's okay but may waste time. Could deduplicate by using set or only add if not already present. But fine.
+
+Edge: Self loops? Problem says u != v. So no self loops.
+
+Edge: We need to handle large bit shifts for n up to 2000: 1 << 2000 is fine.
+
+Edge: memory: bitset ints each 2000 bits ~ 250 bytes each, times 2001 ~ 500 KB. Good.
+
+Edge: time to compute mask each time: ~((1 << b) - 1). For b up to 2000, shift each time, fine.
+
+Edge: reading m up to 2e5. Good.
+
+Let's finalize.
+
+We must output only code block.
+</think>
+```python
+import sys
+
+def solve() -> None:
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    bitset = [0] * (n + 1)
+    neighbors = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u, v = map(int, input().split())
+        bitset[u] |= 1 << (v - 1)
+        bitset[v] |= 1 << (u - 1)
+        neighbors[u].append(v)
+        neighbors[v].append(u)
+
+    for i in range(1, n + 1):
+        neighbors[i].sort()
+
+    for a in range(1, n + 1):
+        for b in neighbors[a]:
+            if b <= a:
+                continue
+            common = bitset[a] & bitset[b]
+            mask = ~((1 << b) - 1)          # zero bits <= b-1
+            common_masked = common & mask
+            if common_masked:
+                pos = (common_masked & -common_masked).bit_length() - 1
+                c = pos + 1
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    solve()
+```

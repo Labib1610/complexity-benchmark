@@ -12,7 +12,7 @@ Given a target size **k**, decide whether a tight-knit group of exactly **k** us
 
 ## Input
 
-The first line contains three integers **n**, **m**, and **k** (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2, 1 ≤ k ≤ n).
+The first line contains three integers **n**, **m**, and **k** (1 ≤ n ≤ 46, 0 ≤ m ≤ n·(n−1)/2, 1 ≤ k ≤ n).
 Each of the next **m** lines contains two integers **u** and **v** (1 ≤ u, v ≤ n, u ≠ v): a friendship connection. No connection is listed twice.
 
 ## Output

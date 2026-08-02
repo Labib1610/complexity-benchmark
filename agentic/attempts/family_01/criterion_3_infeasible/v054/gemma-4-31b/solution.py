@@ -1,0 +1,55 @@
+import sys
+
+def solve():
+    # Read n and m from the first line of input
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Adjacency list to store interference pairs
+    # Use sets for O(1) lookup to check if an edge exists
+    adj = [set() for _ in range(n + 1)]
+    # Sorted adjacency list for iterating in lexicographical order
+    adj_sorted = [[] for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        
+        # Ensure u < v for consistent storage
+        if u > v:
+            u, v = v, u
+        
+        adj[u].add(v)
+        adj[v].add(u)
+        adj_sorted[u].append(v)
+        adj_sorted[v].append(u)
+
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # We iterate through a from 1 to n.
+    # Then iterate through b from a+1 to n.
+    # Then iterate through c from b+1 to n.
+    # To optimize, we only check b and c that are neighbors of a.
+    
+    for a in range(1, n + 1):
+        # Get all neighbors of a that are greater than a
+        neighbors_of_a = sorted([v for v in adj_sorted[a] if v > a])
+        
+        # We need to find two neighbors b, c from neighbors_of_a such that b < c and (b, c) is an edge.
+        # Since we want the smallest b, then the smallest c, we iterate in order.
+        for i in range(len(neighbors_of_a)):
+            b = neighbors_of_a[i]
+            for j in range(i + 1, len(neighbors_of_a)):
+                c = neighbors_of_a[j]
+                # Check if b and c interfere
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == "__main__":
+    solve()

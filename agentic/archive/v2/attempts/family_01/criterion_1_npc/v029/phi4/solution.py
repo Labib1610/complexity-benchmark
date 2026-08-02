@@ -1,0 +1,55 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    from collections import defaultdict
+    
+    # Parse the incompatible pairs
+    incompatibilities = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        incompatibilities.append((u - 1, v - 1))
+        index += 2
+    
+    # Initialize the graph as an adjacency list
+    graph = defaultdict(list)
+    for u, v in incompatibilities:
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Array to store the operational window assignment
+    assignments = [-1] * n
+    
+    def is_valid(person, window):
+        for neighbor in graph[person]:
+            if assignments[neighbor] == window:
+                return False
+        return True
+    
+    def backtrack(person):
+        if person == n:
+            print("YES")
+            print(' '.join(map(lambda x: str(x + 1), assignments)))
+            sys.exit(0)
+        
+        for window in range(3):
+            if is_valid(person, window):
+                assignments[person] = window
+                backtrack(person + 1)
+                assignments[person] = -1
+        
+        return False
+    
+    # Start backtracking from the first person
+    if not backtrack(0):
+        print("NO")
+
+# This line ensures that solve() is called when the script is run
+if __name__ == "__main__":
+    solve()

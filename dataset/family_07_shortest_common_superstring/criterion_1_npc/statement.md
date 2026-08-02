@@ -10,7 +10,7 @@ Among all strings of the shortest possible length that contain every fragment, o
 
 ## Input
 
-The first line contains a single integer **k** (1 ≤ k ≤ 12).
+The first line contains a single integer **k** (1 ≤ k ≤ 16).
 Each of the next **k** lines contains one fragment: a non-empty string of lowercase English letters, length at most 20. Fragments may repeat and one fragment may appear inside another.
 
 ## Output

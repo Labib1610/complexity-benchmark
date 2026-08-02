@@ -18,7 +18,7 @@ Determine whether this is possible, and if so report one valid set of crews.
 
 ## Input
 
-The first line contains two integers **k** and **t** (1 ≤ k ≤ 18, 0 ≤ t ≤ k·k·k): the group size and the number of allowed combinations.
+The first line contains two integers **k** and **t** (1 ≤ k ≤ 22, 0 ≤ t ≤ k·k·k): the group size and the number of allowed combinations.
 Each of the next **t** lines contains three integers **x**, **y**, **z** (1 ≤ x, y, z ≤ k), an allowed combination. No combination is listed more than once.
 
 ## Output

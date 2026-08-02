@@ -1,0 +1,54 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * (n + 1)     # 0 or 1
+    comp_id = [-1] * (n + 1)   # component index
+    target_color = {}          # comp_idx -> color that gets shift 1
+
+    cid = 0
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        dq = deque([start])
+        color[start] = 0
+        comp_id[start] = cid
+        while dq:
+            u = dq.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    comp_id[v] = cid
+                    dq.append(v)
+                else:
+                    if color[v] == cu:
+                        sys.stdout.write("NO\n")
+                        return
+        target_color[cid] = color[start]  # make first vertex shift 1
+        cid += 1
+
+    res = []
+    for i in range(1, n + 1):
+        if color[i] == target_color[comp_id[i]]:
+            res.append('1')
+        else:
+            res.append('2')
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(res) + '\n')
+
+if __name__ == "__main__":
+    solve()

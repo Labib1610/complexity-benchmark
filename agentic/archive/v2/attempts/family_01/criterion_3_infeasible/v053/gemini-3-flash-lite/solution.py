@@ -1,0 +1,52 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Store edges in an adjacency list of sets for O(1) lookup
+    # and also a list of adjacency lists sorted by index
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # To find lexicographically smallest (a, b, c),
+    # iterate a from 1 to n, b from a+1 to n, c from b+1 to n
+    # Optimization: a is connected to b, so b must be in adj[a]
+    # c must be in both adj[a] and adj[b]
+    
+    # Sort neighbors to ensure we check in lexicographical order
+    sorted_adj = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        # Candidates for b must be > a
+        neighbors_a = [x for x in sorted_adj[a] if x > a]
+        for b in neighbors_a:
+            # Candidates for c must be > b and in both adj[a] and adj[b]
+            # Intersect neighbors_a and neighbors_b
+            # Since neighbors are sorted, we can use two pointers or set intersection
+            # Given n <= 2000, bitset-like or set intersection is fine
+            
+            # Use the smaller adjacency set for intersection
+            if len(adj[a]) < len(adj[b]):
+                small, large = adj[a], adj[b]
+            else:
+                small, large = adj[b], adj[a]
+            
+            for c in small:
+                if c > b and c in large:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

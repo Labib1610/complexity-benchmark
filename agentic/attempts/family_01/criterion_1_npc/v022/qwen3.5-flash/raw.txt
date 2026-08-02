@@ -1,0 +1,1245 @@
+<think>
+The problem asks us to assign one of three buses (1, 2, or 3) to each of $n$ cores, numbered 1 to $n$, such that certain constraints are satisfied. The constraints are given as pairs of cores $(u, v)$ that cannot share the same bus. This is exactly the graph coloring problem with 3 colors. We want to minimize the lexicographical order of the assignment sequence $(s_1, s_2, \dots, s_n)$. If no valid assignment exists, we output "NO". Otherwise, we output "YES" followed by the assignment.
+
+The number of cores $n$ is up to 40. This is small enough for backtracking but potentially too large for a naive brute force $3^{40}$ approach. However, since we need the lexicographically smallest solution, we can use a greedy approach with backtracking (or simple backtracking prioritizing smaller colors).
+
+Since we need the lexicographically smallest sequence $(s_1, s_2, \dots, s_n)$, we can try to assign $s_1=1$, then $s_2=1$, and so on. If we reach a conflict and can't assign a value, we backtrack. But wait, standard backtracking might explore the search space inefficiently if we just try to find *any* valid coloring. However, since we specifically want the *lexicographically smallest* valid coloring, we can iterate through the cores $1$ to $n$ in order. For each core, we try assigning color 1, then color 2, then color 3. The first valid assignment found using this strategy will be the lexicographically smallest one because we prioritize smaller colors for earlier cores.
+
+Let's refine the algorithm:
+1. Represent the constraints as an adjacency list or matrix.
+2. Initialize an array `assignment` of size $n+1$ (using 1-based indexing for convenience).
+3. Implement a recursive function `solve(core_index)`:
+   - If `core_index` > $n$, we have successfully assigned all cores. Return True.
+   - Iterate through colors $c \in \{1, 2, 3\}$ in increasing order.
+   - Check if assigning color $c$ to `core_index` violates any constraints with already assigned neighbors.
+   - If valid, set `assignment[core_index] = c` and recursively call `solve(core_index + 1)`.
+   - If the recursive call returns True, propagate True up.
+   - If no color works, backtrack (implicitly by returning False).
+4. If `solve(1)` returns True, print "YES" and the assignment. Else, print "NO".
+
+Wait, with $n=40$, is simple backtracking fast enough?
+In the worst case (e.g., a complete graph or bipartite graph with specific constraints), simple backtracking could visit many states. However, usually, valid colorings are dense, or the constraints prune the search space quickly.
+Is there a case where backtracking is too slow? For $n=40$, $3^{40}$ is huge. But the constraints are usually tight. If the graph is 3-colorable, we find a solution relatively quickly. If it's not, we might explore the whole space?
+Actually, 3-coloring is NP-complete. $n=40$ is on the boundary. However, competitive programming problems usually have test cases where $n$ is small enough for backtracking or specific heuristics, or the graph structure is not an adversarial worst-case for backtracking.
+Given the requirement for lexicographically smallest solution, we are forced to prioritize small colors for small indices. This fixes the search order.
+
+Can we optimize?
+We check validity of a color assignment for current node $u$ by checking all neighbors $v$ that have already been assigned.
+Since we only care about neighbors with index $< u$, we only need to check $v < u$ where $(u, v)$ is an edge.
+Wait, we need to check *all* neighbors that have been assigned. If we process cores 1 to $n$, when we are at $u$, all $v < u$ are assigned. But what about $v > u$? They are not assigned yet, so they don't constrain $u$ yet (in the forward pass).
+So, for a core $u$, valid colors are those not present in $\{ \text{color}(v) \mid v \in \text{neighbors}(u), v < u \}$.
+This is a standard backtracking for graph coloring.
+With $N=40$, is it too slow?
+Usually, for $N \approx 40$, simple backtracking might TLE if the graph is constructed to make it slow (e.g. many partial solutions). But here we have a strict lexicographical requirement.
+Is there a way to use bitmasks or something?
+With $N=40$, maybe we can split the graph? No, that's complex.
+Let's consider if we can prune.
+Maybe we can use the fact that if a connected component is not 3-colorable, we can detect it early.
+But checking 3-colorability is hard.
+However, usually, constraints like $N \le 40$ suggest backtracking or maybe some form of meet-in-the-middle or branch and bound.
+Since we need the lexicographically first solution, we can't easily change the order of processing to optimize for speed (like DSatur), because that would change the lexicographical order of the *output* unless we map back, but DSatur chooses the next variable based on constraints, not index 1, 2, ...
+Actually, we can use DSatur to order the vertices to find *an* assignment faster, but we need the lexicographically smallest assignment for indices $1..n$.
+So we must assign $s_1$, then $s_2$, etc.
+The only optimization is to check for consistency efficiently.
+Since $N$ is small, adjacency matrix is fine. $O(N^2)$ per check is fine.
+Total complexity roughly $O(3^N)$ in worst case, but practically much faster if constraints exist.
+Given 2 seconds, typical Python backtracking can handle $N=40$ for 3-coloring if the graph isn't very sparse (which makes search space larger but constraints fewer) or very dense (which makes search space smaller quickly).
+Wait, sparse graphs are harder to color (more valid colorings to check). Dense graphs are easier (fewer valid colorings).
+If the graph is empty, any assignment works. The first one is $1, 1, \dots, 1$. We find it instantly.
+If the graph is a large clique, we find NO instantly.
+The problematic cases are usually specific structures.
+However, with $N=40$, Python might be slow with deep recursion.
+We should use an iterative stack or increase recursion limit. `sys.setrecursionlimit(10000)` is safe.
+Also, using a set or adjacency list for neighbors is efficient.
+Checking constraints: for current node $u$, iterate over `neighbors[u]`. If neighbor $v$ is assigned, check color.
+Since we process $1..n$, we only care about neighbors $v$ that have $v < u$ (already assigned).
+Actually, it's safer to just check all assigned neighbors. The condition "already assigned" is simply $v < u$ if we process in order 1 to $n$.
+Wait, checking all neighbors is $O(\text{degree})$.
+If we maintain `assigned_colors` for neighbors, it's fast.
+
+Let's double check time limits. $N=40$ is quite small for C++, but for Python, recursion overhead can be significant.
+Is there a heuristic to make it faster?
+We can check if the current partial assignment can be extended.
+One simple heuristic: if any unassigned node has $\ge 3$ distinct colors assigned to its neighbors, then it's impossible to color it, so we can prune immediately.
+Since we assign in order $1..n$, when we are at $u$, nodes $u+1 \dots n$ are unassigned.
+For any $k > u$, let $N_k$ be the set of neighbors of $k$ in $\{1 \dots k-1\}$.
+The colors of neighbors in $N_k$ restrict the color of $k$.
+If the number of distinct colors used by neighbors of $k$ is 3, then $k$ has no valid color.
+Since we need to assign colors to $1 \dots n$, if *any* unassigned node $k$ (including $u$ itself) has 3 distinct colors assigned to its already-assigned neighbors, then the current branch is invalid.
+This is a powerful pruning technique.
+For each $k \in \{u, \dots, n\}$, count distinct colors of neighbors in $\{1 \dots u-1\}$. If count == 3, return False.
+This check takes $O(N \cdot \text{degree})$ or $O(N^2)$ per step. With $N=40$, $N^2 = 1600$, which is small enough.
+This pruning effectively checks 3-colorability of the subgraph induced by unassigned nodes plus their constraints from assigned nodes.
+Wait, just checking if any node has 3 colors in its *already assigned* neighbors is sufficient to prune.
+However, checking all nodes $k > u$ at every step might add overhead.
+But since we need to output the lexicographically first, and $N$ is up to 40, this pruning might be the difference between AC and TLE.
+Specifically, if a node $k$ has neighbors $v_1, v_2, v_3$ already assigned to colors 1, 2, 3 respectively, then $k$ cannot be colored.
+This check is valid.
+Let's refine the "forward checking" heuristic.
+When we assign color $c$ to $u$:
+1. Mark $u$ as assigned with $c$.
+2. Check if any unassigned node $v$ (where $v > u$) now has 3 distinct colors assigned to its neighbors.
+   - Note: We only care about neighbors $w$ of $v$ with $w < v$. Since we process $1..n$, for any $v > u$, its neighbors with index $< v$ include some with index $\le u$.
+   - So for all $v \in \{u+1, \dots, n\}$, check the set of colors of its neighbors $\{w \in \text{neighbors}(v) \mid w < v\}$.
+   - If any such set has size 3, the current assignment is dead.
+3. If valid, recurse.
+4. Backtrack.
+
+Wait, checking all $v$ every time is $O(N^2)$. Total complexity could be high if the tree is deep.
+But usually, the number of valid paths is small.
+Let's consider the constraints again. $N=40$.
+In many CP problems, $N=40$ with backtracking suggests that the test cases are not worst-case or the logic is simpler.
+But to be safe, I will implement the backtracking with the simple validity check (checking neighbors of current node) and maybe the lookahead pruning if it doesn't slow down the average case too much.
+Actually, checking all unassigned nodes is $O(N^2)$. If the recursion depth is 40, and branching factor is 3, worst case is huge. But with pruning, we hope it's small.
+Given Python's speed, $O(N^2)$ per node in recursion stack might be risky if the stack is large.
+However, note that we only need to check neighbors of $v$. We can maintain the count of colors used by neighbors for each node.
+Let `neighbor_colors_count[v]` be a bitmask or set of colors used by neighbors of $v$.
+When we assign $c$ to $u$:
+- For each neighbor $v$ of $u$:
+    - If $v$ is unassigned (i.e., $v > u$):
+        - Add $c$ to `neighbor_colors_count[v]`.
+        - If `len(neighbor_colors_count[v]) == 3`, then invalid.
+- After checking all neighbors, recurse.
+- Backtrack:
+    - Remove $c$ from `neighbor_colors_count[v]` for neighbors.
+    - Restore state.
+
+This reduces the check to $O(\text{degree})$. Total complexity per step is proportional to degree.
+This is efficient enough.
+Also, we need to handle the case where $v < u$ (already assigned). For $v < u$, we only check consistency. The `neighbor_colors_count` logic works for $v > u$.
+For $v < u$, we already checked consistency when we assigned $v$.
+Wait, consistency is checked when assigning $u$ against $v < u$.
+The lookahead check is for $v > u$.
+So, the algorithm:
+- `adj`: adjacency list.
+- `color`: array size $n+1$, 0 initially.
+- `neighbor_colors`: array of sets (or bitmasks) size $n+1$.
+- `solve(u)`:
+  - If $u > n$: return True.
+  - For $c$ in 1..3:
+    - Check consistency: for $v$ in `adj[u]`: if $v < u$ and `color[v] == c`: continue (invalid).
+    - Check lookahead:
+      - For $v$ in `adj[u]`: if $v > u$:
+        - Old mask = `neighbor_colors[v]` & ~(1<<(c-1))
+        - `neighbor_colors[v]` |= (1<<(c-1))
+        - If `popcount(neighbor_colors[v]) == 3`: invalid, need to restore.
+      - If valid, update `color[u] = c`, `neighbor_colors` for neighbors $v < u$ is not needed for lookahead (since $v < u$ are already colored), but actually we don't need to update `neighbor_colors` for $v < u$ because they are already colored and we won't check lookahead on them (they are not unassigned).
+      - Wait, `neighbor_colors` tracks colors assigned to neighbors of $v$.
+      - If $v > u$, $u$ is a neighbor of $v$ and $u$ is now assigned. So we update `neighbor_colors[v]`.
+      - If consistent and lookahead ok:
+        - `color[u] = c`
+        - Recurse `solve(u+1)`
+        - If True return True.
+        - Backtrack: `color[u] = 0`. Restore `neighbor_colors` for neighbors $v > u$.
+
+Wait, there is a small detail.
+The lookahead check ensures that we don't get stuck later.
+Specifically, if `neighbor_colors[v]` has 3 bits set, $v$ cannot be colored.
+Is this condition sufficient?
+Yes, because we must assign a color to $v$ later. If all 3 colors are forbidden by its neighbors (which are assigned to $v$), it's impossible.
+Note: neighbors of $v$ can be both $< v$ and $> v$.
+When we are at step $u$, we are assigning $u$.
+For any $v > u$, the set of *assigned* neighbors of $v$ is the set of neighbors of $v$ with index $\le u$.
+Since we process in order $1 \dots n$, when we are at $u$, all nodes $1 \dots u$ are assigned.
+So for any $v > u$, the assigned neighbors are exactly $\{w \in \text{neighbors}(v) \mid w \le u\}$.
+Wait, if $w \le u$, then $w$ is assigned.
+So checking if `len(assigned_neighbors_colors(v)) == 3` is correct.
+Since we update `neighbor_colors[v]` incrementally, it maintains exactly the colors of neighbors $w \le u$.
+So yes, this lookahead is correct and efficient.
+
+Data structures:
+- `adj`: list of lists.
+- `colors`: list of ints (1, 2, 3) or 0 for unassigned.
+- `forbidden`: list of bitmasks. `forbidden[v]` stores the bitmask of colors used by neighbors of $v$ that are already assigned.
+- `sys.setrecursionlimit` is needed.
+
+Complexity:
+Each step takes time proportional to degree of $u$ plus degree of neighbors $v > u$ for lookahead.
+Wait, we iterate neighbors of $u$. For each neighbor $v$, if $v > u$, we update its forbidden mask.
+This is $O(\text{deg}(u))$.
+Checking consistency is $O(\text{deg}(u))$ (neighbors $< u$).
+So total time per node in recursion tree is $O(\text{degree}(u))$.
+Sum of degrees is $2m$.
+In worst case, we might visit many nodes, but the lookahead pruning cuts off invalid branches very early.
+With $N=40$, this should pass.
+
+One edge case: $N$ up to 40. Python recursion limit default is 1000, so 40 is fine.
+Input reading: standard.
+Output format: YES/NO and the sequence.
+
+Let's write the code structure.
+
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Colors: 1, 2, 3. 0 means unassigned.
+    assignment = [0] * (n + 1)
+    # forbidden[v] is a bitmask of colors used by neighbors of v that are already assigned.
+    # Bit 0 -> color 1, Bit 1 -> color 2, Bit 2 -> color 3
+    forbidden = [0] * (n + 1)
+
+    def backtrack(u):
+        if u > n:
+            return True
+        
+        for c in range(1, 4):
+            # Check consistency with already assigned neighbors (v < u)
+            # We can iterate neighbors and check if assigned.
+            # Since we maintain forbidden mask, for v < u, the color c should not be in forbidden[u]?
+            # No, forbidden[u] tracks colors from neighbors.
+            # But forbidden[u] only tracks neighbors that have been processed.
+            # Since we process 1..n, when we are at u, all neighbors v < u are processed.
+            # So forbidden[u] contains colors of all neighbors v < u.
+            # If c is in forbidden[u], we can't use c.
+            if (forbidden[u] >> (c - 1)) & 1:
+                continue
+            
+            # Check lookahead: if we assign c to u, does it make any v > u impossible?
+            # A node v > u becomes impossible if forbidden[v] has all 3 bits set.
+            # Assigning c to u affects forbidden[v] if u is a neighbor of v.
+            # Since u < v, u is a "processed" neighbor for v.
+            # We need to check if adding c to forbidden[v] makes it 111 (binary 7).
+            
+            # We need to temporarily update forbidden masks for neighbors v > u
+            # to verify validity.
+            
+            valid_assignment = True
+            affected_nodes = []
+            
+            for v in adj[u]:
+                if v > u:
+                    # Check current forbidden[v]
+                    # If c is already there, adding it doesn't change anything (mask stays same)
+                    # But if it becomes full, we must detect it.
+                    # Actually, if forbidden[v] already has 111, we would have pruned earlier?
+                    # Wait, if forbidden[v] is 111, we prune at the node v's step?
+                    # No, we prune when we assign a neighbor.
+                    # So if forbidden[v] is already 111, we should have returned False already.
+                    # But let's check: forbidden[v] updates happen when we assign neighbors.
+                    # If we are at u, we are assigning u. u is a neighbor of v.
+                    # If forbidden[v] was already 111 before considering u, then v is dead.
+                    # But we should have detected this when assigning the last neighbor of v.
+                    # So forbidden[v] should not be 111 currently (unless we missed a check).
+                    # Let's assume the invariant holds.
+                    
+                    # Update forbidden[v]
+                    old_mask = forbidden[v]
+                    if not ((old_mask >> (c - 1)) & 1):
+                        forbidden[v] |= (1 << (c - 1))
+                        affected_nodes.append(v)
+                        if forbidden[v] == 7: # 111 in binary
+                            valid_assignment = False
+                            break
+                    else:
+                        # If c was already forbidden, the mask doesn't change.
+                        # So if it was not 7 before, it won't be 7 now.
+                        pass
+            
+            if valid_assignment:
+                assignment[u] = c
+                if backtrack(u + 1):
+                    return True
+                assignment[u] = 0
+            
+            # Backtrack: restore forbidden masks
+            for v in affected_nodes:
+                forbidden[v] = 0x0 # Wait, we need to restore to old_mask.
+                # We stored affected_nodes, but we need the old mask.
+                # Better to store pairs (v, old_mask).
+            
+            # Let's refactor the loop to store old masks.
+            
+        return False
+
+    # Refined backtrack function
+    # To optimize, I will define the helper outside or inside with closure
+    
+    # Actually, let's write the code properly.
+```
+
+Refined Logic:
+```python
+    def backtrack(u):
+        if u > n:
+            return True
+        
+        for c in range(1, 4):
+            # 1. Check consistency with assigned neighbors (v < u)
+            # forbidden[u] contains colors of neighbors v < u
+            if (forbidden[u] >> (c - 1)) & 1:
+                continue
+            
+            # 2. Check lookahead for neighbors v > u
+            # We need to record changes to forbidden[v] for v > u
+            changes = []
+            can_continue = True
+            
+            for v in adj[u]:
+                if v > u:
+                    # Check if c is already in forbidden[v]
+                    mask_bit = 1 << (c - 1)
+                    if not (forbidden[v] & mask_bit):
+                        # Temporarily add
+                        forbidden[v] |= mask_bit
+                        if forbidden[v] == 7:
+                            can_continue = False
+                            # Restore immediately to avoid deep nesting? 
+                            # Or just break and restore later.
+                            # Breaking is better.
+                            # We need to restore all changes made so far in this loop.
+                            # So we need to undo changes.
+                            # Since we modify forbidden[v] in place, we should store the modified v's.
+                            pass
+                        else:
+                            changes.append(v)
+                    else:
+                        # Already forbidden, no change to mask
+                        pass
+            
+            # If lookahead failed, we need to undo changes made to forbidden[v]
+            # But wait, if forbidden[v] became 7, we set can_continue = False.
+            # We must undo ALL changes made in the loop to restore state before next iteration of c.
+            # The changes list contains v's that were modified.
+            # But wait, if forbidden[v] became 7, we might not have added v to changes?
+            # Let's adjust.
+            
+            # Re-structure:
+            # Iterate v. If v > u:
+            #   old_mask = forbidden[v]
+            #   new_mask = old_mask | (1<<(c-1))
+            #   forbidden[v] = new_mask
+            #   if new_mask == 7:
+            #       invalid = True
+            #       # We must revert all updates made in this loop
+            #       # So we need to store which v's were updated.
+            #       # Let's store (v, old_mask) in a list.
+            #       break
+            #   else:
+            #       updates.append((v, old_mask))
+            
+            # If not invalid:
+            #    assignment[u] = c
+            #    if backtrack(u+1): return True
+            #    assignment[u] = 0
+            
+            # Revert updates:
+            #    for (v, old_mask) in updates: forbidden[v] = old_mask
+            
+            # This logic is sound.
+            
+            updates = []
+            invalid_lookahead = False
+            
+            for v in adj[u]:
+                if v > u:
+                    mask_bit = 1 << (c - 1)
+                    if not (forbidden[v] & mask_bit):
+                        forbidden[v] |= mask_bit
+                        updates.append((v, forbidden[v] ^ mask_bit)) # store old mask
+                        if forbidden[v] == 7:
+                            invalid_lookahead = True
+                            break
+            
+            if invalid_lookahead:
+                # Revert updates
+                for v, old_mask in updates:
+                    forbidden[v] = old_mask
+                continue
+            
+            # Assign and recurse
+            assignment[u] = c
+            if backtrack(u + 1):
+                return True
+            assignment[u] = 0
+            
+            # Revert updates (in case we didn't break early but backtrack returns False)
+            # Wait, if we didn't break early, we still modified forbidden[v].
+            # We must revert them regardless of recursion result.
+            for v, old_mask in updates:
+                forbidden[v] = old_mask
+                
+        return False
+```
+Wait, there is a small bug in the logic `updates.append((v, forbidden[v] ^ mask_bit))`.
+If `forbidden[v]` was `old_mask`, and we OR with `mask_bit`, the new mask is `old_mask | mask_bit`.
+So `old_mask = new_mask ^ mask_bit` is correct ONLY if `mask_bit` was not set.
+If `mask_bit` was set, we didn't update.
+My code checks `if not (forbidden[v] & mask_bit)`. So `mask_bit` is definitely not set.
+So `old_mask = forbidden[v] ^ mask_bit` is correct.
+Wait, `forbidden[v]` is updated. So `forbidden[v]` becomes `new_mask`.
+So `old_mask = new_mask ^ mask_bit` is correct.
+Wait, I need to store `old_mask` before update.
+`updates.append((v, old_mask))` is safer.
+
+Also, `adj` list might contain duplicates? The problem says $u \ne v$, pairs. Multiple edges between same pair? Usually "contention rules" implies simple graph, but if there are duplicates in input, `adj` will have duplicates.
+The logic handles duplicates correctly (just redundant checks).
+However, if there are multiple edges $(u, v)$, `forbidden[v]` check will be done multiple times.
+Since `mask_bit` is already set, the `if not` check will fail on second encounter, so no double update.
+So duplicates in `adj` are harmless.
+
+Wait, $N$ up to 40.
+Python recursion limit is 1000 by default. 40 is well within.
+Time limit 2s.
+The lookahead pruning is quite strong.
+Is there any case where it's not enough?
+Maybe if the graph is disconnected.
+If the graph is disconnected, we solve each component.
+The order $1..n$ handles components interleaved.
+The lookahead check propagates constraints.
+Seems robust.
+
+Wait, one optimization:
+We can check `if forbidden[u] == 7` at the start of `backtrack(u)`?
+No, `forbidden[u]` contains colors of neighbors $< u$.
+If `forbidden[u] == 7`, then $u$ has no valid color among 1, 2, 3.
+This means the assignment of $1 \dots u-1$ was bad.
+So we should return False immediately.
+This is equivalent to the `if (forbidden[u] >> (c-1)) & 1` check failing for all $c$.
+So if we iterate $c=1, 2, 3$ and none work, we return False.
+So this is covered.
+But we can check `if bin(forbidden[u]).count('1') == 3` at the very beginning of `backtrack(u)`.
+Wait, `forbidden[u]` is updated only by neighbors $< u$.
+So `forbidden[u]` represents constraints from already assigned neighbors.
+If `forbidden[u]` has 3 bits set, then $u$ cannot be colored.
+So we can return False immediately.
+Wait, if `forbidden[u]` has 3 bits set, it means all 3 colors are forbidden.
+This means we cannot assign any color to $u$.
+So we return False.
+This check is implicitly done by the loop over $c$. If loop finishes without returning True, we return False.
+But explicit check might save loop overhead.
+However, `forbidden[u]` is updated by neighbors $v < u$.
+When we are at step $u$, `forbidden[u]` is already fully populated (since all $v < u$ are processed).
+So yes, checking `if forbidden[u] == 7` at start of `backtrack(u)` is valid and correct.
+Wait, if `forbidden[u]` is 7, it means neighbors $v < u$ used colors 1, 2, 3.
+So $u$ is constrained to none.
+So we can return False.
+This is a good optimization.
+
+Wait, `forbidden` array size is $N+1$.
+Input reading:
+The input format says:
+`n m`
+`u v` lines...
+Sometimes $m=0$.
+The code should handle $m=0$ (empty loops).
+
+One detail: `sys.setrecursionlimit`.
+Default is 1000. $N=40$. It is sufficient.
+But for safety, set to 2000.
+
+Wait, is it possible that `forbidden[u]` becomes 7 before we reach `u`?
+Yes, if neighbors $v < u$ are assigned such that they consume all 3 colors.
+In that case, `backtrack(u)` will be called. `forbidden[u]` will be 7.
+The loop over $c$ will check `if (forbidden[u] >> (c - 1)) & 1`.
+Since all bits are 1, all 3 checks will be true (meaning `c` is forbidden).
+So loop finishes, returns False.
+So explicit check is just optimization.
+
+Double check the lookahead logic.
+When we assign $u$, we update `forbidden[v]` for $v > u$.
+If `forbidden[v]` becomes 7, we stop.
+This prevents us from going deeper into a state where $v$ cannot be colored.
+This is correct.
+
+Wait, what if `forbidden[v]` becomes 7 for some $v > u$, but $v$ is not a neighbor of $u$?
+`forbidden[v]` tracks colors of *neighbors* of $v$.
+If $v$ is not a neighbor of $u$, assigning $u$ does not affect `forbidden[v]`.
+So we only need to check neighbors of $u$.
+Correct.
+
+Wait, what if `forbidden[v]` becomes 7 for some $v > u$ which is NOT a neighbor of $u$?
+This can only happen if $v$ has other neighbors $w < u$ that were assigned.
+But those assignments would have been done in previous steps.
+If `forbidden[v]` was already 7 before step $u$, we would have detected it when assigning the last neighbor of $v$.
+Wait, when we assigned the last neighbor of $v$ (say $w$), we updated `forbidden[v]`. If it became 7, we would have detected it *at that time* (inside `backtrack(w)`).
+So `forbidden[v]` should not be 7 for any $v$ where $v$ is a neighbor of some $w < u$ and $w$ was the last one assigned.
+Wait, is it possible that `forbidden[v]` becomes 7 only when we assign $u$, but $u$ is not a neighbor of $v$?
+No, because `forbidden[v]` only changes when a neighbor of $v$ is assigned.
+If $u$ is not a neighbor, `forbidden[v]` doesn't change.
+So if it wasn't 7 before, it won't be 7 now.
+So we only need to check neighbors of $u$.
+Correct.
+
+Wait, one edge case.
+If $N$ is small, say 1.
+Loop 1..3.
+Consistency check: `forbidden[1]` is 0.
+Lookahead: `adj[1]` empty.
+Recurse `backtrack(2)`. Returns True.
+Output `1`. Correct.
+
+If $N=2$, edge 1-2.
+`backtrack(1)`:
+$c=1$.
+Consistency: ok.
+Lookahead: neighbor 2. `forbidden[2]` becomes 1. Not 7.
+`assignment[1] = 1`.
+`backtrack(2)`:
+`forbidden[2]` is 1.
+$c=1$: forbidden.
+$c=2$: ok. Lookahead: none.
+`assignment[2] = 2`.
+`backtrack(3)`: returns True.
+Output `1 2`. Correct.
+
+Wait, lexicographically smallest.
+My code tries $c=1, 2, 3$ in order.
+So it finds smallest $s_1$, then smallest $s_2$, etc.
+This guarantees lexicographically smallest sequence.
+
+Wait, "lexicographically smallest sequence of bus assignments $(s_1, s_2, \dots, s_n)$".
+Yes, prioritizing $s_1$ then $s_2$ etc. is exactly what the recursion order does.
+
+One thing: `sys.setrecursionlimit`.
+Memory limit 256 MB.
+Recursion depth 40 is tiny.
+Memory usage is minimal.
+
+Final check on inputs.
+$N \le 40$.
+$M \le N(N-1)/2$.
+Input reading using `sys.stdin.read().split()` is efficient.
+Integers parsing is fast.
+
+One edge case: `forbidden` array initialization.
+`forbidden = [0] * (n + 1)`.
+Correct.
+
+Wait, I should confirm the behavior of `forbidden` update.
+`forbidden[v]` stores colors of neighbors $w$ such that $w < v$.
+When we are at $u$, we assign $u$.
+For any neighbor $v$ of $u$:
+If $v < u$: $v$ was assigned in step $v$. At that time, $u$ was unassigned.
+Wait, `forbidden[v]` records colors of neighbors of $v$ that are *already assigned*.
+When we were at step $v$, we updated `forbidden[w]` for $w > v$.
+So `forbidden[v]` was populated by neighbors $< v$.
+It is NOT populated by neighbors $> v$.
+So when we are at step $u$ (where $u > v$), `forbidden[v]` is complete (since all $w < v$ are assigned).
+But we don't update `forbidden[v]` now because $u > v$.
+Wait, if $v < u$, $v$ is a neighbor of $u$.
+So $v$ is an assigned neighbor of $u$.
+So `forbidden[u]` should contain `color[v]`.
+When we assigned $v$ (step $v$), we updated `forbidden[u]` (since $u > v$).
+So `forbidden[u]` accumulates colors from neighbors $< u$.
+So `forbidden[u]` is indeed the set of forbidden colors for $u$.
+So the consistency check `if (forbidden[u] >> (c - 1)) & 1` is correct.
+And the lookahead check updates `forbidden[w]` for $w > u$.
+So `forbidden[w]` accumulates from neighbors $< w$.
+This logic holds.
+
+Just to be careful about variable names and scope.
+Python closures capture variables by reference.
+`forbidden` is a list, mutable.
+So updates inside `backtrack` affect the outer `forbidden`.
+This is desired.
+When backtracking, we restore it.
+The `updates` list stores `(v, old_mask)`.
+This is correct.
+
+One small optimization:
+Instead of `updates` list which can grow up to $N$, we can just iterate again to restore?
+No, we don't know which ones changed easily if we didn't track.
+But since we only change if `mask_bit` was not set, we can track.
+Actually, iterating `adj[u]` again to restore is $O(\text{deg}(u))$.
+Storing in list is also $O(\text{deg}(u))$.
+List is safer.
+
+Wait, input reading.
+Sometimes input can be large? No, $N=40$, $M \approx 800$. Very small.
+So `read().split()` is fine.
+
+```python
+import sys
+
+# Increase recursion depth to be safe, though 40 is small.
+sys.setrecursionlimit(2000)
+
+def solve():
+    # Read all input
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    assignment = [0] * (n + 1)
+    # forbidden[v] is a bitmask of colors (1, 2, 3) used by neighbors of v that are < v
+    # We use bits 0, 1, 2 for colors 1, 2, 3
+    forbidden = [0] * (n + 1)
+
+    def backtrack(u):
+        if u > n:
+            return True
+        
+        # Optimization: if forbidden[u] has all 3 bits set, u cannot be colored
+        if forbidden[u] == 7:
+            return False
+
+        for c in range(1, 4):
+            # Check consistency with already assigned neighbors (v < u)
+            # forbidden[u] contains colors of neighbors v < u
+            if (forbidden[u] >> (c - 1)) & 1:
+                continue
+            
+            # Check lookahead: if we assign c to u, does it make any v > u impossible?
+            # A node v > u becomes impossible if forbidden[v] has all 3 bits set.
+            # We update forbidden[v] for neighbors v > u.
+            
+            changes = []
+            invalid_lookahead = False
+            
+            for v in adj[u]:
+                if v > u:
+                    # We need to check if adding c to forbidden[v] makes it 7
+                    # Only if c is not already in forbidden[v] does the mask change
+                    mask_bit = 1 << (c - 1)
+                    if not (forbidden[v] & mask_bit):
+                        # Save old mask to restore later
+                        old_mask = forbidden[v]
+                        forbidden[v] |= mask_bit
+                        changes.append((v, old_mask))
+                        if forbidden[v] == 7:
+                            invalid_lookahead = True
+                            break
+                    # If c is already forbidden, mask doesn't change, so no risk of becoming 7
+                    # (assuming it wasn't 7 before, which is guaranteed by lookahead of previous steps)
+            
+            if invalid_lookahead:
+                # Restore changes
+                for v, old_mask in changes:
+                    forbidden[v] = old_mask
+                continue
+            
+            # Assign color c to u
+            assignment[u] = c
+            
+            if backtrack(u + 1):
+                return True
+            
+            # Backtrack: reset assignment
+            assignment[u] = 0
+            
+            # Restore forbidden masks
+            for v, old_mask in changes:
+                forbidden[v] = old_mask
+                
+        return False
+
+    if backtrack(1):
+        print("YES")
+        # Output s_1 ... s_n
+        # assignment array is 1-indexed, so slice [1:]
+        print(*(assignment[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+
+Wait, `forbidden[u] == 7` check.
+If `forbidden[u] == 7`, it means all 3 colors are forbidden by neighbors $v < u$.
+This means no valid color for $u$.
+So we return False.
+This is correct.
+However, note that if `forbidden[u] == 7`, it implies that the current path is invalid.
+But we might have entered `backtrack(u)` because `backtrack(u-1)` thought it was valid.
+This can happen if `forbidden[u]` became 7 due to assignment of `u-1`.
+Wait, if `u-1` assigned a color that made `forbidden[u] == 7`, then `backtrack(u-1)` would have detected `invalid_lookahead` for $u$ (since $u > u-1$ and $u$ is neighbor of $u-1$).
+So `backtrack(u-1)` would have NOT chosen that color.
+So `forbidden[u]` should NOT be 7 when we enter `backtrack(u)`.
+UNLESS `u` has neighbors $w < u-1$ that were assigned such that `forbidden[u]` was already 7.
+But if `forbidden[u]` was 7 before step $u-1$, then step $u-1$ (if it was a neighbor of $u$) would have detected it?
+No. `backtrack(u-1)` checks lookahead for neighbors $v > u-1$.
+If $u$ is a neighbor of $u-1$, then $u > u-1$, so it checks $u$.
+If `forbidden[u]` was 7, `forbidden[u] |= mask` (if applicable) or just check.
+Wait, if `forbidden[u]` was 7, it means neighbors of $u$ (all $< u$) used colors 1, 2, 3.
+When we were at step $k < u-1$, if we assigned a color to a neighbor of $u$, we updated `forbidden[u]`.
+If `forbidden[u]` became 7, we would have pruned that branch.
+So `forbidden[u]` should never be 7 when we reach step $u$.
+So the check `if forbidden[u] == 7: return False` is actually unreachable if lookahead is implemented correctly at every step.
+But it's a good safety catch.
+Wait, is it possible `forbidden[u]` is 7 but we didn't prune?
+Suppose $u$ has neighbors $v_1, v_2, v_3$. All $< u$.
+We assign $v_1 \to 1$, $v_2 \to 2$, $v_3 \to 3$.
+When assigning $v_3$, we update `forbidden[u]`.
+If `forbidden[u]` becomes 7, we detect it and backtrack.
+So we never enter `backtrack(u)` with `forbidden[u] == 7`.
+So the check is redundant but harmless.
+Wait, what if $u$ is not a neighbor of the last assigned node?
+Say neighbors of $u$ are $1, 2, 3$.
+We assign $1 \to 1$. `forbidden[u]` = 1.
+We assign $2 \to 2$. `forbidden[u]` = 3 (bits 0 and 1).
+We assign $3 \to 3$. `forbidden[u]` = 7.
+At step 3, we check lookahead. $u > 3$. $u$ is neighbor.
+We update `forbidden[u]`. It becomes 7.
+We detect `invalid_lookahead`. We don't assign $3 \to 3$.
+So we backtrack.
+So indeed, we never reach `backtrack(u)` with `forbidden[u] == 7`.
+So the check is redundant. I can remove it or keep it. Keeping it is fine.
+
+Wait, check constraints again.
+$N \le 40$.
+If $N=40$, recursion depth 40.
+Is it possible that the lookahead check is too slow?
+Inside `backtrack(u)`, we iterate `adj[u]`.
+For each $v \in adj[u]$ with $v > u$, we do constant work.
+Sum of degrees is $2M$.
+So total work per level is $O(M)$.
+Total complexity $O(3^N \cdot M)$? No, much less because of pruning.
+Is it possible to have many nodes in recursion tree?
+Only if graph is very sparse or has many valid colorings.
+But we stop at the first valid one.
+So we only explore enough to find the first solution.
+The worst case is when no solution exists, and we explore the whole search space.
+With $N=40$ and no edges, we find solution immediately ($1, 1, \dots$).
+With $N=40$ and clique, we fail immediately (at node 4).
+The worst case is likely a graph that is 3-colorable only with specific assignments, or not 3-colorable at all but hard to detect.
+Given 2 seconds, this should pass.
+
+Wait, one more thing.
+The problem asks for "lexicographically smallest sequence".
+My code tries colors 1, 2, 3 in order.
+This ensures that for the first node $s_1$, we pick 1 if possible.
+Then for $s_2$, we pick 1 if possible (given $s_1$).
+This is exactly lexicographical order.
+So the logic is correct.
+
+One edge case: `sys.setrecursionlimit`.
+Some environments might restrict it further, but usually 2000 is fine.
+Memory limit 256MB is plenty.
+
+One small detail:
+Input parsing: `sys.stdin.read().split()` reads all tokens.
+If $m=0$, loop `range(m)` is empty.
+Correct.
+
+Final verification of Example 1:
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+
+Edges: (1,2), (1,3), (2,3), (1,4), (2,4).
+Graph:
+1 connected to 2, 3, 4.
+2 connected to 1, 3, 4.
+3 connected to 1, 2.
+4 connected to 1, 2.
+
+Backtrack(1):
+Try $c=1$. `assignment[1]=1`.
+Lookahead:
+Neighbors of 1: 2, 3, 4.
+Update `forbidden[2] |= 1`. `forbidden[2]` = 1.
+Update `forbidden[3] |= 1`. `forbidden[3]` = 1.
+Update `forbidden[4] |= 1`. `forbidden[4]` = 1.
+Recurse `backtrack(2)`.
+
+Backtrack(2):
+`forbidden[2]` = 1.
+Try $c=1$: forbidden by `forbidden[2]`.
+Try $c=2$:
+Lookahead:
+Neighbors of 2: 1, 3, 4.
+$v > 2$: 3, 4.
+Update `forbidden[3] |= 2`. `forbidden[3]` = 1 | 2 = 3.
+Update `forbidden[4] |= 2`. `forbidden[4]` = 1 | 2 = 3.
+Recurse `backtrack(3)`.
+
+Backtrack(3):
+`forbidden[3]` = 3.
+Try $c=1$: forbidden.
+Try $c=2$: forbidden.
+Try $c=3$:
+Lookahead:
+Neighbors of 3: 1, 2.
+$v > 3$: None.
+Recurse `backtrack(4)`.
+
+Backtrack(4):
+`forbidden[4]` = 3.
+Try $c=1$: forbidden.
+Try $c=2$: forbidden.
+Try $c=3$:
+Lookahead: None.
+Recurse `backtrack(5)`.
+Returns True.
+
+Path: 1 -> 2 -> 3 -> 3.
+Output: YES \n 1 2 3 3.
+Matches example output.
+
+Example 2:
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+Complete graph $K_4$.
+Backtrack(1): $c=1$.
+Backtrack(2): $c=2$.
+Backtrack(3): $c=3$.
+Backtrack(4):
+`forbidden[4]` has 1 (from 1), 2 (from 2), 3 (from 3).
+So `forbidden[4]` = 7.
+Loop over $c=1, 2, 3$ all fail.
+Returns False.
+Backtrack(3) tries $c=4$ (no).
+Backtrack(2) tries $c=3$.
+...
+Eventually returns False.
+Output NO.
+Matches example output.
+
+Looks solid.
+
+```python
+# Final check on imports and structure
+import sys
+
+# Increase recursion depth
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Adjacency list
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    # assignment array to store the result
+    assignment = [0] * (n + 1)
+    
+    # forbidden mask for each node. 
+    # forbidden[v] stores the bitmask of colors used by neighbors of v that are already assigned.
+    # Bit 0 corresponds to color 1, Bit 1 to color 2, Bit 2 to color 3.
+    forbidden = [0] * (n + 1)
+
+    def backtrack(u):
+        # Base case: all nodes assigned
+        if u > n:
+            return True
+        
+        # If all 3 colors are forbidden for u, this path is dead.
+        # (This check is technically covered by the loop below, but good for clarity)
+        if forbidden[u] == 7:
+            return False
+
+        # Try colors 1, 2, 3
+        for c in range(1, 4):
+            # Check consistency: is color c forbidden by already assigned neighbors?
+            # Neighbors v < u are already assigned. Their colors are in forbidden[u].
+            if (forbidden[u] >> (c - 1)) & 1:
+                continue
+            
+            # Lookahead check:
+            # If we assign c to u, does it make any unassigned neighbor v > u impossible to color?
+            # A node v > u becomes impossible if forbidden[v] becomes 111 (binary 7).
+            # We need to update forbidden[v] temporarily and check.
+            
+            changes = []
+            invalid_lookahead = False
+            
+            for v in adj[u]:
+                if v > u:
+                    # Check if c is already forbidden for v
+                    mask_bit = 1 << (c - 1)
+                    if not (forbidden[v] & mask_bit):
+                        # Update forbidden[v]
+                        old_mask = forbidden[v]
+                        forbidden[v] |= mask_bit
+                        changes.append((v, old_mask))
+                        if forbidden[v] == 7:
+                            invalid_lookahead = True
+                            break
+            
+            if invalid_lookahead:
+                # Restore changes and try next color
+                for v, old_mask in changes:
+                    forbidden[v] = old_mask
+                continue
+            
+            # Assign color c to u
+            assignment[u] = c
+            
+            # Recurse
+            if backtrack(u + 1):
+                return True
+            
+            # Backtrack: reset assignment
+            assignment[u] = 0
+            
+            # Restore forbidden masks
+            for v, old_mask in changes:
+                forbidden[v] = old_mask
+                
+        return False
+
+    if backtrack(1):
+        print("YES")
+        print(*(assignment[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+The logic seems complete and correct.
+One minor thing: `sys.setrecursionlimit`.
+I put 5000.
+Also, the problem statement says $1 \le n \le 40$.
+So `assignment[1:]` has 40 elements.
+Printing with `*` separates by space.
+This is correct.
+
+One last check:
+What if the graph has no edges?
+`adj` is empty lists.
+`forbidden` is all 0.
+`backtrack(1)`:
+$c=1$. No lookahead. Recurse.
+...
+`backtrack(n+1)`: Returns True.
+Output `YES` and `1 1 ... 1`.
+Correct.
+
+What if $m$ is large?
+The loops over `adj[u]` are fast.
+Correct.
+
+Is there any case where `forbidden[v]` becomes 7 but we don't detect it?
+We detect it immediately when updating `forbidden[v]`.
+If `forbidden[v]` was already 7, we would have detected it in the previous step (when assigning the last neighbor of $v$).
+Wait, if `forbidden[v]` was already 7, then `backtrack` would have failed earlier.
+So we assume `forbidden[v]` is not 7 before update.
+So checking `== 7` after update is sufficient.
+Correct.
+
+The solution looks solid.
+
+```python
+import sys
+
+# Increase recursion depth to handle deep recursion trees if necessary
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from standard input efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list for the graph
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    # assignment[i] stores the bus assigned to core i (1-indexed)
+    assignment = [0] * (n + 1)
+    
+    # forbidden[v] is a bitmask representing the colors used by neighbors of v
+    # that have already been assigned.
+    # Bit 0 represents color 1, Bit 1 represents color 2, Bit 2 represents color 3.
+    # We only care about neighbors v < u when we are at step u.
+    forbidden = [0] * (n + 1)
+
+    def backtrack(u):
+        # If we have successfully assigned all cores
+        if u > n:
+            return True
+        
+        # If all 3 colors are forbidden for the current core u, then this path is invalid.
+        # forbidden[u] contains colors of neighbors v < u.
+        # If forbidden[u] == 7 (binary 111), no color is valid.
+        if forbidden[u] == 7:
+            return False
+
+        # Try assigning colors 1, 2, 3 in increasing order to ensure lexicographically smallest result
+        for c in range(1, 4):
+            # Check if color c is valid with respect to already assigned neighbors (v < u)
+            # If the corresponding bit is set in forbidden[u], it's invalid.
+            if (forbidden[u] >> (c - 1)) & 1:
+                continue
+            
+            # Forward Checking (Lookahead):
+            # Check if assigning color c to u will make any unassigned neighbor (v > u) impossible to color.
+            # An unassigned neighbor v becomes impossible if all 3 colors are forbidden for it.
+            # We update forbidden[v] temporarily for neighbors v > u and check.
+            
+            changes = []
+            invalid_lookahead = False
+            
+            for v in adj[u]:
+                if v > u:
+                    mask_bit = 1 << (c - 1)
+                    # If c is not already forbidden for v
+                    if not (forbidden[v] & mask_bit):
+                        old_mask = forbidden[v]
+                        forbidden[v] |= mask_bit
+                        changes.append((v, old_mask))
+                        # If forbidden[v] becomes 111 (7), then v has no valid color
+                        if forbidden[v] == 7:
+                            invalid_lookahead = True
+                            break
+            
+            if invalid_lookahead:
+                # Restore the forbidden masks for neighbors and try next color
+                for v, old_mask in changes:
+                    forbidden[v] = old_mask
+                continue
+            
+            # Assign color c to u
+            assignment[u] = c
+            
+            # Recurse to the next core
+            if backtrack(u + 1):
+                return True
+            
+            # Backtrack: reset assignment
+            assignment[u] = 0
+            
+            # Restore forbidden masks for neighbors v > u
+            for v, old_mask in changes:
+                forbidden[v] = old_mask
+                
+        return False
+
+    # Start the backtracking process from core 1
+    if backtrack(1):
+        print("YES")
+        # Print the assignment sequence s_1, s_2, ..., s_n
+        print(*(assignment[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```
+The code seems complete and handles the constraints and requirements well.
+The lookahead optimization is key for performance on $N=40$.
+The recursion depth is at most 40, so `sys.setrecursionlimit` is just a formality but good practice.
+Complexity is roughly proportional to the number of nodes in the search tree, which is pruned heavily.
+Space complexity is $O(N + M)$.
+Time complexity is exponential in worst case but practically fast for 3-coloring with lookahead.
+
+One tiny thing:
+`print(*(assignment[1:]))` prints space separated integers.
+This matches the requirement "space-separated integers".
+No trailing space issue.
+
+I'm confident.
+
+Wait, check constraints again. $m$ lines follow.
+If $m=0$, loop `range(m)` does nothing. `adj` remains empty. Code works.
+If input has extra whitespace, `split()` handles it.
+If input ends abruptly, `try-except` handles it (though problem guarantees valid input).
+
+One detail: `forbidden` array size.
+`n` up to 40. `n+1` is 41.
+`assignment` size 41.
+All good.
+
+Final check on time limit.
+Python is slower than C++.
+With 2 seconds, $N=40$ backtracking with lookahead is standard.
+Without lookahead, it might TLE on dense graphs or specific structures.
+With lookahead, it should be fine.
+Also, the problem asks for *lexicographically smallest*.
+This forces us to try colors 1, 2, 3 in order.
+We cannot reorder vertices to optimize search (like DSatur) because that would change the order of $s_1, s_2 \dots$.
+If we used DSatur to order vertices, we would find *a* coloring, but not necessarily the lexicographically smallest one for indices $1..n$.
+We would then have to check permutations or something, which is impossible.
+So we must process $1..n$.
+So the only optimization is pruning.
+The lookahead pruning is the most effective simple pruning for graph coloring.
+
+I will output the solution now.
+</think>
+```python
+import sys
+
+# Increase recursion depth to handle deep recursion trees if necessary
+sys.setrecursionlimit(5000)
+
+def solve():
+    # Read all input from standard input efficiently
+    input_data = sys.stdin.read().split()
+    
+    if not input_data:
+        return
+
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    # Build adjacency list for the graph
+    # Using 1-based indexing for cores
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    # assignment[i] stores the bus assigned to core i (1-indexed)
+    assignment = [0] * (n + 1)
+    
+    # forbidden[v] is a bitmask representing the colors used by neighbors of v
+    # that have already been assigned.
+    # Bit 0 represents color 1, Bit 1 represents color 2, Bit 2 represents color 3.
+    # We only care about neighbors v < u when we are at step u.
+    forbidden = [0] * (n + 1)
+
+    def backtrack(u):
+        # If we have successfully assigned all cores
+        if u > n:
+            return True
+        
+        # If all 3 colors are forbidden for the current core u, then this path is invalid.
+        # forbidden[u] contains colors of neighbors v < u.
+        # If forbidden[u] == 7 (binary 111), no color is valid.
+        if forbidden[u] == 7:
+            return False
+
+        # Try assigning colors 1, 2, 3 in increasing order to ensure lexicographically smallest result
+        for c in range(1, 4):
+            # Check if color c is valid with respect to already assigned neighbors (v < u)
+            # If the corresponding bit is set in forbidden[u], it's invalid.
+            if (forbidden[u] >> (c - 1)) & 1:
+                continue
+            
+            # Forward Checking (Lookahead):
+            # Check if assigning color c to u will make any unassigned neighbor (v > u) impossible to color.
+            # An unassigned neighbor v becomes impossible if all 3 colors are forbidden for it.
+            # We update forbidden[v] temporarily for neighbors v > u and check.
+            
+            changes = []
+            invalid_lookahead = False
+            
+            for v in adj[u]:
+                if v > u:
+                    mask_bit = 1 << (c - 1)
+                    # If c is not already forbidden for v
+                    if not (forbidden[v] & mask_bit):
+                        old_mask = forbidden[v]
+                        forbidden[v] |= mask_bit
+                        changes.append((v, old_mask))
+                        # If forbidden[v] becomes 111 (7), then v has no valid color
+                        if forbidden[v] == 7:
+                            invalid_lookahead = True
+                            break
+            
+            if invalid_lookahead:
+                # Restore the forbidden masks for neighbors and try next color
+                for v, old_mask in changes:
+                    forbidden[v] = old_mask
+                continue
+            
+            # Assign color c to u
+            assignment[u] = c
+            
+            # Recurse to the next core
+            if backtrack(u + 1):
+                return True
+            
+            # Backtrack: reset assignment
+            assignment[u] = 0
+            
+            # Restore forbidden masks for neighbors v > u
+            for v, old_mask in changes:
+                forbidden[v] = old_mask
+                
+        return False
+
+    # Start the backtracking process from core 1
+    if backtrack(1):
+        print("YES")
+        # Print the assignment sequence s_1, s_2, ..., s_n
+        print(*(assignment[1:]))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()
+```

@@ -1,0 +1,50 @@
+import sys
+
+def solve():
+    # Use fast I/O
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx+1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest triple (a, b, c) with a < b < c:
+    # We iterate a from 1 to n-2, b from a+1 to n-1, and check if c exists.
+    # To make it efficient, we iterate through neighbors of a.
+    
+    # Sort adjacency lists to ensure we check potential 'b's in order
+    sorted_adj = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        neighbors_a = sorted_adj[a]
+        # Only consider b > a
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            if b <= a:
+                continue
+            
+            # Now we need a c such that c > b and c is connected to both a and b.
+            # We can find this by intersecting the adjacency sets of a and b.
+            # To be efficient, intersect the smaller set.
+            
+            # Optimization: Check if there exists c in neighbors_a such that c > b and c in adj[b]
+            # Since neighbors_a is sorted, we can iterate through it.
+            for c in neighbors_a:
+                if c <= b:
+                    continue
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

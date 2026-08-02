@@ -1,0 +1,49 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    constraints = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        constraints.append((u - 1, v - 1))
+        index += 2
+    
+    # If no constraints, return YES and all ones (lexicographically smallest)
+    if m == 0:
+        print("YES")
+        print(" ".join("1" for _ in range(n)))
+        return
+
+    division = [0] * n
+    possible = True
+    
+    for i in range(2 ** n):
+        valid = True
+        # Convert number to binary representation and pad with leading zeros
+        bits = f'{i:0{n}b}'
+        
+        for u, v in constraints:
+            if bits[u] == bits[v]:
+                valid = False
+                break
+        
+        if valid:
+            division = [int(bit) + 1 for bit in bits]
+            possible = True
+            break
+        else:
+            possible = False
+    
+    if possible:
+        print("YES")
+        print(" ".join(map(str, division)))
+    else:
+        print("NO")

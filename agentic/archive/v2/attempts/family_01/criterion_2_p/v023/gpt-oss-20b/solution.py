@@ -1,0 +1,51 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    N = next(it)
+    M = next(it)
+    adj = [[] for _ in range(N)]
+    for _ in range(M):
+        u = next(it) - 1
+        v = next(it) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * N          # provisional 0/1
+    final = [0] * N           # final 1/2
+    for i in range(N):
+        if color[i] != -1:
+            continue
+        # new component
+        color[i] = 0
+        comp = [i]
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                cv = color[v]
+                if cv == -1:
+                    color[v] = cu ^ 1
+                    comp.append(v)
+                    q.append(v)
+                elif cv == cu:
+                    sys.stdout.write("NO")
+                    return
+        start_color = color[i]
+        if start_color == 0:
+            for node in comp:
+                final[node] = color[node] + 1
+        else:
+            for node in comp:
+                final[node] = 2 - color[node]
+
+    out_lines = ["YES", " ".join(map(str, final))]
+    sys.stdout.write("\n".join(out_lines))
+
+if __name__ == "__main__":
+    solve()

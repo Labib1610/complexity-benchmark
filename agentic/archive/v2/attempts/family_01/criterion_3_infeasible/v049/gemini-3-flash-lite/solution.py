@@ -1,0 +1,48 @@
+import sys
+
+def solve():
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    # Build adjacency list and bitsets for fast intersection
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate through a from 1 to n-2
+    # Iterate through b in adj[a] such that b > a
+    # Iterate through c in adj[a] intersect adj[b] such that c > b
+    
+    # Sort adjacency lists to ensure we pick smaller indices first
+    sorted_adj = [sorted(list(adj[i])) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        neighbors_a = sorted_adj[a]
+        # Only consider neighbors > a
+        neighbors_a = [x for x in neighbors_a if x > a]
+        
+        for b in neighbors_a:
+            # We need to find if there is a c > b such that c is in adj[a] and adj[b]
+            # Since we want the lexicographically smallest, we check neighbors of b
+            # that are also in neighbors of a
+            neighbors_b = adj[b]
+            
+            # Find common neighbors
+            common = []
+            for c in neighbors_a:
+                if c > b and c in neighbors_b:
+                    # Found the smallest c for this (a, b)
+                    print(f"{a} {b} {c}")
+                    return
+
+solve()

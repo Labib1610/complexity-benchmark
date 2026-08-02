@@ -1,0 +1,49 @@
+# Frequency Channel Allocation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A central facility processes $n$ tasks, indexed $1$ through $n$. Each task must be assigned a frequency setting from the set $\{1, 2, 3\}$.
+
+There are $m$ collision constraints between pairs of tasks. Each constraint specifies a pair of tasks $(u, v)$ that share a physical transmission line and therefore cannot operate under the same frequency setting. Specifically, if a constraint links task $u$ and task $v$, then their frequency assignments $s_u$ and $s_v$ must satisfy $s_u \neq s_v$.
+
+Your goal is to find an assignment of frequency settings $s_1, s_2, \dots, s_n \in \{1, 2, 3\}$ for all tasks such that $s_u \neq s_v$ for every collision constraint pair $(u, v)$. Among all valid assignments, select the one that yields the lexicographically smallest sequence $(s_1, s_2, \dots, s_n)$. If no valid assignment exists, report that no solution can be formed.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), denoting the number of tasks and the number of collision constraints, respectively.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), specifying that task $u$ and task $v$ have a collision constraint.
+
+## Output
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$, where $s_i \in \{1, 2, 3\}$ is the frequency assigned to task $i$. Output the lexicographically smallest sequence among all valid assignments.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

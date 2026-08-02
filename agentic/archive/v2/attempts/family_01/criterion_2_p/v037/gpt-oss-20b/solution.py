@@ -1,0 +1,54 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    comp_vertices = []
+    from collections import deque
+
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        comp = []
+        dq = deque([start])
+        color[start] = 0
+        while dq:
+            u = dq.popleft()
+            comp.append(u)
+            cu = color[u]
+            for v in adj[u]:
+                cv = color[v]
+                if cv == -1:
+                    color[v] = 1 - cu
+                    dq.append(v)
+                elif cv == cu:
+                    sys.stdout.write("NO")
+                    return
+        comp_vertices.append(comp)
+
+    # Adjust orientations for lexicographically smallest assignment
+    for comp in comp_vertices:
+        min_v = min(comp)
+        if color[min_v] == 1:  # need to flip
+            for v in comp:
+                color[v] ^= 1
+
+    ans = ['1' if c == 0 else '2' for c in color]
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(ans))
+
+if __name__ == "__main__":
+    solve()

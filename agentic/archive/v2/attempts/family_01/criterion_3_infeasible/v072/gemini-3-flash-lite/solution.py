@@ -1,0 +1,51 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        idx += 2
+        
+    # To find the lexicographically smallest (a, b, c) with a < b < c:
+    # Iterate a from 1 to n-2
+    # Iterate b from a+1 to n-1
+    # Check if there exists c in adj[a] intersect adj[b] with c > b
+    
+    # Pre-sorting neighbors for faster intersection and finding c > b
+    for i in range(1, n + 1):
+        adj[i] = sorted(list(adj[i]))
+    
+    # Use a boolean array for O(1) adjacency checks
+    is_adj = [[False] * (n + 1) for _ in range(n + 1)]
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            is_adj[u][v] = True
+            
+    for a in range(1, n + 1):
+        neighbors_a = adj[a]
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            if b <= a:
+                continue
+            
+            # Now we look for c such that b < c and c is in adj[a] and adj[b]
+            # Since neighbors_a is sorted, we can check intersection efficiently
+            # We only need the smallest such c
+            for c in neighbors_a[i+1:]:
+                if is_adj[b][c]:
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

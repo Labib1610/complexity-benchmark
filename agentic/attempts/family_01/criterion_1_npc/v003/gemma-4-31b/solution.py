@@ -1,0 +1,57 @@
+import sys
+
+def solve():
+    # Increase recursion depth for deep search if necessary, 
+    # though n=40 is small enough for standard recursion.
+    sys.setrecursionlimit(2000)
+    
+    # Read n and m
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    # assignment[i] stores the slot (1, 2, or 3) assigned to person i
+    assignment = [0] * n
+    
+    def is_valid(person, slot):
+        for neighbor in adj[person]:
+            if assignment[neighbor] == slot:
+                return False
+        return True
+
+    def backtrack(person):
+        if person == n:
+            return True
+        
+        # Try slots 1, 2, 3 in increasing order to ensure lexicographical smallest sequence
+        for slot in [1, 2, 3]:
+            if is_valid(person, slot):
+                assignment[person] = slot
+                if backtrack(person + 1):
+                    return True
+                assignment[person] = 0
+        return False
+
+    # The problem asks for the lexicographically smallest sequence.
+    # Since we iterate through slots 1, 2, 3 for person 0, then 1, etc.,
+    # the first valid assignment found by DFS will be the lexicographically smallest.
+    if backtrack(0):
+        print("YES")
+        print(*(assignment))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

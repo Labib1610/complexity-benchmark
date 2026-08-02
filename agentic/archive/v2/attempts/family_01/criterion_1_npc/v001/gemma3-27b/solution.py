@@ -1,0 +1,42 @@
+def solve():
+    n, m = map(int, input().split())
+    incompatible = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        incompatible.append((u - 1, v - 1))
+    
+    def is_valid(assignment):
+        for u, v in incompatible:
+            if assignment[u] == assignment[v]:
+                return False
+        return True
+
+    def find_assignment():
+        assignment = [0] * n
+        
+        def backtrack(index):
+            if index == n:
+                if is_valid(assignment):
+                    return assignment
+                else:
+                    return None
+            
+            for slot in [1, 2, 3]:
+                assignment[index] = slot
+                result = backtrack(index + 1)
+                if result:
+                    return result
+            
+            return None
+
+        return backtrack(0)
+
+    assignment = find_assignment()
+    
+    if assignment:
+        print("YES")
+        print(*assignment)
+    else:
+        print("NO")
+
+solve()

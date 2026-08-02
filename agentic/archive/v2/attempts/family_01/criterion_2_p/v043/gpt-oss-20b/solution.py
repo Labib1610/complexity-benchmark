@@ -1,0 +1,63 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    g = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        g[u].append(v)
+        g[v].append(u)
+
+    color = [-1] * (n + 1)          # 0 or 1
+    comp_of = [-1] * (n + 1)        # component id
+    comp_id = 0
+
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # new component
+        dq = deque([start])
+        color[start] = 0
+        comp_of[start] = comp_id
+        while dq:
+            v = dq.popleft()
+            for to in g[v]:
+                if color[to] == -1:
+                    color[to] = 1 - color[v]
+                    comp_of[to] = comp_id
+                    dq.append(to)
+                elif color[to] == color[v]:
+                    sys.stdout.write("NO")
+                    return
+        comp_id += 1
+
+    mapping = [None] * comp_id  # 0 -> map 0->1,1->2 ; 1 -> map 0->2,1->1
+    ans = [0] * (n + 1)
+
+    for i in range(1, n + 1):
+        cid = comp_of[i]
+        if mapping[cid] is None:
+            if color[i] == 0:
+                mapping[cid] = 0
+                ans[i] = 1
+            else:
+                mapping[cid] = 1
+                ans[i] = 1
+        else:
+            if mapping[cid] == 0:
+                ans[i] = 1 if color[i] == 0 else 2
+            else:
+                ans[i] = 2 if color[i] == 0 else 1
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(str(ans[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

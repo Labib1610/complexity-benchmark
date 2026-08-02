@@ -1,0 +1,71 @@
+import sys
+
+# Increase recursion depth for deep DFS
+sys.setrecursionlimit(300000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+        
+    # We want the lexicographically smallest assignment.
+    # This means for each connected component, we try to assign 1 to the
+    # smallest index node if possible.
+    
+    color = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start BFS/DFS for this component
+            # To get lexicographical smallest, we prefer assigning 1 to the smallest 
+            # node in the component.
+            component = []
+            stack = [i]
+            color[i] = 1
+            component.append(i)
+            
+            # Standard bipartite check
+            q = [i]
+            color[i] = 1
+            idx_q = 0
+            while idx_q < len(q):
+                u = q[idx_q]
+                idx_q += 1
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+            
+            # Now we have a valid bipartite coloring for this component.
+            # We have two choices: 
+            # 1. Keep the current colors.
+            # 2. Flip all colors (1 becomes 2, 2 becomes 1).
+            # We want the resulting assignment to be lexicographically smallest.
+            # Find the smallest index node in this component.
+            
+            min_node = min(q)
+            
+            # If current color[min_node] is 2, we must flip to make it 1
+            if color[min_node] == 2:
+                for node in q:
+                    color[node] = 3 - color[node]
+                    
+    print("YES")
+    print(*(color[1:]))
+
+solve()

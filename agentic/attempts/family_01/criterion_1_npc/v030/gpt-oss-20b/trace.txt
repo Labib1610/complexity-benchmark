@@ -1,0 +1,493 @@
+We need to solve graph 3-coloring with lexicographically smallest assignment. n <= 40, m up to n*(n-1)/2. We need to find if graph is 3-colorable, and produce lexicographically smallest solution (vector of colors 1..3). Need efficient search. n small 40, 3^40 huge. But we can use backtracking with pruning, maybe branch and bound. Since 3-coloring NP-hard, but n=40 small enough for backtracking with heuristics. Use DSATUR or branch and bound with bitmasks.
+
+We need lexicographically smallest: colors assigned to individuals in order 1..n minimal lexicographically. That means we should try color 1 first for each vertex, then 2, then 3. But also must maintain feasibility. So we can perform DFS from i=1 to n, assigning colors in order. Use typical backtracking with constraints. Use adjacency list as bitmask for quick conflict check: for each vertex, maintain mask of neighbors colored same color. Or maintain color array and check neighbors each time.
+
+n <= 40, recursion depth 40. Branching factor 3, but with conflicts, can prune early. But worst-case clique 40, impossible with 3 colors, but we may explore many assignments until fail? We need efficient pruning: use DSATUR: choose next vertex with highest saturation (number of different colors used by neighbors), but to produce lexicographically smallest, we need to assign colors in order of vertices; but lexicographic minimality might conflict with DSATUR order. However, we can still attempt to assign in order but use pruning like forward checking: maintain for each uncolored vertex the set of possible colors remaining given colored neighbors. If any vertex has no possible colors, backtrack. Additionally, we can use heuristics to decide order of assignment: we could maintain the order of vertices to color based on heuristics, but ensure lexicographic minimality: We need final coloring vector minimal lexicographically. If we color vertices in non-sequential order, the resulting vector might be lexicographically smaller or not? Let's think: Suppose we color vertex 3 before vertex 2, but we assign color 1 to vertex 3, then later vertex 2 may get color 2. The resulting vector (colors) might be lexicographically smaller than some assignment where vertex 2 gets 1 and vertex 3 gets 2. But we need globally minimal lexicographic among all assignments. This is equivalent to performing backtracking that always tries color 1..3 for each vertex in order 1..n, but we may skip exploring some branches early if we know that we cannot find any assignment with current prefix. That's typical. So we can simply backtrack in order 1..n. That will yield lexicographically smallest assignment because we try colors in increasing order and stop at first found. That is correct: because if we find first valid assignment in this search order, it's lexicographically minimal. That's because we are exploring all sequences of colors in lexicographic order: for i from 1..n, we try 1,2,3; backtrack accordingly. So the first solution found is minimal.
+
+Thus we don't need DSATUR. But we must prune early: use forward checking: maintain for each vertex the set of available colors (1..3 minus colors of neighbors already colored). If any vertex has 0 available, backtrack. Additionally, we can propagate constraints: when we assign vertex i color c, we remove c from available set of its uncolored neighbors. We can maintain counts.
+
+Implementation details:
+
+n <= 40, we can use bitmasks for neighbors. Represent adjacency as integer bitmask neighbors[i].
+
+We also maintain color array col[1..n] (0 uncolored). When assign vertex v color c:
+
+- For each neighbor u where col[u]==0, we need to remove color c from its available set. But we need efficient data structure. Since only 3 colors, we can maintain for each vertex a mask of possible colors: avail[u] (bits 0..2). Initially all 0b111. When assign color c, for each neighbor u uncolored, we set avail[u] &= ~(1<<(c-1)). If avail[u]==0, backtrack.
+
+We also need to revert on backtrack: we can keep stack of changes: for each neighbor we changed avail[u], we record previous value to restore. Since n small, we can just copy avail array each recursion? That may be okay: 40 depth, each copy 40 ints, fine. Complexity 40*40*3 recursion nodes? Maybe okay. But we must be careful with recursion overhead.
+
+Simpler: use recursion with copying lists: avail = avail[:] each recursion. Complexity: at each level, we copy avail[0..n-1] (size 40). Suppose worst-case exploring many nodes, could be heavy but still fine for n=40. But we might explore many possibilities? Possibly exponential. But 3^40 huge. But pruning will cut many. But still may be large. But we must rely on constraints to be small enough. Might still be okay in practice due to 3-coloring NP-hard but small n.
+
+But we can implement more efficient incremental changes: maintain avail as list, and a stack of (vertex, prev_mask). When assign, for each neighbor we modify avail[u], push (u, prev). On backtrack, pop until stack size before assignment.
+
+Let's implement incremental.
+
+We'll maintain global arrays:
+
+adj = [0]*n (bitmask neighbors)
+col = [0]*n
+avail = [0b111]*n
+
+We also maintain list stack_changes = [] to revert.
+
+Function dfs(idx): idx is current vertex index to assign (0-based). If idx==n: success, return True.
+
+We iterate color c in 1..3:
+
+- if (avail[idx] & (1<<(c-1))) == 0: skip
+- assign: col[idx]=c
+- For each neighbor u of idx (by iterating over bits in adj[idx]): if col[u]==0:
+    prev_mask = avail[u]
+    new_mask = avail[u] & ~(1<<(c-1))
+    if new_mask==0: revert and break
+    avail[u] = new_mask
+    stack_changes.append((u, prev_mask))
+- If all neighbors processed without conflict:
+    if dfs(idx+1): return True
+- Undo:
+    col[idx]=0
+    while stack_changes and stack_changes[-1][0]>=idx? Wait we need to revert all changes made in this assignment. We can store number of changes before assignment: changes_before = len(stack_changes) before assignment. After recursion/backtrack, we revert changes from last until len(stack_changes)==changes_before: pop each and restore avail[u]=prev_mask.
+
+Simplify: For each assignment, we record changes in a local list local_changes. After recursion, we revert by iterating local_changes reversed.
+
+Ok.
+
+But we also need to check forward checking for all uncolored vertices: If any avail[u]==0, we should backtrack even before exploring further. But this will be caught when we attempt to assign that vertex later. However, it's better to prune early: after assignment, if any uncolored neighbor's avail==0, we can backtrack. That we already do: we check new_mask==0 when updating neighbor; if zero, we need to revert and skip this color.
+
+But there might be vertices not neighbor to idx that become zero due to earlier assignments? Actually if some vertex had avail 0 earlier, we would have already backtracked earlier. So fine.
+
+Thus algorithm works.
+
+Edge cases: n up to 40, recursion depth 40.
+
+Complexities: worst-case could be 3^40 but constraints moderate. Might still be too high. But typical graph 3-coloring with n=40 may be fine if graph is dense? For dense graphs, many early conflicts, pruning will cut. For sparse graphs, many colorings exist, but lexicographically minimal found early (all 1's until conflict). But still may need to explore many possibilities to find a valid. But maybe ok.
+
+But we must guarantee within 2s. Let's analyze worst-case: Suppose graph is an empty graph (no edges). Then any coloring works. Lexicographically minimal assignment will be all 1's. Our algorithm will assign 1 to each vertex successfully, no backtracking. So quick.
+
+Worst-case for hardness: Graph is bipartite? Many solutions, but first lexicographic will be all 1's? Wait bipartite graph: can color all vertices with 1? No conflict because no edges? If edges exist, cannot color adjacent vertices same. So not all 1's. Suppose graph is a path of length 39 (40 vertices). Lexicographically minimal coloring: assign 1,2,1,2,...? Let's see: first vertex 1, second cannot be 1, so 2, third cannot be 2, so 1, etc. So algorithm will find quickly.
+
+Worst-case might be a graph where many combinations needed before finding a solution? Example: a graph that forces a particular pattern not obvious. But still, 3-coloring search might be exponential but n=40 maybe okay.
+
+Let's test worst-case: Suppose graph is a 3-colorable but only 2^n solutions? But algorithm stops at first solution. Usually first solution found quickly? Not guaranteed, but maybe worst-case still small.
+
+We might improve by using ordering of vertices: but to keep lexicographic minimal, we cannot reorder. But we might reorder within same vertex? No.
+
+Thus algorithm stands.
+
+Implementation details:
+
+Reading input: n, m. Build adjacency list as bitmask: for each edge u,v (1-indexed). Use 0-index.
+
+for each edge: adj[u]|=1<<v; adj[v]|=1<<u.
+
+We also need to iterate neighbors: we can get bits via loop: bits = adj[idx]; while bits: u = (bits & -bits).bit_length()-1? Actually we can use builtin: lowbit = bits & -bits; u = lowbit.bit_length() - 1; bits ^= lowbit.
+
+Better: use while bits: u = (bits & -bits).bit_length() - 1; bits ^= 1<<u.
+
+Alternatively, we can precompute adjacency lists as lists of neighbors for each node.
+
+Simpler: use list of neighbor indices: neighbors[idx] = list of neighbor indices.
+
+Because iterating over bitmask each time may be overhead but fine.
+
+Let's use neighbors lists.
+
+Also we might want to use recursion with sys.setrecursionlimit.
+
+Implementation steps:
+
+- parse input
+- build neighbors list
+- init avail = [0b111]*n
+- col = [0]*n
+- Define dfs(i):
+    if i==n: return True
+    for c in 1..3:
+        if not avail[i] & (1<<(c-1)): continue
+        col[i]=c
+        changes=[]
+        conflict=False
+        for u in neighbors[i]:
+            if col[u]==0:
+                prev=avail[u]
+                new=prev & ~(1<<(c-1))
+                if new==0:
+                    conflict=True
+                    break
+                avail[u]=new
+                changes.append((u,prev))
+        if conflict:
+            # revert changes
+            for u,prev in changes:
+                avail[u]=prev
+            col[i]=0
+            continue
+        if dfs(i+1):
+            return True
+        # revert changes
+        for u,prev in changes:
+            avail[u]=prev
+        col[i]=0
+    return False
+
+But we also need to consider that after assigning, we may reduce avail for neighbors; but also for other vertices not neighbors, nothing changes. So above is fine.
+
+Edge case: After assignment, some vertex might have avail==0 due to earlier assignments but not neighbor of current. But that would have been caught earlier when we assigned that vertex. So fine.
+
+Now, complexity: In each recursion, we iterate at most 3 colors, for each color we iterate neighbors of current vertex. So fine.
+
+Now we need to produce output. If dfs(0) returns True, print YES and colors list (1-indexed). Else NO.
+
+Let's test on examples.
+
+Example 1:
+
+n=4, edges: 1-2,1-3,2-3,1-4,2-4.
+
+Graph: 1 connected to 2,3,4; 2 connected to 1,3,4; 3 connected to 1,2; 4 connected to 1,2.
+
+Coloring: Lexicographically minimal:
+
+- vertex1: colors 1..3, try 1. ok. neighbors 2,3,4 avail reduce 1.
+
+- vertex2: avail 2,3. Try 1: conflict because neighbor 1 has 1? Actually avail of 2 after removing 1 from neighbor 1 is 0b110 (2,3). Try color 1 not allowed. Try 2: allowed. assign 2. update neighbors 1 and 3 and 4. For 3, avail currently 0b110 (2,3) after removing color 2 -> 0b100 (3). For 4, avail 0b110 -> after removing 2 -> 0b100 (3). Good.
+
+- vertex3: avail 3 only. assign 3. neighbors: 1,2. 1 already colored 1, 2 colored 2. fine.
+
+- vertex4: avail 3 only. assign 3. neighbors: 1,2. fine. Done.
+
+Sequence: 1 2 3 3. matches.
+
+Example 2: complete graph 4. No 3-coloring. Algorithm will try 1->2->3->? For vertex3, avail 1,2,3? Actually after assigning 1,2,3 to first 3 vertices, vertex4 has no available colors -> backtrack. Algorithm will explore all combinations? Let's see: vertex1 choose 1; vertex2 choose 2; vertex3 choose 3; vertex4 no avail -> backtrack to vertex3: try 1? but neighbor 1 has 1, so conflict; 2 conflict; 3 used; no options -> backtrack to vertex2: try 1 conflict; 3? Actually vertex2's neighbor 1 has 1; color 3 allowed; assign 3. Then vertex3: neighbor 1 (1) and 2 (3). avail 2 only? Actually colors 1 and 3 removed, so avail 2. assign 2. Vertex4: neighbor 1 (1),2 (3),3 (2): avail none -> backtrack to vertex3: no other options; backtrack to vertex2: no more options; backtrack to vertex1: try 2, etc. eventually fail. So algorithm will explore many, but still limited.
+
+Edge Cases: m=0 -> all 1's. Works.
+
+Now complexity: worst-case branching 3^40 ~ 1.2e19 impossible. But due to constraints, graph likely small; but we must rely on pruning. For graphs with many edges, pruning will cut early. For sparse graphs, algorithm will find solution quickly. So maybe fine.
+
+But there might be a worst-case graph where 3-coloring exists but many colorings, but lexicographically minimal assignment may not be found until exploring many possibilities? Let's think: Suppose graph forces a pattern where first few vertices must be colored 1,2,1,2,... but there might be branching later. But first solution found may be near start. Hard to produce worst-case.
+
+Given constraints, this approach should pass.
+
+But must consider recursion depth: 40 okay.
+
+Now implement.
+
+Potential improvement: Use bitmasks for avail; but we already use int.
+
+Implementation details:
+
+neighbors: list of lists.
+
+Now test quickly.
+
+Let's implement.
+
+Potential pitfalls: When we revert changes, we must not revert avail[u] if u==i? But we only modify avail of neighbors. So fine.
+
+Also we need to ensure that we don't modify avail of vertices already colored. But we check col[u]==0 before modifying.
+
+Now about iteration over neighbors: For each neighbor u of idx, we modify avail[u] if uncolored. But we also need to check if neighbor has color equal to c? Actually if neighbor colored same color, that would have been prevented earlier via avail of idx? Wait: avail[idx] ensures that idx can be colored with c only if no neighbor colored c. Because when we colored a neighbor earlier, we removed color from idx's avail. So avail ensures no conflict. So we don't need to check neighbor's color again.
+
+Now about resetting avail after backtrack: we revert to prev mask.
+
+Edge: When we assign color to idx, we didn't modify avail[idx] itself. So avail[idx] remains unchanged; but it's okay because we set col[i] to c and won't use avail[idx] again. But if we backtrack, avail[idx] remains same but we don't care, since we will assign again.
+
+Now we must also consider that we might need to update avail for neighbors of idx that are already colored? We skip them.
+
+Now we must think about forward checking: Suppose we assign vertex i color c, we remove c from neighbor's avail. But if neighbor had other colors available, that's fine. But if neighbor had only color c, we set avail=0, conflict. That triggers backtrack.
+
+Thus algorithm correct.
+
+Let's test with small random graphs to ensure lexicographic minimal.
+
+We'll implement in code and test.
+
+Potential improvement: Use iterative stack to avoid recursion? Not necessary.
+
+Edge: Input may have duplicate edges? Not specified but maybe. We can handle duplicates: adjacency list may contain repeated entries, but we should avoid duplicates to not modify avail multiple times. We'll use set for neighbor list or adjacency matrix to avoid duplicates. But easier: when building neighbors, use set; but we have n <= 40, so we can use bitmask to accumulate; duplicates will be ignored because bitmask OR. So we can store neighbors as bitmask and convert to list later without duplicates.
+
+We'll build adjacency bitmask and then convert to list of neighbors.
+
+Implementation:
+
+adj_mask = [0]*n
+for each edge u,v: u-1,v-1; adj_mask[u]|=1<<v; adj_mask[v]|=1<<u
+
+neighbors = [ [] for _ in range(n) ]
+for i in range(n):
+    mask = adj_mask[i]
+    while mask:
+        lsb = mask & -mask
+        j = (lsb.bit_length()-1)
+        neighbors[i].append(j)
+        mask ^= lsb
+
+Now proceed.
+
+Now we need to set recursion limit:
+
+sys.setrecursionlimit(1000000)
+
+Now code.
+
+Let's test with examples.
+
+Also test with small random graphs to verify lexicographic minimal.
+
+We'll implement test harness offline mentally.
+
+Edge: For n=1, m=0: Should output YES 1.
+
+Edge: For n=2, m=1: Graph with edge between 1 and 2: Lexicographic minimal: 1 2. Our algorithm: vertex1 color 1; vertex2 cannot be 1, so try 2: works. Good.
+
+Edge: For n=3, triangle: no solution: algorithm will try 1,2,3? Let's see: vertex1 1; vertex2 2; vertex3 cannot be 1 or 2, try 3: but conflict with both neighbors? Actually vertex3 neighbor 1 and 2, but both colors are 1 and 2, so 3 is allowed. Wait triangle can't be 3-colored? Actually triangle is 3 nodes each connected to others, 3-colorable: assign 1,2,3. So yes solution exists. Lexicographic minimal: 1 2 3. Our algorithm will find that.
+
+Edge: Graph with 4 nodes, cycle of length 4: 1-2-3-4-1. Lexicographic minimal: 1 2 1 2? Let's check: vertex1 1; vertex2 cannot be 1 -> 2; vertex3 neighbor 2, cannot be 2 -> 1; vertex4 neighbors 3(1) and 1(1) cannot be 1 -> 2. So 1 2 1 2. Works.
+
+Ok.
+
+Now complexity wise, we need to ensure we don't exceed 2 seconds. For n=40 dense graph, algorithm will quickly prune. For n=40 sparse but many colorings, algorithm will find solution quickly. So fine.
+
+Let's implement.
+
+Potential improvement: When we assign color c to vertex i, we can also check if some uncolored vertex has avail mask that is a subset of {c} but not yet assigned? That might be handled by forward checking due to neighbors? But we can't reduce avail of non-neighbor vertices. But if a vertex has only one available color left, we might want to propagate that assignment earlier, but that would complicate lexicographic minimality. However we don't need to propagate; we just rely on backtracking.
+
+But maybe we can add a simple heuristic: after assigning color to i, we can check the entire avail array for any vertex with zero avail; if found, backtrack. But we already check neighbors only; but if some vertex not neighbor of i has zero avail due to earlier assignments, we would have already failed earlier. So not needed.
+
+Ok.
+
+Let's implement.
+
+Potential bug: We need to maintain avail as list of int. On backtracking, we revert changed avail[u] to prev. But we also need to revert avail[i]? Actually avail[i] remains same as before assignment, but we don't use it again after backtrack. So fine.
+
+However, when we assign color to i, we didn't modify avail[i]. But we might need to modify avail[i] to remove colors that conflict with colored neighbors? But we rely on avail[i] before assignment to ensure no conflict. After assignment, we don't need avail[i]. But when we undo, avail[i] remains unchanged (0b111). But that may conflict if we reassign i later with different color? But we will recompute avail[i] again? Actually avail[i] will still be 0b111, but if some neighbor has colored color, we didn't remove that color from avail[i] because we didn't modify it. But when we try a different color for i, we will check avail[i] & (1<<(c-1)). Since avail[i] still includes all colors, we might incorrectly allow color that conflicts with a colored neighbor. Wait: That's an issue. Example: vertex i has neighbor j colored 2. When we first assign i color 1, avail[i] initially was 0b111. But because neighbor j colored 2, we didn't remove 2 from avail[i] before assignment? Actually we need to maintain avail for each vertex to reflect colors used by colored neighbors. When we colored j earlier, we updated avail of its neighbors, including i, removing color 2 from avail[i]. Good. So avail[i] after j colored will be 0b101 (1 and 3). So when we assign i color 1, we use avail[i]. After assigning, we don't modify avail[i]; but we might need to keep avail[i] as 0b101 or we don't care because i is colored. When we backtrack and try color 2 for i, we need avail[i] to reflect neighbor colors. Since we haven't changed avail[i] after coloring j, it remains 0b101. So we will not try color 2 because not in avail[i]. Good. So avail[i] stays correct. So we don't need to modify avail[i] when assigning i. Good.
+
+Now revert changes: we revert only neighbors changed. Good.
+
+Edge: We might need to revert avail[i] when we backtrack? But we never changed avail[i], so no need.
+
+Thus algorithm correct.
+
+Let's test with random graph generation, but not mandatory.
+
+Edge: n=40, m=0: algorithm will assign 1 to all vertices, no neighbor modifications.
+
+Ok.
+
+Potential optimization: Use adjacency bitmask for iteration: for each neighbor we need to check if col[u]==0. We can iterate over neighbors list; but we can precompute neighbor list to avoid bit ops.
+
+Let's implement neighbors list.
+
+Implementation of dfs:
+
+def dfs(i):
+    if i==n:
+        return True
+    avail_i = avail[i]
+    for c in (1,2,3):
+        bit = 1 << (c-1)
+        if not avail_i & bit:
+            continue
+        col[i] = c
+        changes = []
+        conflict = False
+        for u in neighbors[i]:
+            if col[u]==0:
+                prev = avail[u]
+                new = prev & ~bit
+                if new == 0:
+                    conflict = True
+                    break
+                avail[u] = new
+                changes.append((u, prev))
+        if conflict:
+            # revert changes
+            for u, prev in changes:
+                avail[u] = prev
+            col[i] = 0
+            continue
+        if dfs(i+1):
+            return True
+        # revert changes
+        for u, prev in changes:
+            avail[u] = prev
+        col[i] = 0
+    return False
+
+Edge: avail_i is local copy; but after changes we didn't update avail_i. But we use avail_i for color loop, not needed after.
+
+Ok.
+
+Now we need to store result: col array after success.
+
+Now we test with example.
+
+But we must confirm that we don't need to modify avail[i] after assignment. But we also need to ensure avail[i] remains consistent for other vertices that might become neighbors later? Suppose we assign vertex i color 1. When we assign vertex j later, we need to ensure that avail[j] has color 1 removed if neighbor i colored 1. We did that when we assigned i: we updated neighbors of i. So avail[j] updated accordingly. So fine.
+
+Thus algorithm correct.
+
+Now we must check recursion blowing up due to exploring many colors on early vertices? Suppose graph is bipartite chain: we assign 1 at vertex 1, 2 at vertex 2, 1 at 3, etc. Should find quickly. Good.
+
+Edge: Graph where first vertex has many options but only one leads to solution. Our algorithm will try 1 first, maybe fail after exploring many deeper branches, then backtrack to try 2, etc. That may cause many nodes. But still maybe okay.
+
+Given n <=40, we must ensure time limit 2 seconds. In worst-case, exploring full 3^40 impossible. But maybe input graphs are small enough.
+
+But maybe there is a specific worst-case graph where algorithm fails? Let's analyze worst-case for this algorithm: Suppose graph is such that first vertex is connected to all others, so we try color 1, then second vertex has many options, but only one leads to solution. But after exploring many branches, we may need to explore 3^(n-1) possibilities. But if first vertex is connected to all others, then each neighbor will have avail of colors except the color of vertex1, so each neighbor has 2 options. So each subsequent vertex has 2 options; total 2^(n-1) possibilities. For n=40, that's 2^39 ~ 5e11 too large. But maybe graph structure ensures some conflicts that prune earlier. But consider graph that is a star: vertex1 connected to all others, but others not connected to each other. Then we can color vertex1 with 1. Then each other vertex can be colored 2 or 3. Our algorithm will assign vertex2 color 2, vertex3 color 2, etc. But if we assign all others color 2, no conflict. So lexicographically minimal: all others 2. So algorithm will find quickly. So not worst-case.
+
+Worst-case arises when graph is bipartite but with edges between many vertices, causing branching? But still maybe manageable.
+
+However, there exists known NP-hard graphs of size 40 that may cause exponential search. But given constraints, typical contest expects backtracking with pruning to pass.
+
+But we must ensure we also use bitmask for avail to quickly check.
+
+Ok.
+
+Let's test with random graphs: but not mandatory.
+
+Potential improvements: Use bitset for avail. Already.
+
+Now code.
+
+But we must also ensure we read input from sys.stdin.
+
+Now produce final output.
+
+Edge: If solution found, print "YES" then colors separated by spaces.
+
+Edge: If NO, print "NO".
+
+Let's now implement.
+
+But we must be careful about recursion stack overflow. Use sys.setrecursionlimit(1000000).
+
+Ok.
+
+Let's produce final code.
+
+But we must test with sample.
+
+Let's implement quick test harness mentally:
+
+Input:
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+
+Neighbors:
+1: [2,3,4]
+2: [1,3,4]
+3: [1,2]
+4: [1,2]
+
+Algorithm:
+
+avail all 0b111.
+
+dfs(0):
+avail[0]=0b111
+
+c=1:
+col[0]=1
+changes=[]
+neighbors: 1,2,3
+for u=1: col[1]==0 -> prev=0b111 new=0b111 & ~1 => 0b110 -> avail[1]=0b110 changes push (1,0b111)
+u=2: avail[2]==0b111 -> new=0b110 changes push (2,0b111)
+u=3: avail[3]==0b111 -> new=0b110 changes push (3,0b111)
+conflict false
+dfs(1):
+
+avail[1]=0b110
+
+c=1: not avail -> skip
+c=2: avail -> col[1]=2 bit=0b10
+changes=[]
+neighbors of 1: 0,2,3
+u=0 colored skip
+u=2: col[2]==0; prev=0b110; new=0b110 & ~0b10 = 0b100; avail[2]=0b100 push (2,0b110)
+u=3: prev=0b110; new=0b100 avail[3]=0b100 push (3,0b110)
+conflict none
+dfs(2):
+
+avail[2]=0b100
+
+c=1: skip
+c=2: skip
+c=3: avail -> col[2]=3 bit=0b100
+changes=[]
+neighbors of 2: 0,1,3
+u=0 colored skip
+u=1 colored skip
+u=3: col[3]==0; prev=0b100; new=0b100 & ~0b100 = 0b0 -> conflict true, break
+revert changes: no changes
+col[2]=0
+continue loop: no more colors
+
+Return False
+
+Backtrack to vertex1:
+
+revert changes: revert avail[1],avail[2],avail[3] to 0b111 each
+col[1]=0
+c=3: avail[1] has 3? yes. assign 3
+neighbors: 0,2,3
+u=0 colored skip
+u=2: prev=0b111 new=0b111 & ~0b100=0b011 avail[2]=0b011 push
+u=3: prev=0b111 new=0b011 avail[3]=0b011 push
+dfs(2):
+
+avail[2]=0b011
+
+c=1: avail -> col[2]=1 bit=0b001
+changes=[]
+neighbors of 2: 0,1,3
+u=0 colored skip
+u=1 colored skip
+u=3 col[3]==0 prev=0b011 new=0b011 & ~0b001=0b010 avail[3]=0b010 push
+conflict none
+dfs(3):
+
+avail[3]=0b010
+
+c=1: not avail
+c=2: avail -> col[3]=2 bit=0b010
+changes=[]
+neighbors of 3: 0,1
+u=0 colored skip
+u=1 colored skip
+conflict none
+dfs(4) -> success
+
+Thus colors: 1 3 1 2? Wait we have col[0]=1, col[1]=3, col[2]=1, col[3]=2. Sequence: 1 3 1 2. But sample output 1 2 3 3. Our algorithm found a different solution but lexicographically earlier? Let's compare lexicographically: our sequence 1 3 1 2 vs 1 2 3 3. Compare at index 1: both 1. Index 2: 3 vs 2. 2 is smaller, so sample's sequence is lexicographically smaller. But our algorithm found 1 3 1 2 earlier? Wait we didn't explore color 2 for vertex2 earlier because avail[1] after assigning vertex1=1 had avail 0b110 (2,3). We first tried color 2, found conflict at vertex3. Then we tried color 3, found solution 1 3 1 2. But lexicographically smaller solution 1 2 3 3 exists, but we didn't find it because we didn't try vertex2 color 2? Wait we did: we tried color 2 for vertex2, but that led to conflict at vertex3. But after backtracking from vertex2, we didn't try color 3 for vertex2? Actually we did: we tried color 2, conflict, we reverted, then we continued with next color for vertex2: color 3. That led to solution 1 3 ... But we didn't try color 2 for vertex3 after assigning vertex2=2? Wait we did: when vertex2=2, we assigned vertex3 color 3, but conflict at vertex4. Then we backtracked to vertex3 and tried other colors but none. Then backtracked to vertex2, tried color 3. So we didn't explore vertex2=2, vertex3=1? Wait vertex3 had avail 3 only after vertex2=2, because neighbor 1 had 1, neighbor 2 had 2. So avail[2] = 0b100 (3). So only color 3 possible. So 1 2 3 3 is a solution, but we didn't find it because we didn't proceed to vertex4 after assigning 1 2 3? Wait we did: vertex3=3, we set avail of vertex4 to 0b100? Let's trace: At vertex2=2, we assigned vertex3=3. Then we updated avail[3] neighbors: neighbors of 3: 0 and 1. - neighbor 0 colored 1 -> no conflict. neighbor 1 colored 2 -> no conflict. So avail[3] unchanged? Actually we don't modify avail[3] because neighbors colored earlier. Vertex4: neighbors 0,1. avail[4] after vertex1=1 had 0b110; after vertex2=2, we removed color 2 -> avail[4] becomes 0b100. So at vertex4, avail[4] is 0b100 only color 3. So vertex4=3 is allowed. So we should have found 1 2 3 3 solution. But why did we backtrack to vertex3? Let's check earlier: At vertex2=2, we had changes for neighbors 1,2,3? Wait vertex2 neighbors: 0,1,3. We updated avail[3] to 0b100. Then we go to vertex3: avail[3] = 0b100. We tried color 3. No conflict. Then we go to vertex4: avail[4] = 0b100. We assign color 3. So algorithm should succeed. But earlier we saw conflict at vertex4 when processing vertex3? Wait in earlier trace, we had conflict at vertex4 when processing vertex3: we had new=0b0? Let's review earlier earlier trace: At vertex2=2, we updated avail[3] to 0b100. Then we went to vertex3: avail[2] (index 2) is 0b100, we assigned 3. Then we updated avail[3]? Actually vertex3 is index 3? Wait confusion: Vertex indices: 0->1,1->2,2->3,3->4. So when we were at vertex2 (index 1), we updated avail[3] (index 3) because neighbor 3 (index 3) is vertex4. So we set avail[3] from 0b111 to 0b100. Then we go to vertex3 (index 2). That is vertex3. Its neighbors are 0 and 1. We assign color 3. Then we update neighbors 0,1 (colored). No change. Then go to vertex4 (index 3). avail[3] is 0b100. So assign color 3. So no conflict. So algorithm should succeed. But earlier we mistakenly had conflict at vertex4 while processing vertex3? Let's recalc: At vertex2=2, avail[3] changed to 0b100. Good.
+
+Now at vertex3 (index 2): avail[2] is 0b100. We assign color 3. Then we update neighbors 0,1 (colored). So avail[3] remains 0b100. Then vertex4: avail[3] = 0b100. Good.
+
+Thus algorithm finds solution 1 2 3 3. So why did earlier trace show conflict at vertex4? We had earlier trace that after vertex3=3, we tried to update neighbor 3? Wait earlier we had vertex3=3 and updated neighbor 3?? That was wrong. So algorithm correct.
+
+Thus algorithm will produce lexicographically smallest solution 1 2 3 3. Good.
+
+Thus algorithm works.
+
+Now we need to ensure we didn't skip exploring vertex2=2 because conflict at vertex4? But we will explore all possibilities until solution found.
+
+Now we must ensure we implement recursion correctly.
+
+Edge: We need to revert changes properly when conflict occurs. We break out of loop early; we revert changes. Good.
+
+Now we must ensure we revert after exploring deeper recursion.
+
+Ok.
+
+Now produce final code.
+
+Potential performance improvement: use list of neighbors; but we need to iterate each neighbor. Good.
+
+Now let's produce final code.
+
+Test with example.
+
+Edge: n up to 40, recursion depth 40 fine.
+
+Now produce final answer.

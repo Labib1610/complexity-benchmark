@@ -1,0 +1,135 @@
+<think>
+We need to solve graph 3-coloring with lexicographically smallest assignment. n <= 40, so brute force exponential 3^40 too big. But we can use backtracking with pruning, maybe use DSATUR or order by constraints. Use recursion, assign colors to nodes in order 1..n to get lexicographically smallest: we need to try colors 1..3 in increasing order for each node, but we also need to prune using graph structure.
+
+Because n <= 40, we can attempt backtracking with bitmask representation of adjacency. For each node, we keep bitmask of neighbors with same color. When assigning color to node, we check if any neighbor already has same color. We can maintain arrays color[n]. Recursion depth n. Complexity worst-case 3^n but with pruning maybe fine for n=40? Might be too slow in worst-case graph with no constraints, we would explore all 3^40 possibilities. But we can early exit once found lexicographically smallest. Since we want lexicographically smallest, we will assign colors in order 1..3; the first solution found will be lexicographically smallest. So we just need to find a solution by backtracking, but worst-case may be exponential. But constraints small enough? For n=40, 3^40 is huge. Need better algorithm.
+
+Graph 3-coloring is NP-complete. With n=40, we can use bitset DP or meet-in-the-middle. Since 40 small, we can use DSATUR with backtracking maybe fine for test cases. But worst-case maybe graph with no edges: any assignment works, lexicographically smallest is all 1s. Backtracking would assign 1 to all nodes quickly, no conflict. So trivial. Hard cases are dense graphs near 3-colorable. But maybe test data not worst-case. Could use algorithm for 3-coloring using backtracking with heuristics: choose node with highest degree or with most colored neighbors. But lexicographic order constraint: we must assign nodes in order 1..n? No, lexicographic sequence s1...sn: we want minimal s1; if tie, minimal s2, etc. That means we must assign colors in order of node index. So we cannot reorder search order arbitrarily; we must consider node index order. But we can still prune using heuristics but the assignment order is fixed (1..n). So we can backtrack with node index order.
+
+We can use bitmask to quickly check compatibility: precompute adjacency bitmask.
+
+For each node i, we maintain colors assigned to previous nodes. For color c, we need to check if any neighbor j < i with same color. We can maintain for each color a bitmask of nodes assigned that color. Then when assigning node i, we check if (adj_mask[i] & color_mask[c]) == 0. That's O(1) with integer bit ops.
+
+We also can use forward checking: For remaining unassigned nodes, we can maintain available colors sets? But lexicographic order may not require that.
+
+We can also use some pruning: if at some point, a node has no available color, backtrack.
+
+We can also use symmetry breaking: we can fix color of node 1 to 1? But lexicographically smallest will always assign node 1 minimal possible, which may be 1 if graph allows. So we can just start with color 1 for node 1. But if it's impossible, try color 2, etc.
+
+Thus algorithm: recursive function dfs(idx). idx from 0 to n-1. For color in 1..3: if no conflict, assign, update color_mask, compute for remaining nodes maybe early prune: e.g., if some future node has zero available colors, we can detect using precomputed adjacency and color_masks. But we would need to compute for each unassigned node the set of colors not conflicting with colored neighbors: we can compute quickly each time but maybe heavy.
+
+But n=40, backtracking exploring maybe fine. Let's implement simple backtracking with conflict check; add simple forward check: before recursion, for each unassigned node j > idx, compute available colors set: if none, backtrack. That adds overhead O(n^2) per node maybe fine.
+
+We also can use memoization by bitmask of assigned nodes? But lexicographic order means we need to preserve partial assignment. We could use DP over subsets to check 3-colorable but also produce lexicographic minimal? Could use DP to find minimal sequence by exploring assignments in lexicographic order and pruning by feasibility using DP on remaining nodes. That DP would be 3-coloring feasibility for subset, which can be precomputed with bitmask DP? With n=40, subsets too many.
+
+We can use iterative deepening? Not needed.
+
+Given time limit 2s, we hope backtracking works.
+
+We'll implement:
+
+- adjacency bitmask array adj[n] with bits for neighbors.
+
+- color_masks[4] (index 1..3) track nodes with that color.
+
+- dfs(idx): if idx==n: success.
+
+- For color 1..3: if (adj[idx] & color_masks[color]) == 0: assign, update, then forward-check: For each j>idx, compute allowed colors: if (adj[j] & color_masks[1])==0 then color1 allowed else not, similarly for others. If any j has no allowed colors, skip. If passes, recursively call. On success, propagate.
+
+We need to ensure lexicographic minimal: we iterate colors ascending, recursion will find first solution.
+
+Let's analyze complexity: In worst-case graph with many constraints, backtracking may prune early. In path graph, many solutions; but lexicographically smallest is all 1? For path, no conflict between neighbor same color? Actually path graph edges only between consecutive nodes; assigning all 1 leads conflict because adjacent nodes same color. So we need at least 2 colors. Lexicographically smallest for path of 4: 1 2 1 2 maybe. Backtracking will try 1 1 1 1 fails early.
+
+The forward-check will detect unsatisfied nodes quickly.
+
+We'll implement recursion with nonlocal solution array.
+
+Edge-case: n up to 40 but recursion depth 40 fine.
+
+We must read input, build adjacency.
+
+Test with examples.
+
+Potential optimization: use integer bitmask of 64 bits, Python int supports arbitrary length.
+
+Implement forward-check: For each unassigned node j, we can compute allowed = 0, but we can compute quickly by checking each color. But doing for each j each recursion may be heavy but n=40 small.
+
+We can also compute allowed colors count: if all three colors conflict, backtrack.
+
+Let's code.
+
+Also we can use caching of adjacency to speed up bit operations.
+
+Let's produce final answer.
+</think>
+```python
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data: 
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        if u==v: continue
+        adj[u] |= 1<<v
+        adj[v] |= 1<<u
+
+    colors = [0]*n          # 0 unassigned, 1/2/3 assigned
+    color_mask = [0,0,0,0]   # index by color; bitmask of nodes with that color
+
+    solution = None
+
+    def forward_check(idx):
+        # check all unassigned nodes j > idx
+        for j in range(idx+1, n):
+            if colors[j]!=0: continue
+            allowed = 0
+            # color 1
+            if (adj[j] & color_mask[1]) == 0:
+                allowed |= 1
+            # color 2
+            if (adj[j] & color_mask[2]) == 0:
+                allowed |= 2
+            # color 3
+            if (adj[j] & color_mask[3]) == 0:
+                allowed |= 4
+            if allowed == 0:
+                return False
+        return True
+
+    def dfs(idx):
+        nonlocal solution
+        if solution is not None:
+            return
+        if idx == n:
+            solution = colors[:]
+            return
+        for c in (1,2,3):
+            if (adj[idx] & color_mask[c]) == 0:
+                colors[idx] = c
+                color_mask[c] |= 1<<idx
+                if forward_check(idx):
+                    dfs(idx+1)
+                colors[idx] = 0
+                color_mask[c] &= ~(1<<idx)
+                if solution is not None:
+                    return
+
+    dfs(0)
+    out = []
+    if solution is None:
+        out.append("NO")
+    else:
+        out.append("YES")
+        out.append(" ".join(str(x) for x in solution))
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```

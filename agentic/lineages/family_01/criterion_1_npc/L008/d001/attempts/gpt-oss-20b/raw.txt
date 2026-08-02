@@ -1,0 +1,217 @@
+<think>
+We need 3-coloring of graph up to n=40. Need lexicographically smallest coloring. Since n small, can backtrack with pruning. 3-coloring NP-hard but n=40 manageable with recursion and branch ordering. Use adjacency bitmasks. We can use DSATUR or simple recursion with ordering of vertices by degree decreasing to reduce branching. Lexicographically smallest sequence means we must assign colors to vertices 1..n in order; but we can choose order for backtracking. However lexicographic order is based on vertex indices. That means we cannot reorder vertices arbitrarily unless we transform result back to indices order. But we can still search in some order but maintain that final assignment uses indices 1..n. The lexicographic minimality is over the vector sorted by vertex index. So to achieve lexicographically smallest, we need to try colors for vertex 1 first in order 1,2,3; if any leads to solution then that's minimal. Similarly for vertex 2 etc. So we can just apply DFS in natural order 1..n. But branching factor may blow up. But n=40, 3^40 huge worst-case. But we can prune using graph constraints. But still might be too slow. Need better algorithm.
+
+Maybe use graph coloring with backtracking and forward checking, but still worst-case high. However n=40 may be okay with good pruning using bitmasks and ordering. Let's think.
+
+We can use recursion with vertex ordering by degree but we need to produce lexicographically minimal sequence. We can maintain an array color[1..n] and attempt to assign colors in order 1..n, but we can compute remaining uncolored vertices set. At each step, we pick next vertex with smallest index not colored. For each color 1..3, if it's consistent with already colored neighbors, assign and recurse. Use backtracking. Complexity worst-case 3^n but typical graphs may allow pruning.
+
+But worst-case graph is empty: no edges. Then any coloring works. Lexicographically smallest coloring is all 1's. Our algorithm will try color 1 for vertex1, succeed, etc. That will finish quickly. Good.
+
+Worst-case might be graph with no solution: full graph K4? For n=40, it's 3-colorable unless clique of size 4. But if graph is K4, early detection will fail quickly. I think backtracking will be fine.
+
+But we need to prune using available colors for remaining vertices via graph coloring heuristics. We can use DSATUR ordering but we must still maintain lexicographic minimality. We can use recursion but before exploring color for vertex i, we can compute the set of forbidden colors from already colored neighbors. If none, we try 1..3.
+
+We can also apply simple forward checking: for each uncolored vertex, track available colors set; if any becomes empty, backtrack. We can maintain for each vertex a bitmask of allowed colors. Initially 111b. When assign color c to vertex v, for each neighbor u uncolored, remove c from its allowed mask; if mask becomes 0, backtrack. We need to restore on backtrack.
+
+Implement with bit operations. Use adjacency list.
+
+We'll maintain arrays color[n], allowed[n] bitmask. Initially all allowed = 0b111.
+
+When assign color c to v:
+
+- color[v] = c
+- for u in adj[v]:
+   if color[u]==0:
+        allowed[u] &= ~(1 << (c-1))
+        record change to allow restoration.
+
+We need to maintain stack of changes: list of (u, old_mask) for each neighbor.
+
+Also maintain list of uncolored vertices; can just recompute next vertex as smallest index with color==0.
+
+Also early prune: if any uncolored vertex has allowed mask 0, backtrack.
+
+Additionally we can use heuristic to choose next vertex: choose smallest index among uncolored (to maintain lexicographic minimality). But we could choose vertex with minimal allowed colors for pruning; but that may change lexicographic order. However we can still choose smallest index first, but we can try to reorder if we want? Wait lexicographic minimality requires that the final sequence sorted by indices is minimal; but if we assign earlier vertices color 1, we may later need to backtrack and assign higher color to earlier vertex. But if we choose next vertex not smallest index, we might assign a color to vertex 5 before vertex 2, but that doesn't affect earlier vertex colors; but if later we backtrack, we might still end up with lexicographically minimal? Example: Suppose vertices 1-2 edges. If we choose vertex 2 first, assign color 1, then vertex1, try color 1 but conflict, then try color2, result (2,1). Lexicographically minimal is (1,2). Our algorithm may produce (2,1) if we don't ensure order. So we must enforce that vertex indices are considered in increasing order for assignments. That means we cannot skip earlier vertices. So we must assign vertices in order 1..n. That might reduce branching but also may cause more backtracking? But still fine.
+
+Thus algorithm: DFS(pos) where pos is current vertex index (1-based). If pos>n, solution found. For color in 1..3: if allowed[pos] has color bit, assign, propagate, recurse to pos+1. If succeed return true. Else undo and try next color. If none works, return false.
+
+Propagation: when assign color c to vertex v, for each neighbor u, if u>v? Actually neighbor could be smaller index, but those are already colored, so no need to modify allowed. For neighbors not yet colored (u>v maybe or <v but not colored? but we assign in order, so all smaller indices are colored). So we only need to update neighbors > v that are not colored. But we can just check color==0. We'll record changes.
+
+We also need to test allowed[pos] mask before loop.
+
+Complexity: depth n <=40, branching small due to constraints.
+
+Edge cases: n up to 40, m up to 780. Recursion depth 40 fine.
+
+Let's implement.
+
+We need adjacency list: list of neighbors per vertex 0-based.
+
+Bitmask for colors: 1<<0 -> color1, 1<<1 -> color2, 1<<2 -> color3.
+
+Initialize allowed[i] = 0b111.
+
+Implementation details:
+
+def dfs(v):
+    if v==n: return True
+    # vertex index v: 0-based
+    for c in range(3):
+        if not (allowed[v] & (1<<c)): continue
+        # assign
+        color[v] = c+1
+        changes=[]
+        ok=True
+        for u in adj[v]:
+            if color[u]==0:
+                old=allowed[u]
+                new=old & ~(1<<c)
+                if new==0:
+                    ok=False
+                allowed[u]=new
+                changes.append((u, old))
+        if ok:
+            if dfs(v+1): return True
+        # undo
+        for u, old in changes:
+            allowed[u]=old
+        color[v]=0
+    return False
+
+But we must also consider that some neighbor may be colored later (u>v). Good.
+
+But we also need to propagate constraints for neighbors that are not yet colored and may have other constraints; but we only update allowed[u] by removing color c. That may reduce but we also need to restore old mask on backtrack. Good.
+
+Also need to check early if any neighbor's allowed becomes zero, we should backtrack earlier. We already check new==0 then ok=False but we still apply change to allowed[u]. To ensure we revert changes, we must still record old for each neighbor changed, even if new==0. But we might stop early if new==0. But we still need to revert all changes. So record changes for all neighbors.
+
+Implementation:
+
+for u in adj[v]:
+    if color[u]==0:
+        old=allowed[u]
+        new=old & ~(1<<c)
+        changes.append((u, old))
+        allowed[u]=new
+        if new==0:
+            ok=False
+
+After loop, if ok then recurse.
+
+Edge: when ok=False, we may still need to revert changes. So we revert after recursion or after detection. We'll revert after recursion attempt.
+
+But we also should revert before trying next color.
+
+So code:
+
+for c...
+    color[v]=c+1
+    changes=[]
+    ok=True
+    for u in adj[v]:
+        if color[u]==0:
+            old=allowed[u]
+            new=old & ~(1<<c)
+            changes.append((u, old))
+            allowed[u]=new
+            if new==0:
+                ok=False
+    if ok and dfs(v+1): return True
+    # revert
+    for u, old in changes:
+        allowed[u]=old
+    color[v]=0
+
+Return False.
+
+Also we need to check allowed[v] before trying colors: if allowed[v]==0 return False.
+
+But allowed[v] may be updated by previous assignments. So we can simply loop over colors and skip those not allowed. If none, return False.
+
+Edge: we need to ensure lexicographic minimality: we iterate colors ascending 0,1,2. That ensures minimal sequence for given vertex. Good.
+
+Testing example: The graph with triangle etc should produce output.
+
+Now complexity: each recursion step updates at most degree of vertex changes. Sum over recursion steps? At each node, changes recorded for neighbors. Backtracking ensures each edge considered many times. Worst-case maybe high but n=40 fine.
+
+Ok.
+
+Edge case: if graph not 3-colorable, program returns NO.
+
+Let's produce final answer.
+
+We also need to read input. n,m. adjacency list size n. Use 0-based indices.
+
+Return output.
+
+Let's test quickly mentally.
+
+Example1: 4 5 edges: 1-2,1-3,2-3,1-4,2-4. Graph: vertices 1-4. Our algorithm: pos0 assign color1 to vertex1. Update allowed of neighbors 2,3,4: each remove color1. Vertex2 allowed now 110. Vertex3 allowed 110. Vertex4 allowed 110. Next pos1 vertex2: allowed 110. Try color1? not allowed. color2 allowed. assign color2. Update neighbors 1,3,4: but 1 colored. For 3, allowed 110 remove color2 -> 100. For 4 remove color2 -> 100. Now pos2 vertex3: allowed 100. Try color1? not allowed. color2? not allowed. color3 allowed. assign 3. Update neighbors 1,2: both colored. pos3 vertex4: allowed 100. Try color1? no. color2? no. color3 allowed. Good.
+
+Sequence: [1,2,3,3]. Works.
+
+Example2: K4 all edges. Let's see: vertex1 color1. Vertex2 allowed 110. color2. Vertex3 allowed 100? Let's compute: after 1 color1, 2 color2, vertex3 allowed 100 (only color3). Vertex4 allowed? After assignments: after 1 color1: allowed 110. After 2 color2: vertex4 allowed 100. After 3 color3: vertex4 allowed 0 -> fail. Backtrack: vertex3 try other colors? none. Backtrack to vertex2: try color3. Then vertex3 allowed 010? Let's compute: after 1 color1, 2 color3: vertex3 allowed remove 1 and 3 -> only color2. Vertex4 allowed remove 1 and 3 -> only color2. Vertex3 color2 -> allowed for vertex4? remove 2 -> 0 -> fail. Similarly backtrack etc. No solution. Output NO.
+
+Ok.
+
+We need to implement recursion with global arrays for speed. Use sys.setrecursionlimit.
+
+Return.
+
+Let's produce final code.
+</think>
+```python
+import sys
+
+def main():
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * n  # 0 means uncolored, otherwise 1..3
+    allowed = [0b111] * n  # bitmask of allowed colors
+
+    def dfs(v):
+        if v == n:
+            return True
+        if allowed[v] == 0:
+            return False
+        for c in range(3):  # colors 1..3
+            if not (allowed[v] & (1 << c)):
+                continue
+            color[v] = c + 1
+            changes = []
+            ok = True
+            for u in adj[v]:
+                if color[u] == 0:
+                    old = allowed[u]
+                    new = old & ~(1 << c)
+                    changes.append((u, old))
+                    allowed[u] = new
+                    if new == 0:
+                        ok = False
+            if ok and dfs(v + 1):
+                return True
+            for u, old in changes:
+                allowed[u] = old
+            color[v] = 0
+        return False
+
+    if dfs(0):
+        out = ["YES", " ".join(str(col) for col in color)]
+        sys.stdout.write("\n".join(out))
+    else:
+        sys.stdout.write("NO")
+
+if __name__ == "__main__":
+    main()
+```

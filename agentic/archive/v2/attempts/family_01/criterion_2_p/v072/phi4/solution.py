@@ -1,0 +1,55 @@
+import sys
+input = sys.stdin.read
+
+def main():
+    data = input().split()
+    
+    index = 0
+    n = int(data[index])
+    m = int(data[index + 1])
+    index += 2
+    
+    from collections import defaultdict, deque
+    
+    graph = defaultdict(list)
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Try to color the graph using two colors (1 and 2)
+    color = [-1] * (n + 1)  # color[i] will be -1 if not colored, 0 or 1 if colored
+    valid = True
+    
+    for start in range(1, n + 1):
+        if color[start] == -1:  # Not yet colored
+            queue = deque([start])
+            color[start] = 1
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in graph[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 3 - current_color  # Assign the opposite color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        valid = False
+                        break
+                
+                if not valid:
+                    break
+    
+    if not valid:
+        print("NO")
+    else:
+        result = ['YES']
+        assignment = [str(color[i]) for i in range(1, n + 1)]
+        result.append(' '.join(assignment))
+        print('\n'.join(result))
+
+if __name__ == "__main__":
+    main()
