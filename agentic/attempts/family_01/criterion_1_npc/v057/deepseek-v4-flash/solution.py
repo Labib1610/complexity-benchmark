@@ -1,0 +1,56 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [0] * n
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    color = [0] * n
+    
+    # Precompute forbidden mask for each node for each color
+    # forbidden[node][color] = bitmask of neighbors already assigned that color
+    forbidden = [[0]*4 for _ in range(n)]
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        for c in (1, 2, 3):
+            # Check if any neighbor already has color c
+            if forbidden[idx][c] & (1 << idx):
+                continue
+            # Check if any neighbor already assigned c conflicts
+            conflict = False
+            for nb in range(n):
+                if (adj[idx] >> nb) & 1 and color[nb] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            color[idx] = c
+            # Update forbidden for neighbors
+            for nb in range(n):
+                if (adj[idx] >> nb) & 1:
+                    forbidden[nb][c] |= (1 << idx)
+            if backtrack(idx + 1):
+                return True
+            # Backtrack
+            for nb in range(n):
+                if (adj[idx] >> nb) & 1:
+                    forbidden[nb][c] &= ~(1 << idx)
+            color[idx] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, color)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

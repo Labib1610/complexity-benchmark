@@ -1,33 +1,24 @@
-# Enterprise Access Control — Security Conflict Audit Pipeline
+# Frequency Allocation Certificate
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-### Description
+A telecommunications provider operates $n$ radio towers, identified by integers from 1 to $n$. A recent survey mapped $m$ specific pairs of towers with overlapping broadcast ranges. To prevent signal collision, any two towers with overlapping ranges must be assigned distinct operating frequencies.
 
-In a high-security facility, technical staff members (numbered $1$ through $n$) are routinely assigned to facility maintenance tasks across two physically separated operational zones. To prevent collusion and satisfy regulatory security policies, specific pairs of personnel are designated as restricted together—meaning no two individuals in a restricted pair may be assigned to work in the same operational zone simultaneously.
+The infrastructure team planned to deploy exactly two distinct frequencies across the entire network. However, this deployment strategy is invalid. The survey data guarantees the presence of at least one triad of towers where each tower's range overlaps with the ranges of the other two. Because all three towers mutually overlap, they require three distinct frequencies, making a two-frequency deployment impossible.
 
-When attempting to distribute personnel across the two zones, an unresolvable access deadlock occurs if there is a group of three distinct engineers $a, b, c$ such that every pair among them is restricted from sharing a zone. Under such a condition, allocating these three individuals across only two available zones inevitably forces at least two restricted workers into the same location.
+To formally document why the two-frequency plan was rejected, you must identify one such triad of mutually overlapping towers.
 
-Your task is to implement the security audit tool that detects this specific failure condition. Given the records of restricted personnel pairs, find three individuals $a, b, c$ with $a < b < c$ such that $a$ and $b$ are restricted together, $a$ and $c$ are restricted together, and $b$ and $c$ are restricted together.
+## Input
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), specifying that tower $u$ and tower $v$ have overlapping broadcast ranges. Each overlapping pair is recorded at most once.
+It is guaranteed that at least one triad of mutually overlapping towers exists.
 
-To ensure deterministic diagnostic logging, if multiple such triplets exist, you must identify the lexicographically smallest one (minimizing $a$ first; if tied, minimizing $b$; if still tied, minimizing $c$).
+## Output
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the identifiers of three towers that form a mutually overlapping triad. The identifiers must be printed in ascending order ($a < b < c$).
+If there are multiple such triads, output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
 
-It is guaranteed that at least one such triplet exists in the input data.
-
-### Input
-
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of personnel and the number of restricted pairs, respectively.
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that staff member $u$ and staff member $v$ are restricted from being assigned to the same operational zone.
-
-### Output
-
-Print three space-separated integers $a$, $b$, and $c$ on a single line such that $a < b < c$, representing the lexicographically smallest triplet of mutually restricted personnel.
-
-### Example 1
-
-**Input:**
+## Example 1
+Input:
 ```
 4 5
 1 2
@@ -36,15 +27,13 @@ Print three space-separated integers $a$, $b$, and $c$ on a single line such tha
 2 4
 3 4
 ```
-
-**Output:**
+Output:
 ```
 1 2 3
 ```
 
-### Example 2
-
-**Input:**
+## Example 2
+Input:
 ```
 5 6
 1 2
@@ -54,8 +43,7 @@ Print three space-separated integers $a$, $b$, and $c$ on a single line such tha
 3 5
 4 5
 ```
-
-**Output:**
+Output:
 ```
 1 2 4
 ```

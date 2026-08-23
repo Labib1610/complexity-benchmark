@@ -1,0 +1,45 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges lexicographically by (u, v)
+    edges.sort()
+    
+    for a, b in edges:
+        # Find common neighbors c > b
+        # Iterate over the smaller adjacency set for efficiency
+        if len(adj[a]) <= len(adj[b]):
+            small = adj[a]
+            big = adj[b]
+        else:
+            small = adj[b]
+            big = adj[a]
+        
+        # Collect candidates c > b that are in both sets
+        candidates = []
+        for c in small:
+            if c > b and c in big:
+                candidates.append(c)
+        
+        if candidates:
+            c = min(candidates)
+            print(f"{a} {b} {c}")
+            return
+
+solve()

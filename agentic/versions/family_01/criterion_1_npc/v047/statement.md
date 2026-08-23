@@ -1,25 +1,29 @@
-# Workforce Pipeline: Shift Allocation Stage
+# Secure Facility Deployment
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A corporate personnel management engine coordinates shift assignments for employees across three designated daily time slots, denoted by integer codes 1, 2, and 3.
+You are managing the deployment of $n$ security personnel across three distinct zones (labeled 1, 2, and 3) in a secure facility. The personnel are numbered 1 to $n$. 
 
-You are given $n$ workers, identified by integer IDs from 1 to $n$, and a list of $m$ pairwise operational incompatibility constraints. An incompatibility between worker $u$ and worker $v$ means they cannot be active during the same operational shift.
+During the initial screening, the intelligence unit produced a list of $m$ incompatibility reports. Each report identifies two personnel who cannot be deployed to the same zone due to operational risks. 
 
-To validate compliance, the system evaluates assigned shift codes $s_1, s_2, \dots, s_n$ against two compliance criteria:
-1. Every worker $i$ must receive an integer shift code $s_i \in \{1, 2, 3\}$.
-2. For each incompatible pair of workers $(u, v)$, the product of their assigned shift codes $s_u \cdot s_v$ must belong to the permitted product set \{2, 3, 6\}.
+To comply with facility regulations, the deployment must satisfy the following organizational conditions:
+- The total number of incompatibility reports processed, $m$, is guaranteed to never exceed 780.
+- Exactly $n$ personnel must be assigned across the zones, meaning no personnel can be left unassigned or assigned to multiple zones.
+- The sum of the zone labels assigned to all $n$ personnel must be less than or equal to $3n$.
 
-If one or more valid shift assignments exist, you must output the one that is lexicographically smallest when viewed as the sequence $(s_1, s_2, \dots, s_n)$. If no assignment satisfies all conditions, report that allocation is impossible.
+Your objective is to assign each of the $n$ personnel to a zone such that no two personnel in the same zone share an incompatibility report. 
+
+If multiple valid deployment configurations exist, you must select the one that is lexicographically smallest. A configuration $A$ is lexicographically smaller than $B$ if, for the lowest-numbered personnel where their zone assignments differ, configuration $A$ assigns them to a lower-numbered zone than $B$.
+
+If it is impossible to satisfy all conditions, you must report this so the deployment can be aborted.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of workers and the number of incompatible pairs.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating an operational incompatibility between worker $u$ and worker $v$.
+The first line contains two integers $n$ and $m$ (1 ≤ n ≤ 40, 0 ≤ m ≤ n(n-1)/2).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of personnel who are incompatible.
 
 ## Output
-If no valid shift assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the shift assigned to each worker $1 \dots n$. Output the lexicographically smallest sequence among all valid assignments.
+If no valid deployment exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $z_1, z_2, \dots, z_n$ (each in {1, 2, 3}), where $z_i$ is the zone assigned to personnel $i$. Among all valid configurations, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

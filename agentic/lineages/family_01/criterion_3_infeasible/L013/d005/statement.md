@@ -1,0 +1,49 @@
+# Problem C — Weekend Deployment Veto
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A software company is preparing to migrate $n$ legacy microservices, identified by IDs 1 through $n$. The architecture team has compiled a list of $m$ specific pairs of microservices that rely on identical temporary database tables. If any two microservices in such a pair are migrated during the same batch window, they will cause a data collision.
+
+Management has directed that the entire migration must be completed over a standard two-day weekend, using exactly two batch windows. The lead architect knows this plan is mathematically doomed. The collision data guarantees the existence of an unresolvable core: a trio of microservices where every microservice in the trio collides with both of the other two. Because they all mutually conflict, no two can share a batch window, making a two-window migration impossible.
+
+To secure approval for a longer migration schedule, you must submit a formal override by identifying one such trio of mutually conflicting microservices.
+
+## Input
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a pair of microservices that will collide if migrated in the same batch window. Each pair is listed at most once.
+It is guaranteed that at least one such trio of microservices exists.
+
+## Output
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the IDs of the three microservices in the trio. The IDs must be printed in ascending order ($a < b < c$).
+If there are multiple such trios, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+```
+Output:
+```
+1 2 3
+```
+
+## Example 2
+Input:
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+Output:
+```
+1 2 4
+```

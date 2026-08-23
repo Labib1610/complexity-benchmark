@@ -1,0 +1,101 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        # No conflicts, assign all to band 1
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-based indexing
+        v = int(data[index+1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        index += 2
+
+    # Color array: -1 unvisited, 0 -> band1, 1 -> band2
+    color = [-1] * n
+    visited = [False] * n
+
+    # Check bipartiteness using BFS for each component
+    for start in range(n):
+        if visited[start]:
+            continue
+        queue = deque()
+        queue.append(start)
+        color[start] = 0  # Assign band1 to the starting node
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 1 - current_color
+            
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] != next_color:
+                    # Conflict found, not bipartite
+                    print("NO")
+                    return
+
+    # If we reach here, the graph is bipartite
+    # Construct the result with lexicographically smallest sequence
+    # We want the first node (index 0) to have band 1 if possible
+    # But since we already did BFS with color[0] possibly set, we need to ensure lex smallest
+    
+    # Actually, our BFS assigns colors arbitrarily per component
+    # To get lexicographically smallest, we should run BFS from node 0 
+    # and prioritize assigning 0 (band1) to earlier nodes
+    
+    # Let's redo coloring ensuring lex smallest by processing nodes in order
+    color = [-1] * n
+    visited = [False] * n
+    
+    for start in range(n):
+        if visited[start]:
+            continue
+        # For lex smallest, we'll try to assign 0 to the starting node
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+
+    # Map 0->1 and 1->2 for output
+    result = []
+    for c in color:
+        result.append(str(c + 1))
+        
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

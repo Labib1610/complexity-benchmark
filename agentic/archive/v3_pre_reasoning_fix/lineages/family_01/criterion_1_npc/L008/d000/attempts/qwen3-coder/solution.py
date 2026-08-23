@@ -1,0 +1,43 @@
+def solve():
+    import sys
+    from collections import defaultdict
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Try all possible colorings in lexicographic order
+    # Use backtracking with pruning
+    coloring = [0] * (n + 1)  # 1-indexed
+    
+    def is_valid(node, color):
+        # Check if assigning 'color' to 'node' conflicts with neighbors
+        for neighbor in adj[node]:
+            if coloring[neighbor] == color:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                coloring[node] = color
+                if backtrack(node + 1):
+                    return True
+                coloring[node] = 0  # Backtrack
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(' '.join(map(str, coloring[1:])))
+    else:
+        print("NO")
+
+solve()

@@ -1,0 +1,84 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    forbidden = set()
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        forbidden.add((u, v))
+    
+    # Sort edges to help with ordering
+    edges.sort()
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    for u, v in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We want to find a triangle in the complement graph
+    # That means we want three nodes a < b < c such that none of (a,b), (a,c), (b,c) are in forbidden
+    
+    # To do this efficiently, let's iterate through all triplets a < b < c
+    # But since n can be up to 2000, we need a smarter approach
+    
+    # Let's build a graph of "allowed" edges (complement of forbidden)
+    # Then find a triangle in that graph
+    
+    # However, it's easier to check for triangles in the forbidden graph and ensure they are NOT present
+    
+    # Actually, a monopoly triad is when ALL THREE edges are FORBIDDEN
+    # So we want a triangle in the "forbidden" graph
+    
+    # Let's rephrase:
+    # A monopoly triad is a set {a,b,c} with a<b<c such that all of (a,b), (a,c), (b,c) are in the forbidden list
+    
+    # So we need to find a triangle in the forbidden graph with the lex smallest tuple
+    
+    # Let's represent the forbidden edges as a graph and look for triangles
+    
+    # For efficiency, let's go through nodes in order and for each node, 
+    # look at pairs of its neighbors to see if they are also connected
+    
+    # Create neighbor lists
+    neighbors = [set() for _ in range(n + 1)]
+    for u, v in edges:
+        neighbors[u].add(v)
+        neighbors[v].add(u)
+    
+    # Now for each node a, look at pairs of its neighbors (b, c) where b < c
+    # If both b and c are connected, then (a,b,c) is a monopoly triad
+    
+    for a in range(1, n + 1):
+        nb_list = sorted(list(neighbors[a]))
+        len_nb = len(nb_list)
+        for i in range(len_nb):
+            b = nb_list[i]
+            if b <= a:
+                continue
+            for j in range(i + 1, len_nb):
+                c = nb_list[j]
+                if c <= a or c <= b:
+                    continue
+                # Check if b and c are also connected (forbidden edge)
+                if c in neighbors[b]:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    main()

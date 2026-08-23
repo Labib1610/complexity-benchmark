@@ -1,0 +1,66 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list for the graph
+    adj = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-indexed
+        v = int(data[index+1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Color array: -1 unvisited, 0 color1, 1 color2
+    color = [-1] * n
+    queue = deque()
+    
+    # Process each connected component
+    for i in range(n):
+        if color[i] == -1:
+            # Start BFS with color 0
+            color[i] = 0
+            queue.append(i)
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                next_color = 1 - current_color
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = next_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != next_color:
+                        print("NO")
+                        return
+    
+    # If we reach here, a valid coloring exists
+    # We need the lexicographically smallest assignment
+    # That means we prefer assigning 1 (Hall 1) whenever possible
+    # Our coloring already ensures that: color 0 -> Hall 1, color 1 -> Hall 2
+    
+    result = []
+    for c in color:
+        if c == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

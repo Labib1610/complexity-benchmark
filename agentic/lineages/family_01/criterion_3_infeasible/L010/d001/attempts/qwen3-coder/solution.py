@@ -1,0 +1,56 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list using sets for O(1) lookup
+    adj = defaultdict(set)
+    edges = []
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort vertices for lexicographical order
+    vertices = sorted(adj.keys())
+    
+    # For each edge (u,v), check for a common neighbor w
+    best = None
+    
+    # Iterate through edges in order
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+        # Check for common neighbors
+        common = adj[u] & adj[v]
+        for w in sorted(common):
+            if w > v:  # Ensure lexicographical order
+                triple = tuple(sorted([u, v, w]))
+                if best is None or triple < best:
+                    best = triple
+    
+    if best is None:
+        # Fallback: brute force search for small cases
+        for i in range(len(vertices)):
+            for j in range(i+1, len(vertices)):
+                for k in range(j+1, len(vertices)):
+                    u, v, w = vertices[i], vertices[j], vertices[k]
+                    if v in adj[u] and w in adj[u] and w in adj[v]:
+                        print(u, v, w)
+                        return
+    else:
+        print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

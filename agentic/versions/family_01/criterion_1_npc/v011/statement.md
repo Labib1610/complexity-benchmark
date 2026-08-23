@@ -1,24 +1,20 @@
-# Problem A — Transmission Channel Assignment
+# Problem A — Bio-containment Protocols
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A telecommunication provider operates $n$ wireless stations, numbered from $1$ to $n$. Each station must be assigned to work on one of three available frequency channels, denoted by $1$, $2$, and $3$.
+A research facility needs to safely store $n$ biological samples. The facility is equipped with three isolated containment units, designated by the numbers 1, 2, and 3. Each sample must be placed into exactly one of these three units.
 
-Due to geographical proximity, certain pairs of stations interfere with each other. Two interfering stations cannot operate on the same frequency channel.
+Due to chemical volatility, certain pairs of samples are cross-reactive. If any two cross-reactive samples are placed into the same containment unit, their airborne byproducts will mix and ruin both samples. You are provided with a list of all cross-reactive pairs.
 
-Determine whether it is possible to assign a frequency channel to every station without any interference. If a valid configuration exists, report the lexicographically smallest assignment sequence $s_1, s_2, \dots, s_n$ (where $s_i \in \{1, 2, 3\}$ is the channel assigned to station $i$).
+Determine if it is possible to distribute all the samples among the three units without placing any cross-reactive pair together. If a safe distribution is possible, you must find a valid arrangement. To comply with the facility's standardized logging system, if there are multiple safe arrangements, you must output the sequence of unit assignments that is lexicographically smallest. (A sequence $A$ is lexicographically smaller than $B$ if, at the first sample index $i$ where they differ, $A$ assigns sample $i$ to a lower-numbered unit than $B$ does).
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of stations and the number of interfering pairs, respectively.
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that station $u$ and station $v$ interfere with each other.
+The first line contains two integers $n$ and $m$ — the total number of biological samples and the number of cross-reactive pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). The samples are numbered from 1 to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a pair of samples that are cross-reactive and cannot share a containment unit.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-
-Otherwise, print two lines:
-- The first line must contain `YES`.
-- The second line must contain $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), representing the assigned channel for each station from $1$ to $n$. If there are multiple valid assignments, select the one that is lexicographically smallest.
+If there is no way to safely store all samples, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $c_1, c_2, \dots, c_n$ separated by spaces, where $c_i \in \{1, 2, 3\}$ is the containment unit assigned to sample $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

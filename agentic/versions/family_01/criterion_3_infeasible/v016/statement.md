@@ -1,20 +1,20 @@
-# Mutual Incompatibility Certificate
+# Problem C — Shift Assignment Failure
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial plant keeps a log of severe interpersonal conflicts between pairs of employees. Management is attempting to organize the staff into two separate working shifts such that no two conflicting employees are placed on the same shift. However, if there exist three employees who all mutually conflict with one another (that is, every pair among the three has a logged conflict), it is impossible to divide them across only two shifts without placing at least two conflicting individuals on the same shift.
+The manufacturing plant operates exclusively on a day shift and a night shift. Management has gathered a list of incompatibilities between certain employees who refuse to work the same shift. It has already been determined that assigning everyone to just two shifts is an unsolvable task. Your objective is not to attempt an assignment, but to provide concrete evidence of this failure to the human resources department.
 
-You are given the list of all pairwise conflicts in the plant. It is guaranteed that at least one set of three mutually conflicting employees exists. Your task is to identify the lexicographically smallest such triple. Specifically, among all triples of employee IDs $(a, b, c)$ satisfying $1 \le a < b < c \le n$ where conflicts exist between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$, output the one that minimizes $a$, breaking ties by minimizing $b$, and further ties by minimizing $c$.
+Specifically, any group of three employees where every individual refuses to work with both of the other two constitutes undeniable proof that two shifts are inadequate. You must identify one such trio.
 
 ## Input
-The first line contains two integers $n$ and $m$, representing the total workforce size and the total number of conflict entries, respectively. The workforce headcount $n$ ranges from a minimum shift unit of 3 up to a maximum plant capacity of 2000 ($3 \le n \le 2000$). The number of conflicts $m$ is at least 3 and cannot exceed the logging system upper bound of 200,000 or the total possible distinct pairings of $n$ employees, whichever is smaller ($3 \le m \le \min(n(n-1)/2, 200000)$).
+The first line contains the employee headcount $n$ and the total number of incompatibilities $m$.
+The factory's locker room has exactly 2,000 lockers, meaning $n$ is at most this capacity. Naturally, $n$ is at least the size of the trio you are trying to find.
+The HR database has a hard limit of 200,000 incompatibility records. Thus, $m$ never exceeds this database limit, nor does it exceed the maximum possible number of distinct pairs among the $n$ employees. The value of $m$ is at least the number of incompatibilities that exist among the three members of the aforementioned undeniable proof.
 
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a conflict between employee $u$ and employee $v$. No pair of employees appears more than once in the list.
-
-It is guaranteed that at least one valid triple of mutually conflicting employees exists.
+The next $m$ lines each contain two integers $u$ and $v$ — the ID numbers of an incompatible pair of employees. Employee IDs are integers from $1$ to $n$. It is guaranteed that the records contain at least one trio of the required type.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the lexicographically smallest triple of mutually conflicting employees.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$, representing the IDs of three employees who are all mutually incompatible with one another. If multiple such groups exist, output the one that is lexicographically smallest (the one with the smallest $a$; in case of a tie, the smallest $b$; and if still tied, the smallest $c$).
 
 ## Example 1
 Input:

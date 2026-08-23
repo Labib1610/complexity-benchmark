@@ -1,0 +1,83 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    domain = [7] * n          # bitmask of allowed colors {0,1,2}
+    assigned = [False] * n
+    changes = []              # (vertex, old_domain)
+    bit2c = [0] * 8
+    bit2c[1] = 0
+    bit2c[2] = 1
+    bit2c[4] = 2
+
+    sys.setrecursionlimit(10000)
+
+    def undo(to):
+        while len(changes) > to:
+            v, old = changes.pop()
+            domain[v] = old
+            assigned[v] = False
+
+    def assign(v, c):
+        stack = [(v, c)]
+        while stack:
+            vv, cc = stack.pop()
+            b = 1 << cc
+            if assigned[vv]:
+                if domain[vv] != b:
+                    return False
+                continue
+            changes.append((vv, domain[vv]))
+            domain[vv] = b
+            assigned[vv] = True
+            for u in adj[vv]:
+                if assigned[u]:
+                    if domain[u] == b:
+                        return False
+                else:
+                    if domain[u] & b:
+                        changes.append((u, domain[u]))
+                        domain[u] &= ~b
+                        if domain[u] == 0:
+                            return False
+                        d = domain[u]
+                        if d & (d - 1) == 0:
+                            stack.append((u, bit2c[d]))
+        return True
+
+    def dfs():
+        v = 0
+        while v < n and assigned[v]:
+            v += 1
+        if v == n:
+            return True
+        d = domain[v]
+        for c in (0, 1, 2):
+            if d & (1 << c):
+                mark = len(changes)
+                if assign(v, c):
+                    if dfs():
+                        return True
+                undo(mark)
+        return False
+
+    if dfs():
+        out = ' '.join(str(bit2c[domain[i]] + 1) for i in range(n))
+        sys.stdout.write('YES\n' + out + '\n')
+    else:
+        sys.stdout.write('NO\n')
+
+if __name__ == '__main__':
+    solve()

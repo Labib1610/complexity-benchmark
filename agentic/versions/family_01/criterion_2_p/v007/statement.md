@@ -2,17 +2,18 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-The same factory now runs only two shifts, labeled 1 and 2. With $n$ workers and $m$ conflict pairs, assign each worker a shift so that no conflicting pair shares a shift. Additionally, for every connected group of workers containing at least one conflict pair, both shift 1 and shift 2 must be present in the assignment.
-
-Determine whether a valid assignment exists, and if so, report the lexicographically smallest one.
+The same factory now runs only two shifts, labeled 1 and 2. With n workers and m
+conflict pairs, assign each worker a shift so that no conflicting pair shares a
+shift, or report impossibility. You may assume that the sum of the number of conflicts per worker over all n workers is at most 400,000.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ $v$ — a conflicting pair.
+The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise print `YES`, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), the lexicographically smallest valid assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with n integers s₁ … sₙ (each in {1,2}),
+the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

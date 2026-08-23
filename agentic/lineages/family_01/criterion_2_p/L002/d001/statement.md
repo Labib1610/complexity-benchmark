@@ -1,0 +1,45 @@
+# Problem B — Catalyst Assignment
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A manufacturing process requires treating $n$ different raw materials, numbered 1 to $n$. Each material must be processed using exactly one of two available catalytic solvents, Solvent 1 or Solvent 2.
+
+However, $m$ specific pairs of raw materials are known to cross-contaminate if they are processed using the same solvent. You must assign each material to a solvent such that no cross-contaminating pair shares a solvent.
+
+If there is no way to safely process all materials, report impossibility.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) — a pair of materials that cross-contaminate.
+
+## Output
+If no safe assignment exists, print a single line containing NO.
+Otherwise, print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each being 1 or 2), representing the lexicographically smallest valid solvent assignment.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

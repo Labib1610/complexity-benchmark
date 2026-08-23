@@ -1,0 +1,33 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n)]
+    
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Iterate through all triples in lexicographical order
+    for i in range(n):
+        for j in adj[i]:
+            if j > i:
+                # Check if any k > j exists such that (i,k) and (j,k) are edges
+                # We need k in adj[i] intersect adj[j]
+                # Iterate over neighbors of i that are > j
+                for k in adj[i]:
+                    if k > j and k in adj[j]:
+                        # Found the lexicographically smallest triangle
+                        print(i + 1, j + 1, k + 1)
+                        return
+
+if __name__ == "__main__":
+    solve()

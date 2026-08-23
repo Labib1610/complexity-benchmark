@@ -1,0 +1,88 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # val[i] will store the assigned value (1 or 2)
+    # 0 indicates unvisited/unassigned
+    val = [0] * (n + 1)
+    
+    # We process connected components.
+    # For each component, we determine if it's valid and the lexicographically smallest assignment.
+    # Since we iterate i from 1 to n, assigning the smallest valid value to the root (1 if possible, else 2)
+    # ensures the final global assignment is lexicographically smallest.
+    
+    for i in range(1, n + 1):
+        if val[i] == 0:
+            # Start BFS for this component
+            # Try assigning 1 to the root node i first.
+            # If that leads to a contradiction, try assigning 2.
+            # If both fail, the system is unsatisfiable.
+            
+            possible_assignments = []
+            
+            for start_val in [1, 2]:
+                # Temporary array for this BFS attempt to avoid modifying global state prematurely
+                # or we can use a local dict/list and copy if successful.
+                # Given constraints, a local list is fine.
+                current_val = [0] * (n + 1)
+                queue = deque([i])
+                current_val[i] = start_val
+                valid = True
+                
+                while queue:
+                    u = queue.popleft()
+                    for v in adj[u]:
+                        # Equation: x_u + x_v = 3
+                        expected_neighbor_val = 3 - current_val[u]
+                        
+                        if current_val[v] == 0:
+                            current_val[v] = expected_neighbor_val
+                            queue.append(v)
+                        elif current_val[v] != expected_neighbor_val:
+                            valid = False
+                            # Break out of loops
+                            queue.clear() 
+                            break
+                    if not valid:
+                        break
+                
+                if valid:
+                    possible_assignments.append(current_val)
+                    # Optimization: If we found a valid assignment starting with 1,
+                    # we don't need to check starting with 2, because 1 is smaller.
+                    if start_val == 1:
+                        break
+            
+            if not possible_assignments:
+                print("NO")
+                return
+            
+            # Apply the found valid assignment to the global val array
+            # We take the first one found (which prefers start_val=1)
+            successful_assignment = possible_assignments[0]
+            for k in range(1, n + 1):
+                if successful_assignment[k] != 0:
+                    val[k] = successful_assignment[k]
+
+    print("YES")
+    print(*(val[1:]))
+
+if __name__ == '__main__':
+    solve()

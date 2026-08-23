@@ -1,18 +1,16 @@
-# Problem B — Research Facility Scheduling
+# Problem B — Shift Scheduling
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A research facility operates two isolated laboratories, designated as Laboratory 1 and Laboratory 2. The facility employs $n$ researchers, numbered $1$ through $n$, and maintains a list of $m$ restriction pairs representing researchers who interfere with each other's equipment and thus cannot work in the same laboratory.
-
-Determine whether it is possible to assign every researcher to either Laboratory 1 or Laboratory 2 such that no pair of restricted researchers is assigned to the same laboratory. If a valid assignment exists, find the lexicographically smallest assignment sequence.
+A hospital assigns $n$ nurses to two daily shifts, labeled 1 and 2. Because certain nurses share a single specialized medical device, there are $m$ pairs of nurses who cannot work during the same shift. Assign each nurse a shift so that no such pair shares a shift, or report impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — indicating that researcher $u$ and researcher $v$ cannot share a laboratory.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of nurses who share a device.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES`, and on a second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment of researchers to laboratories.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

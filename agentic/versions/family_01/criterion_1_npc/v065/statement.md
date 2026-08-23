@@ -1,22 +1,29 @@
-# Hazardous Reagent Distribution
+# Personnel Deployment Tiers
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial facility manages $n$ volatile chemical reagents, numbered $1$ through $n$. The facility operates three distinct storage units labeled $1$, $2$, and $3$. Every reagent must be assigned to precisely one storage unit.
+A corporation is restructuring its workforce of $n$ personnel, who are assigned numerical identifiers from 1 to $n$. The daily operational protocol mandates that each individual is assigned to exactly one deployment tier. The available tier designations are 1, 2, and 3.
 
-Certain pairs of reagents react dangerously upon contact and must never be placed in the same storage unit. Additionally, safety regulations dictate that a distribution plan is compliant if and only if every reagent is assigned to one unit and no unit contains a reactive pair.
+During field tests, it was discovered that certain pairs of personnel interfere with each other if operating in the same tier. You are given a compatibility registry. Each entry in the registry specifies two personnel who must not share a tier.
 
-To minimize baseline operational costs, the facility manager seeks the assignment sequence $(s_1, s_2, \dots, s_n)$—where $s_i \in \{1, 2, 3\}$ represents the storage unit assigned to reagent $i$—that is lexicographically smallest. If no safe assignment exists that avoids placing reactive reagents together, the system must report that no compliant plan can be formed.
+A valid deployment must satisfy the following condition: for every entry in the compatibility registry, the tier designation assigned to the first person and the tier designation assigned to the second person must be strictly unequal.
+
+To ensure computational predictability, the registry is guaranteed to exhibit the following administrative bounds:
+- For any single entry in the registry, the absolute difference between the numerical identifiers of the two personnel is strictly less than $n$.
+- The total sum of all personnel numerical identifiers evaluated across every entry in the entire registry is strictly less than $n^3 + 1$.
+
+You must determine whether a valid deployment exists for all $n$ personnel. If multiple valid deployments are possible, you must resolve the ambiguity using a sequential prioritization process:
+1. From the set of all valid deployments, filter down to those that assign the smallest possible tier designation to person 1.
+2. If multiple deployments remain, filter those to minimize the tier designation for person 2.
+3. Continue this sequential filtering for person 3, person 4, and so on, until exactly one deployment remains.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of reagents and the number of reactive reagent pairs, respectively.
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that reagent $u$ and reagent $v$ react dangerously and cannot share a storage unit.
+The first line contains two integers $n$ and $m$ — the number of personnel and the number of registry entries ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the numerical identifiers of the personnel in a registry entry.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the storage unit assigned to reagent $i$. If multiple valid assignments exist, output the lexicographically smallest sequence.
+If no deployment can satisfy all conditions, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the tier designation assigned to person $i$. If there are multiple valid deployments, output the single deployment determined by the sequential prioritization process.
 
 ## Example 1
 Input:

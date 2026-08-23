@@ -58,7 +58,7 @@ def gate_ok(vdir: Path) -> bool:
     if not g.exists():
         return True  # not yet gated -> attempt anyway
     try:
-        return json.loads(g.read_text()).get("result") != "FAIL"
+        return json.loads(g.read_text()).get("result") not in ("FAIL", "REJECT")
     except json.JSONDecodeError:
         return True
 
@@ -104,7 +104,7 @@ def attempt(task, student, sys_tmpl, user_tmpl, run_cfg, exec_cfg):
     if resp["error"] or not code.strip():
         verdict = {"overall": "RUNTIME_ERROR", "cases": [], "n_cases": 0,
                    "n_passed": 0, "error": resp["error"] or "empty solution",
-                   "elapsed_s": resp["elapsed_s"]}
+                   **B.usage_of(resp)}
     else:
         pv = judge_problem(sc, sol)
         verdict = {
@@ -113,7 +113,7 @@ def attempt(task, student, sys_tmpl, user_tmpl, run_cfg, exec_cfg):
             "n_cases": len(pv.cases),
             "n_passed": sum(1 for c in pv.cases if c.verdict == "PASS"),
             "error": resp["error"],
-            "elapsed_s": resp["elapsed_s"],
+            **B.usage_of(resp),   # input/output/thinking tokens, cost, elapsed_s
         }
     (out_dir / "verdict.json").write_text(json.dumps(verdict, indent=2))
     return f"[{verdict['overall']}] {cd}/{vid}/{student['id']}"

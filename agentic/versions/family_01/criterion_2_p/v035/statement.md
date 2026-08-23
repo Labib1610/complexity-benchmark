@@ -1,18 +1,16 @@
-# Shift Partition Search
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A facility operates across two distinct operational shifts, designated as 1 and 2. Given $n$ employees and $m$ pairwise incompatibility constraints, we must evaluate the space of $2^n$ possible shift assignments to determine whether any configuration satisfies all constraints simultaneously.
-
-An assignment is valid if no pair of mutually incompatible employees is assigned to the same operational shift. If one or more valid configurations exist, find the lexicographically smallest assignment sequence $s_1, s_2, \dots, s_n$ where each $s_i \in \{1, 2\}$. If no valid assignment exists among all choices, report impossibility.
+The factory must choose one of the $2^n$ possible ways to assign its $n$ workers to two shifts, labeled 1 and 2. Given $m$ conflict pairs, search the space of configurations for an assignment where no conflicting pair shares a shift, or report if every possible assignment is invalid.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) representing an incompatible pair of employees.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment.
+If no valid assignment exists among all possibilities, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

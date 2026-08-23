@@ -1,0 +1,59 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    color = [0] * n
+    visited = [False] * n
+    
+    # Check if graph is bipartite
+    for i in range(n):
+        if not visited[i]:
+            queue = deque([i])
+            color[i] = 1
+            visited[i] = True
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                next_color = 3 - current_color  # 1->2, 2->1
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        color[neighbor] = next_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != next_color:
+                        print("NO")
+                        return
+    
+    # Verify the solution
+    for u, v in edges:
+        if color[u] + color[v] != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    result = [str(color[i]) for i in range(n)]
+    print(" ".join(result))
+
+solve()

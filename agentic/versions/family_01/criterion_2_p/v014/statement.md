@@ -1,21 +1,20 @@
-# Day and Night
+# Factory Schedules
 
-**Time limit:** 1 s  
-**Memory limit:** 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A facility operates across two distinct work periods, labeled 1 and 2. A total of $n$ staff members, indexed from $1$ to $n$, must each be assigned to exactly one period. Certain pairs of staff members are incompatible and cannot work during the same period.
+The factory is transitioning to a dual-schedule framework. Every staff member must be assigned to exactly one of two operational periods: the morning period (labeled 1) or the evening period (labeled 2).
 
-Your task is to determine whether a valid partition of staff members into these two work periods exists such that no incompatible pair is assigned to the same period. If multiple valid schedule assignments exist, you must output the one that is lexicographically smallest (that is, the sequence $s_1, s_2, \dots, s_n$ that minimizes $s_1$, then $s_2$, and so on).
+The HR department maintains a list of interpersonal grievances. Each grievance involves a pair of staff members who cannot work during the same period. Your task is to determine whether it is possible to assign every staff member to a period such that no two individuals involved in a mutual grievance share the same period.
+
+If there are multiple valid assignments, you must choose the one that results in the lexicographically smallest sequence of period labels when ordered by the staff members' ID numbers (from 1 to $n$).
 
 ## Input
-The first line contains two integers $n$ and $m$. Here $n$ represents the total headcount of staff members, which is at least 1 and capped at the facility's maximum roster capacity of two hundred thousand ($1 \le n \le 2\cdot 10^5$). The integer $m$ represents the total number of conflict pairs, bounded between 0 and two hundred thousand ($0 \le m \le 2\cdot 10^5$).
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), denoting an incompatibility constraint between staff member $u$ and staff member $v$.
+The first line provides two integers, $n$ and $m$. The company guarantees at least one staff member is employed, but the total headcount $n$ cannot exceed the facility's maximum capacity of two hundred thousand personnel. The grievance log contains $m$ entries; it may be completely empty, or it could be full up to its strict maximum limit of two hundred thousand records.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a pair of staff members who have a grievance against each other.
 
 ## Output
-If no schedule can satisfy all constraints, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), specifying the lexicographically smallest valid assignment of work periods for staff members $1$ through $n$.
+If there is no way to assign the periods without violating the grievance constraints, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the period (1 or 2) assigned to the staff member with ID $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

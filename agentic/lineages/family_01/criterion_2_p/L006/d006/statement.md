@@ -1,0 +1,47 @@
+# Entanglement Initialization
+
+Time limit: 1 s   Memory limit: 256 MB
+
+You are operating a quantum register that contains $n$ qubits, indexed from 1 up to $n$. Your task is to initialize the register by assigning a state value to each qubit. The only permitted state values are 1 and 2.
+
+The hardware contains $m$ entanglement bridges, each physically linking a pair of qubits. To prevent decoherence, every bridge in the register must be stabilized. A bridge is considered stable if and only if the bitwise XOR of the state values of the two qubits it connects is equal to 3. 
+
+You must determine if there is a complete assignment of state values that stabilizes all $m$ bridges simultaneously.
+
+Because there may be several valid assignments, the system's compiler enforces a deterministic selection rule. It constructs an $n$-digit sequence by concatenating the state values $c_1, c_2, \dots, c_n$ in index order. The compiler demands the valid assignment that yields the lexicographically smallest sequence (which corresponds to the minimum possible $n$-digit integer). If no stabilizing assignment exists, the compiler halts.
+
+## Input
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), which denote the total number of qubits and the total number of entanglement bridges, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that an entanglement bridge exists between qubit $u$ and qubit $v$.
+
+## Output
+If it is impossible to stabilize the entire register, output a single line with the word `NO`.
+If it is possible, output `YES` on the first line. On the second line, output $n$ space-separated integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2\}$) representing the state values of the qubits. This assignment must be the one that minimizes the concatenated sequence as described.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

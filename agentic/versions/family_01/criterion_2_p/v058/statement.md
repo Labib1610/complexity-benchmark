@@ -1,20 +1,19 @@
-# Dual Frequency Channel Allocation
+# Frequency Settings
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-In a radio network, $n$ transmitter units, numbered sequentially from $1$ to $n$, must each be assigned one of two available operational settings, labeled $1$ and $2$.
+In a maritime survey operation, $n$ autonomous vessels are deployed. Each vessel is equipped with a transmitter that must be locked to either frequency setting 1 or frequency setting 2. During the deployment, the vessels follow coordinated paths, which causes $m$ specific pairs of vessels to pass within close range of one another. When a pair of vessels is in close range, their telemetry systems will clash if both are locked to the identical frequency setting.
 
-There are $m$ designated pairs of units that experience mutual interference. The operational rule requires that two units in any such pair must not be assigned the same operational setting.
-
-Your goal is to determine whether a valid assignment of settings to all $n$ units exists under this rule. If at least one valid assignment exists, output `YES` followed by the setting sequence $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest. That is, if there are multiple valid sequences, select the one that minimizes $s_i$ at the smallest index $i$ where two valid sequences differ. If no valid assignment can satisfy the operational rule for every interference pair, output `NO`.
+You are required to find a frequency setting for each of the $n$ vessels such that no telemetry clashes occur during the operation. If several clash-free setups are possible, you must identify the setup that results in the lexicographically smallest sequence of settings for the vessels indexed 1 to $n$. If no setup can prevent all clashes, you must determine that it is unachievable.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5, 0 \le m \le 2\cdot 10^5$), representing the number of units and the number of interfering pairs, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that unit $u$ and unit $v$ interfere with each other.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of vessels and the number of close-range encounters.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that vessel $u$ and vessel $v$ will pass within close range.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment sequence.
+If there is no way to prevent all telemetry clashes, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, \ldots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid sequence of frequency settings.
 
 ## Example 1
 Input:

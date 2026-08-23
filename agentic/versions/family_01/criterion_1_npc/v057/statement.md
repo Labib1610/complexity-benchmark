@@ -1,26 +1,25 @@
-# Automated Assembly Pipeline: Phase Allocation Module
+# Orbital Power Routing
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-As part of an automated smart-factory workflow, daily manufacturing runs through three consecutive operational stages (designated as Stage 1, Stage 2, and Stage 3). Prior to starting operations, the facility's supervisory control system executes a multi-step setup pipeline:
+The deployment sequence for a new orbital satellite involves a three-phase initialization process for its electronic modules. Your task is to implement the software for the second phase of this sequence.
 
-1. **Phase Allocation Module** (Your Task): Assign each of $n$ active machinery units, indexed from $1$ to $n$, to exactly one operational stage ($1, 2, \text{or } 3$). Certain pairs of units share power conduits or physical calibration lines, creating mutual interference. Two units that form an interfering pair cannot be assigned to the same operational stage.
-2. **Load Balancing Module** (Downstream): Receives the phase assignments and optimizes power distribution curves.
-3. **Safety Verification Module** (Downstream): Validates physical interlocks before start-up.
+In Phase I (Interference Profiling), onboard diagnostics analyze electromagnetic sensitivities. This phase produces a list of module pairs that will experience severe crosstalk if they draw power from the same source. 
 
-To maintain deterministic behavior across the factory software stack, if multiple valid stage assignment sequences $s_1, s_2, \dots, s_n$ exist, the Phase Allocation Module must select the sequence that is lexicographically smallest. If no valid stage assignment can satisfy all mutual interference conditions, the pipeline must abort.
+In Phase II (Tri-Band Allocation), which you must implement, the system assigns each module to one of exactly three independent power bands, designated by the identifiers 1, 2, and 3. A valid allocation must ensure that no two modules flagged during Phase I are assigned to the same power band. Because Phase III requires strict determinism, if multiple valid allocations exist, Phase II must produce the one that is lexicographically smallest. (An allocation sequence $A$ is lexicographically smaller than $B$ if, at the first module where they differ, $A$ assigns a lower band identifier than $B$.)
 
-Your task is to implement the Phase Allocation Module.
+In Phase III (Firmware Compilation), a downstream compiler uses the allocation from Phase II to flash the final operating parameters into each module's memory. If Phase II determines that no safe allocation is possible, the initialization sequence is aborted.
+
+You are provided with the output of Phase I. You must produce the exact output required by Phase III.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of active machinery units and the number of interfering unit pairs.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) representing an interfering pair of machinery units.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), representing the number of electronic modules and the number of crosstalk-sensitive pairs identified in Phase I. The modules are numbered 1 through $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that module $u$ and module $v$ cannot be assigned to the same power band.
 
 ## Output
-If no valid stage assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the assigned operational stage for unit $i$. Among all valid assignments, print the lexicographically smallest sequence.
+If Phase II cannot find any valid allocation, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$, where $b_i \in \{1, 2, 3\}$ is the power band assigned to module $i$. This sequence must be the lexicographically smallest among all valid allocations.
 
 ## Example 1
 Input:

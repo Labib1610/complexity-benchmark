@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for consistent iteration order
+    adj_lists = [sorted(s) for s in adj]
+    
+    # Iterate over all pairs (a, b) with a < b
+    for a in range(1, n + 1):
+        for b in adj_lists[a]:
+            if b <= a:
+                continue
+            # Check for common neighbor c > b to ensure a < b < c
+            # Iterate over neighbors of a that are > b
+            for c in adj_lists[a]:
+                if c <= b:
+                    continue
+                if c in adj[b]:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()

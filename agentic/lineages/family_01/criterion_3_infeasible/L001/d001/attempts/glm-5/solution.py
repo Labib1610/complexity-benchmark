@@ -1,0 +1,52 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges to process in order (u, v) lexicographically
+    edges.sort()
+    
+    # For each edge (u, v), check if there exists w such that
+    # w is connected to both u and v, and w > v (to ensure u < v < w)
+    for u, v in edges:
+        # We need w > v to maintain u < v < w
+        # Check intersection of adj[u] and adj[v] for elements > v
+        # Iterate through the smaller set for efficiency
+        if len(adj[u]) > len(adj[v]):
+            u, v = v, u
+        
+        for w in adj[u]:
+            if w > v and w in adj[v]:
+                print(u, v, w)
+                return
+    
+    # If not found with w > v constraint, search without constraint
+    # This handles cases where the triangle might not satisfy u < v < w naturally
+    # but we need to output in increasing order
+    for u, v in edges:
+        if len(adj[u]) > len(adj[v]):
+            u, v = v, u
+        for w in adj[u]:
+            if w in adj[v]:
+                result = sorted([u, v, w])
+                print(result[0], result[1], result[2])
+                return
+
+if __name__ == "__main__":
+    solve()

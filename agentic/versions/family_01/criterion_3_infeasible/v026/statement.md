@@ -1,23 +1,21 @@
-# Station Cluster Audit
+# Problem C — Mutual Surveillance
 
 Time limit: 2 s   Memory limit: 256 MB
 
-## Description
-A communications network consists of numbered relay stations. Certain pairs of stations are linked by dedicated direct two-way lines. Engineers are conducting an audit to find any group of three distinct stations that are all directly linked to one another.
+The agency is investigating a communication network of $n$ undercover operatives. For the network to be operational, a minimum of 3 operatives are deployed. The secure communication system assigns each operative a unique integer ID starting from 1. The system allocates operative IDs using an access control list that has exactly 2000 available slots, meaning the number of operatives cannot exceed this capacity.
 
-It is guaranteed that at least one such group of three mutually connected stations exists in the network. Your task is to identify the lexicographically smallest such triple.
+Intelligence has uncovered $m$ bilateral meetings between specific pairs of operatives. The investigation requires at least 3 meetings to proceed. The surveillance database is built on a legacy storage drive that can hold exactly 200,000 meeting records before it runs out of space, establishing the absolute upper limit for $m$. Naturally, the number of meetings is also bounded by the total number of unique pairs possible among the $n$ operatives. Each meeting record involves two distinct operatives, and no pair is recorded more than once.
+
+Your objective is to identify a compromised cell. A compromised cell consists of exactly three operatives who have all met with each other (i.e., every operative in the cell has met with both of the other two). It is absolutely guaranteed that at least one such compromised cell exists within the provided records.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$.
-
-The station count $n$ is at least equal to the minimum group size of 3 and does not exceed the total rack capacity of 2000 stations ($3 \le n \le 2000$). The line count $m$ is at least 3 and cannot exceed the lesser of total possible station pairings or the hardware channel limit of 200,000 ($3 \le m \le \min(n(n-1)/2, 200000)$).
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a direct two-way line between station $u$ and station $v$. No pair of stations is listed more than once.
+The first line contains the two integers $n$ and $m$.
+The following $m$ lines each contain two integers $u$ and $v$ — representing a meeting between operative $u$ and operative $v$.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line with $a < b < c$, indicating three stations where all three pairs ($a$–$b$, $a$–$c$, $b$–$c$) are directly linked.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the IDs of the operatives in a compromised cell. The returned IDs must be ordered such that $a < b < c$. 
 
-If multiple valid triples exist, output the lexicographically smallest one (smallest $a$; if tied, smallest $b$; if still tied, smallest $c$).
+If there are multiple compromised cells, you must output the one that is lexicographically smallest. This means you must find the cell with the smallest possible value for $a$. If there are ties, choose the one with the smallest value for $b$ among those ties, and if still tied, the smallest value for $c$.
 
 ## Example 1
 Input:

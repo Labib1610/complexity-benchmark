@@ -1,0 +1,223 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # We need to find the lexicographically smallest valid assignment.
+    # Since n <= 40, we can use a meet-in-the-middle approach.
+    # Split vertices into two halves: left (0..n1-1) and right (n1..n-1).
+    # For each half, enumerate all valid colorings.
+    # A coloring is valid if no edge within the half has same color endpoints.
+    # For each valid coloring of the right half, we need to check compatibility
+    # with valid colorings of the left half.
+    # Compatibility: for every edge (u, v) with u in left, v in right, colors differ.
+    # To find lex smallest, we iterate colors for left half in lex order.
+    # For a fixed left coloring, we need to find the lex smallest right coloring.
+    # The constraints on right vertices from left vertices:
+    # For each right vertex v, it cannot take colors C_u for any left neighbor u.
+    # If a right vertex has 3 forbidden colors, impossible.
+    # If it has 2 forbidden colors, its color is fixed.
+    # If it has 1 or 0, it's free (but must satisfy internal edges in right half).
+    # We can precompute for each valid right coloring a bitmask of fixed vertices.
+    # Then for a query (set of fixed vertices and their colors), we check if any
+    # valid right coloring matches these fixed vertices.
+    # To get lex smallest, we iterate right vertices in order, trying colors 1, 2, 3.
+    
+    n1 = n // 2
+    n2 = n - n1
+    
+    # Precompute valid colorings for the right half
+    # Map: fixed_mask -> list of valid colorings (encoded)
+    # fixed_mask: bitmask of size n2. bit i is 1 if vertex n1+i is fixed.
+    # To check efficiently, we can group valid colorings by the set of fixed vertices.
+    # Actually, we can just store all valid colorings and filter.
+    # But n2 <= 20, 3^20 is too large.
+    # However, valid colorings are 3-colorings of a graph.
+    # If the graph is dense, number of valid colorings is small.
+    # If the graph is sparse, 3^20 is large but we can prune.
+    # Wait, the problem is 3-coloring, which is NP-hard.
+    # But n <= 40 is small enough for meet-in-the-middle.
+    # 3^20 is approx 3.5 billion, which is too large.
+    # We need a smarter way.
+    
+    # Let's reconsider.
+    # We can iterate through all valid colorings of the left half (n1 <= 20).
+    # For each left coloring, we determine constraints on the right half.
+    # Then we solve the constrained coloring problem on the right half.
+    # To find the lex smallest full coloring, we iterate left colorings in lex order.
+    # The first left coloring for which a valid right coloring exists gives the answer.
+    # We need to find the lex smallest right coloring compatible with the chosen left.
+    
+    # How to solve constrained 3-coloring on n2 vertices?
+    # Constraints: some vertices have fixed colors, some have forbidden colors.
+    # We want the lex smallest valid coloring.
+    # We can use backtracking with pruning.
+    # Since we want lex smallest, we try colors 1, 2, 3 for the first free vertex, etc.
+    # This should be fast enough if the constraints are tight or n2 is small.
+    
+    # Let's implement this.
+    
+    # Helper to generate valid colorings for a set of vertices
+    # We can use a recursive generator.
+    
+    # Vertices in right half are indexed 0 to n2-1 (corresponding to n1 to n-1)
+    # Internal edges for right half:
+    right_adj = [[] for _ in range(n2)]
+    for i in range(n2):
+        u = n1 + i
+        for j in range(i + 1, n2):
+            v = n1 + j
+            # Check if edge exists
+            # Since adj is list, we can use a set for faster lookup or just iterate
+            # small degree. n is small.
+            is_edge = False
+            for neighbor in adj[u]:
+                if neighbor == v:
+                    is_edge = True
+                    break
+            if is_edge:
+                right_adj[i].append(j)
+                right_adj[j].append(i)
+
+    # Precompute all valid colorings for the right half to enable fast lookup?
+    # No, just search on demand.
+    
+    # Function to find lex smallest valid coloring for right half given constraints
+    # constraints[i] = set of forbidden colors for vertex i (1-based colors)
+    # Returns list of colors (1-based) or None
+    
+    def find_right_coloring(forbidden):
+        # forbidden[i] is a set of integers (1, 2, or 3)
+        colors = [0] * n2
+        
+        # Pre-check: if any vertex has 3 forbidden colors, impossible
+        for i in range(n2):
+            if len(forbidden[i]) == 3:
+                return None
+        
+        # Order of assignment: 0, 1, ..., n2-1 (original vertex order)
+        # This ensures lex smallest.
+        
+        # We can use simple backtracking
+        # To speed up, we can use bitmasks for forbidden sets.
+        # forbidden[i] as bitmask: bit 0 for color 1, bit 1 for color 2, bit 2 for color 3.
+        # 0b111 means all forbidden.
+        
+        # Let's convert forbidden to bitmask
+        forbid_mask = [0] * n2
+        for i in range(n2):
+            mask = 0
+            if 1 in forbidden[i]: mask |= 1
+            if 2 in forbidden[i]: mask |= 2
+            if 3 in forbidden[i]: mask |= 4
+            forbid_mask[i] = mask
+        
+        # Using recursion with stack to avoid recursion depth issues? n2 <= 20, safe.
+        
+        def backtrack(idx):
+            if idx == n2:
+                return True
+            
+            # Determine available colors
+            # Initially, all colors are available except forbidden
+            used = forbid_mask[idx]
+            
+            # Check neighbors with assigned colors
+            for neighbor in right_adj[idx]:
+                if neighbor < idx: # neighbor already assigned
+                    c = colors[neighbor]
+                    used |= (1 << (c - 1))
+            
+            if used == 0b111:
+                return False
+            
+            # Try colors 1, 2, 3 in order
+            for c in [1, 2, 3]:
+                if not (used & (1 << (c - 1))):
+                    colors[idx] = c
+                    if backtrack(idx + 1):
+                        return True
+            colors[idx] = 0
+            return False
+
+        if backtrack(0):
+            return colors
+        else:
+            return None
+
+    # Now iterate through all valid colorings of the left half in lex order.
+    # Left half vertices: 0 to n1-1.
+    # Internal edges for left half:
+    left_adj = [[] for _ in range(n1)]
+    for i in range(n1):
+        for j in range(i + 1, n1):
+            is_edge = False
+            for neighbor in adj[i]:
+                if neighbor == j:
+                    is_edge = True
+                    break
+            if is_edge:
+                left_adj[i].append(j)
+                left_adj[j].append(i)
+
+    # Backtracking for left half
+    left_colors = [0] * n1
+    
+    def solve_left(idx):
+        if idx == n1:
+            # We have a valid left coloring. Now check right half.
+            # Determine constraints for right half.
+            forbidden = [set() for _ in range(n2)]
+            for i in range(n1):
+                c_u = left_colors[i]
+                for v in adj[i]:
+                    if v >= n1:
+                        forbidden[v - n1].add(c_u)
+            
+            right_res = find_right_coloring(forbidden)
+            if right_res is not None:
+                # Found a solution
+                res = left_colors + right_res
+                return res
+            return None
+
+        # Determine available colors for left vertex idx
+        used = set()
+        for neighbor in left_adj[idx]:
+            if neighbor < idx:
+                used.add(left_colors[neighbor])
+        
+        for c in [1, 2, 3]:
+            if c not in used:
+                left_colors[idx] = c
+                res = solve_left(idx + 1)
+                if res is not None:
+                    return res
+        left_colors[idx] = 0
+        return None
+
+    result = solve_left(0)
+    
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*(result))
+
+if __name__ == '__main__':
+    solve()

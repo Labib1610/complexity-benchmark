@@ -1,20 +1,23 @@
-# Vault Preservation Allocation
+# Problem A — Hopper Allocation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A museum is relocating $n$ fragile artifacts (numbered $1$ through $n$) into three specialized storage vaults, designated as Vault 1, Vault 2, and Vault 3.
+An automated dispensing system processes $n$ distinct pharmaceutical ingredients. The system distributes these ingredients among three isolated holding hoppers, which are mechanically designated as hopper 1, hopper 2, and hopper 3.
 
-Certain pairs of artifacts produce chemical vapors that interact destructively if placed in the same environment. Therefore, two artifacts involved in such an incompatible pair must never be assigned to the same vault.
+Due to cross-contamination risks, specific pairs of ingredients will degrade if they are loaded into the same holding hopper. You must assign every ingredient to exactly one of the three hoppers such that no two ingredients that pose a mutual cross-contamination risk share a hopper.
 
-Determine whether it is possible to assign every artifact to exactly one vault without placing any incompatible pair together. If multiple valid placement plans exist, select the plan that yields the lexicographically smallest sequence of vault numbers $s_1, s_2, \dots, s_n$ (that is, comparing $s_1$ first, then $s_2$, and so on).
+To standardize loading procedures across multiple facilities, the system enforces a strict priority rule for valid assignments. The configuration must be chosen such that the sequence of hopper numbers assigned to ingredients $1$ through $n$ is lexicographically minimized. This means the system prioritizes placing ingredient 1 into the lowest-numbered hopper possible, then ingredient 2 into the lowest-numbered hopper possible, and so forth, while still ensuring a completely safe arrangement for all ingredients.
+
+If no safe configuration exists for the given ingredients and contamination risks, the system must reject the batch.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of artifacts and the number of incompatible pairs, respectively.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that artifact $u$ and artifact $v$ cannot be stored in the same vault.
+The first line contains two integers $n$ and $m$ — the number of ingredients and the number of cross-contamination risks ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of ingredients that pose a cross-contamination risk.
 
 ## Output
-If no valid vault assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the vault assigned to artifact $i$, choosing the lexicographically smallest sequence.
+If no safe hopper assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $h_1, h_2, \dots, h_n$ (each in $\{1, 2, 3\}$), where $h_i$ is the hopper assigned to ingredient $i$. This sequence must be the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

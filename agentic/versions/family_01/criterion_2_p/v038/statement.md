@@ -1,26 +1,22 @@
-# Roster Allocation
+# Problem B — Module Allocation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-An industrial facility schedules $n$ staff members, indexed $1$ through $n$, into two non-overlapping duty periods represented by the values $1$ and $2$. You are given $m$ pairs of staff members who are mutually incompatible and therefore cannot be assigned to the same duty period.
+A software architecture consists of $n$ interacting modules. These modules must be distributed across the available execution environments. The environments designated for this deployment are identified by the numeric values 1 and 2. Every module must be allocated to exactly one of these environments.
 
-Your task is to assign each staff member $i$ a duty period designation $s_i \in \{1, 2\}$ such that for every mutually incompatible pair, their assigned duty period designations are different.
+During testing, it was observed that certain pairs of modules cause mutual interference. You are provided with $m$ interference logs. If two modules are listed together in a single log, they must be allocated to distinct environments to prevent failure. 
 
-Furthermore, to maintain administrative consistency:
-- Each staff member must receive exactly one duty period designation.
-- The overall roster must satisfy all $m$ mutual incompatibility rules simultaneously.
+Additionally, the system guarantees the following structural properties: no single module is listed in more than $m$ interference logs, and any valid allocation will assign at most $n$ modules to environment 1.
 
-If a valid configuration exists, find the sequence $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest. Otherwise, determine that no valid schedule can be formed.
+Your task is to determine if a valid allocation exists. If multiple valid allocations exist, you must choose the one that minimizes the environment identifier assigned to module 1. If there are still multiple valid allocations, choose the one that minimizes the environment identifier for module 2, and so forth, sequentially up to module $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the number of staff members and the number of mutual incompatibility rules.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$) — indicating that staff member $u$ and staff member $v$ are mutually incompatible.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — an interference log.
 
 ## Output
-If no valid allocation exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid duty period sequence.
+If it is impossible to distribute the modules according to the rules, output a single line NO.
+Otherwise, output YES on the first line, then a second line with $n$ integers $s_1 \dots s_n$ (each in $\{1,2\}$), representing the allocation that satisfies the tie-breaking rule described above.
 
 ## Example 1
 Input:

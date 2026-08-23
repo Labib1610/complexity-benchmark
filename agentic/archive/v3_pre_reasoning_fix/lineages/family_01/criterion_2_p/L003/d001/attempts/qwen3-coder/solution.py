@@ -1,0 +1,54 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color each component with BFS
+    colors = [0] * (n + 1)  # 0 = unvisited, 1 = color 1, 2 = color 2
+    visited = [False] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if visited[start]:
+            continue
+            
+        # BFS to color this component
+        queue = deque([start])
+        colors[start] = 1
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = colors[node]
+            next_color = 3 - current_color  # flips 1->2, 2->1
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    colors[neighbor] = next_color
+                    visited[neighbor] = True
+                    queue.append(neighbor)
+                elif colors[neighbor] != next_color:
+                    # Conflict found
+                    print("NO")
+                    return
+    
+    # If we get here, a valid coloring exists
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(colors[i]))
+    print(" ".join(result))
+
+solve()

@@ -1,0 +1,1842 @@
+Let me analyze this problem:
+
+1. We have n workers and need to assign each to one of 3 shifts
+2. Some pairs of workers are in conflict and can't be on the same shift
+3. We need to find a valid 3-coloring of the graph
+4. Among all valid colorings, we need the lexicographically smallest one
+
+This is essentially a 3-coloring problem with a specific optimization criterion.
+
+Since n ≤ 40, we can use various approaches:
+1. Backtracking with pruning
+2. Bitmask DP
+3. Some clever approach
+
+For the lexicographically smallest solution, we should try to assign shift 1 to worker 1 if possible, then shift 1 to worker 2 if possible, etc.
+
+Let me think about the approach:
+
+For each worker i from 1 to n, we try shifts 1, 2, 3 in order. For each shift, we check if it conflicts with any already assigned worker. If not, we assign it and move to the next worker. If we can't assign any shift, we backtrack.
+
+This is a simple backtracking approach. Let me think about the complexity:
+- At each step, we have at most 3 choices
+- We have n workers
+- So worst case is O(3^n), which for n=40 is way too large
+
+But wait, with the constraint that we want lexicographically smallest, and the fact that we're doing 3-coloring, maybe we can be smarter.
+
+Actually, let me think again. The backtracking approach with pruning might work well in practice because:
+1. If a worker has many conflicts, their choices are limited
+2. The lexicographic ordering means we try the "best" choices first
+
+But 3^40 is still too large. Let me think of a better approach.
+
+One approach is to use bitmask DP. But with n=40, we'd need 2^40 states which is too much.
+
+Another approach: Since we want lexicographically smallest, we can use a greedy approach with backtracking only when necessary.
+
+Actually, let me think about this differently. We can use a recursive approach where:
+1. For worker i, we try shifts 1, 2, 3 in order
+2. For each shift, we check if it's valid (no conflict with already assigned workers)
+3. If valid, we recursively try to assign the remaining workers
+4. If the recursion succeeds, we're done
+5. If all shifts fail, we backtrack
+
+The key insight is that with good pruning, this can be efficient. Also, since we're looking for lexicographically smallest, we try smaller shifts first.
+
+Let me think about optimizations:
+1. Forward checking: After assigning a shift to worker i, check if any unassigned worker has no valid shift left
+2. Constraint propagation: If a worker has only one valid shift left, assign it immediately
+
+Actually, for n=40, even with pruning, this might be too slow in the worst case. Let me think of another approach.
+
+Wait, I remember that 3-coloring is NP-complete, so there's no polynomial-time algorithm (unless P=NP). But n=40 is small enough that with good pruning, backtracking should work.
+
+Let me implement a simple backtracking with the following optimizations:
+1. Try shifts 1, 2, 3 in order for lexicographically smallest
+2. Check validity before recursing
+3. Use forward checking to prune early
+
+Actually, let me think about this more carefully. The problem says n ≤ 40, which is quite large for exponential algorithms. But the time limit is 2 seconds, which is generous.
+
+Let me implement a straightforward backtracking and see if it works:
+
+```python
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in [1, 2, 3]:
+            valid = True
+            for j in range(i):
+                if j in conflicts[i] and assignment[j] == shift:
+                    valid = False
+                    break
+            
+            if valid:
+                assignment[i] = shift
+                if backtrack(i + 1):
+                    return True
+                assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+```
+
+This is O(3^n) in the worst case, which is too slow for n=40.
+
+Let me think of optimizations:
+
+1. **Forward checking**: After assigning a shift to worker i, check if any unassigned worker has no valid shift left. If so, backtrack immediately.
+
+2. **Most constrained variable**: Instead of assigning workers in order 1, 2, ..., n, assign the worker with the fewest valid shifts first. But this conflicts with the lexicographic requirement.
+
+Actually, wait. The lexicographic requirement means we must assign workers in order 1, 2, ..., n. So we can't reorder.
+
+But we can still use forward checking:
+
+```python
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    
+    def get_valid_shifts(worker, assigned_up_to):
+        valid = {1, 2, 3}
+        for j in range(assigned_up_to):
+            if assignment[j] != -1 and j in conflicts[worker]:
+                valid.discard(assignment[j])
+        return valid
+    
+    def forward_check(i):
+        # Check if any unassigned worker has no valid shift
+        for j in range(i + 1, n):
+            valid = {1, 2, 3}
+            for k in range(i + 1):
+                if assignment[k] != -1 and k in conflicts[j]:
+                    valid.discard(assignment[k])
+            if len(valid) == 0:
+                return False
+        return True
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in [1, 2, 3]:
+            valid = True
+            for j in range(i):
+                if j in conflicts[i] and assignment[j] == shift:
+                    valid = False
+                    break
+            
+            if valid:
+                assignment[i] = shift
+                if forward_check(i) and backtrack(i + 1):
+                    return True
+                assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+```
+
+Hmm, but forward_check is O(n^2) per call, which might be slow.
+
+Let me think of a better approach. Actually, for 3-coloring with n=40, there's a clever approach using bitmask DP.
+
+The idea is:
+1. For each subset of workers, compute which shifts they can be assigned to
+2. Use DP to find a valid coloring
+
+But this is complex and might not give the lexicographically smallest solution easily.
+
+Let me try a different approach: **Bitmask representation of constraints**.
+
+Actually, let me think about this problem more carefully. The key observation is:
+- We want lexicographically smallest
+- We assign workers in order 1, 2, ..., n
+- For each worker, we try shifts 1, 2, 3 in order
+
+The backtracking approach should work with good pruning. Let me optimize it:
+
+1. Precompute the conflict graph
+2. Use bitmasks to represent which shifts are forbidden for each worker
+3. Use forward checking with bitmasks for efficiency
+
+Actually, let me try a simpler optimization: instead of checking all previous workers, maintain a set of forbidden shifts for each unassigned worker.
+
+```python
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    # forbidden[i] is a bitmask of forbidden shifts for worker i
+    # bit 0 = shift 1 forbidden, bit 1 = shift 2 forbidden, bit 2 = shift 3 forbidden
+    forbidden = [0] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(1, 4):
+            bit = 1 << (shift - 1)
+            if forbidden[i] & bit:
+                continue
+            
+            assignment[i] = shift
+            
+            # Update forbidden for neighbors
+            updates = []
+            for j in conflicts[i]:
+                if j > i and not (forbidden[j] & bit):
+                    forbidden[j] |= bit
+                    updates.append(j)
+            
+            # Check if any unassigned worker has all shifts forbidden
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:  # All 3 shifts forbidden
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            # Undo updates
+            for j in updates:
+                forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+```
+
+This should be more efficient because:
+1. We maintain forbidden shifts incrementally
+2. We only update neighbors of the assigned worker
+3. Forward checking is O(n) instead of O(n^2)
+
+But wait, there's still an issue. The forward checking checks all unassigned workers, which is O(n) per recursive call. With O(3^n) calls in the worst case, this is still too slow.
+
+Let me think of a smarter approach...
+
+Actually, I think the key insight is that for 3-coloring, if the graph is dense enough, the problem becomes easier because each worker has fewer valid shifts. And if the graph is sparse, there are many valid colorings, so we find one quickly.
+
+Let me also consider: for n=40, the worst case is a graph where backtracking explores many branches. But such graphs are rare in practice.
+
+Let me try the optimized backtracking and see if it works:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbidden = [0] * n  # bitmask: bit 0 = shift 1 forbidden, etc.
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(1, 4):
+            bit = 1 << (shift - 1)
+            if forbidden[i] & bit:
+                continue
+            
+            assignment[i] = shift
+            
+            # Update forbidden for neighbors
+            updates = []
+            for j in conflicts[i]:
+                if j > i and not (forbidden[j] & bit):
+                    forbidden[j] |= bit
+                    updates.append(j)
+            
+            # Check if any unassigned worker has all shifts forbidden
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            # Undo updates
+            for j in updates:
+                forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize there might be an issue with the approach. Let me reconsider.
+
+The problem is that we're trying to find a 3-coloring, and we want the lexicographically smallest one. The backtracking approach tries shifts 1, 2, 3 in order for each worker, which should give us the lexicographically smallest solution.
+
+But the issue is efficiency. Let me think about whether there's a smarter approach.
+
+One idea: Use constraint propagation more aggressively. If a worker has only one valid shift, assign it immediately. This is called "unit propagation" in SAT solving.
+
+Another idea: Use a SAT solver or constraint solver. But that might be overkill for this problem.
+
+Let me try a different approach: **Meet in the middle**.
+
+Split the workers into two halves: 1 to n/2 and n/2+1 to n. For each half, enumerate all valid colorings. Then, combine them to find a valid full coloring.
+
+But this doesn't easily give the lexicographically smallest solution.
+
+Actually, let me think about this more carefully. The problem says n ≤ 40, which suggests that an exponential algorithm is expected. But 3^40 is way too large.
+
+Wait, maybe the problem expects a different approach. Let me re-read the problem.
+
+"To front-load the schedule, you will need to prioritize assigning smaller shift numbers to workers in numerical order."
+
+This confirms that we need to assign workers in order 1, 2, ..., n, and for each worker, try shifts 1, 2, 3 in order.
+
+Let me think about the structure of the problem:
+- If the graph is a complete graph K_n with n > 3, there's no valid coloring.
+- If the graph is sparse, there are many valid colorings.
+- The worst case for backtracking is when the graph has a specific structure that causes many branches to be explored.
+
+For n=40, the worst case might be a graph that's "almost" 3-colorable but requires exploring many branches.
+
+Let me try a smarter backtracking with more aggressive pruning:
+
+1. **Unit propagation**: If a worker has only one valid shift, assign it immediately.
+2. **Forward checking**: After each assignment, check if any unassigned worker has no valid shift.
+3. **Conflict-directed backjumping**: When a conflict is detected, jump back to the most recent assignment that caused the conflict.
+
+Actually, let me simplify and just try the basic backtracking with forward checking. If it times out, I'll add more optimizations.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbidden = [0] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(1, 4):
+            bit = 1 << (shift - 1)
+            if forbidden[i] & bit:
+                continue
+            
+            assignment[i] = shift
+            
+            updates = []
+            for j in conflicts[i]:
+                if j > i and not (forbidden[j] & bit):
+                    forbidden[j] |= bit
+                    updates.append(j)
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in updates:
+                forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Let me trace through the examples:
+
+Example 1:
+- n=4, m=5
+- Conflicts: (1,2), (1,3), (2,3), (1,4), (2,4)
+- Worker 0 (1-indexed: 1) conflicts with 1, 2, 3
+- Worker 1 (1-indexed: 2) conflicts with 0, 2, 3
+- Worker 2 (1-indexed: 3) conflicts with 0, 1
+- Worker 3 (1-indexed: 4) conflicts with 0, 1
+
+Backtracking:
+- i=0: Try shift 1. forbidden[0] = 0, so shift 1 is valid.
+  - assignment[0] = 1
+  - Update forbidden for neighbors of 0: 1, 2, 3
+    - forbidden[1] |= 1 (shift 1 forbidden)
+    - forbidden[2] |= 1 (shift 1 forbidden)
+    - forbidden[3] |= 1 (shift 1 forbidden)
+  - Check forward: forbidden[1]=1, forbidden[2]=1, forbidden[3]=1. All < 7, so valid.
+  - i=1: Try shift 1. forbidden[1] = 1, so shift 1 is forbidden. Try shift 2.
+    - assignment[1] = 2
+    - Update forbidden for neighbors of 1: 0, 2, 3
+      - 0 < 1, skip
+      - forbidden[2] |= 2 (shift 2 forbidden), forbidden[2] = 3
+      - forbidden[3] |= 2 (shift 2 forbidden), forbidden[3] = 3
+    - Check forward: forbidden[2]=3, forbidden[3]=3. All < 7, so valid.
+    - i=2: Try shift 1. forbidden[2] = 3, so shift 1 is forbidden. Try shift 2. forbidden[2] = 3, so shift 2 is forbidden. Try shift 3.
+      - assignment[2] = 3
+      - Update forbidden for neighbors of 2: 0, 1
+        - 0 < 2, skip
+        - 1 < 2, skip
+      - Check forward: forbidden[3]=3. < 7, so valid.
+      - i=3: Try shift 1. forbidden[3] = 3, so shift 1 is forbidden. Try shift 2. forbidden[3] = 3, so shift 2 is forbidden. Try shift 3.
+        - assignment[3] = 3
+        - Update forbidden for neighbors of 3: 0, 1
+          - 0 < 3, skip
+          - 1 < 3, skip
+        - Check forward: no unassigned workers.
+        - i=4: Return True
+      - Return True
+    - Return True
+  - Return True
+- Return True
+
+Result: assignment = [1, 2, 3, 3], which matches the expected output "1 2 3 3".
+
+Example 2:
+- n=4, m=6
+- Conflicts: (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
+- This is a complete graph K_4, which is not 3-colorable.
+
+Backtracking:
+- i=0: Try shift 1.
+  - assignment[0] = 1
+  - Update forbidden for neighbors of 0: 1, 2, 3
+    - forbidden[1] = 1, forbidden[2] = 1, forbidden[3] = 1
+  - i=1: Try shift 2.
+    - assignment[1] = 2
+    - Update forbidden for neighbors of 1: 0, 2, 3
+      - forbidden[2] |= 2 = 3, forbidden[3] |= 2 = 3
+    - i=2: Try shift 3.
+      - assignment[2] = 3
+      - Update forbidden for neighbors of 2: 0, 1, 3
+        - forbidden[3] |= 4 = 7
+      - Check forward: forbidden[3] = 7. Invalid!
+      - Backtrack.
+    - i=2: No more shifts. Backtrack.
+  - i=1: Try shift 3.
+    - assignment[1] = 3
+    - Update forbidden for neighbors of 1: 0, 2, 3
+      - forbidden[2] |= 4 = 5, forbidden[3] |= 4 = 5
+    - i=2: Try shift 2.
+      - assignment[2] = 2
+      - Update forbidden for neighbors of 2: 0, 1, 3
+        - forbidden[3] |= 2 = 7
+      - Check forward: forbidden[3] = 7. Invalid!
+      - Backtrack.
+    - i=2: Try shift 3. forbidden[2] = 5, so shift 3 is forbidden. No more shifts. Backtrack.
+  - i=1: No more shifts. Backtrack.
+- i=0: Try shift 2.
+  - ... (similar exploration)
+- i=0: Try shift 3.
+  - ... (similar exploration)
+- i=0: No more shifts. Return False.
+
+Result: NO, which matches the expected output.
+
+Great, the algorithm seems correct. Let me clean up the code:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbidden = [0] * n  # bitmask: bit 0 = shift 1 forbidden, etc.
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(1, 4):
+            bit = 1 << (shift - 1)
+            if forbidden[i] & bit:
+                continue
+            
+            assignment[i] = shift
+            
+            # Update forbidden for neighbors
+            updates = []
+            for j in conflicts[i]:
+                if j > i and not (forbidden[j] & bit):
+                    forbidden[j] |= bit
+                    updates.append(j)
+            
+            # Forward check
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            # Undo updates
+            for j in updates:
+                forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I think there might be an issue with the forward check. Let me reconsider.
+
+When we assign a shift to worker i, we update the forbidden shifts for workers j > i that conflict with i. But we should also check if any worker j > i now has all shifts forbidden.
+
+Actually, I think the current implementation is correct. Let me trace through again to make sure.
+
+Hmm, actually I think there's a subtle issue. When we check `forbidden[j] == 7`, we're checking if all 3 shifts are forbidden. But we should also check if the worker j has any conflicts with already assigned workers that would forbid all shifts.
+
+Wait, no, the forbidden array already tracks this. When we assign a shift to worker i, we update forbidden for all neighbors j > i. So forbidden[j] correctly represents the forbidden shifts for worker j based on all assigned workers.
+
+Let me double-check the logic:
+1. Initially, forbidden[j] = 0 for all j, meaning no shifts are forbidden.
+2. When we assign shift s to worker i, we set bit (s-1) in forbidden[j] for all neighbors j > i.
+3. So forbidden[j] correctly represents the shifts that are forbidden for worker j based on all assigned workers up to i.
+
+Yes, this is correct.
+
+But wait, there's another issue. When we backtrack, we undo the updates to forbidden. But we're using `forbidden[j] ^= bit`, which is correct only if the bit was not set before. Let me check:
+
+In the update loop:
+```python
+for j in conflicts[i]:
+    if j > i and not (forbidden[j] & bit):
+        forbidden[j] |= bit
+        updates.append(j)
+```
+
+We only add j to updates if the bit was not set before. So when we undo:
+```python
+for j in updates:
+    forbidden[j] ^= bit
+```
+
+This correctly unsets the bit because we know it was set by this assignment.
+
+Actually, wait. `forbidden[j] |= bit` sets the bit, and `forbidden[j] ^= bit` toggles the bit. Since we only add j to updates if the bit was not set, toggling it will unset it. So this is correct.
+
+But there's a subtle issue: what if two different assigned workers both conflict with j and both forbid the same shift? In that case, we should not unset the bit when backtracking from one of them.
+
+Let me think about this more carefully. Suppose:
+- Worker 0 is assigned shift 1, and conflicts with worker 2.
+- Worker 1 is assigned shift 1, and conflicts with worker 2.
+- forbidden[2] should have bit 0 set (shift 1 forbidden).
+
+When we backtrack from worker 1:
+- We try to unset bit 0 in forbidden[2].
+- But worker 0 still has shift 1, so forbidden[2] should still have bit 0 set.
+
+This is a bug! The current implementation doesn't handle this correctly.
+
+Let me fix this. Instead of using a single forbidden array, I should track the forbidden shifts for each worker based on each assigned worker.
+
+Actually, a simpler fix is to not use the forbidden array at all, and just check conflicts directly:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    
+    def is_valid(i, shift):
+        for j in range(i):
+            if j in conflicts[i] and assignment[j] == shift:
+                return False
+        return True
+    
+    def forward_check(i):
+        for j in range(i + 1, n):
+            valid_shifts = 0
+            for shift in range(1, 4):
+                if is_valid_for_worker(j, shift, i):
+                    valid_shifts += 1
+            if valid_shifts == 0:
+                return False
+        return True
+    
+    def is_valid_for_worker(j, shift, up_to):
+        for k in range(up_to + 1):
+            if k in conflicts[j] and assignment[k] == shift:
+                return False
+        return True
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(1, 4):
+            if is_valid(i, shift):
+                assignment[i] = shift
+                if forward_check(i) and backtrack(i + 1):
+                    return True
+                assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+But this is O(n^2) per recursive call, which might be slow.
+
+Let me think of a better approach. I'll use a 2D array to track the count of forbidden shifts:
+
+Actually, let me use a different approach. I'll maintain a count of how many assigned workers forbid each shift for each unassigned worker.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    # forbid_count[j][s] = number of assigned workers that forbid shift s for worker j
+    forbid_count = [[0, 0, 0] for _ in range(n)]  # shifts 1, 2, 3 (0-indexed)
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):  # 0, 1, 2 for shifts 1, 2, 3
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            
+            # Update forbid_count for neighbors
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+            
+            # Forward check
+            valid = True
+            for j in range(i + 1, n):
+                if forbid_count[j][0] > 0 and forbid_count[j][1] > 0 and forbid_count[j][2] > 0:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            # Undo updates
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should correctly handle the case where multiple assigned workers forbid the same shift for an unassigned worker.
+
+Let me trace through Example 1 again:
+- n=4, m=5
+- Conflicts: (1,2), (1,3), (2,3), (1,4), (2,4)
+- Worker 0 conflicts with 1, 2, 3
+- Worker 1 conflicts with 0, 2, 3
+- Worker 2 conflicts with 0, 1
+- Worker 3 conflicts with 0, 1
+
+Backtracking:
+- i=0: Try shift 0 (shift 1). forbid_count[0] = [0, 0, 0], so shift 0 is valid.
+  - assignment[0] = 1
+  - Update forbid_count for neighbors of 0: 1, 2, 3
+    - forbid_count[1][0] += 1 = 1
+    - forbid_count[2][0] += 1 = 1
+    - forbid_count[3][0] += 1 = 1
+  - Forward check: forbid_count[1]=[1,0,0], forbid_count[2]=[1,0,0], forbid_count[3]=[1,0,0]. All have at least one valid shift.
+  - i=1: Try shift 0. forbid_count[1][0] = 1 > 0, so skip. Try shift 1 (shift 2).
+    - assignment[1] = 2
+    - Update forbid_count for neighbors of 1: 0, 2, 3
+      - 0 < 1, skip
+      - forbid_count[2][1] += 1 = 1
+      - forbid_count[3][1] += 1 = 1
+    - Forward check: forbid_count[2]=[1,1,0], forbid_count[3]=[1,1,0]. All have at least one valid shift.
+    - i=2: Try shift 0. forbid_count[2][0] = 1 > 0, skip. Try shift 1. forbid_count[2][1] = 1 > 0, skip. Try shift 2 (shift 3).
+      - assignment[2] = 3
+      - Update forbid_count for neighbors of 2: 0, 1
+        - 0 < 2, skip
+        - 1 < 2, skip
+      - Forward check: forbid_count[3]=[1,1,0]. Has valid shift (shift 3).
+      - i=3: Try shift 0. forbid_count[3][0] = 1 > 0, skip. Try shift 1. forbid_count[3][1] = 1 > 0, skip. Try shift 2.
+        - assignment[3] = 3
+        - Update forbid_count for neighbors of 3: 0, 1
+          - 0 < 3, skip
+          - 1 < 3, skip
+        - Forward check: no unassigned workers.
+        - i=4: Return True
+      - Return True
+    - Return True
+  - Return True
+- Return True
+
+Result: assignment = [1, 2, 3, 3], which matches the expected output.
+
+Let me also trace through Example 2:
+- n=4, m=6
+- Conflicts: (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
+- Worker 0 conflicts with 1, 2, 3
+- Worker 1 conflicts with 0, 2, 3
+- Worker 2 conflicts with 0, 1, 3
+- Worker 3 conflicts with 0, 1, 2
+
+Backtracking:
+- i=0: Try shift 0 (shift 1).
+  - assignment[0] = 1
+  - Update forbid_count for neighbors of 0: 1, 2, 3
+    - forbid_count[1][0] = 1, forbid_count[2][0] = 1, forbid_count[3][0] = 1
+  - i=1: Try shift 1 (shift 2).
+    - assignment[1] = 2
+    - Update forbid_count for neighbors of 1: 0, 2, 3
+      - forbid_count[2][1] = 1, forbid_count[3][1] = 1
+    - i=2: Try shift 2 (shift 3).
+      - assignment[2] = 3
+      - Update forbid_count for neighbors of 2: 0, 1, 3
+        - forbid_count[3][2] = 1
+      - Forward check: forbid_count[3] = [1, 1, 1]. All shifts forbidden!
+      - Backtrack.
+    - i=2: No more shifts. Backtrack.
+  - i=1: Try shift 2 (shift 3).
+    - assignment[1] = 3
+    - Update forbid_count for neighbors of 1: 0, 2, 3
+      - forbid_count[2][2] = 1, forbid_count[3][2] = 1
+    - i=2: Try shift 1 (shift 2).
+      - assignment[2] = 2
+      - Update forbid_count for neighbors of 2: 0, 1, 3
+        - forbid_count[3][1] = 2
+      - Forward check: forbid_count[3] = [1, 2, 1]. All shifts forbidden!
+      - Backtrack.
+    - i=2: Try shift 2. forbid_count[2][2] = 1 > 0, skip. No more shifts. Backtrack.
+  - i=1: No more shifts. Backtrack.
+- i=0: Try shift 1 (shift 2).
+  - ... (similar exploration, will also fail)
+- i=0: Try shift 2 (shift 3).
+  - ... (similar exploration, will also fail)
+- i=0: No more shifts. Return False.
+
+Result: NO, which matches the expected output.
+
+Great, the algorithm is correct. Let me finalize the code:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbid_count[j][0] > 0 and forbid_count[j][1] > 0 and forbid_count[j][2] > 0:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize there might be a performance issue. The forward check iterates over all unassigned workers, which is O(n) per recursive call. In the worst case, this could be slow.
+
+Let me think about optimizations:
+1. Instead of checking all unassigned workers, only check the neighbors of the assigned worker.
+2. Use a more efficient data structure to track which workers have all shifts forbidden.
+
+Actually, the current approach should be fine for n=40. Let me test it on some edge cases.
+
+Edge case 1: n=1, m=0
+- Worker 0 has no conflicts.
+- Backtracking: i=0, try shift 0. Valid. Return True.
+- Output: YES, 1
+
+Edge case 2: n=2, m=1, conflict (1, 2)
+- Worker 0 conflicts with worker 1.
+- Backtracking: i=0, try shift 0. forbid_count[1][0] = 1. i=1, try shift 1. Valid. Return True.
+- Output: YES, 1 2
+
+Edge case 3: n=3, m=3, conflicts (1,2), (1,3), (2,3)
+- This is K_3, which is 3-colorable.
+- Backtracking: i=0, shift 0. i=1, shift 1. i=2, shift 2. Return True.
+- Output: YES, 1 2 3
+
+Edge case 4: n=4, m=6, conflicts (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
+- This is K_4, which is not 3-colorable.
+- Output: NO
+
+The algorithm handles these cases correctly.
+
+Now, let me think about the worst-case time complexity. In the worst case, the backtracking explores all possible assignments, which is O(3^n). For n=40, this is about 10^19, which is way too large.
+
+However, with forward checking, many branches are pruned early. The actual running time depends on the structure of the conflict graph.
+
+For dense graphs (many conflicts), the problem is often easier because each worker has fewer valid shifts, leading to fewer branches.
+
+For sparse graphs (few conflicts), there are many valid colorings, so we find one quickly.
+
+The worst case is when the graph has a specific structure that causes many branches to be explored without finding a solution or proving impossibility.
+
+Let me think about whether there's a better approach for n=40.
+
+One idea is to use a SAT solver or constraint solver. But that might be overkill.
+
+Another idea is to use a more sophisticated backtracking algorithm with:
+1. Conflict-directed backjumping
+2. No-good learning
+3. More aggressive pruning
+
+But for a competitive programming problem, the simple backtracking with forward checking should be sufficient.
+
+Let me also consider using iterative deepening or other techniques, but I think the current approach is good enough.
+
+Actually, let me reconsider the problem constraints. n ≤ 40 and time limit is 2 seconds. This suggests that an exponential algorithm is expected, but with good pruning.
+
+Let me also think about the structure of the problem. The lexicographically smallest requirement means we try shifts 1, 2, 3 in order for each worker. This is a greedy approach with backtracking.
+
+I think the current implementation is correct and efficient enough. Let me finalize it:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbid_count[j][0] > 0 and forbid_count[j][1] > 0 and forbid_count[j][2] > 0:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I just realized that the forward check can be optimized. Instead of checking all unassigned workers, we can maintain a count of workers with all shifts forbidden. But this adds complexity and might not be necessary.
+
+Let me also consider using bitmasks for efficiency. Instead of forbid_count being a 2D list, it can be a list of integers where each integer is a bitmask of forbidden shifts.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    # forbidden[j] is a bitmask of forbidden shifts for worker j
+    # bit 0 = shift 1 forbidden, bit 1 = shift 2 forbidden, bit 2 = shift 3 forbidden
+    forbidden = [0] * n
+    # forbid_count[j][s] = number of assigned workers that forbid shift s for worker j
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            # Forward check: check if any unassigned worker has all shifts forbidden
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, this is more complex and might not be faster. Let me stick with the simpler version.
+
+Hmm, let me reconsider. The issue with the simpler version is that checking `forbid_count[j][0] > 0 and forbid_count[j][1] > 0 and forbid_count[j][2] > 0` is slower than checking `forbidden[j] == 7`.
+
+Let me use the bitmask approach:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    forbidden = [0] * n  # bitmask
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should be more efficient because:
+1. We use bitmasks for the forbidden check, which is O(1) per worker.
+2. We maintain forbid_count to correctly handle multiple workers forbidding the same shift.
+
+Let me trace through Example 1 again to make sure:
+- n=4, m=5
+- Conflicts: (1,2), (1,3), (2,3), (1,4), (2,4)
+
+Backtracking:
+- i=0: Try shift 0 (shift 1). forbid_count[0] = [0, 0, 0], so shift 0 is valid.
+  - assignment[0] = 1
+  - bit = 1
+  - Update for neighbors of 0: 1, 2, 3
+    - forbid_count[1][0] = 1, forbidden[1] = 1
+    - forbid_count[2][0] = 1, forbidden[2] = 1
+    - forbid_count[3][0] = 1, forbidden[3] = 1
+  - Forward check: forbidden[1]=1, forbidden[2]=1, forbidden[3]=1. All != 7.
+  - i=1: Try shift 0. forbid_count[1][0] = 1 > 0, skip. Try shift 1 (shift 2).
+    - assignment[1] = 2
+    - bit = 2
+    - Update for neighbors of 1: 0, 2, 3
+      - 0 < 1, skip
+      - forbid_count[2][1] = 1, forbidden[2] = 3
+      - forbid_count[3][1] = 1, forbidden[3] = 3
+    - Forward check: forbidden[2]=3, forbidden[3]=3. All != 7.
+    - i=2: Try shift 0. forbid_count[2][0] = 1 > 0, skip. Try shift 1. forbid_count[2][1] = 1 > 0, skip. Try shift 2 (shift 3).
+      - assignment[2] = 3
+      - bit = 4
+      - Update for neighbors of 2: 0, 1
+        - 0 < 2, skip
+        - 1 < 2, skip
+      - Forward check: forbidden[3]=3. != 7.
+      - i=3: Try shift 0. forbid_count[3][0] = 1 > 0, skip. Try shift 1. forbid_count[3][1] = 1 > 0, skip. Try shift 2.
+        - assignment[3] = 3
+        - bit = 4
+        - Update for neighbors of 3: 0, 1
+          - 0 < 3, skip
+          - 1 < 3, skip
+        - Forward check: no unassigned workers.
+        - i=4: Return True
+      - Return True
+    - Return True
+  - Return True
+- Return True
+
+Result: assignment = [1, 2, 3, 3], which matches the expected output.
+
+Great, the algorithm is correct. Let me finalize the code:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    forbidden = [0] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize there's still a potential issue. When we undo the update, we use `forbidden[j] ^= bit`. This toggles the bit, which is correct only if the bit was set by this assignment. But we check `if forbid_count[j][shift] == 0` before toggling, so this should be correct.
+
+Wait, let me trace through more carefully. When we assign shift s to worker i:
+1. For each neighbor j > i, we increment forbid_count[j][s].
+2. If forbid_count[j][s] becomes 1, we set the bit in forbidden[j].
+
+When we undo:
+1. For each neighbor j > i, we decrement forbid_count[j][s].
+2. If forbid_count[j][s] becomes 0, we toggle the bit in forbidden[j].
+
+The toggle is correct because:
+- If forbid_count[j][s] was 1 before decrementing, it means only worker i was forbidding shift s for worker j.
+- After decrementing, forbid_count[j][s] is 0, meaning no worker is forbidding shift s for worker j.
+- So we should unset the bit, which is what `forbidden[j] ^= bit` does.
+
+Yes, this is correct.
+
+Let me also think about the time complexity more carefully. In the worst case, the backtracking explores O(3^n) branches. But with forward checking, many branches are pruned early.
+
+For each branch, the work done is:
+1. Checking if the shift is valid: O(1) (just check forbid_count)
+2. Updating forbid_count and forbidden: O(degree of worker i)
+3. Forward checking: O(n)
+
+So the total work per branch is O(n + degree of worker i).
+
+In the worst case, the total work is O(3^n * n^2), which is too slow for n=40.
+
+However, in practice, the forward checking prunes many branches, so the actual running time is much smaller.
+
+Let me think about whether there's a better approach.
+
+One idea is to use a more aggressive pruning strategy. For example, if a worker has only one valid shift, we can assign it immediately without branching. This is called "unit propagation" in SAT solving.
+
+Let me implement this:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    forbidden = [0] * n
+    
+    def propagate(i):
+        # If any unassigned worker has only one valid shift, assign it
+        changed = True
+        while changed:
+            changed = False
+            for j in range(i, n):
+                if assignment[j] != -1:
+                    continue
+                valid_shifts = [s for s in range(3) if forbid_count[j][s] == 0]
+                if len(valid_shifts) == 0:
+                    return False  # Conflict
+                if len(valid_shifts) == 1:
+                    shift = valid_shifts[0]
+                    assignment[j] = shift + 1
+                    bit = 1 << shift
+                    for k in conflicts[j]:
+                        if k > j and assignment[k] == -1:
+                            forbid_count[k][shift] += 1
+                            if forbid_count[k][shift] == 1:
+                                forbidden[k] |= bit
+                    changed = True
+        return True
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        # Skip already assigned workers
+        while i < n and assignment[i] != -1:
+            i += 1
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i and assignment[j] == -1:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            if propagate(i + 1) and backtrack(i + 1):
+                return True
+            
+            # Undo
+            for j in conflicts[i]:
+                if j > i and assignment[j] == -1:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, this is getting complicated. The propagation might assign workers out of order, which could affect the lexicographic ordering.
+
+Actually, wait. The propagation assigns workers with only one valid shift. This doesn't affect the lexicographic ordering because:
+1. If a worker has only one valid shift, we must assign that shift.
+2. The propagation assigns the shift, and we don't branch on that worker.
+3. The lexicographic ordering is preserved because we're not making any choices for that worker.
+
+But there's a subtle issue: the propagation might assign a worker j > i before we've assigned workers i+1, i+2, ..., j-1. This could affect the lexicographic ordering.
+
+Actually, no, the propagation doesn't affect the lexicographic ordering because:
+1. We're still assigning workers in order 1, 2, ..., n.
+2. The propagation just fills in workers that have only one valid shift.
+3. The lexicographic ordering is determined by the choices we make for workers with multiple valid shifts.
+
+Wait, but the propagation might assign a worker j before we've made a choice for worker i+1. This could lead to a different lexicographic ordering.
+
+Let me think about this more carefully. Suppose:
+- Worker 1 has 2 valid shifts: 1 and 2.
+- Worker 2 has only 1 valid shift: 3 (because of conflicts with worker 1).
+
+If we assign shift 1 to worker 1, then worker 2 must have shift 3. The propagation would assign shift 3 to worker 2.
+
+If we assign shift 2 to worker 1, then worker 2 might have a different valid shift.
+
+The lexicographic ordering is determined by the choice for worker 1. If shift 1 leads to a valid assignment, we choose that. Otherwise, we try shift 2.
+
+So the propagation doesn't affect the lexicographic ordering. It just fills in workers that have only one valid shift.
+
+But there's still an issue: the propagation might assign workers out of order, which complicates the backtracking.
+
+Let me simplify and just use the basic backtracking with forward checking. I think it should be efficient enough for n=40.
+
+Actually, let me reconsider the problem. The constraint n ≤ 40 suggests that an exponential algorithm is expected. But 3^40 is way too large.
+
+Let me think about the structure of the problem more carefully. The key insight is that we're looking for the lexicographically smallest 3-coloring. This means:
+1. We try to assign shift 1 to worker 1 if possible.
+2. If shift 1 doesn't lead to a valid assignment, we try shift 2, then shift 3.
+3. We repeat this for workers 2, 3, ..., n.
+
+This is a greedy approach with backtracking. The key question is: how many branches do we explore?
+
+In the best case, we find a valid assignment on the first try (all workers get shift 1 if possible, otherwise shift 2, etc.).
+
+In the worst case, we explore all possible assignments before finding a valid one or proving impossibility.
+
+But with forward checking, we prune branches early. The actual number of branches explored depends on the structure of the conflict graph.
+
+For dense graphs (many conflicts), each worker has fewer valid shifts, leading to fewer branches.
+
+For sparse graphs (few conflicts), there are many valid colorings, so we find one quickly.
+
+The worst case is when the graph has a specific structure that causes many branches to be explored. But such graphs are rare in practice.
+
+I think the basic backtracking with forward checking should be efficient enough for n=40. Let me finalize the code:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    forbidden = [0] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I just realized that I should also handle the case where the input has no conflicts (m=0). In this case, all workers can be assigned shift 1, and the output should be "YES" followed by "1 1 1 ... 1".
+
+Let me trace through:
+- n=3, m=0
+- conflicts = [set(), set(), set()]
+- forbid_count = [[0,0,0], [0,0,0], [0,0,0]]
+- forbidden = [0, 0, 0]
+
+Backtracking:
+- i=0: Try shift 0. forbid_count[0][0] = 0, so valid.
+  - assignment[0] = 1
+  - No neighbors, so no updates.
+  - Forward check: forbidden[1]=0, forbidden[2]=0. All != 7.
+  - i=1: Try shift 0. forbid_count[1][0] = 0, so valid.
+    - assignment[1] = 1
+    - No neighbors, so no updates.
+    - Forward check: forbidden[2]=0. != 7.
+    - i=2: Try shift 0. forbid_count[2][0] = 0, so valid.
+      - assignment[2] = 1
+      - No neighbors, so no updates.
+      - Forward check: no unassigned workers.
+      - i=3: Return True
+    - Return True
+  - Return True
+- Return True
+
+Result: assignment = [1, 1, 1], which is correct.
+
+Great, the algorithm handles this case correctly.
+
+Let me also think about the case where n=40 and the graph is a complete graph K_40. In this case, there's no valid 3-coloring, and the algorithm should quickly determine this.
+
+For K_40:
+- Worker 0 conflicts with workers 1, 2, ..., 39.
+- Worker 1 conflicts with workers 0, 2, 3, ..., 39.
+- ...
+
+Backtracking:
+- i=0: Try shift 0.
+  - assignment[0] = 1
+  - Update forbid_count for workers 1, 2, ..., 39: forbid_count[j][0] = 1, forbidden[j] = 1.
+  - i=1: Try shift 1.
+    - assignment[1] = 2
+    - Update forbid_count for workers 2, 3, ..., 39: forbid_count[j][1] = 1, forbidden[j] = 3.
+    - i=2: Try shift 2.
+      - assignment[2] = 3
+      - Update forbid_count for workers 3, 4, ..., 39: forbid_count[j][2] = 1, forbidden[j] = 7.
+      - Forward check: forbidden[3] = 7. Invalid!
+      - Backtrack.
+    - i=2: No more shifts. Backtrack.
+  - i=1: Try shift 2.
+    - assignment[1] = 3
+    - Update forbid_count for workers 2, 3, ..., 39: forbid_count[j][2] = 1, forbidden[j] = 5.
+    - i=2: Try shift 1.
+      - assignment[2] = 2
+      - Update forbid_count for workers 3, 4, ..., 39: forbid_count[j][1] = 1, forbidden[j] = 7.
+      - Forward check: forbidden[3] = 7. Invalid!
+      - Backtrack.
+    - i=2: Try shift 2. forbid_count[2][2] = 1 > 0, skip. No more shifts. Backtrack.
+  - i=1: No more shifts. Backtrack.
+- i=0: Try shift 1.
+  - ... (similar exploration)
+- i=0: Try shift 2.
+  - ... (similar exploration)
+- i=0: No more shifts. Return False.
+
+For K_40, the algorithm explores 6 branches (3 choices for worker 0, 2 choices for worker 1, 1 choice for worker 2) before determining that there's no valid assignment. This is very efficient!
+
+Actually, wait. Let me re-trace. For K_40:
+- Worker 0 is assigned shift 1.
+- Workers 1, 2, ..., 39 have shift 1 forbidden.
+- Worker 1 is assigned shift 2.
+- Workers 2, 3, ..., 39 have shifts 1 and 2 forbidden.
+- Worker 2 is assigned shift 3.
+- Workers 3, 4, ..., 39 have shifts 1, 2, and 3 forbidden.
+- Forward check: Worker 3 has all shifts forbidden. Invalid!
+
+So the algorithm quickly determines that K_40 is not 3-colorable. This is efficient!
+
+Now let me think about the worst case. The worst case is when the graph has a structure that causes many branches to be explored without finding a solution or proving impossibility.
+
+One such structure is a graph that's "almost" 3-colorable but requires exploring many branches. For example, a graph with many independent components, each of which has multiple valid colorings.
+
+But even in this case, the forward checking should prune many branches.
+
+I think the algorithm is efficient enough for n=40. Let me finalize the code:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    forbidden = [0] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I should double-check the output format. The problem says:
+- If no valid assignment exists, print "NO".
+- Otherwise, print "YES" on the first line, and the assignment on the second line.
+
+My code does this correctly.
+
+Let me also check the input format. The problem says:
+- First line: n and m.
+- Next m lines: u v for each conflict pair.
+
+My code reads all input at once and parses it correctly.
+
+I think the code is correct and efficient. Let me finalize it.
+
+Actually, I just realized that I should use `sys.stdout.write` for faster output, but `print` should be fine for this problem.
+
+Let me also consider using iterative backtracking instead of recursive to avoid stack overflow. But with `sys.setrecursionlimit(10000)`, the recursive approach should be fine for n=40.
+
+I think the code is ready. Let me finalize it:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = [set() for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        idx += 2
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+    
+    assignment = [-1] * n
+    forbid_count = [[0, 0, 0] for _ in range(n)]
+    forbidden = [0] * n
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        
+        for shift in range(3):
+            if forbid_count[i][shift] > 0:
+                continue
+            
+            assignment[i] = shift + 1
+            bit = 1 << shift
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] += 1
+                    if forbid_count[j][shift] == 1:
+                        forbidden[j] |= bit
+            
+            valid = True
+            for j in range(i + 1, n):
+                if forbidden[j] == 7:
+                    valid = False
+                    break
+            
+            if valid and backtrack(i + 1):
+                return True
+            
+            for j in conflicts[i]:
+                if j > i:
+                    forbid_count[j][shift] -= 1
+                    if forbid_count[j][shift] == 0:
+                        forbidden[j] ^= bit
+            
+            assignment[i] = -1
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should be the final solution. Let me review it one more time:
+
+1. We read the input and build the conflict graph.
+2. We use backtracking with forward checking to find a valid 3-coloring.
+3. We try shifts 1, 2, 3 in order for each worker to get the lexicographically smallest solution.
+4. We maintain forbid_count to track how many assigned workers forbid each shift for each unassigned worker.
+5. We maintain forbidden as a bitmask for efficient forward checking.
+6. We output "YES" and the assignment if a valid coloring is found, otherwise "NO".
+
+The time complexity is O(3^n) in the worst case, but with forward checking, the actual running time is much smaller in practice.
+
+The space complexity is O(n^2) for the conflict graph and O(n) for the other data structures.
+
+I think this solution is correct and efficient enough for the given constraints.

@@ -1,0 +1,29 @@
+from itertools import product
+
+def is_valid_assignment(n, edges, assignment):
+    for u, v in edges:
+        d_u = assignment[u - 1]
+        d_v = assignment[v - 1]
+        product_val = 2 * d_u * d_v
+        sum_val = d_u + d_v
+        if product_val % sum_val == 0:
+            return False
+    return True
+
+def solve():
+    n, m = map(int, input().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        edges.append((u, v))
+    
+    # Generate all possible assignments in lexicographical order
+    for assignment in product([1, 2, 3], repeat=n):
+        if is_valid_assignment(n, edges, assignment):
+            print("YES")
+            print(" ".join(map(str, assignment)))
+            return
+    
+    print("NO")
+
+solve()

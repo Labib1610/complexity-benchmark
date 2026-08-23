@@ -1,0 +1,111 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    possible = True
+    
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
+    
+    if not possible:
+        print("NO")
+        return
+    
+    # Now we have a valid bipartition.
+    # To get lexicographically smallest, we want as many 1's as possible at the start.
+    # We can flip colors in each connected component if it makes earlier nodes 1.
+    visited = [False] * n
+    for i in range(n):
+        if not visited[i]:
+            # collect component
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            # count how many would be 1 if we keep current color
+            count_keep = sum(1 for u in comp if color[u] == 0)
+            count_flip = len(comp) - count_keep
+            # We want smallest lexicographic: prefer 1 at smallest index.
+            # So if flipping gives more 1's at smaller indices, flip.
+            # Since we process in index order, we can just check the smallest index in comp.
+            min_idx = min(comp)
+            if color[min_idx] == 1:
+                # flipping would make it 0, which is worse lexicographically
+                # so keep as is
+                pass
+            else:
+                # color[min_idx] == 0, already good
+                pass
+            # But we also need to consider if flipping makes earlier nodes 1.
+            # Actually, we can just decide per component: if the smallest index in comp
+            # currently has color 1, flipping would make it 0 -> worse.
+            # If smallest index has color 0, keep.
+            # So no flip needed.
+            # However, if smallest index has color 1, we might still flip if it makes
+            # even earlier nodes (outside comp) unchanged? No, components are independent.
+            # So we keep as is.
+    
+    # Actually, the above logic is incomplete. We need to ensure lexicographically smallest.
+    # The standard approach: for each component, if the smallest index in that component
+    # has color 1, flip the whole component so that smallest index becomes 0? No, we want 1's early.
+    # Wait: lexicographically smallest means we want 1 at earliest positions.
+    # So for each component, we should set the smallest index to 1 if possible.
+    # That means: if color[smallest] == 0, keep; if color[smallest] == 1, flip.
+    # Let's implement that.
+    
+    visited = [False] * n
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            min_idx = min(comp)
+            if color[min_idx] == 1:
+                # flip all in comp
+                for u in comp:
+                    color[u] = 1 - color[u]
+    
+    print("YES")
+    print(' '.join(str(color[i] + 1) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

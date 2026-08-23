@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    idx = 2
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Iterate in lexicographic order of triples (a, b, c)
+    for a in range(1, n - 1):
+        adj_a = adj[a]
+        # b must be > a and in adj[a]
+        for b in adj_a:
+            if b <= a:
+                continue
+            # c must be > b, in adj[a] and adj[b]
+            # iterate over the smaller of adj_a and adj[b] for efficiency
+            if len(adj_a) < len(adj[b]):
+                common = adj_a
+            else:
+                common = adj[b]
+            for c in common:
+                if c > b and c in adj_a and c in adj[b]:
+                    sys.stdout.write(f"{a} {b} {c}\n")
+                    return
+
+if __name__ == "__main__":
+    solve()

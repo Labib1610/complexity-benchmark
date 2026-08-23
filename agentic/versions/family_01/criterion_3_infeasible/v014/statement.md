@@ -1,18 +1,22 @@
-# Factory Shift Incompatibility Certification
+# Problem C — Structural Obstruction Extraction
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing plant operates on a rigid schedule of two shifts. However, operational frictions prohibit certain pairs of personnel from being assigned to the same shift. When scheduling fails, engineers generate a certificate demonstrating that no valid two-shift assignment exists.
+The state space of all possible two-shift assignments for $n$ workers is $2^n$, which can be astronomically large. Due to a severe number of mutual incompatibilities between workers, it has been mathematically proven that every single one of these $2^n$ assignments will fail.
 
-Evaluating every possible grouping among thousands of workers would require searching an extensive space of personnel combinations. However, a schedule failure can be definitively certified by locating a single triplet of workers where every pair within the triplet suffers from operational friction. Your task is to analyze the registered personnel restrictions and output the lexicographically earliest such diagnostic triplet.
+Your task is not to attempt to schedule the workers or evaluate these assignments, but to isolate the root cause of this failure. To formally certify the infeasibility, you must extract a specific structural obstruction from the incompatibility data. 
+
+A subset of workers forms a "complete obstruction" if every distinct pair of individuals within that subset is incompatible. Any complete obstruction of size exactly 3 forces the need for at least three shifts, thereby definitively proving that two shifts are insufficient.
+
+Although there are $\frac{n(n-1)(n-2)}{6}$ possible triplets of workers to consider, it is guaranteed that at least one complete obstruction of size 3 exists in the provided data. You must search the combinations to find one.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), indicating the total number of workers (numbered $1$ through $n$) and the total number of recorded pairwise friction restrictions.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), specifying that worker $u$ and worker $v$ cannot be on the same shift.
-It is guaranteed that at least one triplet of mutually incompatible workers exists in the input.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of workers and the number of incompatible pairs.
+
+The following $m$ lines each contain two integers $u$ and $v$, indicating that worker $u$ and worker $v$ are incompatible. It is guaranteed that there is at least one group of exactly three workers who are all mutually incompatible.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line such that $1 \le a < b < c \le n$ and all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are recorded pairwise friction restrictions. Output the lexicographically smallest such triple (minimizing $a$; breaking ties by minimizing $b$; then $c$).
+Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the IDs of three workers who form a complete obstruction of size 3 (i.e., the pairs $a-b$, $a-c$, and $b-c$ are all incompatible). Output the lexicographically smallest such group (minimize $a$; in case of a tie, minimize $b$; then minimize $c$).
 
 ## Example 1
 Input:

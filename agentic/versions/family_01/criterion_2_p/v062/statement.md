@@ -1,9 +1,45 @@
-```json
-{
-  "statement": "# System Configuration Optimization for Frequency Channeling\n\nTime limit: 1 s   Memory limit: 256 MB\n\nAn automated control system coordinates $n$ active elements, labeled $1$ through $n$. Each element $i$ must be assigned an operating mode $s_i$ selected from the set $\{1, 2\}$. A complete configuration of the system is represented by the sequence $(s_1, s_2, \dots, s_n)$.\n\nThe global state space contains $2^n$ candidate configurations. However, the system imposes $m$ pairwise separation conditions. Each condition specifies two distinct elements $u$ and $v$ that cannot operate in the same mode (that is, if $s_u = 1$ then $s_v$ must be $2$, and if $s_u = 2$ then $s_v$ must be $1$).\n\nA configuration is deemed feasible if and only if it satisfies all $m$ pairwise separation conditions simultaneously.\n\nYour task is to analyze the feasibility of the state space. Specifically, determine whether at least one feasible configuration exists. If feasible configurations exist, identify the one that is lexicographically smallest—meaning that when comparing two distinct valid configurations $(s_1, \dots, s_n)$ and $(t_1, \dots, t_n)$, we prefer the one with $s_k < t_k$ at the smallest index $k$ where $s_k \neq t_k$.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of elements and the number of separation conditions, respectively.\nEach of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that elements $u$ and $v$ cannot share the same operating mode.\n\n## Output\nIf no configuration satisfies all separation conditions, print a single line containing `NO`.\nOtherwise, print `YES` on the first line, and print a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$) representing the lexicographically smallest feasible configuration.\n\n## Example 1\nInput:\n```\n4 4\n1 2\n2 3\n3 4\n1 4\n```\nOutput:\n```\nYES\n1 2 1 2\n```\n\n## Example 2\nInput:\n```\n3 3\n1 2\n1 3\n2 3\n```\nOutput:\n```\nNO\n```",
-  "rationale": "The rewrite frames the problem as searching an exponential $2^n$ state space of configuration vectors to find a feasible state, disguising the simple binary component-coloring nature of the problem. It forces the solver to recognize that pairwise restrictions strictly propagate across connected components, allowing a simple linear-time traversal rather than backtracking search.",
-  "preserved_answer": "Every valid mode assignment and constraint mapping is identical to the seed's channel assignment rules, so the set of feasible vectors and the lexicographically smallest choice remain completely unchanged.",
-  "preserved_class": "The problem reduces directly to 2-coloring connected components, which remains solvable in $O(n + m)$ time using standard search algorithms.",
-  "risk": "none"
-}
+# Problem B — Day and Night
+
+Time limit: 1 s   Memory limit: 256 MB
+
+The factory administration is planning the shift schedule for $n$ employees. Each employee must be assigned a state of either shift 1 or shift 2, resulting in a massive state space of $2^n$ potential overall schedules. The administration must evaluate this space to find a configuration that complies with a provided list of $m$ strict operational constraints.
+
+Each of the $m$ constraints specifies two employees. To prevent resource contention, any valid schedule must be configured such that the two employees mentioned in a constraint never share the same shift state. 
+
+You need to determine whether any of the $2^n$ possible schedules satisfy all $m$ constraints simultaneously. If at least one valid schedule exists, you must output the lexicographically smallest valid schedule. If the entire state space contains no valid schedule, you must report that it is impossible.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$, representing a constraint between employee $u$ and employee $v$.
+
+## Output
+If no schedule among the $2^n$ possibilities satisfies all constraints, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid schedule.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
 ```

@@ -1,18 +1,23 @@
-# Technician Crew Incompatibility Auditor
+# Problem C — Shift Deadlock Identification
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-In an automated manufacturing facility, pairs of technicians are flagged as incompatible if they cannot work on the same assembly team. Quality managers need to document fundamental scheduling bottlenecks by finding three distinct technicians who are mutually incompatible—meaning every pair among the three has a recorded incompatibility.
+You are managing a roster of $n$ workers. Certain pairs of workers have filed mutual grievances, meaning they cannot be assigned to the same shift. You are given a log of $m$ such grievance pairs.
 
-Given the total number of technicians and the list of pairwise incompatibility records, your goal is to find three technicians $a, b, c$ with $1 \le a < b < c \le n$ such that $a$ and $b$ are incompatible, $a$ and $c$ are incompatible, and $b$ and $c$ are incompatible. If there are multiple such groups of three, output the one that is lexicographically smallest (i.e., minimizing $a$; then $b$; then $c$).
+The company only operates two shifts. It has been determined that creating a valid two-shift schedule for all workers is impossible. Your task is to extract the core reason for this impossibility from the grievance log.
+
+To prove that two shifts are not enough, you must identify a specific configuration of three workers. The requirement for this configuration is that if you select any two workers out of the three, there must be a grievance record between them. Because every individual in this trio refuses to share a shift with either of the other two, no two of them can be on the same shift, making it impossible to assign them to only two shifts.
+
+It is guaranteed that the log contains at least one such configuration. You must search the grievance records to find it.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of technicians (indexed $1$ through $n$) and the number of recorded pairwise incompatibilities.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that technician $u$ and technician $v$ are incompatible. Incompatibility is a symmetric relationship.
-It is guaranteed that at least one mutually incompatible group of three technicians exists in the input.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of workers and the number of grievance pairs.
+
+The following $m$ lines each contain two integers $u$ and $v$, indicating that worker $u$ and worker $v$ have a mutual grievance. It is guaranteed that there exists at least one set of three workers where every pair among them has a grievance.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line such that $1 \le a < b < c \le n$ and all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are recorded as incompatible. If there are multiple valid triples, output the lexicographically smallest one.
+Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the IDs of three workers who meet the condition (i.e., grievances exist between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$). Output the lexicographically smallest such group (minimize $a$; in case of a tie, minimize $b$; then minimize $c$).
 
 ## Example 1
 Input:

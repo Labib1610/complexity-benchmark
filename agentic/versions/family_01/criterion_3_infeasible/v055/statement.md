@@ -1,22 +1,20 @@
-# Minimal Mutual Triplet
+# Production Line Diagnostics
 
 Time limit: 2 s   Memory limit: 256 MB
 
-In a network of $n$ stations (numbered $1$ through $n$), pairs of stations can be directly linked by bidirectional communication channels. A total of $m$ distinct direct channels exist in the system.
+A manufacturing facility manages its workload by routing tasks through exactly two independent processing streams. Certain pairs of tasks require exclusive access to a shared calibration instrument. If two such tasks are assigned to the same processing stream, it causes a workflow collision. Therefore, these pairs are marked as mutually restrictive and must always be assigned to different streams.
 
-A set of three distinct stations $a$, $b$, and $c$ forms a complete mutual triplet if a direct channel exists between every pair among them: between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$.
+Your objective is to identify a "critical cluster" within the workflow. A critical cluster is a group of exactly three tasks where every possible pair within the group is mutually restrictive.
 
-Given the network configuration, your task is to find the lexicographically smallest complete mutual triplet $(a, b, c)$ satisfying $1 \le a < b < c \le n$. That is, select the triplet that minimizes $a$, breaks ties by minimizing $b$, and breaks any further ties by minimizing $c$. At least one complete mutual triplet is guaranteed to exist.
+To guarantee deterministic output, if multiple critical clusters are present, your software must report the one whose task identifiers are sequentially lowest.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 200000)$), representing the number of stations and the total number of channels, respectively.
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a direct bidirectional channel between station $u$ and station $v$. No pair of stations appears more than once in the list.
-
-It is guaranteed that at least one valid complete mutual triplet exists in the network.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of tasks and the number of mutually restrictive pairs. Tasks are numbered from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that task $u$ and task $v$ are mutually restrictive.
+It is guaranteed that at least one critical cluster exists in the provided data.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line ($a < b < c$), representing the lexicographically smallest complete mutual triplet.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three tasks in the critical cluster. Output the combination that is sequentially lowest (the smallest possible value for $a$; in case of a tie, the smallest possible value for $b$; and finally the smallest possible value for $c$).
 
 ## Example 1
 Input:

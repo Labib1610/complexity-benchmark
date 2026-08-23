@@ -1,0 +1,53 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for lexicographical processing
+    adj_list = [sorted(s) for s in adj]
+    
+    # Iterate over all pairs (u, v) with u < v
+    # We want the lexicographically smallest triplet, so we iterate u from 1 to n
+    # and for each u, iterate v from u+1 to n
+    for u in range(1, n + 1):
+        neighbors_u = adj_list[u]
+        # We need v > u and v in neighbors_u
+        # Since neighbors_u is sorted, we can iterate through it
+        # but we only care about v > u
+        for v in neighbors_u:
+            if v <= u:
+                continue
+            
+            # Now we have a pair (u, v)
+            # We need to find w such that w > v, w in adj[u], w in adj[v]
+            # To find the smallest such w, we can iterate through common neighbors
+            # Since we want the smallest w > v, we can iterate through adj_list[v]
+            # and check if w > v and w in adj[u]
+            # But we can optimize by iterating through the smaller list
+            
+            # Let's iterate through adj_list[v] and check for w > v in adj[u]
+            # Since adj_list[v] is sorted, the first valid w we find is the smallest
+            for w in adj_list[v]:
+                if w <= v:
+                    continue
+                if w in adj[u]:
+                    print(u, v, w)
+                    return
+
+if __name__ == "__main__":
+    solve()

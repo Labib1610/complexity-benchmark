@@ -1,23 +1,20 @@
-# Facility Shift Allocation
+# Problem A — Repeater Calibration
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A research facility operates in three distinct operational shifts numbered 1, 2, and 3. There are $n$ members of personnel, identified by integers from 1 to $n$. Certain pairs of personnel are declared mutually exclusive, meaning they cannot be assigned to work in the same operational shift.
+You are deploying a network of $n$ signal repeaters. Each repeater must be configured to operate on exactly one of three available frequency bands, which are designated by the numbers 1, 2, and 3. 
 
-You must assign every individual to exactly one shift such that no mutually exclusive pair shares a shift. If multiple such valid allocations exist, you must select the one that yields the lexicographically smallest sequence of assigned shift numbers $(s_1, s_2, \dots, s_n)$. If no valid allocation exists at all, you must report this outcome.
+Because of their geographic proximity, certain specific repeaters have overlapping broadcast zones. If two repeaters with overlapping zones are configured to the identical frequency band, their signals will scramble and fail. You will be provided with a list of these overlaps. Each entry in the list identifies two repeaters that cannot share the same frequency band.
+
+Determine if there is a way to configure every repeater such that no scrambling occurs. 
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the total number of personnel and the number of mutually exclusive pairs, respectively.
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that person $u$ and person $v$ cannot share a shift.
+The first line of the input contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of repeaters and the number of overlapping zones, respectively. The repeaters are numbered from 1 to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that repeater $u$ and repeater $v$ have an overlapping broadcast zone. No pair of repeaters will be listed more than once.
 
 ## Output
-If it is impossible to satisfy all mutual exclusivity conditions, print a single line containing `NO`.
-
-Otherwise, print two lines:
-- The first line must contain `YES`.
-- The second line must contain $n$ space-separated integers $s_1\ s_2\ \dots\ s_n$, where $s_i \in \{1, 2, 3\}$ is the shift assigned to person $i$. This sequence must be the lexicographically smallest among all valid shift allocations.
+If it is impossible to configure the repeaters without scrambling, output a single line containing `NO`.
+If a valid configuration exists, output `YES` on the first line. On the second line, output $n$ integers $c_1, c_2, \dots, c_n$, where each $c_i \in \{1, 2, 3\}$ represents the frequency band assigned to repeater $i$. If there are multiple valid configurations, you must output the one that is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first position where they differ, the value in $A$ is strictly less than the value in $B$).
 
 ## Example 1
 Input:

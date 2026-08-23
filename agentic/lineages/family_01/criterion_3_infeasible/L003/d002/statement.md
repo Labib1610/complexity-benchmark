@@ -1,0 +1,48 @@
+# Flavor Profile Optimization
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A food science laboratory is experimenting with $n$ distinct aromatic extracts, cataloged with ID numbers 1 through $n$. Through sensory analysis, they have identified $m$ specific combinations of two extracts that create a perfectly balanced flavor profile when mixed.
+
+The current project requires formulating a "Signature Blend". A Signature Blend consists of exactly three distinct extracts chosen such that any two out of the three would create a balanced flavor profile on their own. The laboratory's prior research guarantees that the catalog contains at least one such group of three.
+
+Your task is to process the list of balanced combinations and identify one Signature Blend.
+
+## Input
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of extracts that create a balanced flavor profile.
+It is guaranteed that at least one Signature Blend exists.
+
+## Output
+Print three integers $a$ $b$ $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ create a balanced flavor profile. Output the lexicographically smallest such set (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+```
+Output:
+```
+1 2 3
+```
+
+## Example 2
+Input:
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+Output:
+```
+1 2 4
+```

@@ -1,0 +1,61 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Find the vertex with minimum degree
+    min_deg = n + 1
+    min_v = 1
+    for v in range(1, n + 1):
+        deg = len(adj[v])
+        if deg < min_deg:
+            min_deg = deg
+            min_v = v
+    
+    v = min_v
+    neighbors = sorted(adj[v])
+    
+    # Check pairs of neighbors of v
+    k = len(neighbors)
+    for i in range(k):
+        a = neighbors[i]
+        for j in range(i + 1, k):
+            b = neighbors[j]
+            if b not in adj[a]:
+                # Found triad (a, b, v)
+                res = sorted([a, b, v])
+                print(res[0], res[1], res[2])
+                return
+    
+    # Check pairs of non-neighbors of v
+    non_neighbors = []
+    for u in range(1, n + 1):
+        if u != v and u not in adj[v]:
+            non_neighbors.append(u)
+    
+    nn = len(non_neighbors)
+    for i in range(nn):
+        a = non_neighbors[i]
+        for j in range(i + 1, nn):
+            b = non_neighbors[j]
+            if b not in adj[a]:
+                # Found triad (a, b, v)
+                res = sorted([a, b, v])
+                print(res[0], res[1], res[2])
+                return
+
+if __name__ == "__main__":
+    solve()

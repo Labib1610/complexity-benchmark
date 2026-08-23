@@ -1,0 +1,54 @@
+import sys
+from collections import defaultdict
+
+def find_triangle(edges, n):
+    # Build adjacency list
+    adj = defaultdict(set)
+    for u, v in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Convert to sorted lists for consistent iteration
+    adj_list = {}
+    for node in adj:
+        adj_list[node] = sorted(list(adj[node]))
+    
+    # For each edge, check if there's a common neighbor forming a triangle
+    best = None
+    
+    # Try all edges
+    for u, v in edges:
+        if u >= v:
+            continue
+            
+        # Get neighbors of u and v
+        neigh_u = set(adj_list.get(u, []))
+        neigh_v = set(adj_list.get(v, []))
+        
+        # Find common neighbors
+        common = neigh_u & neigh_v
+        for w in common:
+            if w <= u or w <= v:
+                continue
+                
+            # Found triangle u-v-w where u < v < w
+            candidate = (u, v, w)
+            if best is None or candidate < best:
+                best = candidate
+    
+    return best
+
+# Read input
+input_lines = []
+for line in sys.stdin:
+    input_lines.append(line.strip())
+
+n, m = map(int, input_lines[0].split())
+edges = []
+for i in range(1, m + 1):
+    u, v = map(int, input_lines[i].split())
+    edges.append((u, v))
+
+# Find and output the lexicographically smallest triangle
+result = find_triangle(edges, n)
+print(result[0], result[1], result[2])

@@ -1,0 +1,42 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    mask = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        mask[u] |= 1 << (v - 1)
+        mask[v] |= 1 << (u - 1)
+
+    suffix = [-(1 << i) for i in range(n + 1)]
+
+    ans = None
+    for a in range(1, n + 1):
+        ma = mask[a] & suffix[a]
+        if ma == 0:
+            continue
+        t = ma
+        while t:
+            low = t & -t
+            b = low.bit_length()
+            common = ma & mask[b]
+            if common:
+                x = common & suffix[b]
+                if x:
+                    c = (x & -x).bit_length()
+                    ans = f"{a} {b} {c}"
+                    break
+            t ^= low
+        if ans is not None:
+            break
+
+    sys.stdout.write(ans)
+
+if __name__ == "__main__":
+    solve()

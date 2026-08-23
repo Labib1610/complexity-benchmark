@@ -1,0 +1,59 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n  # -1 uncolored, 0 -> setting 1, 1 -> setting 2
+
+def bfs(start):
+    q = deque([start])
+    color[start] = 0
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
+for i in range(n):
+    if color[i] == -1:
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Now we have a valid bipartite coloring, but we want lexicographically smallest.
+# We can flip colors in each connected component if it makes earlier nodes 1.
+visited = [False] * n
+for i in range(n):
+    if not visited[i]:
+        # collect component
+        comp = []
+        q = deque([i])
+        visited[i] = True
+        while q:
+            u = q.popleft()
+            comp.append(u)
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    q.append(v)
+        # Check if flipping makes it lexicographically smaller
+        # If color[i] == 1, flipping makes it 0 (i.e., setting 1), which is better
+        if color[i] == 1:
+            for u in comp:
+                color[u] = 1 - color[u]
+
+print("YES")
+print(' '.join(str(1 if color[i] == 0 else 2) for i in range(n)))

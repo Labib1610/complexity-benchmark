@@ -1,27 +1,27 @@
-# Sensor Frequency Allocation
+# Problem A — Memory Bank Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An atmospheric observatory operates $n$ observational units labeled $1$ through $n$. Each unit must be configured to transmit on one of three available channel frequencies, identified by integer labels $1$, $2$, or $3$.
+You are optimizing the memory layout for a processing unit with $n$ distinct data blocks, numbered 1 to $n$. The architecture features exactly three separate memory banks, labeled 1, 2, and 3. Each data block must be allocated to exactly one of these memory banks.
 
-Due to physical proximity, certain pairs of units will cause mutual electromagnetic interference if they operate on the same channel frequency. Consequently, no two interfering units may share the same channel label.
+Due to parallel access conflicts, certain pairs of data blocks cannot reside in the same memory bank. You are provided with $m$ such conflict pairs.
 
-To ensure operational compliance, a valid configuration must satisfy all of the following requirements:
-1. Each unit $i$ ($1 \le i \le n$) is assigned a single channel label $s_i \in \{1, 2, 3\}$.
-2. For every pair of interfering units $(u, v)$, $s_u \neq s_v$.
-3. The total sum of assigned channel labels $\sum_{i=1}^n s_i$ does not exceed $3n$.
-4. The numerical difference between the highest channel label assigned and the lowest channel label assigned across all units does not exceed $2$.
+To comply with the strict architectural limits of the processing unit, every scenario you will process is mathematically guaranteed to satisfy the following safety constraints:
+- The total number of data blocks $n$ is at most 40.
+- The total number of access conflicts $m$ is at most 780.
+- For any conflict pair involving block $u$ and block $v$, the sum of their identifiers $u + v$ is at most 80.
 
-Determine whether a valid channel assignment exists. If one exists, find the configuration that is lexicographically smallest.
+Your task is to assign each data block to one of the three memory banks such that no two conflicting blocks are placed in the same bank. 
+
+If a valid allocation is impossible, you must report it. If multiple valid allocations are possible, the firmware requires the lexicographically smallest sequence of bank assignments (minimizing the bank number for block 1, then block 2, and so forth).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of units and the number of interfering pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) indicating that unit $u$ and unit $v$ interfere with each other.
+The first line contains two integers $n$ and $m$ — the number of data blocks and the number of conflict pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of conflicting data blocks.
 
 ## Output
-If no valid channel assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ is the channel assigned to unit $i$. If multiple valid assignments exist, output the lexicographically smallest sequence (comparing $s_1$ first, then $s_2$, and so on).
+If no valid allocation exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$), representing the memory bank assigned to data block $i$. Among all valid allocations, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

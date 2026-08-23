@@ -1,0 +1,41 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        if u != v:
+            adj[v].append(u)
+
+    color = [-1] * n
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        stack = [i]
+        color[i] = 0
+        while stack:
+            v = stack.pop()
+            nxt = color[v] ^ 1
+            for w in adj[v]:
+                if color[w] == -1:
+                    color[w] = nxt
+                    stack.append(w)
+                elif color[w] == color[v]:
+                    sys.stdout.write("NO\n")
+                    return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(str(c + 1) for c in color))
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,255 @@
+Looking at this problem, I need to find a triangle in a graph where all three vertices are mutually connected. Among all triangles, I need to find the one that minimizes the score `a * 10^8 + b * 10^4 + c` where `a < b < c`.
+
+Since the score is essentially a lexicographic ordering on (a, b, c), I want to find the triangle with the smallest first vertex, then smallest second vertex, then smallest third vertex.
+
+**Approach:**
+- For each vertex `a` from 1 to n (trying to minimize a first):
+  - For each neighbor `b` of `a` where `b > a` (trying to minimize b):
+    - For each neighbor `c` of `a` where `c > b`:
+      - Check if `b` and `c` are connected. If yes, we found our triangle.
+
+To make the inner check efficient, I store neighbors as sets. For each `a`, I iterate through pairs of neighbors `(b, c)` with `b < c` both greater than `a`, and check if edge `(b, c)` exists.
+
+The complexity is O(n * d^2) where d is the max degree. With n up to 2000 and m up to 2*10^5, in the worst case d could be ~2000, giving ~8*10^9 operations which might be too slow. However, the problem guarantees at least one triangle exists, so we'll likely find one early.
+
+To optimize, I process vertices in order and return as soon as I find the first valid triangle. Since we want minimum (a, b, c) lexicographically, the first triangle found this way is the answer.
+
+Let me also add an optimization: sort neighbors and use early termination when possible.
+
+```python
+import sys
+from sys import stdin
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Try to find triangle with minimum (a, b, c) lexicographically
+    for a in range(1, n + 1):
+        neighbors_a = sorted(x for x in adj[a] if x > a)
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                if c in adj[b]:
+                    print(f"{a} {b} {c}")
+                    return
+
+solve()
+```
+
+Wait, this could still be slow if there are many neighbors. Let me think about the complexity more carefully.
+
+For a vertex `a` with degree `d`, we check O(d^2) pairs. The total work is sum over all `a` of (degree of a restricted to vertices > a)^2. 
+
+In the worst case (complete graph), this is O(n * n^2) = O(n^3) which for n=2000 is 8*10^9 - too slow.
+
+But the problem guarantees a triangle exists. In a complete graph, we'd find it immediately at a=1, b=2, c=3. The issue is when the graph is sparse but has high-degree vertices without triangles among their neighbors.
+
+Let me think of a better approach. Actually, let me reconsider - with m up to 2*10^5, the sum of degrees is 4*10^5. The worst case for d^2 sum is when one vertex has degree ~2000, giving d^2 = 4*10^6, which is fine. Even if multiple vertices have high degree, as long as we find a triangle early, we're good.
+
+Actually, the concern is: what if vertex 1 has degree 2000 but no triangle among its neighbors, and vertex 2 also has degree 2000 with no triangle, etc.? Then we'd do a lot of work before finding a triangle.
+
+But with m = 2*10^5 and the guarantee of a triangle, let me think... If vertex 1 has 2000 neighbors and no triangle among them, that means the subgraph induced by neighbors of 1 has no edges. But then those 2000 vertices have limited remaining edges.
+
+I think the approach is fine for the given constraints. Let me also consider an alternative: for each edge (u, v) with u < v, check common neighbors w > v. This is O(m * d) where d is max degree.
+
+Actually, let me use a hybrid approach. For each edge (u, v) with u < v, find common neighbors w where w > v. The first such (u, v, w) in lexicographic order is the answer.
+
+To iterate edges in lexicographic order of (u, v), I sort edges. Then for each edge, I find the smallest common neighbor > v.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edge_list = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edge_list.append((u, v))
+    
+    edge_list.sort()
+    
+    for u, v in edge_list:
+        # Find smallest w > v that is neighbor of both u and v
+        common = adj[u] & adj[v]
+        candidates = [w for w in common if w > v]
+        if candidates:
+            w = min(candidates)
+            print(f"{u} {v} {w}")
+            return
+
+solve()
+```
+
+This is O(m * d) in the worst case for the set intersection, but Python set intersection is efficient. With m = 2*10^5 and d up to 2000, this could be 4*10^8 operations in the worst case, but set operations in Python are implemented in C and quite fast.
+
+Actually, to be more efficient, I can iterate over the smaller adjacency set:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edge_list = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edge_list.append((u, v))
+    
+    edge_list.sort()
+    
+    for u, v in edge_list:
+        if len(adj[u]) > len(adj[v]):
+            small, large = adj[v], adj[u]
+        else:
+            small, large = adj[u], adj[v]
+        best_w = n + 1
+        for w in small:
+            if w > v and w in large:
+                if w < best_w:
+                    best_w = w
+        if best_w <= n:
+            print(f"{u} {v} {best_w}")
+            return
+
+solve()
+```
+
+This iterates over the smaller adjacency list, which helps. But we still might process many edges before finding a triangle.
+
+Let me think about whether the first approach (iterating by vertex) is actually better. The key insight is: we want minimum (a, b, c). So we should try a=1 first, then a=2, etc. For each a, try b = smallest neighbor > a, then next, etc. For each (a, b), try c = smallest common neighbor > b.
+
+The edge-based approach naturally processes in (u, v) order, which is the right order for (a, b). Then for each (a, b), we find the smallest c > b. This is correct.
+
+Let me go with the edge-based approach but optimize the inner loop:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edge_list = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edge_list.append((u, v))
+    
+    edge_list.sort()
+    
+    for u, v in edge_list:
+        # Find smallest w > v that is neighbor of both u and v
+        # Iterate over smaller set
+        if len(adj[u]) <= len(adj[v]):
+            small_adj, big_adj = adj[u], adj[v]
+        else:
+            small_adj, big_adj = adj[v], adj[u]
+        
+        best = n + 1
+        for w in small_adj:
+            if w > v and w in big_adj:
+                if w < best:
+                    best = w
+        if best <= n:
+            print(f"{u} {v} {best}")
+            return
+
+solve()
+```
+
+This should work. Let me verify with the examples.
+
+Example 1: n=4, m=5, edges: (1,2), (1,3), (2,3), (2,4), (3,4)
+Sorted edges: (1,2), (1,3), (2,3), (2,4), (3,4)
+- (1,2): common neighbors of 1 and 2 that are > 2. adj[1]={2,3}, adj[2]={1,3,4}. Common = {3}. 3 > 2, so w=3. Output: 1 2 3. ✓
+
+Example 2: n=5, m=6, edges: (1,2), (1,4), (2,4), (3,4), (3,5), (4,5)
+Sorted edges: (1,2), (1,4), (2,4), (3,4), (3,5), (4,5)
+- (1,2): adj[1]={2,4}, adj[2]={1,4}. Common = {4}. 4 > 2, so w=4. Output: 1 2 4. ✓
+
+The solution works. Let me finalize it.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    edge_list = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edge_list.append((u, v))
+    
+    edge_list.sort()
+    
+    for u, v in edge_list:
+        if len(adj[u]) <= len(adj[v]):
+            small_adj, big_adj = adj[u], adj[v]
+        else:
+            small_adj, big_adj = adj[v], adj[u]
+        
+        best = n + 1
+        for w in small_adj:
+            if w > v and w in big_adj and w < best:
+                best = w
+        if best <= n:
+            print(f"{u} {v} {best}")
+            return
+
+solve()
+```
+
+This should be efficient enough. The key optimizations are:
+1. Processing edges in sorted order ensures we find the lexicographically smallest triangle first.
+2. Iterating over the smaller adjacency set for the common neighbor check.
+3. Early termination once we find a valid triangle.
+
+The time complexity is O(m log m) for sorting plus O(sum over edges of min(deg(u), deg(v))) for the triangle search, which is efficient given the constraints.

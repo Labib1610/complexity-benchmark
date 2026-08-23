@@ -1,0 +1,56 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    graph = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        graph[u].add(v)
+        graph[v].add(u)
+    
+    # Sort adjacency lists for consistent ordering
+    for i in range(1, n+1):
+        graph[i] = sorted(graph[i])
+    
+    # For each edge (u,v), look for a common neighbor w such that u < v < w
+    # We want the lexicographically smallest triad (a,b,c) with a<b<c
+    edge_set = set(edges)
+    
+    # To make it efficient, we'll iterate through all edges,
+    # and for each edge (u,v) where u<v, we look for a node w such that:
+    # w > v and both (u,w) and (v,w) exist
+    
+    # Let's sort edges to ensure we process smaller indices first
+    edges_sorted = sorted(edges)
+    
+    for u, v in edges_sorted:
+        if u >= v:
+            continue
+        # Look for w in neighbors of v which are also neighbors of u
+        # and w > v
+        neighbors_u = set(graph[u])
+        neighbors_v = set(graph[v])
+        common = neighbors_u & neighbors_v
+        candidates = [w for w in common if w > v]
+        if candidates:
+            w = min(candidates)
+            print(u, v, w)
+            return
+
+if __name__ == "__main__":
+    main()

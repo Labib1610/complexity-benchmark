@@ -1,25 +1,23 @@
-# Signal Interference Identification
+# Critical Interference
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-An electronic laboratory contains $n$ measurement units labeled $1$ through $n$. There are $m$ recorded instances of cross-talk interference between pairs of units. Each recorded instance indicates that two specific units interfere with one another.
+A proposed security protocol attempts to assign $n$ communication nodes (numbered 1 to $n$) to one of two distinct channels. However, there are $m$ specific pairs of nodes that will experience severe interference if they are placed in the same channel. 
 
-It is guaranteed that there is at least one set of three distinct units where every pair among the three produces cross-talk interference.
-
-Your task is to find three units $a, b, c$ with $a < b < c$ such that cross-talk interference exists between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$. If there are multiple such groups, output the lexicographically smallest one (minimizing $a$, then $b$, then $c$).
+The protocol's requirements are known to be fundamentally impossible to satisfy. Your task is to certify this impossibility. You must identify a set of three nodes such that every pair of nodes within this set is known to interfere. Any such group of three mutually interfering nodes demonstrates that two channels are insufficient. It is guaranteed that at least one such set of three nodes exists.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$).
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a pair of interfering units.
-
-It is guaranteed that at least one qualifying group of three units exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of nodes that interfere with each other. 
+It is guaranteed that at least one set of three mutually interfering nodes exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, corresponding to the lexicographically smallest group of three units where every pair interferes.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$, representing the identifiers of the three nodes, such that all three pairs $a$ and $b$, $a$ and $c$, and $b$ and $c$ interfere. 
+Output the lexicographically smallest such set (smallest $a$; ties by smallest $b$; then smallest $c$).
 
 ## Example 1
-Input:
+### Input
 ```
 4 5
 1 2
@@ -28,13 +26,13 @@ Input:
 2 4
 3 4
 ```
-Output:
+### Output
 ```
 1 2 3
 ```
 
 ## Example 2
-Input:
+### Input
 ```
 5 6
 1 2
@@ -44,7 +42,7 @@ Input:
 3 5
 4 5
 ```
-Output:
+### Output
 ```
 1 2 4
 ```

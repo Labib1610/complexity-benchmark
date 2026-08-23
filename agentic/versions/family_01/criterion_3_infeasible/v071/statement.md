@@ -1,23 +1,22 @@
-# Cochannel Signal Collision Identification
+# Problem C — Deployment Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-## Description
-A wireless network consists of $n$ broadcast stations indexed by integers from $1$ to $n$. A centralized spectrum analyzer maintains a record of $m$ distinct, unranked pairs of stations that experience severe cochannel interference when transmitting simultaneously.
+A cloud application is built from $n$ microservices. A strict architectural rule requires partitioning all microservices into exactly two distinct server environments.
 
-A high-priority diagnostic alarm is triggered whenever a group of three distinct stations $a$, $b$, and $c$ forms a complete mutual interference loop—meaning that station $a$ interferes with $b$, $a$ interferes with $c$, and $b$ interferes with $c$.
+You are provided with $m$ resource contentions. Each contention specifies two microservices that access the same stateful database, meaning they cannot be placed in the same environment.
 
-Your objective is to identify a station triad $(a, b, c)$ satisfying $1 \le a < b < c \le n$ where all three pairs interact. To ensure hardware compatibility, any valid triad must satisfy the integrity constraints $a \cdot b \cdot c \ge 6$ and $a + b + c \le 3n - 3$. If multiple such triads exist, output the one that is lexicographically smallest (that is, minimizing $a$ first; if tied, minimizing $b$; if still tied, minimizing $c$).
+You must find a specific deployment impossibility caused by a group of three microservices. This impossibility occurs when all three microservices in the group have resource contentions with both of the other two members of the group. Let the identifiers of these three microservices be $x$, $y$, and $z$, sorted such that $x < y < z$.
+
+If there are multiple such groups of three microservices, you must output the one that minimizes $x$. If there is still a tie, minimize $y$, and finally minimize $z$. You are guaranteed that at least one such group exists.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), indicating the number of broadcast stations and the number of mutual interference pairs.
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), denoting a pair of stations experiencing mutual interference.
-
-It is guaranteed that no unordered pair $(u, v)$ is listed more than once, and that at least one triad of mutually interfering stations exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a resource contention between microservice $u$ and microservice $v$.
+It is guaranteed that at least one group of three satisfying the conditions exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line such that $a < b < c$ and all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ interfere with each other. Output the lexicographically smallest triple under the tie-breaking rule.
+Print three integers $x$, $y$, and $z$ on a single line with $x < y < z$, representing the identifiers of the microservices in the chosen group (minimizing $x$, then $y$, then $z$).
 
 ## Example 1
 Input:

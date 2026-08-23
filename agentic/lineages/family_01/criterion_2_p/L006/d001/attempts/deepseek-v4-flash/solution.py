@@ -1,0 +1,95 @@
+import sys
+sys.setrecursionlimit(300000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    g = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        g[u].append(v)
+        g[v].append(u)
+
+    color = [-1] * n
+    possible = True
+
+    for i in range(n):
+        if color[i] == -1:
+            stack = [i]
+            color[i] = 0
+            while stack:
+                u = stack.pop()
+                for v in g[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
+
+    if not possible:
+        print("NO")
+        return
+
+    # Now we have a valid 2-coloring, but we need lexicographically smallest.
+    # We can try to flip components if it makes earlier nodes 1.
+    # Since graph may be disconnected, we process components in order of smallest index.
+    visited = [False] * n
+    comp_id = [-1] * n
+    comps = []
+    for i in range(n):
+        if not visited[i]:
+            stack = [i]
+            visited[i] = True
+            comp = []
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in g[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            comps.append(comp)
+
+    # For each component, decide orientation: either keep color as is, or flip.
+    # To get lexicographically smallest, for each component in order of smallest index,
+    # choose the orientation that puts 1 on the smallest index.
+    final = [-1] * n
+    for comp in comps:
+        comp.sort()
+        # Try both orientations
+        # orientation 0: color as is
+        # orientation 1: flipped
+        # We want smallest lexicographic, so compare the two assignments for this component
+        assign0 = [0] * n
+        assign1 = [0] * n
+        for u in comp:
+            assign0[u] = color[u] + 1
+            assign1[u] = 2 - color[u]  # flip: 1->2, 2->1
+        # Compare lexicographically by smallest index
+        # We only need to compare at the smallest index where they differ
+        for u in comp:
+            if assign0[u] != assign1[u]:
+                if assign0[u] < assign1[u]:
+                    for v in comp:
+                        final[v] = assign0[v]
+                else:
+                    for v in comp:
+                        final[v] = assign1[v]
+                break
+        else:
+            # identical, just use assign0
+            for v in comp:
+                final[v] = assign0[v]
+
+    print("YES")
+    print(" ".join(str(final[i]) for i in range(n)))
+
+if __name__ == "__main__":
+    solve()

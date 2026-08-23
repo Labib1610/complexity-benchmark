@@ -1,0 +1,59 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n, m = int(data[0]), int(data[1])
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Create adjacency list as sets for fast lookup
+    # We need to find a triangle in the complement graph
+    # But actually, we are looking for a triangle in the original graph
+    # No, re-reading: we want three nodes where each pair is connected (a triangle in original graph)
+    # Because if u and v are connected, they cannot be in the same phase
+    # So for three nodes to force a contradiction, each pair must be connected
+    
+    # So we look for a triangle in the given graph
+    # Enumerate all triangles and pick the lexicographically smallest
+    
+    # To efficiently find triangles:
+    # For each edge (u,v), check common neighbors
+    
+    # First, sort adjacency lists to help with ordering
+    for i in range(1, n+1):
+        adj[i] = sorted(adj[i])
+    
+    best = None
+    
+    # Iterate through all edges
+    for u, v in edges:
+        if u > v:
+            continue
+        # Check common neighbors
+        # Iterate through neighbors of u and see if they are also neighbors of v
+        nu = set(adj[u])
+        nv = set(adj[v])
+        common = nu & nv
+        for w in common:
+            if v < w:
+                triple = (u, v, w)
+                if best is None or triple < best:
+                    best = triple
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

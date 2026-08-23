@@ -2,15 +2,15 @@
 
 Time limit: 2 s   Memory limit: 256 MB
 
-The factory still has only two shifts, 1 and 2, but the roster is known to be hopeless. Your job is not to schedule — it is to certify the impossibility. It is guaranteed that there exists at least one group of three workers where every pair among those three is listed as an incompatible pair. Any such trio proves two shifts cannot suffice. Find and output the lexicographically smallest such trio.
+The factory still has only two shifts, 1 and 2, but the roster is known to be hopeless. Your job is not to schedule — it is to certify the impossibility. A list of records is given, each stating that two specific workers cannot work together. It is guaranteed that there is at least one group of three workers where every possible pair drawn from these three has a corresponding record. Any such group proves two shifts cannot suffice. Output one such group.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ $v$ ($1 \le u, v \le n$, $u \neq v$) representing an incompatible pair of workers.
-It is guaranteed that at least one mutually incompatible trio exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a pair of workers who cannot work together.
+It is guaranteed that at least one such group of three exists.
 
 ## Output
-Print three integers $a$, $b$, $c$ on one line with $a < b < c$ such that all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are listed as incompatible. Output the lexicographically smallest such triple (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print three integers a b c on one line with a < b < c such that all three pairs a–b, a–c, b–c are present in the records. Output the lexicographically smallest such group (smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

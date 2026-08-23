@@ -1,0 +1,44 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Find lexicographically smallest triangle (a, b, c) with a < b < c.
+    # Iterate a from 1 to n, then b from a+1 to n with edge (a,b),
+    # then c from b+1 to n with edges (a,c) and (b,c).
+    for a in range(1, n + 1):
+        if len(adj[a]) < 2:
+            continue
+        adj_a = adj[a]
+        # b candidates: neighbors of a greater than a
+        for b in adj_a:
+            if b <= a:
+                continue
+            adj_b = adj[b]
+            # c candidates: neighbors of both a and b, greater than b
+            # Iterate over the smaller adjacency set for efficiency
+            if len(adj_a) <= len(adj_b):
+                for c in adj_a:
+                    if c > b and c in adj_b:
+                        print(a, b, c)
+                        return
+            else:
+                for c in adj_b:
+                    if c > b and c in adj_a:
+                        print(a, b, c)
+                        return
+
+if __name__ == "__main__":
+    solve()

@@ -1,20 +1,20 @@
-# Zone Allocation Protocol
+# Problem A — Synthetic Protein Tags
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A cloud architecture manages $n$ software modules, numbered $1$ to $n$. Every module must be deployed to exactly one of three available execution domains, represented by the integers 1, 2, and 3.
+You are designing a synthetic protein chain consisting of $n$ distinct domains. Each domain must be modified with exactly one of three available chemical tags, which are identified by the integers 1, 2, and 3.
 
-Due to hardware interference constraints, certain pairs of modules are incompatible and cannot be placed in the same execution domain.
+During the folding process, certain pairs of domains come into direct physical contact. You are given a list of $m$ such contact pairs. If two domains in a contact pair are modified with the identical chemical tag, they will bond incorrectly and cause the protein to misfold. Therefore, for every given contact pair, the two domains must be assigned strictly different tags.
 
-Determine whether there exists a valid domain placement for all $n$ modules such that no incompatible pair shares an execution domain. If multiple valid placements exist, find the one that yields the lexicographically smallest sequence of domain identifiers $s_1, s_2, \dots, s_n$ (comparing $s_1$ first, then $s_2$, and so on).
+Determine if there is a valid tag assignment for all $n$ domains that prevents misfolding. 
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of modules and the number of incompatibility rules.
-Each of the next $m$ lines contains two integers $u$ and $v$ — an incompatible pair of modules.
+The first line contains two integers $n$ and $m$ — the number of domains and the number of contact pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a contact pair.
 
 ## Output
-If no valid deployment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each $s_i \in \{1, 2, 3\}$), representing the domain assigned to each module.
+If no valid assignment exists, print a single line `NO`.
+Otherwise print `YES` on the first line. On the second line print $n$ integers $t_1, t_2, \dots, t_n$ (each in $\{1, 2, 3\}$), where $t_i$ is the tag of domain $i$. Among all valid assignments output the lexicographically smallest sequence (compare $t_1$ first, then $t_2$, and so on).
 
 ## Example 1
 Input:

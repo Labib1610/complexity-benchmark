@@ -87,7 +87,7 @@ def summarize_shortcut(summarizer_cfg, version_stmt, attempts, run_cfg, exec_cfg
 def select_targets(out_base, family, crit_dir, min_pass, max_gen):
     cands = []
     for vdir in sorted(out_base.glob("v*")):
-        if _read_json(vdir / "gate.json").get("result") == "FAIL":
+        if _read_json(vdir / "gate.json").get("result") in ("FAIL", "REJECT"):
             continue
         gen = _read_json(vdir / "edit.json").get("generation", 0)
         if gen >= max_gen:
@@ -175,11 +175,16 @@ def run_criterion(family, criterion, args, run_cfg, models, strategies, intensit
             if not new_stmt:
                 print(f"    stop: teacher returned no statement ({resp['error']})")
                 break
-            # verifier gates the candidate; it decides when to stop
-            gres = GT.evaluate_statement(new_stmt, seed_stmt, seed_crit, verifier,
-                                         run_cfg, verifier_system, verifier_user_tmpl)
+            # allocate the version dir first so H5 can persist solver_attempt.txt into it
             vid = f"v{GV._max_version_num(out_base) + 1:03d}"
             vdir = out_base / vid
+            vdir.mkdir(parents=True, exist_ok=True)
+            # verifier gates the candidate; it decides when to stop
+            gres = GT.evaluate_statement(new_stmt, seed_stmt, seed_crit, verifier,
+                                         run_cfg, verifier_system, verifier_user_tmpl,
+                                         strategies=["S12"],
+                                         s09_constraint=parsed.get("added_constraint"),
+                                         out_dir=vdir)
             GV._atomic_write(vdir / "statement.md", new_stmt + "\n")
             GV._atomic_write(vdir / "edit.json", json.dumps({
                 "version": vid, "family": family, "criterion": criterion,
@@ -192,19 +197,19 @@ def run_criterion(family, criterion, args, run_cfg, models, strategies, intensit
                 "preserved_answer": parsed.get("preserved_answer", ""),
                 "preserved_class": parsed.get("preserved_class", ""),
                 "teacher_id": teacher["id"], "teacher_raw": resp["text"],
-                "parse_ok": True, "error": resp["error"],
+                "parse_ok": True, "error": resp["error"], **B.usage_of(resp),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }, indent=2))
             GV._atomic_write(vdir / "gate.json", json.dumps({"version": vid, **gres}, indent=2))
             made += 1
             print(f"    round {r+1}: {vid} gen={cur_gen+1} verifier={gres['result']}"
                   + (f" leakage={gres['leakage_hits']}" if gres['leakage_hits'] else ""))
-            if gres["result"] == "PASS":
+            if gres["result"] == "ACCEPT":
                 # still valid and unambiguous -> keep hardening this problem, deeper
                 base_stmt, parent, cur_gen = new_stmt, vid, cur_gen + 1
             else:
-                # verifier warns (ambiguous / not-same-task / leakage) -> next problem
-                print(f"    stop: verifier said {gres['result']} -> move to next problem")
+                # gate FLAG/REJECT (ambiguous, not-same-task, leakage, or hard fail) -> next
+                print(f"    stop: gate said {gres['result']} -> move to next problem")
                 break
     print(f"[feedback] family={family} {crit_dir} -> {made} new version(s)")
 

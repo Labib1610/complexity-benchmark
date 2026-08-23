@@ -1,22 +1,24 @@
-# Signal Channel Partitioning Stage
+# Problem B — Pipeline Segregation Phase
 
 Time limit: 1 s   Memory limit: 256 MB
 
-As part of an automated network deployment pipeline, a system must configure $n$ transmission units (labeled $1$ through $n$). The pipeline consists of three sequential phases:
+In the automated deployment pipeline for the Aegis distributed architecture, the deployment process is divided into three distinct phases: telemetry gathering, module segregation, and binary distribution. You are responsible for implementing the module segregation phase.
 
-1. **Topology Analysis:** Identifies $m$ operational constraints where pairs of units interfere with each other if active on the same frequency band.
-2. **Channel Assignment (Current Stage):** Assign each of the $n$ units to operate on either Channel 1 or Channel 2. To avoid interference, two units with an operational constraint must be assigned to different channels. If multiple valid channel assignments exist, the system requires the assignment $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest (comparing values at unit 1, then unit 2, and so on).
-3. **Data Broadcast:** Commences only if a valid channel configuration is established in Stage 2.
+During the initial telemetry phase, the system monitors $n$ independent service modules (numbered 1 through $n$) and generates a list of $m$ interference warnings. Each warning specifies a pair of modules that compete for identical hardware resources and therefore must be segregated. 
 
-Your task is to implement the Channel Assignment stage. Given the $n$ units and $m$ interference constraints, determine whether a valid channel assignment exists.
+In your segregation phase, you must allocate each of the $n$ modules to exactly one of two physical host environments, designated as Environment 1 and Environment 2. To guarantee stability, you must ensure that no two modules flagged in the same interference warning are allocated to the same environment. 
+
+The final binary distribution phase requires a strictly deterministic configuration to route requests. Because there may be multiple valid ways to allocate the modules, the distribution phase expects the allocation plan that is lexicographically smallest. (An allocation plan is represented as a sequence of $n$ integers, where the $i$-th integer is the environment chosen for module $i$. Sequence $A$ is lexicographically smaller than sequence $B$ if $A$ has a smaller value at the first position where they differ).
+
+If the telemetry constraints are inherently contradictory and no valid allocation exists, your phase must halt the pipeline by rejecting the configuration.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of units and the number of interference constraints, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating an interference constraint between unit $u$ and unit $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of modules and the number of interference warnings, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of modules that must not be assigned to the same environment.
 
 ## Output
-If it is impossible to assign channels without violating any constraints, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and print a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment vector.
+If no valid allocation plan exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers (each either 1 or 2)—the lexicographically smallest valid allocation plan for the modules.
 
 ## Example 1
 Input:

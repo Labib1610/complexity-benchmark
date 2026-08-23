@@ -1,0 +1,1369 @@
+We need solve problem. Need output lexicographically smallest valid 3-coloring of graph with n<=40, m arbitrary. Need decide if graph is 3-colorable and find lexicographically smallest assignment among all proper 3-colorings. n=40, brute force 3^40 impossible. Need algorithm. 3-coloring is NP-complete generally, but n=40 suggests meet-in-the-middle / branching with constraints. Need lexicographically smallest. We can use recursive backtracking with pruning maybe enough for n=40? Worst-case graph with no edges: 3^40 colorings, but we want lexicographically smallest: all 1s. A simple greedy/backtracking that tries colors 1..3 and checks feasibility can find quickly. Need feasibility test for partial assignment: can the remaining uncolored graph be colored with remaining available colors? This is still NP-hard but n small. We need algorithm that handles n=40 within 2s.
+
+Observations: We need 3-coloring. n=40 small enough for exponential but not brute force. We can split into two halves of size n1,n2 ~20. For each half, enumerate all proper colorings (respecting edges within half) and store for each boundary coloring pattern whether feasible. Then combine? Lexicographically smallest global assignment: lexicographic order across vertices 1..n. If we split by index, to get lexicographically smallest we can enumerate first half colorings in lex order and for each check if second half can be extended. Since n1=20, 3^20 ~3.5B too many. Need smarter.
+
+Alternative: Use branch and bound with graph coloring / DSATUR. n=40, 3 colors. With pruning using connected components and cutsets? Could be okay for n=40? But worst-case no edges: algorithm tries color 1 for vertex 1, then feasibility true, all 1s. Good. Worst-case for lex smallest might require exploring many branches? Consider graph that is bipartite? Lex smallest may be all 1s for independent set, then 2 etc. Branching with DSATUR chooses most constrained vertex, not lexicographic. But we need lex smallest sequence. We can assign vertices in order 1..n, trying colors 1,2,3, and prune using a 3-colorability test on remaining graph with precolored vertices. If the test is exact and fast, we get lex smallest by DFS.
+
+Need a fast 3-colorability test for n<=40 with some vertices precolored. This is equivalent to list coloring with lists size <=3. We can solve via backtracking / CSP with forward checking and maybe use graph decomposition. Since n=40, a good exact coloring algorithm can solve in milliseconds.
+
+Simpler: Since we need lex smallest assignment, we can directly do recursive search with vertex ordering 1..n, trying colors 1..3, and use a standard graph 3-coloring algorithm for the remaining uncolored vertices (with constraints from already colored neighbors). But we can integrate: at each step, after assigning prefix, check if the remaining graph is 3-colorable (with lists). If yes, continue; else backtrack. The check itself can be exponential but maybe okay because prefix decisions reduce graph heavily? Not necessarily; early prefix with few colored vertices leaves large graph.
+
+Maybe better: Use BFS/branching on remaining graph with n up to 40. We can implement a 3-coloring solver using:
+- Reduce by propagation: if a vertex has list size 0 -> fail; size 1 -> force color and propagate to neighbors (remove that color from neighbor lists). Repeat.
+- If all lists size <=2, problem becomes 2-SAT? Actually list coloring with lists of size at most 2 can be solved in polynomial time via checking each connected component (at most 2 choices per vertex) -> it's a graph homomorphism to K_3 with lists size 2. This is equivalent to 2-SAT or just DFS on components because each vertex has at most 2 colors; each edge forbids same color. For each component, pick a vertex's two colors and try both (2*2? Actually vertex with 2 choices, assign one, propagate constraints; component size maybe up to 40). Since each vertex list size <=2, the graph of allowed edges is a constraint graph; we can solve by trying assignments for each component: choose a vertex, try each of its 2 colors, propagate; if contradiction, try other; if both fail, unsat. This is polynomial.
+- If after propagation there remains a vertex with list size 3, branch on its colors. This is standard DPLL for graph coloring. With n=40, branching factor 3, but propagation reduces quickly. Worst-case graph with no edges: all lists size 3, no propagation; branching on vertex 1 with 3 colors leads to subproblem with all lists size 3 (no edges) -> recursively branch -> 3^n. But for feasibility test we can early accept if graph has no edges and lists all nonempty. So we need a better base case: if the remaining graph has no edges, feasible iff every list nonempty. More generally, if graph is bipartite? List coloring with lists size 3 on a graph is 3-coloring. For empty graph trivial.
+
+We can incorporate graph decomposition: If graph is disconnected, solve components independently (feasibility). For lex smallest we need combine; but for feasibility test yes independent.
+
+But for finding lex smallest full assignment, maybe we can use a smarter exact algorithm that enumerates colorings of components and picks lex smallest. Since n=40, number of 3-colorings can be huge (3^40). But lex smallest is simple. Could we compute lex smallest 3-coloring directly via backtracking with strong pruning? Maybe yes for n=40.
+
+Let's think about known approaches. 3-coloring of 40 vertices can be solved via inclusion-exclusion / chromatic polynomial? Not easily with lex smallest.
+
+Another approach: Since only 3 colors, we can use iterative deepening / branch and bound to find lex smallest. Use DSATUR to find some coloring, then use its prefix to bound? Lex smallest is not about number of colors.
+
+Maybe we can formulate as SAT and use a SAT solver? Not allowed.
+
+Let's design a robust backtracking solver for n=40 with pruning and heuristics, and for lex smallest order assign vertices 1..n. At each step, we call feasibility on remaining. The feasibility solver must be efficient enough. Since n=40, even if we call it up to n*3=120 times, each should be fast.
+
+Potential algorithm for feasibility (list coloring with lists subsets of {1,2,3}):
+1. Propagate forced assignments (list size 1) via queue.
+2. If conflict -> infeasible.
+3. If no vertices with list size >0? feasible.
+4. If maximum list size is 2, solve each component via 2-coloring-like check (since lists size 2). Actually list size 2 problem can be solved by trying one vertex's two colors and propagating; each component at most 2 trials. O(n+m).
+5. If there is a vertex with list size 3, branch on its colors. But to limit branching, choose vertex with highest degree maybe. Recursively solve subproblems. Since n=40, branching on high-degree vertices reduces edges. Worst-case no edges: all lists size 3, but then graph has no edges -> we can detect no edges and return feasible. More generally sparse graph may still be hard? 3-colorability of graphs with n=40 can be solved by branching on vertices of degree >=3 and handling low-degree separately. There are known algorithms O(1.89^n) etc. n=40 -> fine.
+
+We can implement a standard recursive 3-coloring algorithm:
+- Maintain adjacency bitmasks for up to 40 vertices (maybe 64-bit ints).
+- Maintain color assignments array -1..2 (or 0..2) and available color masks.
+- Use recursive with propagation:
+   * If any uncolored vertex has no available color -> fail.
+   * If all colored -> success.
+   * Choose uncolored vertex with smallest number of available colors (minimum remaining values, >0), break ties by degree.
+   * For each color in its available list (sorted maybe), assign and propagate to neighbors (remove color from neighbor available masks; if neighbor becomes forced, recurse propagate). Then recurse.
+This is standard and often fast for n=40. For lex smallest, we need to assign vertices in index order, but feasibility test can use MRV.
+
+But calling this feasibility test many times might be okay. However, we can perhaps integrate lex search: At each prefix step i, we have partial assignment for vertices < i. We want to know if assigning color c to i can be extended. We can run the 3-coloring solver on remaining vertices (including i with fixed color). If yes, we keep it and move to i+1. This is up to 3n calls. Each call solves a graph with up to 40 vertices. Should be okay if solver is efficient.
+
+But there is subtlety: The prefix assignment may force colors of later vertices via edges; the solver handles precolored vertices by initializing available masks accordingly (colored vertices fixed, uncolored have all 3 minus colors of colored neighbors). Actually if a neighbor is colored, that color removed. If a vertex has a colored neighbor with same color as candidate, invalid. We can just set available mask for each uncolored vertex to colors not used by colored neighbors, and propagate.
+
+Need ensure lexicographically smallest among all valid assignments. Greedy: for i from 1..n, try colors 1,2,3; for each, check if there exists a valid completion. First feasible is lex smallest. Correct because earlier positions fixed minimal possible.
+
+Thus main challenge: implement fast 3-colorability with precolored vertices for n<=40.
+
+Let's design solver carefully.
+
+Represent colors 0,1,2 (output +1). Graph vertices 0..n-1. adjacency list or bitmask. Since n<=40, use Python int bitmask (up to 1<<40). For each vertex, neighbors mask.
+
+State: assignment array of length n, -1 uncolored. avail array of length n: bitmask of possible colors (bits 0..2). For colored vertices, avail = 1<<color maybe. Actually we can keep color assignment and avail.
+
+Propagation: When assign vertex v color c:
+- If already assigned same, nothing. If assigned different -> conflict.
+- Set assignment[v]=c, avail[v]=1<<c.
+- For each uncolored neighbor u: remove c from avail[u]. If avail[u]==0 -> conflict. If avail[u] has single bit (popcount==1), assign u that color (push to queue). Continue propagation.
+This is unit propagation.
+
+For choosing vertex: among uncolored, pick with minimal popcount(avail), tie maybe max degree. If min popcount == 0 -> fail. If min popcount == 1, we could just propagate, but our loop will handle.
+
+Base cases:
+- If no uncolored vertices -> success.
+- If all uncolored vertices have avail with popcount >=2, branch.
+
+We can add heuristic: if there is an edge between two vertices whose avail masks are disjoint? Not needed.
+
+Potential exponential blow-up for graphs with high degree and no solution? n=40 manageable.
+
+But we call solver many times; we need it fast. We can implement with bit operations and recursion. Python recursion depth up to n=40 fine.
+
+However, repeated calls from scratch for each prefix may recompute a lot. Could we reuse? Maybe not necessary.
+
+Let's estimate worst-case runtime. For each feasibility call, branching on vertices with 2 or 3 colors. For random graphs n=40, 3-coloring is often easy/hard near threshold. The algorithm should handle. For m=0, solver quickly returns true because no uncolored? Actually with all vertices uncolored and no edges, min popcount=3 for all, choose vertex, branch 3. But we can add a check: if there are no edges among uncolored vertices (and no constraints?), then feasible if all avail nonempty. More generally, if the uncolored subgraph has no edges, feasible. This will handle empty graph in O(n). But our branching would explore 3^n if no edges. We must avoid that. So add early check: if uncolored subgraph has no edges, return True (provided no avail empty). Because independent vertices can all take any available color; choose min available. Wait if a vertex has avail size 1 due to colored neighbor, still fine. If no edges among uncolored, no conflicts between them. So feasible iff every uncolored vertex has avail !=0. Good.
+
+What about graph that is a matching? Branching may still be okay: choose a vertex, branch on its colors, then neighbor forced etc. 2^20 ~1M, fine.
+
+What about graph with no edges but precolored some vertices? early check returns true quickly.
+
+What about graph that is a long path/cycle? 3-coloring easy; branching with propagation maybe linear.
+
+What about graph that is 5-clique (needs 5 colors) -> fail quickly due to propagation? A K4 has all vertices adjacent; assign one vertex color, neighbors avail reduce, propagation forces a 2-coloring of K3? Actually K4 not 3-colorable: after assigning v0=0, v1,v2,v3 avail {1,2}; they form triangle, propagation: pick v1 forced? avail size 2 not forced. Branch v1=1 -> v2,v3 avail {2}; edge between v2,v3 conflict -> fail; branch v1=2 -> similar fail. So explores small.
+
+Worst-case for 3-colorability algorithms are graphs with high girth etc. n=40 small.
+
+But we need to call solver up to ~120 times. If each call explores up to thousands of nodes, total maybe okay in 2s Python? Need be efficient.
+
+Alternative: Use memoization / caching of state? State space huge.
+
+Maybe we can solve the whole lex smallest problem with one search instead of repeated feasibility. For each vertex in order, try colors; each feasibility call is a 3-coloring problem. Could be okay.
+
+Let's test mentally with n=40, m=0. For i=1, try color1: remaining graph no edges -> feasible, assign all 1. Done. Great.
+
+For graph that is a path, similar.
+
+For graph that is K4 plus isolated vertices, lex smallest: vertex1 color1, then vertex2 (adjacent to 1) try color1 invalid due neighbor, color2 feasible, etc. Feasibility calls small.
+
+Hard case: graph that is not 3-colorable but only discovered late. Greedy will try colors for early vertices; many will appear feasible initially, but eventually fail, causing backtracking. At each failure, we rerun feasibility for alternative colors. Could explore many partial assignments. But n=40, maybe okay.
+
+However, there might be adversarial graphs where greedy with feasibility tests explores exponential. But n=40 small; worst-case maybe 3^20? Hmm.
+
+Let's think of a graph that is 3-colorable but lex smallest assignment has late vertices forced to high colors, requiring many feasibility tests. Each test is polynomial? Not necessarily. But with n=40, even 3^20 ~1B too high. Need ensure solver pruning strong.
+
+Maybe we should implement a dedicated algorithm to find lex smallest 3-coloring in one go, using branch and bound with MRV but respecting lex order? Could be similar complexity.
+
+Let's consider using BFS over colorings of components. Since n=40, graph may be disconnected. Number of components can be up to 40. For each component, we can enumerate all proper 3-colorings? In worst-case empty graph, component per vertex has 3 colorings each -> 3^40. But lex smallest is all 1. We can find lex smallest by processing vertices in order and using component-level feasibility. Not helpful.
+
+Maybe we can use integer programming? No.
+
+Let's design a strong exact 3-coloring solver for n=40. Known approach: Use inclusion-exclusion / dynamic programming over independent sets to compute chromatic polynomial? For 3-coloring, we can use the formula:
+P(G,3) = sum_{k=0}^n (-1)^k * (number of ways to choose k edges?) Not simple.
+But n=40, we can use meet-in-the-middle: split vertices into two halves. Enumerate all 3-colorings of each half (internal proper). For each coloring of left, record the set of colors used on boundary? Actually to combine, for each vertex on boundary (edges crossing), the right half coloring must differ. We can represent left half by a function from boundary vertices to colors. Number of boundary vertices can be up to n, but in split by index maybe all vertices have edges crossing? In worst-case complete bipartite between halves? Boundary size up to n. Enumerating 3^20 left colorings ~3.5B too many. Not feasible.
+
+Alternative split by a small vertex cut. Find a vertex cut of size maybe <=? Not guaranteed.
+
+Thus backtracking with propagation seems appropriate for n=40.
+
+Let's implement a robust solver and maybe add some reductions:
+- If a vertex has degree <=2, we can defer? There are algorithms for 3-coloring that branch on vertices of degree >=3, and handle low-degree by polynomial methods. But with propagation, low-degree vertices often forced.
+
+Potential worst-case: a cycle of length 40. 3-colorable. Our solver: no precolor, all avail 3, choose high degree vertex (degree 2), branch 3 colors. After assigning one vertex, path remains; propagation doesn't force because endpoints have avail 2, internal have 2? Actually neighbors lose assigned color, avail size 2, not forced. Continue branching. This could be 3 * 2^39? Let's simulate: choose vertex v0, branch 3. Then neighbor v1 avail {other two} size2, branch 2. Then v2 avail? It is adjacent to v1, loses v1's color, but also adjacent to v0? In path v0-v1-v2, v2 adjacent to v1 only (if path). After v1 assigned, v2 avail size 2. Branch 2. So along path, each vertex branch 2 except first 3 -> 3*2^39 huge. But we can do better: for a path/cycle, we know 3-colorable. Our naive branching is exponential. Need stronger algorithm for list size 2 components.
+
+Important! When all uncolored vertices have list size 2 (after propagation), we can solve polynomially. But in the path example initially all lists size 3, so we branch. After assigning v0 a color, v1 list size 2, but v2 still size 3 (unless v2 adjacent to v0). In a path, after assigning v0, v1 size2, v2 size3, etc. Branching on a size2 vertex next leads to propagation? If we branch v1, then v2 loses that color -> size2, not forced. So exponential.
+
+We need a better branching strategy or reduction. For graphs where all vertices degree <=2 (collections of paths/cycles), 3-coloring is trivial. We can detect low-degree components and handle them specially. More generally, if the graph has a vertex of degree <=2, we can remove it and solve reduced graph? For 3-coloring, a vertex of degree <=2 can always be colored after its neighbors (since at most 2 forbidden colors). For list coloring with lists of size at least 1, a vertex of degree <=2 has at least one available color after neighbors colored. So we can remove low-degree vertices in any order for feasibility: a graph is 3-colorable iff after repeatedly deleting vertices of degree <=2 (and also isolated) the remaining core has some property? Actually any vertex of degree <=2 is not a constraint for 3-colorability: we can delete it, and if the remaining graph is 3-colorable, we can reinsert and color it (it has at most 2 colored neighbors, so at least one of 3 colors free). This is a reduction! For list coloring with lists, if a vertex has list size >= degree+1? Actually after neighbors colored, degree d gives at most d forbidden colors; with 3 colors, if d<=2 there is always a free color. So for standard 3-coloring, vertices of degree <=2 can be eliminated. This reduces graph to a 3-core (minimum degree >=3). If core empty, graph is 3-colorable. If core small (n<=40), branching on core is much smaller. For a cycle, core empty -> trivial. For random graphs, core maybe small.
+
+This is a powerful reduction. We can recursively remove degree <=2 vertices (keeping track of order) to get a kernel. Then solve 3-coloring on kernel by branching. Since kernel minimum degree >=3, number of vertices is limited for n=40? In worst-case, a 3-regular graph on 40 vertices has core all 40. Branching on 3-regular graph with propagation may still be exponential but manageable for n=40. There are known exact algorithms O(1.65^n) etc.
+
+For lex smallest, we need actual assignment. We can compute a valid coloring of kernel, then color removed vertices in reverse removal order choosing smallest available color. But that may not yield lex smallest globally because removal order affects which vertices get colored first. Lex smallest requires minimizing z1, then z2... We can still use kernel reduction for feasibility tests, but for constructing lex smallest assignment we need to assign all vertices. Greedy with feasibility tests can construct assignment; feasibility tests can use kernel reduction.
+
+Maybe we can find lex smallest by greedy, and for each candidate color, use feasibility solver with kernel reduction. That should be efficient.
+
+Let's design feasibility solver using kernelization + branching:
+Given graph G (subgraph of uncolored vertices with edges among them) and lists (available colors for each vertex, subset of {1,2,3}), we want know if list coloring exists. We can also reduce vertices with list size <= degree? Wait list coloring reduction: a vertex v can be removed if |L(v)| > deg(v) (then it always can be colored after neighbors). For standard 3-coloring, |L(v)|=3, deg(v)<=2 -> remove. For list coloring after some precoloring, lists may be size 1 or 2. If |L(v)| > deg_uncolored(v), we can remove v (color later). Because after coloring remaining graph, v has at most deg(v) colors used by neighbors, and |L(v)| > deg(v) ensures a color in L(v) free. This generalizes degree reduction. Good! So we can kernelize: repeatedly remove vertices v where popcount(avail[v]) > degree_in_remaining_graph(v). Keep removal order. If remaining kernel is empty -> feasible. If not, branch on a vertex in kernel.
+
+But careful: degree in remaining graph changes as we remove vertices. We can compute initial degrees and update. Since n<=40, simple O(n^2) loop.
+
+For standard 3-coloring with no precolor, all avail=3, remove all degree<=2. Kernel min degree >=3.
+
+For list coloring, if a vertex has avail size 1 and degree 0, |L|=1 >0 remove. If avail size 1 and degree>0, it will be propagated/forced. Actually if |L|=1 and degree>=1, we cannot remove; we should propagate forced assignment. Propagation handles that. After propagation, if a vertex has |L|=2 and degree<=1, remove. If |L|=3 and degree<=2, remove.
+
+So algorithm for feasibility:
+1. Input: n, adjacency bitmask, avail list (bitmask colors), colored assignments maybe. We'll maintain arrays.
+2. Propagate forced colors (|L|=1) via queue: assign that color, remove from neighbors, etc. If conflict -> fail.
+   Actually removal of |L|>deg can also be done after propagation.
+3. Kernelization: repeatedly find a vertex v (uncolored) with popcount(avail[v]) > deg_remaining(v). Remove it from graph (mark removed, exclude from remaining). Update degrees of remaining neighbors. Continue until no such vertex. If all vertices removed -> feasible (True). Because we can color removed vertices in reverse order after coloring kernel.
+   Need to ensure removal order valid: when we later color kernel, then reinsert removed vertices in reverse; each removed vertex has |L| > degree at time of removal among not-yet-colored vertices (which includes kernel and later-reinserted vertices? Wait at removal, degree counted to vertices still in graph (not removed yet). When reinserting in reverse order, at that point all neighbors that were not removed yet are already colored (kernel plus previously reinserted). The neighbors that were removed earlier are not yet colored, but they are not adjacent? Actually degree at removal counted among vertices still in graph, which are those removed later or never removed (kernel). When reinserting reverse, the neighbors that were in graph at removal and still not removed? Let's think: removal order v1, v2, ..., vk (removed in that order). At removal of vi, its remaining neighbors are vertices not yet removed (i.e., v_{i+1..k} and kernel). Those will be colored before vi in reverse order (kernel first, then vk, ..., v_i+1, then vi). So all neighbors of vi that could constrain it are colored before it. Since |L(vi)| > deg_remaining(vi) at removal, there will be a free color. Good.
+4. If kernel nonempty, choose a vertex in kernel to branch. Which? Minimal list size maybe, or max degree. Since kernel min degree >= |L| (because |L| <= deg for all). Actually for standard, |L|=3, deg>=3. For list, |L| can be 2 or 3. Branch on colors in avail[v]. For each color, propagate, then recurse (which includes kernelization again). If any branch feasible -> True.
+
+This reduction should make path/cycle trivial (kernel empty). For 3-regular graphs, kernel all vertices, branch.
+
+We need to be careful with propagation and kernelization interplay. We can combine in recursive function.
+
+Potential issue: Branching on kernel vertex with list size 3 in a 3-regular graph may still be large, but n=40 okay.
+
+Let's test on complete graph K4: no precolor. Propagation none. Kernelization: each vertex degree 3, |L|=3, not >, so kernel all 4. Branch vertex 0: 3 colors. Suppose color 0. Propagate: neighbors lose color0, avail size2 (not forced). Kernelization: remaining K3, each degree2, |L|=2, not >, kernel all. Branch vertex1: 2 colors. Suppose color1; propagate to v2,v3 avail {2}; edge v2-v3 -> both forced color2 conflict -> fail. Backtrack v1 color2 -> similar fail. Backtrack v0 color1 -> similar. All fail. Good.
+
+K5: degree4, |L|=3, kernel all. Branch etc. fail.
+
+Now lex smallest greedy with feasibility solver. Let's test on example: n=4, edges as given. Greedy:
+i=0: try color0. Feasibility with v0=0. Graph: v1 adjacent to v0 avail {1,2}, v2 adjacent to v0,v1? Edges: 1-2,1-3,2-3,1-4,2-4. v0=1, v1=2, v2=3, v3=4. Edges among 2,3,4: 2-3,1-4? Actually 1-4 and 2-4, so v3(4) adjacent to v1(2) and v2(3). v0 fixed 0. v1 avail {1,2}, v2 avail {1,2} (adjacent to v1? yes 1-2, so v2 loses v0 color only? v2 adjacent to v0? edge 1-3 means v0-v2 yes, so loses 0; also adjacent to v1? edge 2-3 means v1-v2 yes, but v1 uncolored, no effect). v3 adjacent to v1,v2, avail {0,1,2}. Propagation none. Kernelization: v1 degree? remaining neighbors v2,v3 deg2, |L|=2 not >; v2 deg2 |L|=2; v3 deg2 |L|=3 >2 -> remove v3. Then v1,v2 edge, each deg1 |L|=2 >1 -> remove both. Kernel empty -> feasible. So color0 chosen. Good.
+i=1: v1 try color0? But adjacent to v0 color0 -> invalid immediate. Try color1. Feasibility with v0=0,v1=1. v2 adjacent to v0,v1 -> avail {2}. Propagate v2=2. v3 adjacent to v1,v2 -> loses 1,2 -> avail {0}. Propagate v3=0. Feasible. So v1=1.
+i=2: v2 already colored 2 from propagation? Wait in greedy we maintain assignments; after fixing v1=1, we should propagate and set v2=2, v3=0? But greedy assigns in order; when we move to i=2, it's already colored due to forced propagation. We need handle. In our greedy, after assigning v1, we can propagate and fix forced vertices. Then at i=2, it's colored 2. Continue i=3 colored 0. Output 0 1 2 0 -> +1 = 1 2 3 1? But expected lex smallest is 1 2 3 3. Wait our output 1 2 3 1? Let's check: v3=0 (zone1) but v3 adjacent to v1 (zone2) and v2(zone3), so zone1 valid. Sequence 1,2,3,1 is lex smaller than 1,2,3,3. Is it valid? Edges: 1-2 (1 vs2 ok), 1-3 (1 vs3 ok), 2-3 (2 vs3 ok), 1-4 (1 vs1?? edge 1-4 means v0-v3 both zone1 -> conflict!). Wait I mis-indexed. Vertex 4 is index3. Edge 1-4 connects v0 and v3. v0=0, v3=0 conflict. But our propagation: v3 adjacent to v0? Yes edge 1-4. So when v2 forced=2, v3 loses colors of v1(1) and v2(2), but also adjacent to v0(0), so avail { }? Wait v3 neighbors: v0 (color0), v1(color1), v2(color2). So after v0=0,v1=1,v2=2, v3 has no available color -> infeasible. So v1=1 leads to conflict, not feasible. Good. Then try v1 color2. v2 adjacent to v0(0),v1(2) -> avail {1}. Propagate v2=1. v3 neighbors v0(0),v1(2),v2(1) -> no color -> conflict. So v1=2 infeasible. Thus after v0=0, no feasible for v1? But example has v1=2? Wait example output 1 2 3 3: v0=0(zone1), v1=1(zone2), v2=2(zone3), v3=2(zone3). Edge 1-2: 0-1 ok; 1-3:0-2 ok; 2-3:1-2 ok; 1-4:0-2 ok; 2-4:1-2 ok. Yes v1=1 (zone2). But we found v1=1 leads v2 forced=2, v3 no color. Did we mis-evaluate v2? v2 is vertex3 (index2). Neighbors: edges 1-3 (v0-v2), 2-3 (v1-v2), and maybe 3-4? No. So v2 adjacent to v0 and v1. With v0=0,v1=1, v2 avail {2}. forced=2. v3 (vertex4) neighbors: 1-4 (v0), 2-4 (v1), 3-4? Not in edge list. Wait edge list: 1 2,1 3,2 3,1 4,2 4. So v3 adjacent only to v0 and v1, not v2. Then v3 avail {2} (not 0,1). So v3=2. Output 0,1,2,2 -> +1 = 1,2,3,3. Good. My earlier inclusion of v2-v3 was wrong. So greedy works.
+
+Great.
+
+Now we need to implement greedy with propagation. At each step i, we have current assignments and avail. We try colors c in [0,1,2] that are allowed by current avail[i] (i.e., not used by already colored neighbors). For each, we copy state, assign i color c, propagate, and call feasibility on resulting state. If feasible, keep that color and move to next i. If none feasible, backtrack? Since we process in order and always choose feasible, if at vertex i no color feasible, then previous choice must be wrong. We need backtrack to previous vertex and try next color. This is DFS over prefixes. We can implement recursively: function dfs(pos, state) returns bool and fills assignment. At pos, try colors in order; for each, if feasible to complete pos..end, recurse. If recursion succeeds, return True. If none, return False. This naturally backtracks.
+
+But copying state for each feasibility call and recursion may be expensive. n=40 small. We can represent state as lists assignment and avail, and use copy.deepcopy? Better manual copy: new_assign = assign[:], new_avail = avail[:]. Since n<=40, copying lists of length <=40 is cheap. We can also modify in place with undo stack to avoid copies. But for clarity and speed, copying is fine given small n and limited calls.
+
+However, feasibility solver itself will branch and copy state; we can integrate feasibility as a function that returns bool without producing assignment. For the final assignment, after we choose color at each pos, we need the propagated state to continue. So in dfs, after choosing feasible color c, we propagate and then recurse with that state. The recursion will try colors for later vertices. This is essentially a DFS that builds assignment.
+
+We can combine: dfs(pos, assign, avail). At vertex pos (0-index), if pos==n return True. Determine current avail[pos] (after propagation). Try colors in sorted order (0,1,2) that are in avail[pos]. For each:
+- Copy assign, avail.
+- Assign pos color c, propagate in copy.
+- Call solver(can_color(copy_assign, copy_avail)). If True, then recurse dfs(pos+1, copy_assign, copy_avail). If recursion True, return True.
+If none, return False.
+
+But note: after we assign pos and propagate, some later vertices may become colored. When we recurse to pos+1, those colored vertices are skipped (assign != -1). At the end, assign contains full coloring. This yields lex smallest because at each pos we try smallest feasible color.
+
+Potential inefficiency: solver called for each candidate; if candidate feasible but recursion later fails, we waste work. But lex smallest ensures first feasible color leads to full solution? Not necessarily: a color may be extendable to a full coloring (solver True), but the lex smallest full coloring might use that color; if there is any full extension, choosing that color is correct for lex smallest. Since we try colors in increasing order, the first color for which any full extension exists is the lex smallest prefix. So if solver True, recursion must succeed (there exists full extension). Wait recursion might fail if our subsequent greedy choices (trying smallest feasible at each later vertex) cannot find an extension? But if there exists any extension, the greedy later will find it because at each later vertex it tries smallest feasible color that allows completion. By induction, it will construct lex smallest extension. So if solver True for color c, recursion will return True. Good. Thus we don't need solver and separate recursion? We could just recurse without solver: assign color c and propagate, then recurse; if recursion returns False, try next color. But recursion itself tries colors; it will explore. However, without solver, we might explore deep before discovering infeasibility. The solver prunes. But since n small, maybe recursion alone with propagation and kernelization is enough? But we need to avoid exploring huge subtrees when color c actually infeasible. The solver quickly detects infeasibility. So using solver as a filter is good.
+
+But we can also integrate solver into recursion: at each pos, after copying and assigning c, run solver to verify completion exists. If yes, recurse. Since recursion will also run solver at next steps, total calls ~ number of vertices * colors. Fine.
+
+Now implement solver(can_color) robustly.
+
+Let's design solver function can_color(assign, avail, adj_masks, n):
+- Input assign list length n (some colored -1 or color), avail list bitmask.
+- It may modify copies; we can modify in place because caller passes copies.
+- Returns True/False.
+
+Algorithm:
+```
+def can_color(assign, avail):
+    # propagate forced
+    if not propagate(assign, avail): return False
+    # kernelize
+    # compute remaining set and degrees
+    # if kernel empty -> True
+    # choose branch vertex in kernel with minimal popcount(avail) maybe
+    # for each color in avail[v]:
+    #    copy assign,avail; assign v color; if can_color(copy) return True
+    # return False
+```
+
+But kernelization and propagation can be interleaved. We can do:
+```
+def can_color(assign, avail):
+    if not propagate(assign, avail): return False
+    # remove vertices with |L| > deg
+    removed = [False]*n
+    deg = [0]*n
+    # compute degrees among uncolored
+    for v in range(n):
+        if assign[v]==-1:
+            deg[v] = count bits in (adj_masks[v] & uncolored_mask)
+    changed=True
+    while changed:
+        changed=False
+        for v in range(n):
+            if assign[v]==-1 and not removed[v] and popcount(avail[v]) > deg[v]:
+                removed[v]=True
+                changed=True
+                for u in neighbors(v):
+                    if assign[u]==-1 and not removed[u]:
+                        deg[u]-=1
+    # if all uncolored removed -> True
+    if all(assign[v]!=-1 or removed[v] for v): return True
+    # choose vertex in kernel (not removed, uncolored) with min popcount(avail), tie max deg
+    best = None
+    for v in uncolored not removed:
+        pc = popcount(avail[v])
+        if best is None or pc < best_pc or (pc==best_pc and deg[v]>best_deg):
+            best=v; best_pc=pc; best_deg=deg[v]
+    v=best
+    colors = [c for c in range(3) if avail[v]>>c & 1]
+    for c in colors:
+        a2=assign[:]; av2=avail[:]
+        if assign_vertex(a2, av2, v, c) and can_color(a2, av2):
+            return True
+    return False
+```
+
+But note: removed vertices may have lists that become size 0 due to kernel coloring? The kernelization guarantee says if kernel colorable, we can extend to removed vertices in reverse order. However, after we color kernel, we need to color removed vertices; but our solver only returns bool, not assignment. For feasibility test, that's fine. For the actual greedy construction, we rely on solver only for feasibility; the actual assignment for removed vertices will be determined later by greedy/propagation when it reaches them. Wait but if we remove vertices in solver, we are saying they are colorable regardless of kernel coloring. In the actual construction, when we later assign vertices in order, we will color them with smallest feasible color considering already colored neighbors. Since at that time they have at most deg_remaining (to already colored neighbors) constraints and |L|>deg at removal time among remaining graph, but when we actually color it, some neighbors may be uncolored? Let's think: The removal order ensures that when all its remaining neighbors (kernel + later removed) are colored, there is a free color. In greedy order (1..n), we color vertices in index order, not removal order. Could a removed vertex be colored before some of its neighbors that are in kernel or later removed? Yes, if its index is smaller. Then at the time of coloring, it may have fewer constraints (only earlier colored neighbors), so definitely has a free color (since |L|>deg among remaining, but actual available may be larger). So no problem. The existence of a full coloring is guaranteed; greedy will find it.
+
+But wait: The kernelization in solver removes vertices based on current state (some vertices colored). It assumes we can color removed vertices after the rest. This is valid for any order of coloring the rest. So feasibility is correct.
+
+Now, propagation function: assign_vertex(assign, avail, v, c):
+- if assign[v] != -1: return assign[v]==c and no need change? But we only call on uncolored.
+- Set assign[v]=c, avail[v]=1<<c.
+- queue = [v]
+- while queue:
+   x = queue.pop()
+   col_x = assign[x]
+   mask_x = 1<<col_x
+   for u in neighbors(x):
+       if assign[u]==-1:
+           if avail[u] & mask_x:
+               avail[u] &= ~mask_x
+               if avail[u]==0: return False
+               if popcount(avail[u])==1:
+                   # determine color
+                   col_u = (avail[u].bit_length()-1)
+                   assign[u]=col_u
+                   queue.append(u)
+       elif assign[u]==col_x: return False
+- return True
+
+We need neighbor iteration. adjacency list or bitmask. Since n small, adjacency list of ints fine.
+
+Popcount: Python int.bit_count() (Python 3.8+? 3.10+). Use .bit_count().
+
+Kernelization degree computation: We need uncolored_mask. Use bitmask of uncolored vertices. For each v uncolored, deg[v] = (adj_masks[v] & uncolored_mask).bit_count(). But when we remove vertices, uncolored_mask changes? Removed vertices are considered not in remaining graph. We can maintain a mask `remaining` of uncolored and not removed. Initially remaining = uncolored_mask. deg[v] for v in remaining = (adj_masks[v] & remaining).bit_count(). When remove v, remaining &= ~(1<<v), and update deg of neighbors in remaining: deg[u] = (adj_masks[u] & remaining).bit_count() (or decrement if edge). Simpler recompute deg each iteration? n=40, O(n^2) per iteration, iterations <=n, fine. But we also need choose best. Let's implement with bitmask for speed.
+
+Implementation details:
+- adj_masks list length n, int bitmask neighbors.
+- In solver, `uncolored_mask = 0`; for v in range(n): if assign[v]==-1: uncolored_mask |= 1<<v.
+- `remaining = uncolored_mask`
+- `deg = [0]*n`; for v in bits in remaining: deg[v] = (adj_masks[v] & remaining).bit_count()
+- Loop: find v in remaining with popcount(avail[v]) > deg[v]. If found, remove: remaining &= ~(1<<v); for each u in neighbors of v that are in remaining: deg[u]-=1. Continue until no such v.
+  To find efficiently, we can loop over all v each time O(n^2). n=40 fine.
+- After no removable, if remaining==0 -> True.
+- Else choose branch vertex from remaining. We can choose min popcount(avail[v]) then max deg.
+- Branch.
+
+But there is a subtlety: avail[v] may include colors that are forbidden by colored neighbors. Since we propagate forced assignments, but we don't remove colors from uncolored neighbors unless neighbor is forced to a single color? Wait propagation removes assigned color from uncolored neighbors' avail. So avail[v] always excludes colors of colored neighbors. Good. If a neighbor is uncolored, no removal. So avail[v] is correct possible colors given current colored neighbors.
+
+Kernelization condition |L(v)| > deg_remaining(v): deg_remaining counts uncolored neighbors in remaining. But there may be colored neighbors not in remaining that have removed some colors. avail[v] already accounts for them. The condition ensures that after coloring remaining neighbors, there is a color left. Because among remaining neighbors, at most deg_remaining colors can be forbidden; colored neighbors already forbid (3 - |L|) colors. The number of colors remaining after coloring all neighbors is |L| - (# of remaining neighbors that use a color in L). This is at least |L| - deg_remaining. If |L| > deg_remaining, at least one color always available. So removal valid. Good.
+
+Now, after kernelization, we branch. Branching on a vertex v in remaining with avail size maybe 2 or 3. For each color, we assign and propagate. Then recursively call can_color. This recursion will again kernelize. Good.
+
+Potential issue: The kernelization removal may remove vertices with |L|=3 and deg<=2, but if deg=2 and both neighbors end up using the two colors not in? Actually |L|=3, deg=2, at least one free color always. Good.
+
+Now complexity: For a cycle, initial state all avail=3, deg=2, |L|>deg? 3>2 true, so all vertices removable -> kernel empty -> True instantly. Great. For path, same. For 3-regular graph, kernel all, branch. For 3-regular graph on 40 vertices, 3-colorability may be hard but n small.
+
+Let's think about worst-case 3-regular random graph. Branching on vertex with 3 colors, after assigning one color, neighbors lose that color (avail size2), not forced (deg in remaining maybe 2 or 3). Kernelization: a vertex with |L|=2 and deg_remaining maybe 2 (if both neighbors still uncolored) not removable; with |L|=2 and deg_remaining=1 removable. As we assign, degrees drop. The algorithm may explore many branches but for n=40 should be okay.
+
+We can add another reduction: if two adjacent vertices have the same single available color? Actually if avail[v] is subset and neighbor u has avail[u] etc. There are known 3-coloring reductions (Brooks theorem). But maybe not needed.
+
+Let's also add component decomposition for solver: If remaining graph disconnected, we can solve components independently. This can prune. But with n=40, maybe overhead. Could help for sparse graphs. We can implement: compute connected components of remaining graph; for each component, call can_color on induced subgraph? But our solver branches globally; components independent but branching combined multiplies. For lex smallest we need global assignment, but feasibility independent. We can split: solve each component separately. If any component infeasible -> false. This can reduce exponential product. However, implementing component split in recursive solver adds complexity. Since n small, maybe skip. But for a graph with many components (e.g., 20 disjoint edges), global branching would be 2^20 ~1M, still okay. For 20 disjoint triangles, 6^20 huge? Wait each triangle has 6 proper 3-colorings (3! = 6). Global branching might explore many before finding solution. But kernelization: triangle vertices deg2, |L|=3 -> all removable! Because 3>2. So kernel empty -> feasible instantly. Nice. For disjoint K4s (not 3-colorable), kernel all (deg3, |L|=3), branch. Number of K4s maybe 10 (n=40). Branching on each K4 explores 3*2*? Actually K4 infeasible, each explored small. Fine.
+
+What about disjoint 4-cycles? deg2, |L|=3 -> removable, feasible. Good.
+
+What about disjoint odd cycles? deg2 -> removable, feasible. Good.
+
+What about graphs with min degree 3 but many components? Each component small. Branching product could be large if each component has many colorings. But n=40, components of size maybe 10. Number of 3-colorings of a 10-vertex 3-regular graph maybe thousands. Product across 4 components could be millions. Feasibility solver may explore many but still okay? For lex smallest, we call solver many times. Could be heavy.
+
+We can improve by solving components independently in can_color: if remaining graph disconnected, split into components and solve each recursively. This reduces product because we return after first component fails. But if all feasible, we still need to verify all; product of work may be sum if we solve separately. Good. Let's implement component split.
+
+How to split: BFS/DFS on remaining mask. For each component mask, create a subproblem with only vertices in component, but assignments/avails of other vertices unchanged. We can call can_color on the same state but with a mask? Simpler: for each component, temporarily restrict to that component and call can_color. But can_color expects full graph; we can pass a mask of active vertices. Modify can_color to take an `active_mask` parameter representing vertices still to be considered (uncolored and not removed). The colored vertices outside active are fixed. The function only considers active vertices. For component split, we compute components of subgraph induced by active_mask (ignoring colored vertices? colored vertices are not in active_mask). For each component mask, call can_color(assign, avail, component_mask). If all true -> true. This is clean.
+
+But kernelization and propagation may affect across components? Propagation of colored vertices into active components via edges from colored neighbors is already reflected in avail. Edges between components none. So independent.
+
+However, if we branch and assign a vertex in one component, propagation may force vertices only in that component. Other components unchanged. So splitting is valid.
+
+Implementation of can_color(assign, avail, active_mask):
+- active_mask: bitmask of uncolored vertices still to color. (Colored vertices not included.)
+- Propagate forced assignments among active? Actually forced vertices are in active (uncolored with |L|=1). Propagation will assign them and remove from active. We can implement propagation that returns new active_mask (with assigned vertices removed) and updated assign,avail. Or we can keep active_mask and skip assigned vertices.
+- Kernelization on active_mask.
+- If active_mask==0 -> True.
+- If disconnected, split into components and recurse on each; return all true.
+- Choose branch vertex in active_mask, branch.
+
+This is more complex but manageable. However, maybe overkill. Let's evaluate need.
+
+Alternative: Instead of component split, we can rely on kernelization to reduce each component. For a 3-regular component of size 10, kernel all, branching may explore all 3-colorings. Number of 3-colorings of a 10-vertex cubic graph? Could be up to maybe 6*2^? For bipartite cubic, many (2^5?). For 10 vertices, maybe up to hundreds. Four components -> product maybe 10^8 worst. But feasibility solver can stop at first coloring; it branches trying colors for one vertex, then propagates. For a bipartite component, after choosing one vertex color, the rest is forced? In a connected bipartite graph, 3-coloring has many options because each part can be any of 3 colors as long as adjacent differ. Actually for bipartite graph, each component has 3*2 = 6 proper colorings if connected? Wait proper 3-coloring of connected bipartite graph: choose color for one vertex (3), then all vertices in same part must be that color? No, adjacent vertices must differ, but vertices at distance 2 can be same or different as long as differ from intermediate. For a path of length 2 (3 vertices), colorings: middle any of 3, endpoints any of 2 each -> 12, not 6. So many. For a connected bipartite graph, number of 3-colorings can be large (2-colorings times etc). But kernelization removes degree<=2 vertices, leaving empty for bipartite? A connected bipartite graph may have min degree >=3 (e.g., cube graph Q3 has 8 vertices degree3, bipartite). Kernel not empty. Number of 3-colorings of Q3? Let's compute: Q3 is bipartite, each part 4. Proper 3-colorings: choose colors for part A (each vertex can be any of 3, but adjacent to B which must differ). Actually no constraints within part. For each vertex in A, choose color from 3; for each vertex in B, choose color from the 2 not equal to any neighbor. But neighbors in A may have different colors, so B vertex must avoid all colors used by its neighbors (up to 3). In Q3, each B vertex adjacent to 3 A vertices; if those 3 use all 3 colors, B has 0. So constraints. Number maybe moderate.
+
+But solver branching may explore many. n=40, maybe okay.
+
+Let's consider worst-case for 3-coloring of 40 vertices: a disjoint union of 10 copies of K_{3,3}? K_{3,3} is bipartite, min degree 3, kernel all. Number of proper 3-colorings of K_{3,3}: part A vertices can be colored with any of 3 colors, part B vertices must avoid colors of all 3 A neighbors. If A uses all 3 colors (each color at least once), B has 0. If A uses only 2 colors, each B vertex must use the third color (all same). So count: A colorings using <=2 colors: 3*(2^3 - 2) = 3*6=18 (choose color missing, each A vertex one of remaining 2, not all same? Actually if missing color c, A vertices each from {a,b}; B vertices all must be c; valid for any A coloring. That's 2^3=8 per missing color, total 24. Wait if A uses only one color, B uses one of 2 colors; still valid. So 24. Plus A uses all 3 colors -> B no color, invalid. So 24 colorings per K_{3,3}. 10 copies -> 24^10 ~ 6.3e13. Our solver branching globally might explore huge if it tries to find first coloring. But it will find one quickly if color ordering chosen well. For feasibility, we just need one. Branching on a vertex in K_{3,3}: choose color 0. Propagation: neighbors lose color0 (avail {1,2}), not forced. Continue. It can find a valid coloring quickly by trying colors. The search tree size to find first solution is not product of all colorings; it's more like branching with propagation. For K_{3,3}, after choosing one vertex color, the rest may be constrained but still many. It will find a valid coloring in maybe dozens of nodes. So fine.
+
+The real worry is unsatisfiable instances where solver explores many branches. For n=40, unsat 3-coloring near threshold can be hard. But 2 seconds Python maybe okay with kernelization + propagation + component split.
+
+Let's also add a reduction for vertices with list size 2 and degree 1 etc handled by kernelization. Good.
+
+Now, for lex smallest, we need to output assignment. Our DFS will produce it. Let's implement carefully.
+
+Potential issue: The solver's kernelization removes vertices; but when we later construct assignment via DFS, we don't need to produce assignment for removed vertices at that solver call. The DFS will eventually assign them. However, when we call solver to test feasibility of a candidate color at position i, the solver may remove vertex i itself if |L|>deg. But we just assigned it, so it's colored and not in active. Fine.
+
+Let's design the solver as a class with adjacency masks and n.
+
+Pseudo:
+
+```
+class Solver:
+    def __init__(self, n, adj):
+        self.n=n
+        self.adj=adj
+    def can_color(self, assign, avail, active_mask):
+        # propagate forced among active
+        if not self._propagate(assign, avail, active_mask):
+            return False
+        # kernelize
+        active_mask = self._kernelize(assign, avail, active_mask)
+        if active_mask == 0:
+            return True
+        # component split
+        comp = self._first_component(active_mask)
+        if comp != active_mask:
+            # solve each component
+            rest = active_mask
+            while rest:
+                c = self._first_component(rest)
+                if not self.can_color(assign, avail, c):
+                    return False
+                rest &= ~c
+            return True
+        # choose branch vertex
+        v = self._choose(assign, avail, active_mask)
+        colors = []
+        # maybe order colors? For feasibility, any order. Could use smallest first to maybe find quickly.
+        av = avail[v]
+        for c in range(3):
+            if av >> c & 1:
+                a2 = assign[:]
+                av2 = avail[:]
+                am2 = active_mask
+                if self._assign_and_propagate(a2, av2, am2, v, c):
+                    if self.can_color(a2, av2, am2):
+                        return True
+        return False
+```
+
+But component split recursion: When we call can_color on component c, it may assign vertices in that component (colored) and remove them from active_mask. The active_mask passed is c; it will modify assign, avail, and active_mask local (but we pass integer by value; we need to update active_mask? Actually can_color returns bool and may have colored vertices; the active_mask variable in caller is not used after split because we split into components and process all; after each component, the active_mask for that component becomes 0. The global active_mask is not needed further. So passing `c` by value is fine; the function will modify assign and avail but not the caller's active_mask. Good.
+
+However, propagation function needs active_mask to know which vertices are still uncolored. When a vertex is assigned, we remove it from active_mask. We need to modify active_mask in place (as integer). Since Python ints immutable, we can reassign `active_mask &= ~(1<<v)` inside function. But if we pass active_mask to helper, reassignments won't affect caller unless we return it. So helpers should return new active_mask. Or we can maintain active_mask as a mutable list [mask]. Simpler: use integer and return updated mask. Let's design helpers to return (bool, new_active_mask) or just new_active_mask and detect conflict via avail==0.
+
+Propagation:
+```
+def _propagate(self, assign, avail, active_mask):
+    # assign is list, avail list, active_mask int
+    # process all currently forced vertices in active_mask
+    queue = [v for v in bits(active_mask) if popcount(avail[v])==1 and assign[v]==-1]
+    # But assign[v]==-1 for active. We can just iterate bits.
+    # Actually we can use a queue of vertices whose avail became size1.
+    # We'll implement iterative: start with all size1 active vertices.
+    # Use a list as stack.
+    stack = []
+    for v in bits(active_mask):
+        if avail[v].bit_count() == 1:
+            stack.append(v)
+    while stack:
+        v = stack.pop()
+        if assign[v] != -1:
+            continue
+        c = (avail[v].bit_length() - 1)
+        assign[v] = c
+        active_mask &= ~(1<<v)
+        mask = 1<<c
+        nb = self.adj[v] & active_mask
+        u = nb
+        while u:
+            lsb = u & -u
+            x = (lsb.bit_length() - 1)
+            if avail[x] & mask:
+                avail[x] &= ~mask
+                bc = avail[x].bit_count()
+                if bc == 0:
+                    return 0  # conflict, active_mask 0? better return None or False
+                if bc == 1:
+                    stack.append(x)
+            u ^= lsb
+    return active_mask
+```
+
+But if conflict, we can return 0 and caller checks. However, active_mask=0 also means all colored (feasible). To distinguish conflict, we can have propagate return (ok, active_mask). Or return active_mask and if conflict set assign[0]=-2? Simpler: return a tuple (active_mask, conflict_flag). Or have propagate return active_mask or -1 on conflict. Since active_mask is int, return -1 for conflict. Then caller checks.
+
+But note: When we assign a forced vertex, we also need to check if any already colored neighbor has same color. Since we remove color from uncolored neighbors, and if a neighbor is already colored with same color, that would have been caught earlier? Actually if two colored vertices adjacent with same color, propagate should detect. We can check at start: for each active vertex with avail size1, if its only color equals a colored neighbor's color, then conflict. But our propagation starts by assigning it; before assigning, we should ensure it's not conflicting with colored neighbors. However, avail[v] already excludes colors of colored neighbors (because when neighbor was colored, we removed that color from avail[v]). So if avail[v] size1, that color is not used by any colored neighbor. Good. But what about an edge between two forced vertices with same single color? When we assign first, we remove that color from neighbor's avail, making it 0 -> conflict. Good.
+
+What about initial state where a colored vertex has a colored neighbor with same color? That would mean invalid partial assignment; our assign_and_propagate ensures when coloring a vertex, it checks colored neighbors. In propagate, we only assign forced vertices whose avail is size1; but if two adjacent vertices are forced to same color before propagation, we detect as above. If a forced vertex's single color conflicts with an already colored neighbor, that color would have been removed from avail, so size1 wouldn't be that color. Good.
+
+Now kernelize:
+```
+def _kernelize(self, assign, avail, active_mask):
+    rem = active_mask
+    deg = [0]*self.n
+    # compute deg within rem
+    m = rem
+    while m:
+        lsb = m & -m
+        v = lsb.bit_length()-1
+        deg[v] = (self.adj[v] & rem).bit_count()
+        m ^= lsb
+    changed = True
+    while changed:
+        changed = False
+        m = rem
+        while m:
+            lsb = m & -m
+            v = lsb.bit_length()-1
+            if avail[v].bit_count() > deg[v]:
+                # remove v
+                rem &= ~(1<<v)
+                changed = True
+                # update degrees of remaining neighbors
+                nb = self.adj[v] & rem
+                u = nb
+                while u:
+                    lsb2 = u & -u
+                    w = lsb2.bit_length()-1
+                    deg[w] -= 1
+                    u ^= lsb2
+            m ^= lsb
+    return rem
+```
+
+But note: avail[v] for active vertices may be size1 due to propagation; deg[v] counts active neighbors. If avail size1 > deg (e.g., deg0), remove. That's fine. However, if avail size1 and deg=0, vertex isolated; remove. If deg=1, 1>1 false, not removed. But an isolated vertex with list size1 is trivially colorable. Good.
+
+Wait condition |L| > deg. For |L|=1, deg=0 -> remove. For |L|=1, deg>=1 -> not remove, but it's forced; propagation would have assigned it? Actually if |L|=1 and deg>=1, propagation will assign it (since size1). So after propagation, no active vertex has size1. Unless propagation didn't run? We run propagate before kernelize. Good.
+
+Now component split:
+```
+def _component_mask(self, start, active_mask):
+    stack=[start]; comp=0
+    while stack:
+        v=stack.pop()
+        if comp>>v & 1: continue
+        comp |= 1<<v
+        nb = self.adj[v] & active_mask
+        u=nb
+        while u:
+            lsb=u&-u
+            x=lsb.bit_length()-1
+            if not (comp>>x & 1):
+                stack.append(x)
+            u^=lsb
+    return comp
+```
+Then in can_color, after kernelize, if active_mask !=0:
+```
+comp = self._first_component(active_mask)
+if comp != active_mask:
+    rest = active_mask
+    while rest:
+        c = self._first_component(rest)
+        if not self.can_color(assign, avail, c):
+            return False
+        rest &= ~c
+    return True
+```
+But this recursion will process components; each component call will branch and color vertices. Since components share assign/avail, after processing all, all active vertices colored. Good.
+
+However, component split may cause repeated kernelization/propagation for each component. Fine.
+
+Choose branch vertex: from active_mask, choose v minimizing avail.bit_count(), tie maximizing deg (within active). Or maybe choose vertex with smallest list size and highest degree. For feasibility, we want to prune fast; high degree with small list good. If list size 2, branch 2; if 3, branch 3. Since kernel min degree >= list size, list size 2 implies deg>=2, etc.
+
+```
+best=None; best_pc=4; best_deg=-1
+m=active_mask
+while m:
+    lsb=m&-m; v=...
+    pc=avail[v].bit_count()
+    d=(self.adj[v]&active_mask).bit_count()
+    if pc<best_pc or (pc==best_pc and d>best_deg):
+        best=v; best_pc=pc; best_deg=d
+    m^=lsb
+```
+
+Branch colors: order by maybe smallest color? For feasibility, doesn't matter much. Use c in 0..2 if avail bit set.
+
+Assign and propagate helper:
+```
+def _assign(self, assign, avail, active_mask, v, c):
+    if assign[v] != -1:
+        return assign[v]==c, active_mask
+    if not (avail[v]>>c & 1):
+        return False, active_mask
+    assign[v]=c
+    avail[v]=1<<c
+    active_mask &= ~(1<<v)
+    stack=[v]
+    while stack:
+        x=stack.pop()
+        cx=assign[x]
+        mask=1<<cx
+        nb=self.adj[x] & active_mask
+        u=nb
+        while u:
+            lsb=u&-u
+            y=lsb.bit_length()-1
+            if avail[y] & mask:
+                avail[y] &= ~mask
+                bc=avail[y].bit_count()
+                if bc==0:
+                    return False, active_mask
+                if bc==1:
+                    # check not conflicting with colored neighbors? avail excludes colored, ok
+                    stack.append(y)
+            u^=lsb
+    return True, active_mask
+```
+
+Wait: When we assign v color c, we should check that no already colored neighbor has color c. Since avail[v] excluded colors of colored neighbors, if c in avail[v], no colored neighbor has c. Good. But what about uncolored neighbor that is forced to c later? Propagation handles removal.
+
+However, there is a subtle bug: Suppose an active vertex y has avail size1 with color c, and it is neighbor of x which we just assigned color c. We remove c from y -> avail 0 -> conflict. Good. But what if y was already assigned color c before (colored) and adjacent to x? That would mean invalid; but y's color c would have been removed from x's avail when y was assigned, so x couldn't be assigned c. Good.
+
+Now, in can_color, after propagation, kernelize, component split, branch. We need to copy assign, avail, active_mask for each branch. Since n small, copy lists. active_mask int copy by value.
+
+Potential recursion depth: can_color recursion includes component split and branch. Branch depth at most n. Python recursion limit default 1000, fine.
+
+Now the main DFS for lex smallest:
+```
+def solve(self):
+    assign=[-1]*n
+    avail=[7]*n  # bits 0,1,2
+    if not self.can_color(assign[:], avail[:], full_mask):
+        print("NO"); return
+    # else find lex smallest
+    if self._dfs(0, assign, avail, full_mask):
+        print("YES")
+        print(' '.join(str(x+1) for x in assign))
+    else:
+        print("NO")
+```
+
+But we can combine: first check feasibility. Then DFS.
+
+DFS:
+```
+def _dfs(self, pos, assign, avail, active_mask):
+    if pos==self.n:
+        return True
+    if assign[pos]!=-1:
+        return self._dfs(pos+1, assign, avail, active_mask)
+    av = avail[pos]
+    for c in range(3):
+        if av>>c & 1:
+            a2=assign[:]; av2=avail[:]; am2=active_mask
+            ok, am2 = self._assign(a2, av2, am2, pos, c)
+            if not ok: continue
+            # feasibility check
+            if not self.can_color(a2[:], av2[:], am2): continue
+            # recurse
+            if self._dfs(pos+1, a2, av2, am2):
+                assign[:] = a2
+                return True
+    return False
+```
+
+But note: after `_assign`, a2 has pos colored and propagation forced some later vertices. `can_color` will further process. We pass copies to can_color to avoid modifying a2? Actually after can_color returns True, we want a2 to be a valid partial state (some vertices may be colored by can_color? Wait can_color only returns bool; it may modify the passed lists because we don't copy inside can_color except branches. The top-level call to can_color with copies will modify them but not return assignment. If can_color returns True, the passed a2,av2 may have additional vertices colored due to propagation in can_color? Actually can_color starts with propagation (already done by _assign), kernelization (doesn't color), component split/branch (if it finds a solution, it will color vertices in branches and leave them colored in the passed lists). So after can_color returns True, a2 may contain a complete coloring of all active vertices! That's actually good: we can use that as the state for recursion, avoiding re-search. But we need to ensure can_color returns a concrete coloring, not just bool. Our can_color as designed will assign vertices along the successful branch, so the passed assign list will reflect that coloring. Yes, because when it branches and finds a feasible sub-branch, it keeps the assignments in the passed list. So after can_color True, a2 is fully colored for active vertices. Then _dfs recursion just skips colored vertices and reaches end. That means we don't need to recurse much; we can just call can_color at each step and it fills the rest. But careful: can_color chooses branch colors based on feasibility heuristic, not lex smallest for later vertices. We need lex smallest for later vertices too. If we let can_color fill the rest arbitrarily, we may not get lex smallest. So we cannot rely on can_color's arbitrary coloring for the final assignment. We need DFS to enforce lex order at each position.
+
+Thus we should not let can_color modify a2 if we want to preserve state for DFS. We can pass copies to can_color and discard. Then recurse with a2 (which only has pos and propagated forced vertices). In recursion, at next uncolored vertex, we again try colors in order with feasibility. This ensures lex smallest.
+
+So in DFS, call can_color on copies: `if not self.can_color(a2[:], av2[:], am2): continue`. Since can_color may modify copies, discard. Then recurse with a2, av2, am2. Good.
+
+But we can optimize: if can_color True, we know there is an extension; recursion will find it. The recursion may call can_color many times. Fine.
+
+However, there is a subtlety: can_color may be expensive; we call it for each candidate color. Since the first feasible color is chosen, we call can_color at most 3 times per vertex (plus backtracking). In worst case with backtracking, more. But n=40, okay.
+
+Potential issue: The DFS with can_color filter may still explore many branches if can_color returns True for a color but recursion later fails? As argued, if can_color returns True, recursion will succeed because it will find lex smallest extension. Wait recursion could fail if at a later vertex no color is feasible? That would contradict can_color's True at earlier step (since the state after choosing earlier color includes all decisions so far; can_color checks existence of completion from that state). When recursion reaches later vertex, the state is a subset of that state (more colored vertices). If can_color said completion exists from earlier state, then for the sequence of choices recursion makes (which are all feasible completions), it should never get stuck. More formally, by induction, at each step we choose a color c for which can_color(state with c) is True. Then there exists a full extension. The recursion at next vertex will choose the smallest color c' such that can_color(state with c,c') is True, and so on. Since the set of full extensions is nonempty, this process yields a full extension. So no backtracking beyond trying colors at a vertex until find feasible. Actually we may try color1 infeasible, color2 feasible, then proceed; no need to backtrack further. So total can_color calls <= 3n. Great.
+
+Wait is it possible that color1 feasible (can_color True) but the lex smallest extension using color1 has at vertex i+1 a color that is not the smallest feasible at i+1? No, lex smallest extension with prefix color1 will choose smallest feasible at i+1. Our recursion does exactly that. So it finds it. So no backtracking if a feasible color found. Thus at each vertex we try at most 3 colors; first feasible leads to solution. So 3n solver calls. Good.
+
+But hold on: can_color returns True if there exists any completion, but the recursion's subsequent choices are constrained to be lex smallest. Since lex smallest choices are a subset of all completions, if a completion exists, lex smallest completion exists, and recursion follows it. So yes.
+
+Therefore total solver calls <= 3n = 120. Each solver call on graph up to 40 vertices. Very feasible.
+
+Now we need to ensure can_color is correct and fast. Let's test on examples.
+
+Example1: full graph 4 vertices edges. can_color full -> True. DFS:
+pos0: avail=7. try c0. _assign -> pos0=0, propagate none. can_color(state) True. recurse pos1.
+pos1: avail excludes 0 -> {1,2}. try c1. _assign pos1=1, propagate: pos2 forced=2, pos3 forced=2? Wait pos3 neighbors pos0(0),pos1(1), not pos2. avail pos3 {2}. forced=2. can_color True. recurse pos2 colored skip, pos3 colored skip, pos4 end. assign [0,1,2,2]. Output 1 2 3 3. Good.
+
+Example2: K4 minus? Actually 4 vertices all 6 edges = K4. can_color full -> False -> NO. Good.
+
+Now we need to be careful with indexing and reading input. Also handle self-loops? Problem says redundant pairs u v; likely u!=v. If self-loop, impossible. We can ignore or handle: edge from v to v means vertex cannot be colored? Actually must not be placed same zone as itself, impossible. Our adjacency includes self; propagation when assign v color c, neighbor includes v itself, removes c from avail[v] -> 0 conflict. So can_color returns False. Good. But adjacency self may affect degree counts (deg includes self). For kernelization, |L|=3, deg includes self so deg>=1; but self-loop makes graph not 3-colorable. Our propagation catches. For degree computation, self-loop counted as neighbor; not a big issue. But when removing vertex, we update neighbors; self not in rem after removal. Fine.
+
+Multiple edges: adjacency bitmask avoids duplicates.
+
+Now let's think about correctness of kernelization with active_mask and propagation. Need to ensure after propagation, no active vertex has avail size1 (they are assigned and removed). Actually propagation assigns all size1 active vertices and removes them. So active vertices have avail size 2 or 3. Kernelization condition |L|>deg. For |L|=2, deg can be 0,1 -> remove. For |L|=3, deg 0,1,2 -> remove. Good.
+
+But what about a vertex with |L|=2 and deg=0 (isolated with two available colors). Remove. After kernel colored, we can color it with either available color. Good.
+
+Now component split: After kernelization, if active_mask has multiple components, we solve each. But note: kernelization may have removed vertices, leaving components. Splitting is valid because no edges between components. The assign/avail are shared; each component call may color vertices. Since components independent, order doesn't matter. We process first component; if infeasible return False; else process next. This can prune.
+
+But there is a subtle issue with component split and kernelization: Suppose active_mask has two components. We call can_color on component1. It may branch and color vertices in component1. Then we call can_color on component2. Since assign/avail are modified, component2's state includes colored vertices from component1 (no edges between). Fine. If component1 feasible and component2 feasible, overall feasible. Good.
+
+Now, can_color recursion with component split: When it returns from component1, active_mask for component1 is 0 (colored/removed). The caller's active_mask is still the original full mask? In our design, can_color takes active_mask by value; it kernelizes and splits. It doesn't modify the caller's active_mask. It only modifies assign and avail. That's okay because after split, the caller doesn't need its active_mask anymore (it returns bool). For branch recursion, we pass active_mask (kernel) and can_color modifies assign/avail and uses its own active_mask. After returning True, the branch's active_mask is 0; caller's active_mask is the kernel mask, but caller will return True and not use it. However, the caller's assign/avail now reflect the successful coloring of kernel. Good.
+
+But wait: In component split, the caller has active_mask = full kernel. It computes comp != active_mask. It calls can_color(assign, avail, comp). This recursive call will process comp and may also split further. It modifies assign/avail. After it returns True, comp vertices are colored. Then caller processes rest. At the end, all active_mask vertices colored. Caller returns True. Its own active_mask variable not updated, but irrelevant. Good.
+
+Now, one more nuance: The kernelization removal of vertices with |L|>deg is based on active_mask (remaining). But when we later color kernel and reinsert removed vertices, we need to ensure removed vertices still have |L|>deg at reinsertion time. The removal order ensures each removed vertex had |L|>deg to vertices not yet removed (kernel + later removed). At reinsertion reverse, those neighbors are colored before it. So condition holds. However, our solver doesn't actually reinsert; it just returns feasible. For DFS construction, the greedy will color vertices in index order; it doesn't follow removal order. But as argued, if a vertex is removed in solver, it means it has many available colors relative to remaining neighbors; when greedy reaches it, it will have at least as many options (since some neighbors may be uncolored, giving fewer constraints), so it won't get stuck. The existence of a full coloring is guaranteed; greedy will find it. Good.
+
+Now, we need to implement bit iteration efficiently. Use while mask: lsb = mask & -mask; v = (lsb.bit_length() - 1). This is okay for n=40.
+
+Potential performance issue: can_color copies assign and avail for each branch. With up to 120 top-level calls and internal branching, copies inside can_color could be many. But n=40, lists of length 40; copying is O(40). If can_color explores thousands of nodes, total maybe hundreds of thousands operations, fine.
+
+Let's test mentally on a 3-regular graph of 40 vertices. can_color full: propagate none, kernelize none (deg=3, |L|=3 not >). active_mask full. Component maybe connected. Choose branch vertex. Branch 3. For each branch, assign and propagate: neighbors lose color, avail size2, not forced. Kernelize: vertices with |L|=2 and deg_remaining maybe 2 (if both neighbors still active) not removed; if deg_remaining 1 (one neighbor colored) removed. So after assigning one vertex, its 3 neighbors each have deg_remaining 2? Wait they are adjacent to each other? In a 3-regular graph, neighbors of v may be adjacent. Each neighbor has one colored neighbor v, and up to 2 active neighbors. deg_remaining could be 1 or 2. If deg_remaining=1 and |L|=2 -> remove. Removal may cascade. So search tree may shrink. Good.
+
+Now, we should also consider using a more efficient order for branch colors. For lex smallest, in DFS we try colors 0,1,2. In can_color feasibility, order doesn't matter; but to find solution quickly, maybe try colors that are most constrained? We can just try 0,1,2. Since we only need one solution and n small, fine.
+
+Potential bug: In can_color, after kernelization, we choose branch vertex. But we should also consider that a vertex may have avail size 0 due to kernelization? Kernelization doesn't change avail, only removes vertices. If a vertex wasn't removed and has avail size 0, it would have been caught by propagation? Propagation removes colors only when neighbors colored. Kernelization doesn't remove colors. So avail size 0 could exist if vertex has two colored neighbors using two colors and a third colored neighbor? But propagation would have detected when the third neighbor colored? Actually if a vertex has three colored neighbors with all three colors, then when the last neighbor was colored, propagation would remove the third color making avail 0 and return conflict. So no active vertex has avail 0 after propagation. Good.
+
+Now, let's think about the initial feasibility check: We can just call can_color with full active_mask. If False, print NO. If True, proceed DFS. The DFS will also call can_color; we could skip initial check and let DFS handle, but initial check gives early NO.
+
+Now, implement reading input. Use sys.stdin.read().split().
+
+Edge cases:
+- n=1, m=0. Output YES, 1.
+- n=1, m self-loop? Output NO.
+- m=0. Output all 1.
+- Graph with isolated vertices: all 1.
+
+Now, let's think about whether the lex smallest DFS with can_color copies might be too slow due to can_color exploring huge tree for each of 120 calls. We can maybe optimize by making can_color not copy for component split? But fine.
+
+Let's try to estimate worst-case can_color runtime for n=40. Suppose graph is a 3-regular random graph that is 3-colorable. The algorithm branches on a vertex, then kernelization removes many vertices. Known algorithm for 3-coloring using kernelization by degree > colors has runtime around O(1.65^k) where k is kernel size. For n=40, maybe <1M nodes. 120 calls -> 120M maybe borderline in Python. But many calls are on smaller graphs (after prefix fixed). Also for random 3-regular 40 vertices, 3-colorability? Random 3-regular graphs are almost surely 3-colorable? Actually random regular graphs have chromatic number 3 for degree 3? They are 3-colorable with positive probability? Not sure. But n small.
+
+We can add more pruning to can_color to reduce nodes:
+- In branch, choose vertex with max degree and smallest list.
+- Order colors by frequency? Not needed.
+- Add a check: if any active vertex has avail size 2 and its two possible colors are both present in its neighborhood? Not helpful.
+- Add 2-SAT / component list size 2 solving instead of branching. When all active vertices have list size 2, we can solve in polynomial time by trying one vertex's two colors and propagating. Our kernelization may leave vertices with |L|=2 and deg>=2. If all active vertices have |L|=2, the graph is a list-2-coloring problem. We can solve each component by picking a vertex, trying its two colors, propagate; if either works, feasible. This is polynomial and avoids branching exponential on 2-list graphs. But our branching already tries colors; for all lists size2, branching on one vertex (2 choices) may propagate and solve component. In worst case (e.g., a long even cycle with lists size2), branching may explore both choices? Actually for a cycle with lists size2, choosing one vertex color forces the rest around cycle; if consistent, one branch succeeds; if inconsistent, other branch maybe succeeds. So at most 2 branches. Good. For a graph with lists size2 that is a tree, one branch forces all. So fine.
+
+But there are list-2-coloring instances where branching may explore many? Since each vertex list size2, after choosing a vertex color, propagation forces along edges if neighbor's list becomes size1. If graph is a cycle, forces around; if conflict, try other. So O(n). If graph has vertices degree2 with list2, propagation may not force if both neighbors uncolored and list has 2 colors. Branching may lead to exploring many colorings. Example: a disjoint union of edges with lists size2: each edge endpoints have lists {0,1}. Proper colorings: 2 per edge. Branching on one endpoint: choose 0 -> neighbor forced 1; next edge branch 0 -> neighbor forced1; etc. So linear, finds coloring. For a complete graph K_3 with lists size2 each? Not 2-colorable maybe; branching small. For a graph that is a grid with lists size2, number of 2-list-colorings can be exponential (like independent sets). Branching with propagation may explore many before finding one or concluding. But kernelization: for list size2, a vertex with deg<=1 is removed. So kernel min degree >=2. A grid has min degree? boundary degree2, interior degree4; boundary vertices deg2, |L|=2 not removed. Kernel includes whole grid. List-2-coloring of grid can have many solutions; branching may explore many. But n=40, grid small. Could be okay.
+
+We can add a dedicated polynomial solver for the case where all active vertices have list size <=2: For each component, pick a vertex, try each of its colors (at most 2), propagate; if any works for component, feasible. This is exactly what branching does but limited to one vertex per component. Since lists size2, propagation may not force all; but trying both colors covers all possibilities because each vertex has at most 2 colors. Actually for a component, picking any vertex and trying its two possible colors is sufficient: any valid coloring has the vertex one of its two colors. Propagation may not determine the whole component, but we recursively branch on next vertex. So it's still exponential in worst case. But we can solve list-2-coloring via checking if the constraint graph is bipartite in a certain way? List-2-coloring of a graph is equivalent to graph homomorphism to a graph H where vertices are colors and edges between allowed pairs. For lists of size 2, H is a graph on 3 colors (maybe an edge or two edges or path). The problem is H-coloring. For H being P3 (lists {0,1}, {0,2}, {1,2}) or K2+isolated? Actually each list is a 2-subset of {0,1,2}. There are 3 possible lists: {0,1},{0,2},{1,2}. The allowed color pairs for an edge depend on intersection. This is a CSP that can be solved by 2-SAT or by checking each component. But not necessary for n=40.
+
+Given constraints, our solver likely passes.
+
+Let's also consider using `functools.lru_cache` to memoize can_color results based on (tuple(avail), active_mask) maybe. Since assign is determined by avail? Not exactly; colored vertices have avail single color. The state can be represented by tuple(avail) and active_mask (or active_mask derived from avail? active vertices have avail with >1? Actually colored vertices have avail single and assign same; uncolored have avail size>1. So active_mask = vertices with avail not single? But after propagation, all active have avail size>=2. However, can_color may receive state where some active have avail size1? It propagates first. So state can be represented by tuple(avail). But avail for colored vertices is single; for removed? We don't have removed in state. So tuple(avail) uniquely determines state. We can memoize can_color(avail_tuple) -> bool. This could drastically reduce repeated subproblems. But avail values are 1..7, n=40 -> 7^40 huge, but actual visited states limited. Memoization overhead may help or hurt. Since we have at most 120 top-level calls, internal branching may revisit similar states? Not much. Could skip.
+
+But there is a better idea: Since we call can_color many times from DFS with states that are prefixes, memoization of can_color results could avoid recomputation. However, states differ. Maybe not needed.
+
+Let's think about implementing can_color iteratively with stack to avoid recursion overhead? Recursion fine.
+
+Now, one more concern: The kernelization condition uses `avail[v].bit_count() > deg[v]`. But deg[v] counts active neighbors. However, if a vertex has a self-loop, deg includes itself. For a vertex with self-loop and |L|=3, deg>=1, not removed. Propagation will detect conflict when assigned. Good.
+
+What about multiple edges? adjacency bitmask handles.
+
+Now, let's write code. We'll create a class `ZoneDistribution` with methods.
+
+Potential issue with Python recursion and copying: In can_color branch, we do:
+```
+a2 = assign[:]; av2 = avail[:]; am2 = active_mask
+if self._assign(a2, av2, am2, v, c):  # _assign returns (ok, am2)
+```
+Need to capture updated am2: `ok, am2 = self._assign(a2, av2, am2, v, c)`. Then `if ok and self.can_color(a2, av2, am2): return True`.
+
+In `_assign`, we need to return (ok, active_mask). Since active_mask is int, modifications local; return it.
+
+Now, `_propagate` returns (ok, active_mask). If conflict, return (False, active_mask). Or return active_mask or 0? Let's return (bool, active_mask). On conflict, active_mask irrelevant.
+
+Implementation of `_propagate`:
+```
+def _propagate(self, assign, avail, active_mask):
+    stack = []
+    m = active_mask
+    while m:
+        lsb = m & -m
+        v = lsb.bit_length() - 1
+        if avail[v].bit_count() == 1:
+            stack.append(v)
+        m ^= lsb
+    while stack:
+        v = stack.pop()
+        if assign[v] != -1:
+            continue
+        c = (avail[v].bit_length() - 1)
+        assign[v] = c
+        active_mask &= ~(1 << v)
+        mask = 1 << c
+        nb = self.adj[v] & active_mask
+        u = nb
+        while u:
+            lsb = u & -u
+            x = lsb.bit_length() - 1
+            if avail[x] & mask:
+                avail[x] &= ~mask
+                bc = avail[x].bit_count()
+                if bc == 0:
+                    return False, active_mask
+                if bc == 1:
+                    stack.append(x)
+            u ^= lsb
+    return True, active_mask
+```
+
+But initial stack may include vertices that are already assigned? active_mask only uncolored. avail size1 could happen for uncolored. Good.
+
+However, after we assign v and remove from active_mask, we process neighbors. If neighbor's avail becomes size1, push. Good.
+
+One subtlety: Suppose two adjacent vertices both have avail size1 with same color. We pop first, assign it, remove color from neighbor -> neighbor avail 0 -> conflict. Good.
+
+Now `_kernelize`:
+```
+def _kernelize(self, assign, avail, active_mask):
+    rem = active_mask
+    deg = [0]*self.n
+    m = rem
+    while m:
+        lsb = m & -m
+        v = lsb.bit_length() - 1
+        deg[v] = (self.adj[v] & rem).bit_count()
+        m ^= lsb
+    changed = True
+    while changed:
+        changed = False
+        m = rem
+        while m:
+            lsb = m & -m
+            v = lsb.bit_length() - 1
+            if avail[v].bit_count() > deg[v]:
+                rem &= ~(1 << v)
+                changed = True
+                nb = self.adj[v] & rem
+                u = nb
+                while u:
+                    lsb2 = u & -u
+                    w = lsb2.bit_length() - 1
+                    deg[w] -= 1
+                    u ^= lsb2
+            m ^= lsb
+    return rem
+```
+
+But this recomputes deg initially and updates. However, when a vertex is removed, we update deg of remaining neighbors. But deg of other vertices not adjacent unchanged. Good.
+
+But note: avail[v] may be size1? Propagation should have assigned it. So kernelize only sees size2 or 3. Condition > deg. If deg becomes negative? No.
+
+Now `_first_component`:
+```
+def _component(self, start, active_mask):
+    stack = [start]
+    comp = 0
+    while stack:
+        v = stack.pop()
+        if (comp >> v) & 1:
+            continue
+        comp |= 1 << v
+        nb = self.adj[v] & active_mask
+        u = nb
+        while u:
+            lsb = u & -u
+            x = lsb.bit_length() - 1
+            if not ((comp >> x) & 1):
+                stack.append(x)
+            u ^= lsb
+    return comp
+```
+
+Now `can_color`:
+```
+def can_color(self, assign, avail, active_mask):
+    ok, active_mask = self._propagate(assign, avail, active_mask)
+    if not ok:
+        return False
+    active_mask = self._kernelize(assign, avail, active_mask)
+    if active_mask == 0:
+        return True
+    # component split
+    comp = self._component((active_mask & -active_mask).bit_length() - 1, active_mask)
+    if comp != active_mask:
+        rest = active_mask
+        while rest:
+            c = self._component((rest & -rest).bit_length() - 1, rest)
+            if not self.can_color(assign, avail, c):
+                return False
+            rest &= ~c
+        return True
+    # choose branch vertex
+    best = -1; best_pc = 4; best_deg = -1
+    m = active_mask
+    while m:
+        lsb = m & -m
+        v = lsb.bit_length() - 1
+        pc = avail[v].bit_count()
+        d = (self.adj[v] & active_mask).bit_count()
+        if pc < best_pc or (pc == best_pc and d > best_deg):
+            best = v; best_pc = pc; best_deg = d
+        m ^= lsb
+    v = best
+    av = avail[v]
+    for c in range(3):
+        if (av >> c) & 1:
+            a2 = assign[:]; av2 = avail[:]; am2 = active_mask
+            ok, am2 = self._assign(a2, av2, am2, v, c)
+            if ok and self.can_color(a2, av2, am2):
+                # copy solution back to assign? For feasibility we don't need, but if caller wants solution, we can.
+                # However, top-level DFS passes copies and discards. For internal branch, we want the successful assignments to remain in the passed assign list. Since a2 is a copy, modifications won't affect caller's assign. We need to copy back if we want caller to have solution. But for DFS, we only use bool. For can_color internal, when a branch succeeds, we may want to copy a2 back into assign so that the caller's state reflects the coloring. This is useful if can_color is used to produce a full coloring. But we don't need it for DFS. Still, let's copy back for correctness in case.
+                assign[:] = a2
+                avail[:] = av2
+                return True
+    return False
+```
+
+Wait: In branch, we copy assign to a2, then if successful, we copy a2 back to assign. This means the passed assign list will contain a valid coloring of active vertices after can_color returns True. Good. But for DFS, we pass copies to can_color and discard, so no effect. For initial feasibility check, we don't need assignment. Fine.
+
+But copying back assign[:] = a2 for every successful branch is O(n) extra, fine.
+
+However, in component split, we call can_color on component; if it succeeds, it colors component vertices in assign. Then we call next component. Good.
+
+Now `_assign`:
+```
+def _assign(self, assign, avail, active_mask, v, c):
+    if assign[v] != -1:
+        return assign[v] == c, active_mask
+    if not ((avail[v] >> c) & 1):
+        return False, active_mask
+    assign[v] = c
+    avail[v] = 1 << c
+    active_mask &= ~(1 << v)
+    stack = [v]
+    while stack:
+        x = stack.pop()
+        cx = assign[x]
+        mask = 1 << cx
+        nb = self.adj[x] & active_mask
+        u = nb
+        while u:
+            lsb = u & -u
+            y = lsb.bit_length() - 1
+            if avail[y] & mask:
+                avail[y] &= ~mask
+                bc = avail[y].bit_count()
+                if bc == 0:
+                    return False, active_mask
+                if bc == 1:
+                    stack.append(y)
+            u ^= lsb
+    return True, active_mask
+```
+
+But note: When we assign v, we don't check colored neighbors directly; avail[v] excludes them. Good.
+
+Now DFS:
+```
+def find_lex(self, assign, avail, active_mask):
+    # assign will be filled
+    for pos in range(self.n):
+        if assign[pos] != -1:
+            continue
+        av = avail[pos]
+        found = False
+        for c in range(3):
+            if (av >> c) & 1:
+                a2 = assign[:]; av2 = avail[:]; am2 = active_mask
+                ok, am2 = self._assign(a2, av2, am2, pos, c)
+                if not ok:
+                    continue
+                if self.can_color(a2[:], av2[:], am2):
+                    # commit
+                    assign[:] = a2
+                    avail[:] = av2
+                    active_mask = am2
+                    found = True
+                    break
+        if not found:
+            return False
+    return True
+```
+
+Wait: We update active_mask in loop but not used after except maybe for subsequent iterations. We need to maintain active_mask as the set of uncolored vertices after committing. At next pos, assign[pos] != -1 so skip. At later uncolored pos, active_mask is correct. But note: can_color(a2[:], av2[:], am2) uses copies; it doesn't modify a2. So after commit, a2,av2,am2 reflect state after assigning pos and propagation. Good.
+
+But there is a subtle bug: `can_color(a2[:], av2[:], am2)` checks feasibility from state after assigning pos and propagation. If True, we commit. Then we move to next pos. However, we don't call can_color on the committed state again; we just continue. That's fine.
+
+At the end, assign fully colored. Output.
+
+But we need to be careful: At pos, avail[pos] may have been reduced by previously colored neighbors. We try colors in 0,1,2. For each, _assign checks if color allowed. Good.
+
+Now initial check:
+```
+full_mask = (1<<n)-1
+assign=[-1]*n
+avail=[7]*n
+if not solver.can_color(assign[:], avail[:], full_mask):
+    print("NO")
+else:
+    solver.find_lex(...)
+```
+
+But can_color modifies copies; assign,avail unchanged. Good.
+
+Now, is there any scenario where find_lex fails even though can_color full said feasible? It shouldn't, because at each pos it tries colors in order and uses can_color to verify completion. Since a completion exists, it will find a feasible color. But what if at pos, the current state (assign,avail,active_mask) is such that no color for pos allows completion, but full was feasible? That would mean the previous choices made it impossible. But previous choices were chosen as smallest feasible at each step, so by induction they are prefix of a valid coloring. Thus at each pos, there is at least one feasible color. So find_lex succeeds.
+
+Wait induction base: At pos0, state empty, full feasible, so at least one color feasible. Choose smallest. At pos i, state is prefix of some valid coloring (by induction). Therefore there exists a completion, so at least one color for pos i feasible (the color in that valid coloring). Choose smallest. Good.
+
+Now, we should ensure that when we commit a color at pos, the propagated forced vertices are consistent with lex smallest. Forced vertices get the only possible color; any valid extension must assign that color. So no issue.
+
+Now, let's test on simple cases mentally.
+
+Case n=2, edge 1-2. can_color full True. find_lex:
+pos0: avail=7. try c0. _assign pos0=0, propagate none. can_color(state with pos0=0) True. commit. active_mask = {1}.
+pos1: avail excludes 0 -> {1,2}. try c0 not allowed. c1. _assign pos1=1. can_color True. commit. Output 1 2. Lex smallest. Good.
+
+Case n=2, no edge. Output 1 1. pos0 c0, pos1 c0.
+
+Case n=3 triangle. can_color full True. find_lex:
+pos0 c0 -> state: pos1 avail {1,2}, pos2 avail {1,2}, edge pos1-pos2. can_color True. commit.
+pos1 try c0 not allowed (neighbor pos0). c1. _assign pos1=1, propagate: pos2 loses 1 -> avail {2}, forced=2. commit. Output 1 2 3. Lex smallest for triangle. Good.
+
+Case n=3 path 1-2,2-3. Output 1 2 1? Let's see: pos0 c0. pos1 cannot c0, try c1. pos2 cannot c1 (neighbor pos1), try c0. Output 1 2 1. Lex smallest. Good.
+
+Now, consider a graph where lex smallest requires pos1 color2 even though color1 appears feasible for pos1? can_color would detect if color1 infeasible. Good.
+
+Now, performance. Let's think about can_color on a graph with no edges and all avail=7. Propagate none. Kernelize: each vertex deg0, |L|=3>0 -> all removed. active_mask=0 -> True. Fast.
+
+Graph with one edge: deg of endpoints 1, removed; rest deg0 removed. Fast.
+
+Graph with path/cycle: all deg<=2 removed. Fast.
+
+Graph with a star: center deg n-1, leaves deg1. Leaves removed first (|L|=3>1), then center isolated (|L|=3>0) removed. Fast.
+
+Graph with complete bipartite K_{3,3}: all deg3, |L|=3 not removed. Kernel all. Branch. Let's see if can_color quickly finds coloring. Choose branch vertex maybe in part A with deg3, list3. Try c0. Propagate: 3 neighbors lose c0 -> avail {1,2}. Not forced. Kernelize: neighbors have |L|=2, deg_remaining? Each neighbor in part B adjacent to 2 remaining A vertices (since one A colored). deg=2, |L|=2 not removed. Other A vertices deg3? They are adjacent to 3 B vertices (uncolored), |L|=3 not removed. So kernel still many. Branch next vertex maybe B neighbor with list2 deg2. Try c1. Propagate: its A neighbors lose c1; the colored A already lost c0. Other B neighbors? B vertex adjacent only to A. If an A neighbor's avail becomes size1, force. This may cascade. It will find coloring quickly. Fine.
+
+Now, what about an unsatisfiable graph like K4? can_color explores small.
+
+What about a graph that is a 5-wheel (K1 + C5)? Chromatic number 4? Actually wheel with odd cycle is 4-chromatic. n=6. can_color: center deg5, |L|=3 not removed; cycle vertices deg3 (center+2 cycle neighbors), |L|=3 not removed. Branch center c0. Cycle C5 with lists {1,2} (since center color removed) needs to be 2-colored, but C5 odd -> impossible. Branching on cycle with list2 may explore 2^5 before fail. Then center c1, c2 similar. Total ~3*32=96 nodes. Fine.
+
+For larger 4-chromatic graphs, can_color may explore more. n=40, e.g., Mycielski graph with chromatic number 4 has 22 vertices? For n=40, 4-chromatic graphs can be sparse and cause exponential. But 2 seconds maybe okay.
+
+Let's consider worst-case 3-colorability no-instance with n=40. There are known hard instances (random 3-regular at threshold). Our kernelization + propagation may handle n=40. Python might be okay.
+
+We can add an additional reduction to strengthen solver: If a vertex has list size 2 and its two neighbors (in a triangle) ... Actually for 3-coloring, a vertex of degree 3 can sometimes be reduced if it has a neighbor with list constraints. But maybe not needed.
+
+Another idea: Use BFS to find a 3-coloring via SAT? Not.
+
+Let's also consider using `sys.setrecursionlimit(10000)`.
+
+Now, let's think about correctness proof for output. We can include comments maybe. But final answer only code block. We can include comments in code.
+
+Potential bug: In `_propagate`, initial stack includes all active vertices with avail size1. But if there are colored vertices in active_mask? active_mask only uncolored. Good. However, after we assign a forced vertex, we remove it from active_mask. But we don't add its color removal to neighbors that are already in stack? They will be processed. Good.
+
+Potential bug: In `_assign`, after assigning v, we set avail[v]=1<<c. But if v was already forced (avail size1) and we assign same color, fine. If v had avail size >1, we set to single. Good.
+
+Potential bug: In find_lex, after committing a2, we set `active_mask = am2`. But `am2` is the active mask after assigning pos and propagation. However, we didn't include any vertices that may have been removed by can_color (we passed copies). Since can_color doesn't modify a2, am2 is just after propagation. Good.
+
+Now, one more nuance: The `can_color` function with component split may modify the passed `assign` and `avail` even when returning False? In component split, if first component infeasible, it returns False but may have partially colored component1 vertices in assign. Since caller passes copies, no issue. In branch, it tries copies and only copies back on success. So passed assign only modified on success. Good.
+
+But in component split, if comp1 feasible and colors component1, then comp2 infeasible, returns False. The passed assign now has component1 colored. Since caller passes copies, no issue. But if we wanted can_color to not modify on failure, it's okay because copies.
+
+Now, let's think about memory and recursion. can_color recursion depth at most n. component split recursion adds depth but total <= n. Fine.
+
+Let's code it.
+
+But before finalizing, let's test more thoroughly by mental simulation or maybe write a quick test? We can't run code here, but we can reason.
+
+Edge case: n=40, m=0. can_color full: kernelize removes all, True. find_lex: pos0 c0, propagate none, can_color True (kernel empty). commit. pos1.. similarly all c0. Output all 1. Fast.
+
+Edge case: n=40, complete graph K40 (not 3-colorable). can_color full: propagate none. Kernelize: each vertex deg39, |L|=3 not removed. active_mask full. Choose vertex v0, branch c0. Propagate: 39 neighbors lose c0 -> avail {1,2}. No forced. Kernelize: neighbors deg? They are adjacent to all other uncolored neighbors (38) plus? In K40 after v0 colored, remaining K39. Each vertex deg38, |L|=2, not removed (2 not >38). Kernel all. Branch v1, try c1 (c0 not allowed). Propagate: neighbors lose c1; now vertices have avail {2}, forced. But K39 with all vertices forced color2 -> conflict. Backtrack v1 c2 -> similar conflict. Backtrack v0 c1 -> similar. v0 c2 -> similar. Fail. Nodes ~3* (1 + 2*...) small. Good.
+
+Edge case: Graph that is 3-colorable but has high symmetry, e.g., complete 3-partite balanced. Lex smallest will put vertex1 part A color1, then vertices in same part color1 if possible, etc. can_color full True. find_lex: pos0 c0. pos1 if not adjacent to pos0 (same part) can c0; etc. Feasibility checks fast because kernelization? Complete 3-partite graph min degree maybe high (2n/3). Kernel all. can_color may need to find a 3-coloring. But after prefix fixes many vertices to color0, the remaining graph may be constrained. can_color will branch. However, since the prefix is part of a valid coloring, can_color should find completion quickly. But it may branch on vertices with list size >1. Let's consider complete 3-partite with parts A,B,C. After fixing some A vertices to 0, B to 1, C to 2 in lex order (depending on vertex labels), the remaining graph is also complete 3-partite with lists determined by part. can_color can just assign each remaining vertex its part color (forced? Not forced because neighbors in other parts may have multiple colors). But it will find a coloring quickly. Good.
+
+Now, what about a graph where lex smallest prefix forces many vertices to color0 that are all in a large independent set, and the rest forms a hard 3-coloring problem. can_color called with many precolored vertices may be easier.
+
+Potential issue: The solver's kernelization removes vertices with |L|>deg. With precolored neighbors, a vertex may have |L|=2 and deg_remaining=1 -> removed. Good.
+
+Now, let's think about a possible bug with component split and kernelization: Suppose active_mask has two components. We kernelize each; removal in one component doesn't affect the other. Then split. Good.
+
+Now, let's think about the `avail` initial value for vertices with colored neighbors. In find_lex, after committing pos, propagation updates avail of uncolored neighbors. Good. At next pos, avail reflects constraints.
+
+Now, what about vertices that become forced during propagation and are later in order; they are colored and skipped. Good.
+
+Now, let's consider if there are parallel edges or self-loops. Input may not have, but handle.
+
+Now, code structure:
+
+```
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        if u==v:
+            adj[u] |= 1<<u
+        else:
+            adj[u] |= 1<<v
+            adj[v] |= 1<<u
+    full_mask = (1<<n)-1
+    solver = Solver(n, adj)
+    assign = [-1]*n
+    avail = [7]*n
+    if not solver.can_color(assign[:], avail[:], full_mask):
+        print("NO")
+        return
+    if solver.find_lex(assign, avail, full_mask):
+        print("YES")
+        print(' '.join(str(c+1) for c in assign))
+    else:
+        print("NO")
+
+class Solver:
+    ...
+```
+
+But `find_lex` modifies assign in place. We need to pass initial assign,avail,active_mask. It will fill.
+
+Now, let's think about whether `can_color` initial check is necessary or we can just call find_lex and if it returns False print NO. find_lex returns False only if no feasible color at some pos, which means no valid coloring. So we can skip initial can_color. But initial can_color may quickly detect NO for unsatisfiable graphs; find_lex would also detect at pos0 by trying all colors and can_color false. Same. But initial check is cheap. We'll keep.
+
+Now, let's consider optimizing can_color for the case active_mask has a vertex with list size 2 and degree 0? Kernelize removes it. Good.
+
+Now, one more thought: The kernelization condition `|L| > deg` is valid for list coloring where colors are from {1,2,3}. But what about a vertex with |L|=3 and deg=3? Not removable. If deg=3 and all three neighbors could use the same color, still at least one free? No, if all three neighbors use distinct colors covering {1,2,3}, no free. So not removable. Good.
+
+Now, let's think about a possible improvement: In can_color, after kernelization, if active_mask nonempty, we could also check for a vertex with |L|=2 and deg=2 where the two neighbors' lists are such that they can block both colors? Not a simple reduction.
+
+Now, let's consider the recursion in can_color with component split: It may cause deep recursion if many nested components? No, split is one level per call? Actually can_color splits into components and recurses on each. Each component call may split again. Depth <= number of vertices. Fine.
+
+Now, let's think about the `find_lex` loop: It uses `active_mask` but doesn't pass it to can_color? It does. It updates after commit. At the end, all vertices colored. Good.
+
+Potential bug: In find_lex, when we try a color c for pos, we call `_assign(a2, av2, am2, pos, c)`. `_assign` returns (ok, am2). If ok, we call `can_color(a2[:], av2[:], am2)`. But `a2` and `av2` are copies of current assign,avail after assigning pos and propagation. `am2` is active mask after propagation. can_color checks feasibility. If True, we commit `a2,av2,am2`. Good.
+
+But note: `can_color` may be able to further propagate and find that pos's color leads to conflict; returns False. Then we try next color. Good.
+
+Now, what if at pos, the current avail[pos] is 0 because previous propagation made it impossible? That would mean previous choices infeasible, but we only commit feasible choices. So shouldn't happen. But if it does, find_lex returns False -> NO.
+
+Now, let's think about the output format: If NO, single line "NO". If YES, first line "YES", second line n integers separated by spaces. We should ensure no trailing space? Acceptable but we can use join.
+
+Now, let's consider time limit 2s. Python with bit operations and n=40 should be fine. But we need to be careful with recursion overhead and list copying. Let's estimate worst-case can_color nodes. For n=40, maybe up to a few hundred thousand. Each node does bit_count, list copy O(40), propagation O(deg). 100k * 40 = 4M operations, fine. 120 calls -> 480M maybe too high in worst case. But typical much less. We can optimize by avoiding list copies in can_color when not necessary? But branch needs copy. We can use tuple state and memoization? Hmm.
+
+Maybe we can reduce number of top-level can_color calls: As argued, at most 3n = 120. But each can_color may explore many nodes. For hard graphs, 120 * many nodes could be heavy. But for hard unsatisfiable graphs, initial can_color returns False quickly, so no 120 calls. For satisfiable graphs, can_color finds solution quickly. So okay.
+
+Let's think about a pathological satisfiable graph where can_color explores many nodes before finding a solution. Could be a graph with many 3-colorings but the first branch choices lead to dead ends. With our heuristic (choose min list, max degree), likely finds quickly. But could be constructed. n=40 limits.
+
+Maybe we can add memoization to can_color to avoid repeated work across branches. Since state is (tuple(avail), active_mask). But active_mask can be derived from avail? After propagation, active vertices are those with avail not a power of two? Actually colored vertices have avail exactly power of two and assign set. But a vertex could be uncolored with avail size1? No after propagation none. So active_mask = vertices where avail[v] not in {1,2,4} or assign[v]==-1. But assign[v]==-1 iff avail[v] not power of two? Since colored vertices have avail single bit. So active_mask can be derived. We can memoize on tuple(avail). But can_color modifies assign; assign is determined by avail (colored = single bit). So state = tuple(avail). We can use `lru_cache` on tuple(avail) -> bool. This could reduce repeated subproblems significantly. However, converting avail list to tuple each call costs O(n). With n=40, maybe okay. But number of states may be large; memory could blow if many. But n=40, visited states maybe thousands. We can add memoization with a dict. But we need to be careful: can_color returns bool and may also produce assignment; memoization only for bool. We can wrap the core feasibility in a function that doesn't produce assignment and memoizes. But our can_color also produces assignment (copies back). For memoization, we can have a separate method `_feasible(avail_tuple)` that returns bool and doesn't modify state. But it needs to branch and propagate; it can work on a copy of avail tuple converted to list. Hmm.
+
+Alternatively, we can memoize based on `active_mask` and `tuple(avail)` after propagation/kernelization. Since can_color is called many times from DFS with different prefixes, states may not repeat much. But within a single can_color call, subproblems may repeat? Not much in graph coloring. So memoization may not help and add overhead. Let's skip.
+
+But there is a known technique: For 3-coloring, we can use inclusion-exclusion DP over independent sets to compute number of colorings in O(2^n) with n=40 -> 1 trillion too big. Not.
+
+Another technique: Split graph by vertex cover. Find a vertex cover of size <=20? Not guaranteed. But many graphs have small vertex cover? No.
+
+Given n=40, backtracking with kernelization is standard.
+
+Let's also add a simple check: if any vertex has degree >=3 and all three colors? Not.
+
+Now, let's think about possible bug with kernelization and self-loops. If vertex has self-loop, adj[v] includes v. In propagation, when assign v, neighbor includes v itself (active? after assigning v, active_mask excludes v, so self not in active_mask). So no conflict from self-loop in propagation. Wait self-loop means v adjacent to itself. When we assign v color c, we remove v from active_mask, then iterate neighbors in active_mask; self not active, so we don't remove c from avail[v]. Thus self-loop not detected by propagation! We need to detect self-loop separately. If adj[v] has bit v, then vertex cannot be colored because it conflicts with itself. We can handle by checking during input: if u==v, set adj[u] |= 1<<u. Then in can_color, before assigning a vertex, we should check if self-loop exists. How? A vertex with self-loop has no valid color. In initial state, avail[v]=7, deg includes self. Kernelization: |L|=3, deg>=1 (self) not removed if deg>=3? If only self-loop, deg=1, |L|=3>1 -> removed! That would incorrectly deem feasible. Because removal condition |L|>deg counts self as a neighbor; but a self-loop forbids the same color, which is stronger than a normal neighbor: it forbids the color regardless of other neighbors. The standard reduction |L|>deg assumes simple graph no loops. So we must handle loops.
+
+Simpler: If any self-loop, print NO immediately. Problem likely no self-loops, but we can handle. Also multiple edges no issue.
+
+So in input, if u==v, set a flag impossible. Or we can keep adj self bit and in propagation, before assigning v, check if self bit: if (adj[v]>>v)&1: return False. Also in kernelization, if self-loop, vertex cannot be removed. Let's just detect self-loop and output NO. Since problem says pairs of microservices, likely distinct. We'll handle by setting `adj[u] |= 1<<u` and also a global `has_loop` flag. If has_loop, print NO. But wait, if there is a self-loop, the graph is not 3-colorable, so NO. Good.
+
+But what about input with u==v? We'll just print NO.
+
+Alternatively, we can avoid special handling and just ensure self-loop makes vertex unremovable and propagation detects. But removal condition would be wrong. We could modify deg computation to not count self, and propagation to check self. Let's just detect and output NO.
+
+Now, multiple edges: no issue.
+
+Now, let's think about reading input: The first line n m. Then m lines. Use sys.stdin.buffer.
+
+Now, let's consider if n=0? Problem says n>=1.
+
+Now, let's write final code with comments.
+
+Before final, let's test on provided examples.
+
+Example1:
+n=4,m=5 edges. No loop. can_color full True. find_lex returns [0,1,2,2]. Output YES / 1 2 3 3. Good.
+
+Example2: K4. can_color full False -> NO. Good.
+
+Now, let's think about a tricky case: n=4, edges: 1-2,2-3,3-4 (path). Output should be 1 2 1 2? Lex smallest: pos0=1, pos1=2, pos2 cannot be 2? neighbor pos1=2, so try 1 (not neighbor pos0? pos2 adjacent pos1 only), pos3 cannot 1? neighbor pos2=1, try 2. Output 1 2 1 2. Our algorithm: pos0 c0, pos1 c1, pos2 c0 feasible? remaining pos3 adjacent pos2, avail {1}, can_color True. commit. pos3 c1. Good.
+
+Now, consider graph: triangle plus an isolated vertex. Output 1 2 3 1. pos3 c0. Good.
+
+Now, consider graph: two triangles sharing a vertex (bowtie). n=5. Lex smallest? pos0 c0, pos1 c1, pos2 c2 (triangle). pos3 adjacent to pos0 only? In bowtie, vertices: 0 center, triangle 0-1-2, triangle 0-3-4. pos3 cannot c0, try c1. pos4 cannot c0 and c1 (adjacent to pos0 and pos3), so c2. Output 1 2 3 2 3. Is pos3 c1 feasible? yes. Lex smallest. Good.
+
+Now, consider graph: 4-cycle 1-2-3-4-1. Output 1 2 1 2? pos0 c0, pos1 c1, pos2 cannot c1 (neighbor pos1), try c0 (neighbor pos0? pos2 adjacent to pos1 and pos3, not pos0), feasible? pos3 must be c1 (neighbors pos0 c0, pos2 c0) -> c1. Output 1 2 1 2. Good.
+
+Now, consider graph: 5-cycle. Output 1 2 1 2 3? Let's see: pos0 c0, pos1 c1, pos2 c0, pos3 cannot c0 (neighbor pos2), try c1 (neighbor pos1? pos3 adjacent to pos2,pos4; not pos1), feasible? Then pos4 neighbors pos0 c0 and pos3 c1 -> must c2. Output 1 2 1 2 3. Lex smallest. Good.
+
+Now, consider graph where pos0=1, pos1=1 is invalid due edge, pos1=2, pos2=1 invalid? etc. Algorithm handles.
+
+Now, let's think about a case where the lex smallest assignment has a vertex forced to color3 even though color1 and color2 are not directly used by neighbors but lead to dead end. can_color will detect. Good.
+
+Now, potential issue: The `can_color` function may be called with active_mask that includes vertices already colored? In find_lex, active_mask is maintained as uncolored mask. After committing, am2 excludes pos and forced vertices. Good. In can_color, active_mask passed is uncolored. Propagate iterates active_mask and assigns forced. Good.
+
+Now, let's think about the initial `can_color(assign[:], avail[:], full_mask)`. It will propagate none, kernelize, etc. If returns True, we know feasible. Good.
+
+Now, one more nuance: In `find_lex`, after committing a2, we set `active_mask = am2`. But `am2` is the active mask after `_assign` propagation. However, `_assign` may have assigned some vertices (forced) that are after pos. Those are removed from active_mask. Good. But what if `_assign` assigned a vertex before pos? That can't happen because vertices before pos are already colored and not in active_mask. So fine.
+
+Now, let's think about memory: adjacency masks as ints up to 1<<40. Fine.
+
+Now, let's consider if n=40 and graph is 3-colorable but has a vertex of high degree. The lex smallest may assign early vertices color1; feasibility tests with many precolored vertices may be fast because kernelization removes many.
+
+Now, let's think about a possible bug in kernelization: We compute deg within `rem`. When we remove a vertex v, we update deg of remaining neighbors. But deg of v itself no longer matters. Good. However, we don't recompute deg for vertices whose degree changed due to removal of non-neighbor? No, only neighbors affected. Good.
+
+But what about a vertex u whose avail changed due to propagation of a forced vertex? Kernelization doesn't change avail. Propagation runs before kernelization. During kernelization, no avail changes. Good.
+
+Now, what about a vertex removed because |L|>deg, but after some other vertices removed, its degree decreases further, still |L|>deg. We remove in loop. Good.
+
+Now, after kernelization, if active_mask nonempty, all vertices have |L| <= deg. For standard 3-coloring, deg>=3. Good.
+
+Now, component split: We compute component using active_mask. Good.
+
+Now, branch vertex selection: We choose min list size, max degree. For standard 3-coloring, all list size3, choose max degree. Good.
+
+Now, branch colors: try 0,1,2. For feasibility, maybe trying color that appears most in neighbor lists? Not needed.
+
+Now, let's think about whether we should sort colors by something to find solution faster. Since we only need one, and n small, order 0..2 fine. But for hard satisfiable instances, a bad order could explore dead branches. We could order colors by checking which color is most constrained (e.g., count of neighbors that have that color available). But overhead. Maybe we can order by trying colors that are not present in neighbor lists first? Actually if a color is not available to many neighbors, choosing it may force neighbors to fewer options, pruning. But also may cause conflict. Hard to know. Keep simple.
+
+Now, let's think about adding a quick check: If at any point an active vertex has degree >=3 and list size3, branch. Fine.
+
+Now, let's consider the possibility that the graph has a vertex with degree >2 but after kernelization it's removed? No, kernelization only removes |L|>deg. For |L|=3, deg must be <=2. So high degree vertices stay.
+
+Now, let's think about a graph that is a tree of high degree? Tree has leaves deg1 removed, then internal vertices become leaves, all removed. Kernel empty. Fast.
+
+Now, a graph that is a cactus (cycles connected by cut vertices) has min degree <=2, kernel empty. Fast.
+
+Thus hard cases are graphs with min degree >=3. For n=40, such graphs have at most 60 edges (3-regular) or more. 3-coloring of 3-regular graphs with n=40 is manageable.
+
+Now, let's think about using a more advanced branching for 3-regular graphs: choose an edge and branch on endpoints either same color or different? Not needed.
+
+Now, let's consider the `can_color` function's component split may cause it to color components in an order that doesn't respect the passed active_mask. But it only modifies assign/avail. Fine.
+
+Now, let's think about whether we need to handle the case where `can_color` is called with active_mask but some vertices in active_mask have assign != -1? We ensure not. In find_lex, active_mask is uncolored. In can_color, after propagation active_mask excludes assigned. In branch, _assign removes. In component split, components of active_mask. Good.
+
+Now, let's think about the `_propagate` initial stack: It iterates over active_mask and pushes vertices with avail size1. But if active_mask is large (e.g., 40), this is O(n). Fine.
+
+Now, let's think about potential infinite recursion in can_color due to component split: Suppose active_mask has one component, kernel nonempty. Branch assigns a vertex and calls can_color. It will propagate, kernelize, etc. Progress: at least one vertex colored per branch recursion. So depth <= n. Good.
+
+Now, let's think about the `find_lex` method: It doesn't use recursion, just loop. At each pos, it tries colors. Since we commit feasible color, no backtracking. Good.
+
+Now, let's consider if `can_color` returns True for a state but the DFS later cannot find a color for a later vertex because `can_color` used a coloring that conflicts with lex choices? No, can_color only checks existence; DFS uses can_color at each step. As argued, it will succeed.
+
+Now, let's think about whether we need to update `avail` for vertices when we skip colored vertices in find_lex. No, avail already correct.
+
+Now, let's think about output: `print(' '.join(str(c+1) for c in assign))`. Good.
+
+Now, let's consider if there are multiple test cases? Problem seems single test. Good.
+
+Now, let's think about potential issue with `bit_length` on lsb: For lsb = 1<<v, bit_length()-1 = v. Good.
+
+Now, let's think about Python version: Use `.bit_count()` available in Python 3.8+? Actually `.bit_count()` introduced in Python 3.8? I think 3.8 or 3.10. The environment likely Python 3.10+. Use it.
+
+Now, let's think about whether we should use `sys.setrecursionlimit(1000000)`. Yes.
+
+Now, let's write the final code. We'll include comments for clarity.
+
+But before final, let's consider if there is a simpler algorithm that is guaranteed polynomial? 3-coloring is NP-complete, but n=40. Our backtracking is fine.
+
+Let's also consider an alternative: Use Python's `itertools.product`? No.
+
+Now, let's think about worst-case runtime more concretely. Suppose graph is a random 3-regular graph on 40 vertices. Is it 3-colorable? For random 3-regular, the chromatic number is 3 with probability tending to a constant? Actually random 3-regular graphs are 3-colorable with probability ~0? I recall random regular graphs with degree d have chromatic number (d+1)/(2 ln d) ... For d=3, chromatic number is 3 with high probability? Wait random 3-regular graphs contain odd cycles, but are 3-colorable? I think almost all 3-regular graphs are 3-colorable? No, random 3-regular graphs are not 3-colorable with probability ~0.5? There is a threshold. For n=40, could be either. If satisfiable, can_color finds a coloring. The search may explore some branches. With kernelization, after assigning one vertex, leaves? No, 3-regular no leaves. But removal condition |L|=2, deg_remaining maybe 2 (not removed) or 1 (removed). After assigning v0, its neighbors have deg_remaining maybe 2 (if neighbors adjacent to each other and other vertices). Some may be removed if deg_remaining=1. The kernel shrinks. Branching may still be large but n=40 manageable.
+
+If unsatisfiable, can_color explores many branches. For random 3-regular 40 vertices, maybe unsat. Hard. But 2 seconds Python? Let's see. There are known exact 3-coloring algorithms that solve n=100 in seconds. Our kernelization + propagation is decent.
+
+We can add one more reduction: If a vertex has list size 2 and degree 2, and the two neighbors are adjacent? Not helpful.
+
+Maybe we can implement a more powerful branching: For a vertex v with list size 3 and degree d, branch on colors. But also for an edge uv where both have list size 3, we can branch on whether u and v same color or different? Not simpler.
+
+Another idea: Use a SAT-like watched literals? Not needed.
+
+Let's consider using `networkx`? Not allowed.
+
+Now, let's think about whether we can improve can_color by ordering branch colors based on neighbor constraints: For each color c in avail[v], compute the number of active neighbors that still allow c (i.e., have c in avail). Choosing a color with many neighbors allowing it may be less constraining? Actually if many neighbors allow c, assigning c to v doesn't force them much; but they cannot use c, reducing their lists. If a neighbor's list is {c}, then assigning c forces neighbor to conflict. So choosing a color that appears as singleton in neighbors is bad. We can order colors by increasing number of neighbors that would become forced or conflict. But overhead. For n=40, maybe not needed.
+
+Let's also add a check: If an active vertex has list size 2 and both colors appear in a clique? Not.
+
+Now, let's think about correctness of kernelization for list coloring with loops excluded. We handle loops separately.
+
+Now, let's think about reading input with possible extra whitespace. `sys.stdin.buffer.read().split()` handles.
+
+Now, final code. We'll write a single code block.
+
+Let's also consider if we can avoid the class and use functions with closure for speed. Class methods have overhead but fine. We can define functions inside solve for speed? Not necessary.
+
+But to be safe with time, we can make methods local and use lists. Class is okay.
+
+Potential micro-optimizations:
+- Precompute neighbor lists for iteration instead of bit iteration each time? We use bit iteration for propagation and kernelization. For n=40, fine.
+- Use `range` loops.
+- Avoid `assign[:]` copying in can_color branch if we can undo. But fine.
+
+Let's estimate copying cost: Each can_color branch copies two lists of length <=40. If 100k nodes, 100k*80 = 8M integer copies, fine.
+
+Now, let's think about a possible bug: In `can_color`, after component split, we call `self.can_color(assign, avail, c)`. This recursive call may itself split. It modifies `assign` and `avail`. If it returns False, it may have partially colored component c. Then we return False. The caller's `assign` is modified but since caller passed copies or will discard, okay. But if component split returns False after partially coloring some components, the caller's state is inconsistent. Since we only use bool, and caller copies, fine. However, in the branch of can_color where we copy a2 and call can_color, if it returns False, we discard a2. Good. If it returns True, we copy a2 back. Good.
+
+But in component split, if comp1 succeeds and colors component1, then comp2 fails, the passed `assign` has component1 colored. The caller (maybe branch) will discard the copy. Fine.
+
+Now, one more nuance: In `can_color` branch, after copying a2, we call `_assign` which modifies a2. If `_assign` returns ok False, we discard. If ok True, we call `can_color(a2, av2, am2)`. If it returns True, we copy a2 back to assign. But what about `active_mask`? We don't need to copy back because caller's active_mask is the kernel mask and will be discarded. However, if can_color is used in component split and the component call returns True, the caller doesn't need active_mask. Good.
+
+Now, in `find_lex`, we call `can_color(a2[:], av2[:], am2)`. Since we pass copies, can_color's modifications are discarded. We then commit a2,av2,am2. Good.
+
+Now, let's think about whether `can_color` could return True without fully coloring active_mask but leaving some uncolored removed vertices? It returns True when active_mask==0 (all colored or removed). Wait kernelization returns a mask of vertices not removed. If kernel empty, active_mask=0 -> True. Removed vertices are not colored but are guaranteed colorable later. In branch recursion, we only return True if active_mask becomes 0 (kernel empty) or components solved (which color all component vertices). Actually component split calls can_color on each component; each component call returns True only when its active_mask (component) is 0, meaning all component vertices colored. So overall all active vertices colored. Removed vertices are not in active_mask and remain uncolored but are guaranteed. So can_color returns True with some uncolored vertices (removed). That's fine for feasibility. For find_lex, we don't rely on can_color to color vertices; we only use it for feasibility. The removed vertices will be colored later by DFS. Good.
+
+But wait: In find_lex, after committing a2, active_mask = am2 (after propagation). It does not include removed vertices from can_color because can_color wasn't applied. So active_mask is just uncolored after propagation. Good.
+
+Now, let's think about whether removed vertices in can_color could be colored by propagation later? They are removed from active_mask, so propagation won't consider them. They remain uncolored. That's intended.
+
+Now, let's think about a scenario: In can_color, kernelization removes a vertex v. Later, during branching on kernel, a neighbor u of v (in kernel) is colored with a color not in v's list? But v's list already excludes colors of colored neighbors. Since u is uncolored when v removed, v's list doesn't account for u's color. The removal condition |L(v)| > deg_remaining(v) ensures that regardless of u's color, v has a free color in its list. So fine.
+
+Now, let's think about whether we need to update avail of removed vertices when kernel neighbors are colored. No, because removal condition guarantees a color regardless.
+
+Now, let's think about whether the kernelization removal order could remove a vertex whose list size is 2 and degree 0, but its list doesn't include a color that will be used by a colored neighbor? Wait colored neighbors are already accounted in avail. If degree in remaining is 0, no remaining neighbors. So it has at least one available color. Good.
+
+Now, let's think about whether we should remove vertices with |L|>deg before propagation? No, propagation first to force singletons. But a vertex with |L|=1 and deg=0 would be forced by propagation. A vertex with |L|=1 and deg>0 is forced. So propagation handles. Then kernelization handles |L|>deg for |L|>=2.
+
+Now, let's think about a vertex with |L|=2 and deg=1. It is removed by kernelization. Is it always colorable after its one remaining neighbor is colored? Yes, because at most one color forbidden by neighbor, leaving at least one of its two. Good.
+
+Now, let's think about a vertex with |L|=3 and deg=2. Removed. At most two colors forbidden by neighbors, leaving at least one. Good.
+
+Now, let's think about a vertex with |L|=3 and deg=3 but one neighbor is forced to a color not in its list? Already accounted. If all three neighbors use three distinct colors from {1,2,3}, no free. So not removable. Good.
+
+Now, let's think about whether we need to handle the case where a vertex has list size 0 after kernelization due to removed neighbors? No.
+
+Now, let's think about the `find_lex` initial state: assign all -1, avail all 7, active_mask full. It will call can_color for each color at pos0. can_color full may be expensive. But if graph is feasible, it returns True for at least one color. Good.
+
+Now, let's think about whether we can speed up find_lex by not calling can_color for colors that are not in avail[pos]. We already check.
+
+Now, let's think about whether we can speed up by reusing the result of can_color for the committed state. At pos i, after committing color c, the state is a2. We know can_color(a2) is True because we just called it. At pos i+1, we call can_color for each candidate. We could avoid calling can_color for the state itself. But we need to check colors for pos i+1. No reuse.
+
+Now, let's think about whether we can combine can_color and find_lex into a single recursive search that returns lex smallest. That might be more efficient but more complex. Our approach is clear.
+
+Now, let's think about potential stack overflow in can_color due to component split recursion depth. Max depth maybe n + number of components, <80. Fine.
+
+Now, let's think about whether we need to handle large recursion in `_propagate` stack. In worst case, a long chain of forced vertices; stack size <=n. Fine.
+
+Now, let's think about whether we should use `sys.stdout.write` instead of print. Print fine.
+
+Now, let's write the code.
+
+Wait, there is a subtle issue with `can_color` returning True for a state where active_mask is empty due to kernelization but some removed vertices have list size 0 because of colored neighbors? We argued removal condition ensures they have a free color after remaining neighbors colored. But what if a removed vertex has a colored neighbor that used a color not in its list? avail already excludes that. So avail size is the number of colors not used by colored neighbors. The removal condition uses this avail size and degree to remaining neighbors. So if |L|>deg_remaining, after remaining neighbors colored (at most deg_remaining forbidden colors from them), at least |L|-deg_remaining >0 colors from L remain. Good. So no conflict.
+
+Now, what about a removed vertex with |L|=2, deg_remaining=1, but its two available colors are the same as the two colors its remaining neighbor could use? The neighbor can use at most one color, so at least one of the two remains. Good.
+
+Now, let's think about a graph with a vertex v of degree 2, |L|=3, neighbors u,w. Kernelization removes v. Then it removes u if its degree becomes <=1 and |L|=3? etc. The removal order is valid.
+
+Now, let's think about whether the kernelization should consider only uncolored vertices. Yes, active_mask is uncolored. Colored vertices are fixed.
+
+Now, let's think about whether we should also remove vertices where |L| == 0? Propagation catches.
+
+Now, let's think about whether we should add a reduction for dominated vertices: If vertex v's neighbor set is subset of u's neighbor set and lists... Not needed.
+
+Now, let's think about whether we should use `functools.lru_cache` for can_color to avoid recomputation in find_lex. Since find_lex calls can_color for each prefix, the states are nested: can_color(state at pos i) is called, then can_color(state at pos i+1) etc. These states are different. But can_color internally may explore subproblems. Memoization across calls could help if same subproblem appears. But states are large; unlikely. Skip.
+
+Now, let's think about whether we should implement can_color as a method that uses `self.n` and `self.adj`. Good.
+
+Now, let's write code with careful variable names.
+
+Potential bug: In `_kernelize`, we compute deg for all vertices in rem. But after removal, we update deg of neighbors. However, if a vertex is removed, its deg entry remains; we skip it because not in rem. Good.
+
+Potential bug: In `_kernelize`, the loop `while changed` scans all vertices in rem each iteration. When it removes a vertex, it modifies rem inside the loop. This is safe because we are iterating over a copy `m = rem` and removing from rem; the iteration variable m is separate. Good.
+
+Potential bug: In `_kernelize`, after removing v, we update deg of remaining neighbors. But what about deg of v itself? Not needed. Good.
+
+Potential bug: In `_kernelize`, if a vertex has avail size1 (shouldn't happen), condition 1>deg (if deg0) would remove it. But propagation would have assigned it. Not an issue.
+
+Now, let's think about the `find_lex` method: It uses `for pos in range(self.n):`. At each pos, if assign[pos]!=-1, continue. It tries colors. If found, commit and break. If not found, return False. At end return True. Good.
+
+But we need to ensure that after committing, the `active_mask` variable is updated for subsequent iterations. We do `active_mask = am2`. However, `am2` is local int; assignment updates local variable. Good.
+
+Now, let's think about whether `find_lex` should also call `can_color` on the final state? Not needed.
+
+Now, let's think about whether `find_lex` could be simplified by recursion: not needed.
+
+Now, let's think about whether we need to handle the case where `can_color` returns True but `find_lex` fails due to a bug. We trust logic.
+
+Now, let's write final code.
+
+Wait, one more thought: The `can_color` function's component split may cause it to return True without coloring all vertices in active_mask if a component is empty? No, component nonempty. It calls can_color on component, which colors all vertices in component (or returns False). So all colored.
+
+Now, let's think about whether `can_color` should return the colored assignment for removed vertices? Not needed.
+
+Now, let's think about whether we should use `list.copy()` or slicing. `assign[:]` is fine.
+
+Now, let's think about whether we should store `adj` as list of ints. Yes.
+
+Now, let's think about whether we should precompute for each vertex a list of neighbor indices for iteration. We can use bit iteration. For n=40, bit iteration overhead small. But in propagation, we iterate neighbors of each assigned vertex many times. Using a precomputed list of neighbor ints could be faster. Let's precompute `neighbors = [list of ints]` and also `adj_masks`. In propagation/kernelization, we can use neighbor list for iteration. But bit iteration is okay. Let's use neighbor lists for clarity and maybe speed.
+
+Actually, for kernelization degree computation, using bitmask `adj_masks[v] & rem` is fast. For propagation, we need to iterate neighbors to update avail. We can use neighbor list and check if neighbor is active. Or use bitmask iteration. Both fine. Let's use adjacency masks and bit iteration to avoid storing two structures.
+
+But for `_assign`, we need to iterate active neighbors. Using `nb = self.adj[v] & active_mask` and bit iteration is good.
+
+For kernelization update, `nb = self.adj[v] & rem` and bit iteration.
+
+For component, `nb = self.adj[v] & active_mask`.
+
+So we only need adj_masks.
+
+Now, let's think about whether we should precompute `full_mask = (1<<n)-1`. Yes.
+
+Now, code.
+
+Let's also add a small optimization: In `can_color`, after propagation and kernelization, if active_mask has a vertex with list size 2 and degree 0, kernelize would have removed. Good.
+
+Now, let's think about whether we should handle the case n>63? n<=40, so int bitmask fine.
+
+Now, final code.
+
+Wait, there is a potential issue with `can_color` modifying `assign` and `avail` on success. In `find_lex`, we pass copies to can_color, so no issue. But in the initial feasibility check, we pass copies. Good.
+
+Now, let's think about whether `can_color` should be wrapped to not modify on failure. It doesn't matter because copies.
+
+Now, let's write the code.
+
+After writing, let's double-check for syntax errors.
+
+Pseudo-code final:
+
+```
+import sys
+
+class Solver:
+    __slots__ = ('n','adj')
+    def __init__(self, n, adj):
+        self.n = n
+        self.adj = adj
+    def can_color(self, assign, avail, active_mask):
+        ok, active_mask = self._propagate(assign, avail, active_mask)
+        if not

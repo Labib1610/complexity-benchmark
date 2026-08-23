@@ -1,20 +1,20 @@
-# Hardware Bus Allocation
+# Problem A — Transmission Channels
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A high-frequency compute system distributes processing tasks across $n$ active computing cores, indexed from $1$ to $n$. Each core must be mapped to one of three isolated hardware buses, designated $1$, $2$, and $3$.
+A set of $n$ sensors is deployed to monitor a facility. Each sensor must be assigned one of three transmission channels: 1, 2, or 3. Certain pairs of sensors are positioned too close to each other; if they broadcast on the same channel, their signals will interfere.
 
-Due to shared memory channels, certain pairs of cores experience bus contention if assigned to the same bus. Thus, any pair of cores subject to contention must be assigned to different buses. 
+In most standard deployments, the physical layout of the facility is highly regular. Engineers typically configure the network by simply alternating adjacent sensors between channel 1 and channel 2. Channel 3 is provided merely as a fallback to resolve situations where a sequence of interferences wraps around unevenly and prevents perfect alternation. Because the network design is intended to be well-behaved, the expectation is that resolving conflicts is straightforward.
 
-Because lower bus indices are physically closer to the memory controller and yield lower latency, preference is given to lower-indexed bus assignments. If a valid configuration exists, you must find the one that produces the lexicographically smallest sequence of bus assignments $(s_1, s_2, \dots, s_n)$ (comparing $s_1$ first, then $s_2$, and so forth). Otherwise, report that no valid configuration is possible.
+Given a list of $n$ sensors and $m$ interfering pairs, you must assign every sensor to exactly one of the three channels such that no interfering pair shares a channel. If a collision-free assignment is possible, you must output the lexicographically smallest sequence of channels.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of cores and the number of contention rules.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that core $u$ and core $v$ cannot share the same hardware bus.
+The first line contains two integers $n$ and $m$ — the number of sensors and the number of interfering pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that sensor $u$ and sensor $v$ will interfere if they share a channel.
 
 ## Output
-If no valid bus assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the bus assigned to each core $i$, corresponding to the lexicographically smallest valid assignment.
+If no valid channel assignment exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (each in $\{1, 2, 3\}$), where $c_i$ is the channel assigned to sensor $i$. Among all valid assignments, output the lexicographically smallest sequence (compare $c_1$ first, then $c_2$, and so on).
 
 ## Example 1
 Input:

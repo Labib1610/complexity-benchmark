@@ -1,0 +1,134 @@
+<think>
+We need solve problem. Need produce Python 3 code. Let's analyze problem.
+
+We have n vertices, assign values 1 or 2. For each edge (u,v), b_u + b_v = 3. Thus if b_u=1 then b_v=2, if b_u=2 then b_v=1. So each edge forces endpoints opposite (in terms of 1/2). This is graph bipartiteness with two colors 1 and 2. Need lexicographically smallest sequence b_1..b_n (with values 1,2). For each connected component, if bipartite, there are exactly two valid assignments (swap colors), unless component has no edges (isolated vertex) then can choose 1 or 2 independently. Need choose per component to minimize lexicographic sequence globally.
+
+Lexicographic order from index 1..n. For each component, its vertices have fixed relative colors. We can choose which color is 1 vs 2 by optionally flipping. For isolated vertex, choose 1. For component with edges, we need decide flip to minimize sequence. Since components are independent, we can process vertices in order; for each component, when we encounter its first vertex (smallest index in component), we can choose assignment such that that vertex gets 1 if possible. But careful: if first vertex in component has a forced parity relative to others. In a bipartite connected component with edges, there are two color classes. We can label the class containing smallest-index vertex as 1, the other as 2. That yields lexicographically smallest for that component because the earliest vertex gets 1, which is best possible. Since components don't interact, this is globally lexicographically smallest. Is there any case where choosing the smallest vertex's class as 1 conflicts with making some later vertex 1? No, only two options; making earliest 1 is lexicographically optimal.
+
+Thus algorithm: BFS/DFS over graph. For each component, assign colors via bipartite BFS: color 0/1. Let the smallest index in component be s. We want b_s=1. So map color of s to 1, opposite to 2. For isolated vertex, b=1.
+
+Need output YES/NO. If graph not bipartite (has odd cycle), NO. Note triangle with edges all opposite impossible -> NO. Also self-loop? Input may contain u=v? It says pair of transceivers; could be same? If self-loop, then b_u + b_u =3 => 2*b_u=3 impossible. So self-loop makes NO. Multi-edges? Doesn't affect bipartite; multiple edges same constraints. Need handle up to 2e5 nodes and edges. Use adjacency list, iterative stack BFS.
+
+Need lexicographically smallest. Approach: BFS from smallest index? If we BFS starting from s and assign color[s]=0, then output color 0 ->1, color1->2. That ensures b_s=1. But BFS from s may not visit all component if graph disconnected; we iterate all vertices. For each component, find smallest unvisited index. We can simply loop i from 1..n, if not visited, start BFS/DFS. That naturally starts at smallest unvisited vertex of component. Assign color 0 to start -> output 1. Good.
+
+But careful: component may have edges but BFS start is smallest index. Since component connected, BFS visits all. If graph bipartite, assignment valid. For isolated vertex, start BFS with no neighbors, color 0 -> output 1.
+
+Need detect non-bipartite: during BFS if edge to visited vertex with same color -> NO. For undirected graph, each edge considered twice; if neighbor visited and color same, fail. Note if neighbor not visited, assign opposite and continue.
+
+Complexity O(n+m). Use sys.setrecursionlimit? iterative to avoid recursion depth.
+
+Memory: adjacency list of 2e5 edges, fine.
+
+Edge cases: n up to 2e5, m=0 -> all 1s. Output YES and n 1's.
+
+Need output format: If impossible, single line NO. If yes, first line YES, second line n integers. Ensure trailing spaces okay.
+
+Potential issue: Lexicographic smallest with values 1 and 2. Since per component we set smallest vertex to 1, is it always globally lexicographically smallest? Suppose component's smallest vertex appears later than some vertex in another component? Components independent; sequence positions are fixed. For each position i in order, if i is first vertex of its component, we set 1. If i is not first, its value is forced relative to first; could be 2. Could there be alternative flip making i=1 but earlier vertex in same component becomes 2? That would be lexicographically worse because earlier position gets larger. So no. Thus greedy per component is optimal.
+
+Let's test with examples.
+
+Example1: n=4 edges cycle 1-2-3-4-1. BFS from 1: color 0->1, neighbor 2 color1->2, 4 color1->2, then 3 from 2 opposite color0->1. Output 1 2 1 2. OK.
+
+Example2 triangle: BFS from1, assign 2=1,3=1. Edge 2-3 same color -> fail -> NO.
+
+Now produce final code. Need only code block. Let's write robust solve().
+
+Implementation details:
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1_000_000)
+    data = sys.stdin.buffer.read().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        adj[u].append(v)
+        adj[v].append(u)
+    color = [-1]*n
+    from collections import deque
+    for i in range(n):
+        if color[i] != -1: continue
+        # BFS/DFS
+        color[i] = 0
+        stack = [i]
+        # iterative DFS using stack; need process neighbors
+        while stack:
+            u = stack.pop()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    stack.append(v)
+                elif color[v] == cu:
+                    print("NO")
+                    return
+    # all bipartite
+    # map color 0 -> 1, color 1 -> 2. Since each component started at smallest unvisited, color0 at start ->1.
+    out = ' '.join(str(c+1) for c in color)
+    sys.stdout.write("YES\n" + out)
+
+Need ensure BFS from smallest unvisited. Loop i from 0..n-1. Good.
+
+But wait: For component with edges, starting vertex color 0 -> output 1. However, is it possible that the lexicographically smallest assignment for component requires the smallest-index vertex to be 2? No because values only 1/2; 1<2. So set to 1.
+
+One nuance: If component is not connected? We handle.
+
+Self-loop: adj[u].append(u) twice? Actually if u==v, we add same neighbor twice. During DFS from u, when processing neighbor v=u, color[v] is already color[u] (since assigned), same -> fail. Good. But adding duplicate self-loop twice doesn't matter. However adding self-loop twice may cause immediate fail. Good.
+
+Multi-edges: If two edges between same vertices, processing first assigns opposite; second checks opposite, fine.
+
+Time O(n+m). DFS recursion avoided.
+
+Potential memory/performance: using list as stack and appending all neighbors may be okay. But DFS could be deep; iterative stack fine. However Python recursion not used. BFS with deque also fine. Use deque to avoid deep recursion? BFS queue. Either. Use list stack for speed. But DFS with list may use deep recursion in stack size up to n, but list can hold n. Fine.
+
+Let's consider if using DFS stack with order could assign colors and detect. Works.
+
+Now final answer: only code block. Ensure no extra text.
+
+But the instruction says "Output only a single Python 3 code block and nothing else — no explanation before or after." So final should be just code block.
+
+Let's produce final.
+</think>
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        color[i] = 0
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    q.append(v)
+                elif color[v] == cu:
+                    sys.stdout.write("NO")
+                    return
+
+    out = ' '.join(str(c + 1) for c in color)
+    sys.stdout.write("YES\n" + out)
+
+solve()
+```

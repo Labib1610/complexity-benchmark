@@ -1,0 +1,166 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Quick impossibility: any K4 is not 3-colorable.
+    for u in range(n):
+        au = adj[u]
+        for v in range(u + 1, n):
+            if not ((au >> v) & 1):
+                continue
+            common = au & adj[v] & ~((1 << (v + 1)) - 1)
+            while common:
+                lsb = common & -common
+                w = lsb.bit_length() - 1
+                if au & adj[v] & adj[w]:
+                    sys.stdout.write("NO\n")
+                    return
+                common ^= lsb
+
+    # Compute the 2-core: vertices that remain after removing degree <= 2 vertices.
+    # For 3-coloring, degree-2 vertices can always be colored last.
+    deg = [adj[i].bit_count() for i in range(n)]
+    in_core = [True] * n
+    stack = [i for i in range(n) if deg[i] <= 2]
+    while stack:
+        v = stack.pop()
+        if not in_core[v]:
+            continue
+        in_core[v] = False
+        bits = adj[v]
+        while bits:
+            lsb = bits & -bits
+            u = lsb.bit_length() - 1
+            if in_core[u]:
+                deg[u] -= 1
+                if deg[u] <= 2:
+                    stack.append(u)
+            bits ^= lsb
+
+    pc = [0, 1, 1, 2, 1, 2, 2, 3]
+
+    col = [-1] * n
+    avail = [7] * n
+    ans = [0] * n
+
+    def set_color(col, avail, v, c, assigned, changed):
+        st = [(v, c)]
+        while st:
+            v, c = st.pop()
+            if col[v] != -1:
+                if col[v] == c:
+                    continue
+                return False
+            col[v] = c
+            assigned.append(v)
+            mask = ~(1 << c) & 7
+            bits = adj[v]
+            while bits:
+                lsb = bits & -bits
+                u = lsb.bit_length() - 1
+                if col[u] == -1 and (avail[u] & (1 << c)):
+                    changed.append((u, avail[u]))
+                    avail[u] &= mask
+                    ac = avail[u]
+                    if ac == 0:
+                        return False
+                    if ac & (ac - 1) == 0:
+                        st.append((u, ac.bit_length() - 1))
+                bits ^= lsb
+        return True
+
+    sys.setrecursionlimit(10000)
+
+    def can_color(col_in, avail_in):
+        col = col_in
+        avail = avail_in
+
+        def dfs():
+            best_v = -1
+            best_cnt = 4
+            for v in range(n):
+                if in_core[v] and col[v] == -1:
+                    ac = avail[v]
+                    cnt = pc[ac]
+                    if cnt < best_cnt:
+                        best_v = v
+                        best_cnt = cnt
+                        if cnt <= 1:
+                            break
+            if best_v == -1:
+                return True
+            if best_cnt == 0:
+                return False
+            ac = avail[best_v]
+            cands = []
+            t = ac
+            while t:
+                lsb = t & -t
+                cands.append(lsb.bit_length() - 1)
+                t ^= lsb
+            for c in cands:
+                assigned = []
+                changed = []
+                if set_color(col, avail, best_v, c, assigned, changed):
+                    if dfs():
+                        return True
+                for u, old in changed:
+                    avail[u] = old
+                for v in assigned:
+                    col[v] = -1
+            return False
+
+        return dfs()
+
+    for i in range(n):
+        if col[i] != -1:
+            ans[i] = col[i] + 1
+            continue
+        chosen = -1
+        for c in range(3):
+            conflict = False
+            bits = adj[i]
+            while bits:
+                lsb = bits & -bits
+                u = lsb.bit_length() - 1
+                if col[u] == c:
+                    conflict = True
+                    break
+                bits ^= lsb
+            if conflict:
+                continue
+            col2 = col[:]
+            avail2 = avail[:]
+            assigned = []
+            changed = []
+            if not set_color(col2, avail2, i, c, assigned, changed):
+                continue
+            if can_color(col2, avail2):
+                assigned_m = []
+                changed_m = []
+                set_color(col, avail, i, c, assigned_m, changed_m)
+                ans[i] = c + 1
+                chosen = c
+                break
+        if chosen == -1:
+            sys.stdout.write("NO\n")
+            return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(map(str, ans)) + "\n")
+
+solve()

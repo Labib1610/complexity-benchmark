@@ -1,0 +1,61 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = defaultdict(set)
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort edges to process in order
+    edges.sort()
+    
+    # For each edge (u,v), look for a node w such that (u,w) and (v,w) also exist
+    # This forms a triangle u-v-w
+    
+    # We'll iterate through all edges and for each edge (u,v), we check neighbors
+    # of u and see if they are also neighbors of v
+    
+    # To make it efficient, for each edge (u,v), we look at the intersection of 
+    # neighbors of u and neighbors of v
+    
+    # Create adjacency list as sets for fast intersection
+    adj_set = {i: set(adj[i]) for i in range(1, n+1)}
+    
+    best = None
+    
+    # Process edges in sorted order to find lexicographically smallest triangle
+    for u, v in edges:
+        # Find common neighbors of u and v
+        common_neighbors = adj_set[u] & adj_set[v]
+        if common_neighbors:
+            # Get the smallest neighbor
+            w = min(common_neighbors)
+            # Form the triangle
+            triangle = tuple(sorted([u, v, w]))
+            if best is None or triangle < best:
+                best = triangle
+            elif triangle == best:
+                continue
+                
+    if best:
+        print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

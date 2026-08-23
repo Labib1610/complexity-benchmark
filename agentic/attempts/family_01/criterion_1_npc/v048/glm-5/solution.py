@@ -1,0 +1,89 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if graph is 3-colorable using backtracking with pruning
+    # Since n <= 40, we need efficient pruning
+    
+    color = [0] * n
+    
+    # Precompute neighbors for faster access
+    # Use bitsets for efficiency
+    neighbors = [0] * n
+    for i in range(n):
+        mask = 0
+        for j in adj[i]:
+            mask |= (1 << j)
+        neighbors[i] = mask
+    
+    # Order vertices by degree (descending) for better pruning
+    order = list(range(n))
+    order.sort(key=lambda x: -len(adj[x]))
+    pos_in_order = [0] * n
+    for idx, v in enumerate(order):
+        pos_in_order[v] = idx
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        
+        v = order[idx]
+        
+        # Determine which colors are available
+        used = 0
+        for neighbor in adj[v]:
+            if color[neighbor] != 0:
+                used |= (1 << color[neighbor])
+        
+        for c in range(1, 4):
+            if not (used & (1 << c)):
+                color[v] = c
+                if backtrack(idx + 1):
+                    return True
+                color[v] = 0
+        
+        return False
+    
+    if backtrack(0):
+        # Found a valid coloring, now find lexicographically smallest
+        # Reset and do lexicographic search
+        color = [0] * n
+        
+        def lex_backtrack(v):
+            if v == n:
+                return True
+            
+            used = 0
+            for neighbor in adj[v]:
+                if color[neighbor] != 0:
+                    used |= (1 << color[neighbor])
+            
+            for c in range(1, 4):
+                if not (used & (1 << c)):
+                    color[v] = c
+                    if lex_backtrack(v + 1):
+                        return True
+                    color[v] = 0
+            
+            return False
+        
+        lex_backtrack(0)
+        print("YES")
+        print(" ".join(map(str, color)))
+    else:
+        print("NO")
+
+solve()

@@ -1,20 +1,18 @@
-# Minimal Incompatibility Certificate
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing facility manages $n$ personnel units under strict operational safety guidelines. The management tracks $m$ pairwise non-coexistence conditions between units.
+The factory still has only two shifts, 1 and 2, but the roster is known to be hopeless. Your task is not to schedule — it is to search the combinatorial space of all possible worker subsets to locate a configuration that certifies this impossibility. An invalidating configuration is a subset of workers where every worker in the subset conflicts with every other worker in the same subset. 
 
-To formally demonstrate that dividing the workforce into just two distinct shifts is impossible, one must present a 3-element certificate: a subset of three units where every pair within the subset shares an explicit non-coexistence condition. Out of all $\binom{n}{3}$ possible combinations, your goal is to find the lexicographically smallest triplet $(a, b, c)$ that satisfies this criteria.
-
-It is guaranteed that at least one such triplet exists.
+It is guaranteed that the conflict data contains at least one such set of exactly three workers. Any such set proves two shifts cannot suffice. Output one such set.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) representing a non-coexistence condition between unit $u$ and unit $v$.
-It is guaranteed that at least one valid certificate triplet exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a conflicting pair.
+It is guaranteed that at least one invalidating configuration of size 3 exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$ representing the lexicographically smallest certificate triplet (minimizing $a$; breaking ties by smallest $b$; then by smallest $c$).
+Print three integers a b c on one line with a < b < c such that all three pairs a–b, a–c, b–c are conflicts. Output the lexicographically smallest such triple (smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

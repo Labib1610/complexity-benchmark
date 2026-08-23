@@ -1,0 +1,72 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We need to find the lexicographically smallest triangle (a, b, c) with a < b < c.
+    # We iterate a from 1 to n.
+    # For each a, we iterate b from a+1 to n such that (a, b) is an edge.
+    # For each such b, we iterate c from b+1 to n such that (a, c) and (b, c) are edges.
+    # The first valid triangle found is the answer.
+    
+    for a in range(1, n + 1):
+        neighbors_a = adj[a]
+        # We need b > a and b in neighbors_a
+        # To ensure we check in increasing order of b, we iterate b from a+1 to n
+        # and check membership.
+        # Since neighbors_a is a set, lookup is O(1).
+        # To optimize, we can iterate through neighbors_a and filter for b > a, then sort.
+        # However, sorting neighbors for every a might be costly if degrees are large.
+        # Given constraints (n <= 2000), iterating b from a+1 to n is O(n) per a.
+        # Total complexity O(n^2) for the outer loops.
+        # Inside, checking c involves iterating c from b+1 to n and checking set membership.
+        # This is O(n) per (a, b) pair.
+        # Total complexity O(n^3) worst case, which is 2000^3 = 8*10^9 operations, too slow.
+        
+        # Optimization:
+        # Iterate b from a+1 to n. If (a, b) is an edge:
+        #   Iterate c from b+1 to n. If (a, c) is an edge AND (b, c) is an edge:
+        #     Found.
+        # This is still O(n^3).
+        
+        # Better approach:
+        # Iterate a from 1 to n.
+        # Iterate b from a+1 to n. If (a, b) is an edge:
+        #   We need to find the smallest c > b such that c is a common neighbor of a and b.
+        #   We can iterate through the neighbors of a (that are > b) and check if they are neighbors of b.
+        #   To find the smallest c, we should check candidates in increasing order.
+        #   We can iterate c from b+1 to n and check if c in adj[a] and c in adj[b].
+        #   This is O(n) per edge (a, b).
+        #   Sum of degrees is 2m. Number of edges is m.
+        #   Total complexity O(m * n). With m approx 2*10^5 and n approx 2000, this is 4*10^8.
+        #   In Python, this might be tight but feasible given 2s time limit and simple operations.
+        
+        # Let's refine the check for c.
+        # We want the smallest c > b.
+        # Iterate c from b+1 to n.
+        # Checks: c in adj[a] and c in adj[b].
+        # Since adj[a] and adj[b] are sets, these are O(1) lookups.
+        
+        for b in range(a + 1, n + 1):
+            if b in neighbors_a:
+                neighbors_b = adj[b]
+                for c in range(b + 1, n + 1):
+                    if c in neighbors_a and c in neighbors_b:
+                        print(a, b, c)
+                        return
+
+if __name__ == '__main__':
+    solve()

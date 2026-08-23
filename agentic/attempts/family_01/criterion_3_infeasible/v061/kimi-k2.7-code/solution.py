@@ -1,0 +1,29 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(n):
+        adj_a = adj[a]
+        for b in range(a + 1, n):
+            if (adj_a >> b) & 1:
+                common = adj_a & adj[b]
+                shifted = common >> (b + 1)
+                if shifted:
+                    c = (shifted & -shifted).bit_length() - 1 + b + 1
+                    sys.stdout.write(f"{a + 1} {b + 1} {c + 1}")
+                    return
+
+if __name__ == "__main__":
+    solve()

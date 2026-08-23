@@ -1,0 +1,76 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges to process in order (u, v)
+    edges.sort()
+    
+    # Strategy:
+    # 1. Check for a triangle (u, v, w) where all three edges exist.
+    #    This forms a valid panel with languages {u, v, w}.
+    # 2. If no triangle, look for a path u-v-w where u < v < w,
+    #    edges (u,v) and (v,w) exist, but (u,w) does not.
+    #    This forms a valid panel with languages {u, v, w}.
+    #    The interpreters are (u,v), (v,w), and some third interpreter
+    #    involving u or w with a language outside {u,v,w}.
+    #    We iterate edges in sorted order and check for this pattern.
+    
+    # Check for triangles
+    # To optimize, we check for each edge (u, v) if there exists w such that
+    # (u, w) and (v, w) exist. We iterate w from u+1 to n.
+    # Since we want the lexicographically smallest result, we check edges in order.
+    
+    # We can iterate through edges (u, v) in sorted order.
+    # For each edge, check for w in intersection of adj[u] and adj[v] where w > v.
+    # The first such w found gives us the smallest triangle.
+    
+    for u, v in edges:
+        # We want w > v to ensure u < v < w
+        # Iterate through neighbors of u that are > v
+        # and check if they are also neighbors of v
+        # To optimize, iterate through the smaller set
+        if len(adj[u]) < len(adj[v]):
+            smaller = adj[u]
+            other = adj[v]
+        else:
+            smaller = adj[v]
+            other = adj[u]
+        
+        for w in smaller:
+            if w > v and w in other:
+                print(u, v, w)
+                return
+    
+    # If no triangle found, look for path pattern
+    # We need edge (u, v) and (v, w) with u < v < w and no edge (u, w)
+    # We iterate edges (u, v) in sorted order.
+    # For each edge, we look for w in adj[v] such that w > v and (u, w) is not an edge.
+    # The first such w found gives us the lexicographically smallest result.
+    
+    for u, v in edges:
+        # Check neighbors of v that are > v
+        for w in adj[v]:
+            if w > v and w not in adj[u]:
+                print(u, v, w)
+                return
+
+if __name__ == "__main__":
+    solve()

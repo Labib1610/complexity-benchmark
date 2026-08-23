@@ -1,22 +1,24 @@
-# Stage 2 Diagnostic: Incompatibility Triplet Extraction
+# Problem C — Phase 2: Triad Isolation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-As part of an automated data-auditing pipeline for distributed database transactions, processing proceeds through three distinct phases:
+The Automated Stability Protocol operates in three phases to secure volatile compound batches. 
 
-1. **Extraction Phase (Completed)**: The system parses transaction logs and extracts all pairwise data-race conflicts among $n$ indexed database operations (numbered $1$ through $n$).
-2. **Diagnostic Certificate Phase (Current Task)**: Before escalating to manual resolution, the automated validator must generate an audit certificate. The certificate requires identifying three distinct operations $a, b, c$ ($a < b < c$) such that every pair among them—$(a,b)$, $(a,c)$, and $(b,c)$—suffers from a mutual conflict. To ensure deterministic reporting across pipeline runs, if multiple such triplets exist, the validator must report the lexicographically smallest one (the one with the smallest index $a$; breaking ties by smallest $b$; then by smallest $c$).
-3. **Escalation Phase (Pending)**: The extracted triplet will be dispatched to the system administrator to demonstrate an unresolvable concurrency cycle.
+In Phase 1, the system conducts a pairwise screening of $n$ chemical compounds, testing every possible pair to see which ones are highly reactive when combined. This phase has already been completed, and the resulting log of reactive pairs is provided to you.
 
-Given the list of pairwise conflicts generated in Phase 1, implement the Diagnostic Certificate Phase to find and output this lexicographically smallest conflicting triplet. It is guaranteed that at least one such triplet exists in the input data.
+Your task is to implement Phase 2. The safety guidelines mandate that a batch cannot be certified as stable if it contains any "unstable triad." An unstable triad is a group of exactly three distinct compounds where every compound in the group is highly reactive with the other two. It is a known chemical property for these specific batches that at least one such triad exists. You must process the Phase 1 logs and output exactly one unstable triad to trigger the emergency protocol. 
+
+In Phase 3, the system will use your output to deploy neutralizers. Because the deployment mechanisms are strictly deterministic, you must report the unstable triad whose lowest compound identifier is as small as possible. If multiple triads share the same lowest identifier, you must minimize the second-lowest identifier, and if there is still a tie, minimize the highest identifier. 
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of database operations and the number of pairwise conflicts, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a pairwise conflict between operation $u$ and operation $v$.
-It is guaranteed that at least one set of three operations pairwise conflict with each other.
+The first line of the Phase 1 log contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of compounds (numbered $1$ through $n$) and the number of reactive pairs discovered.
+
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that compound $u$ and compound $v$ are highly reactive with each other. 
+It is guaranteed that the provided log contains at least one unstable triad.
 
 ## Output
-Print three space-separated integers $a\ b\ c$ on a single line satisfying $a < b < c$, representing the operations forming a mutual conflict triplet. The triplet must be lexicographically smallest among all valid triplets.
+Print a single line containing three integers $a$, $b$, and $c$, representing the identifiers of the compounds in the chosen unstable triad. These identifiers must be printed in ascending order ($a < b < c$). Remember to follow the exact tie-breaking rules described for Phase 3.
 
 ## Example 1
 Input:

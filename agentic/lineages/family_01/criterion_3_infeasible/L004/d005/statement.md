@@ -1,0 +1,50 @@
+# Portfolio Risk Limits
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+A quantitative hedge fund is evaluating a universe of $n$ tradable assets (numbered 1 through $n$). The risk management system has flagged $m$ pairs of assets as being highly co-dependent. 
+
+For the upcoming trading session, the portfolio manager must assign a strict directional strategy to each asset: either a Long position or a Short position. According to the fund's risk parameters, if any two co-dependent assets are assigned the exact same directional strategy, the portfolio's volatility limit will be breached.
+
+The chief risk officer wants to block the current trading universe by proving that it is impossible to assign directional strategies without breaching the limits. You must provide a minimal counterexample: a set of exactly three distinct assets that inherently cannot be traded under these rules. In other words, no matter how you assign a Long or Short position to each of these three assets, at least two assets assigned the same position will be a co-dependent pair.
+
+## Input
+The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a pair of assets that are highly co-dependent. 
+It is guaranteed that the universe contains at least one such set of three assets.
+
+## Output
+Output the three integer identifiers of your chosen set on a single line, ordered from lowest to highest. 
+If more than one such set exists, evaluate them by their sorted identifiers. Choose the set that minimizes the first (lowest) identifier. If there is a tie, choose the one that minimizes the second (middle) identifier. If a tie still remains, minimize the third (highest) identifier.
+
+## Example 1
+### Input
+```
+4 5
+1 2
+1 3
+2 3
+2 4
+3 4
+```
+### Output
+```
+1 2 3
+```
+
+## Example 2
+### Input
+```
+5 6
+1 2
+1 4
+2 4
+3 4
+3 5
+4 5
+```
+### Output
+```
+1 2 4
+```

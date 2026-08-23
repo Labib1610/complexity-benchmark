@@ -1,0 +1,39 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for deterministic iteration
+    adj_list = [sorted(s) for s in adj]
+    
+    # Iterate over all pairs (u, v) with u < v
+    for u in range(1, n + 1):
+        neighbors_u = adj_list[u]
+        # We need v > u and v in adj[u]
+        # Since neighbors_u is sorted, we can iterate and check v > u
+        for v in neighbors_u:
+            if v <= u:
+                continue
+            # Check for common neighbor w such that w > v
+            # Iterate through neighbors of u that are > v
+            # and check if they are also neighbors of v
+            for w in neighbors_u:
+                if w > v and w in adj[v]:
+                    print(u, v, w)
+                    return
+
+if __name__ == "__main__":
+    solve()

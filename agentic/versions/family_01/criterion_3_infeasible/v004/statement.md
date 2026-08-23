@@ -1,22 +1,21 @@
-# Problem C — Triad Conflict Verification
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility operates under strict assignment rules where certain pairs of workers cannot be assigned to the same operational shift. With $n$ workers numbered $1$ through $n$, the system contains $m$ recorded pairwise incompatibilities.
+The factory still has only two shifts, 1 and 2, but the roster is known to be hopeless. Your job is not to schedule — it is to search the $2^n$ possible worker combinations to certify the impossibility. A subset of workers where every pair conflicts provides an undeniable certificate that two shifts cannot suffice. Finding such a mutually conflicting subset can appear daunting given the sheer number of possible subsets to check.
 
-Analyzing all potential schedule configurations to prove that no valid two-shift assignment exists can involve inspecting many candidate combinations. However, any group of three distinct workers who are all mutually incompatible with one another provides a direct certificate of impossibility.
-
-Your task is to identify one such group: a triple of worker IDs $(a, b, c)$ with $a < b < c$ such that all three pairs—$(a, b)$, $(a, c)$, and $(b, c)$—are explicitly listed as incompatible. Among all such valid triples, output the lexicographically smallest one (minimizing $a$, breaking ties by minimizing $b$, and then $c$).
-
-It is guaranteed that at least one such mutually incompatible triple exists in the input.
+It is guaranteed that the conflict data contains at least one such subset of exactly three workers. Output one such set.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ representing a pairwise incompatibility between worker $u$ and worker $v$.
-It is guaranteed that at least one mutually incompatible triple exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000,
+3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a conflicting pair.
+It is guaranteed that at least one such triple exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are incompatible. Output the lexicographically smallest such triple.
+Print three integers a b c on one line with a < b < c such that all three pairs
+a–b, a–c, b–c are conflicts. Output the lexicographically smallest such triple
+(smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

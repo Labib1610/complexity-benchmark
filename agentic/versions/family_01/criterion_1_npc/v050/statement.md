@@ -1,24 +1,20 @@
-# Spectrum Allocation for Sensor Nodes
+# Problem A — Protocol Synchronization
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A wireless telemetry network consists of $n$ sensor nodes numbered $1$ through $n$. To minimize signal degradation, each node must be assigned to work on one of three available frequency bands: Band 1, Band 2, or Band 3.
+A research facility is stabilizing $n$ organic samples. Each sample requires an environmental setting to prevent decay. Specifically, for each sample $i$, you must assign an integer configuration code $c_i$ satisfying $1 \le c_i \le 3$.
 
-Certain pairs of nodes are located close to each other, creating mutual interference. There are $m$ such interfering pairs. Two nodes that form an interfering pair cannot be assigned to the same frequency band.
+Certain samples have conflicting chemical signatures. If two conflicting samples are assigned the identical configuration code, their combined resonance will cause a containment breach. You are provided with the complete registry of these conflicts.
 
-To comply with regulatory standards, any valid allocation must satisfy the following Global Thermal Bounds:
-1. For every subset of $k$ nodes ($1 \le k \le n$), the sum of their assigned band numbers cannot exceed $3k$.
-2. The average band number across all $n$ nodes must lie within the range $[1.0, 3.0]$.
-
-Your task is to determine if a valid band assignment exists for all $n$ nodes. If multiple valid assignments exist, select the one that yields the lexicographically smallest sequence of band numbers $(s_1, s_2, \dots, s_n)$ where $s_i \in \{1, 2, 3\}$ is the band assigned to node $i$.
+Your task is to determine if every sample can be configured without causing a breach. If it is possible, you must output the exact configuration. In cases where more than one safe configuration exists, the facility's automated logging system enforces a tie-breaking rule: it strictly favors lower configuration codes, prioritized by sample ID. That is, it selects the valid configuration that minimizes the code for sample 1; if multiple valid configurations achieve this minimum, it considers only those and selects the one that minimizes the code for sample 2, and so forth, down to sample $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of sensor nodes and the number of interfering pairs, respectively.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) indicating that node $u$ and node $v$ interfere with each other.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of organic samples and the number of conflict records. The samples are indexed from 1 to $n$.
+The subsequent $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that sample $u$ and sample $v$ have conflicting chemical signatures and must not share the same configuration code.
 
 ## Output
-If no valid assignment exists, print `NO` on a single line.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$) representing the lexicographically smallest sequence of assigned bands.
+If there is no configuration that avoids a breach, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $c_1, c_2, \dots, c_n$, where $c_i$ is the configuration code for sample $i$. This sequence must be the one selected by the automated logging system's tie-breaking rule.
 
 ## Example 1
 Input:

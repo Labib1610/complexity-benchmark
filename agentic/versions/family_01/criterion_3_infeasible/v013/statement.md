@@ -1,27 +1,29 @@
-# Roster Incompatibility Audit
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A facility employs $n$ workers, numbered $1$ through $n$. A central registry maintains a list of $m$ prohibited pairings: pairs of workers who are mutually incompatible and cannot share an assignment.
+The manufacturing plant operates using exactly two daily shifts. Management has compiled a list of worker pairs who cannot be assigned to the same shift due to personal disputes. 
 
-An audit requires finding a three-worker team $a, b, c$ that is completely non-cooperative—meaning that all three pairwise relationships ($a$ with $b$, $a$ with $c$, and $b$ with $c$) are listed in the registry as prohibited.
+It has already been determined that forming a valid schedule is impossible. Your task is to provide concrete evidence of this failure. 
 
-It is guaranteed that at least one such three-worker team exists in the provided registry. Find and report the team $a, b, c$ satisfying $a < b < c$ that is lexicographically smallest (i.e., smallest possible $a$; breaking ties by smallest $b$; breaking further ties by smallest $c$).
+Specifically, the given list of disputes is guaranteed to contain a group of exactly three workers who all mutually refuse to work together. That is, within this group of three, every worker has a recorded dispute with both of the other two members of the group. Since there are only two shifts available, it is strictly impossible to separate all three individuals.
+
+You must identify a group of three workers that satisfies this condition.
 
 ## Input
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2\cdot 10^5)$), representing the number of workers and the number of disputes, respectively. Workers are numbered from $1$ to $n$.
 
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), the number of workers and the number of prohibited pairings.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that worker $u$ and worker $v$ cannot be assigned to the same shift. Each dispute is listed at most once.
 
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that worker $u$ and worker $v$ form a prohibited pairing. No unordered pair of workers appears more than once.
-
-It is guaranteed that at least one three-worker team exists where all three pairs are prohibited.
+It is guaranteed that at least one group of three mutually disputing workers exists.
 
 ## Output
+Print three integers $a$, $b$, and $c$ on a single line, representing the IDs of the three workers in the group, sorted in ascending order ($a < b < c$). 
 
-Print three space-separated integers $a, b, c$ on a single line such that $1 \le a < b < c \le n$, all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are prohibited, and the triple $(a, b, c)$ is lexicographically smallest.
+If there are multiple such groups, output the one that is lexicographically smallest. That is, minimize $a$; in case of a tie, minimize $b$; and if still tied, minimize $c$.
 
 ## Example 1
-
 Input:
 ```
 4 5
@@ -31,14 +33,12 @@ Input:
 2 4
 3 4
 ```
-
 Output:
 ```
 1 2 3
 ```
 
 ## Example 2
-
 Input:
 ```
 5 6
@@ -49,7 +49,6 @@ Input:
 3 5
 4 5
 ```
-
 Output:
 ```
 1 2 4

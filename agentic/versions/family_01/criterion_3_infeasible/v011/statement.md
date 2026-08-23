@@ -1,21 +1,18 @@
-# Network Overlap Audit
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A data center monitors $n$ processing nodes, numbered $1$ to $n$, and tracks direct links between them. A set of $m$ distinct bidirectional links is recorded.
+The manufacturing plant is trying to assign each of its employees to one of two production lines. However, certain pairs of employees have incompatible schedules and cannot be placed on the same line. 
 
-An investigation requires finding three nodes $a, b, c$ ($a < b < c$) that form a fully interconnected group—meaning direct links exist between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$.
-
-It is guaranteed that at least one such group of three nodes exists in the system. Find and report the lexicographically smallest triple $(a, b, c)$ satisfying this property (i.e., smallest $a$; if tied, smallest $b$; if still tied, smallest $c$).
+The situation is known to be unresolvable. Your task is not to create an assignment, but to provide evidence of this failure. It is guaranteed that the provided data contains at least one group of three employees where every individual in the group has an incompatible schedule with the other two. Any such group demonstrates that two production lines cannot suffice. Output one such group.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a direct bidirectional link between node $u$ and node $v$.
-
-It is guaranteed that at least one fully interconnected group of three nodes exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of employees with incompatible schedules.
+It is guaranteed that at least one such group of three exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$ representing the lexicographically smallest triple of mutually connected nodes.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are incompatible. Output the lexicographically smallest such group (smallest $a$; ties broken by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

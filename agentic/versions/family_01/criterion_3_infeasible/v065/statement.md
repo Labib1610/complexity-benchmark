@@ -1,23 +1,21 @@
-# Maritime Logistics: Primary Mutual Alliance Triad
+# Problem C — Artifact Exhibition
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A global maritime agency oversees $n$ commercial ports, indexed from $1$ to $n$. Across these ports, there are $m$ active shipping channels, each providing a direct two-way transport connection between two distinct ports.
+You are curating a display of $n$ delicate historical artifacts, numbered 1 through $n$. Due to their varied material compositions, certain pairs of artifacts require mutually exclusive atmospheric conditions and cannot be housed in the same display case.
 
-To form an efficient local supply loop, the agency seeks a mutual alliance triad—a set of three distinct ports $a$, $b$, and $c$ (ordered such that $1 \le a < b < c \le n$) where every pair among the three is connected by a direct shipping channel. Thus, direct channels must exist between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$.
+You want to design a special "contrast exhibit" featuring exactly three distinct artifacts. To highlight the extreme differences in their preservation needs, every artifact chosen for this specific exhibit must be atmospherically incompatible with both of the other two artifacts in the exhibit.
 
-To prioritize scheduling, the agency must identify the primary triad. This is the valid triple $(a, b, c)$ with $a < b < c$ that is lexicographically smallest; that is, it minimizes $a$, breaks ties by minimizing $b$, and breaks further ties by minimizing $c$.
-
-It is guaranteed that at least one such triad exists in the shipping network.
+Your task is to select three artifacts that meet this strict requirement.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), denoting the number of ports and active shipping channels, respectively.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a direct two-way shipping channel between port $u$ and port $v$. No channel is listed more than once, and no channel connects a port to itself.
-
-It is guaranteed that at least one mutual alliance triad exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of artifacts and the number of incompatible pairs.
+Each of the next $m$ lines contains two integers $u$ and $v$ — indicating that artifacts $u$ and $v$ are incompatible.
+It is guaranteed that at least one valid group of three mutually incompatible artifacts exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the lexicographically smallest primary triad.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are incompatible. Output the lexicographically smallest such group (smallest $a$; ties broken by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

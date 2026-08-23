@@ -1,0 +1,41 @@
+import sys
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    it = iter(data)
+    n = next(it)
+    m = next(it)
+
+    masks = [0] * (n + 1)
+    adj = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = next(it)
+        v = next(it)
+        masks[u] |= 1 << (v - 1)
+        masks[v] |= 1 << (u - 1)
+        adj[u].append(v)
+        adj[v].append(u)
+
+    for lst in adj:
+        lst.sort()
+
+    full = (1 << n) - 1
+    suffix = [0] * (n + 1)
+    for b in range(1, n + 1):
+        suffix[b] = full & ~((1 << b) - 1)
+
+    for a in range(1, n + 1):
+        ma = masks[a]
+        for b in adj[a]:
+            if b <= a:
+                continue
+            common = ma & masks[b] & suffix[b]
+            if common:
+                c = (common & -common).bit_length()
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+solve()

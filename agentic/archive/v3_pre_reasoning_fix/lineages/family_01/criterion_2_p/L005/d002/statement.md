@@ -1,0 +1,45 @@
+# Fluid Routing
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A hydraulic system contains $n$ control valves, numbered 1 to $n$. Each valve must be calibrated to operate at a pressure setting of either 1 or 2. 
+
+To prevent surges, the installation includes $m$ cross-link tubes. Each cross-link tube joins a specific pair of valves. For a cross-link to function safely, the sum of the pressure settings of the two valves it joins must be exactly 3. 
+
+Your task is to determine a pressure setting for each valve such that all cross-link requirements are satisfied. When multiple valid calibration configurations exist, you must output the one that produces the lexicographically smallest sequence of settings $s_1, s_2, \dots, s_n$ (prioritizing setting 1 for lower-numbered valves whenever possible). If no such configuration is physically possible, you must report this.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of valves joined by a cross-link tube.
+
+## Output
+If no valid configuration can be established, print a single line NO.
+Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid calibration sequence.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

@@ -1,0 +1,73 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Each equation x_u + x_v = 3 with x_u, x_v in {1,2} means:
+    # (1,2) or (2,1). So u and v must have different values.
+    # This is a 2-coloring problem (bipartite check).
+    
+    color = [-1] * n  # -1: unvisited, 0: color A, 1: color B
+    
+    # Check if the graph is bipartite and assign values accordingly
+    for i in range(n):
+        if color[i] == -1:
+            queue = deque()
+            queue.append(i)
+            color[i] = 0
+            while queue:
+                node = queue.popleft()
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
+    
+    # If bipartite, assign values: color 0 -> 1, color 1 -> 2
+    # But we need to minimize lexicographically.
+    # color[i] == 0 means x_i = 1, color[i] == 1 means x_i = 2
+    # To minimize lex, we want x_1 as small as possible.
+    # If color[0] == 0, then x_1 = 1. If color[0] == 1, then x_1 = 2.
+    # To make x_1 = 1, we can flip all colors if color[0] == 1.
+    
+    if color[0] == 1:
+        # Flip all colors to make x_1 = 1
+        for i in range(n):
+            color[i] = 1 - color[i]
+    
+    assignment = []
+    for c in color:
+        if c == 0:
+            assignment.append("1")
+        else:
+            assignment.append("2")
+    
+    print("YES")
+    print(" ".join(assignment))
+
+if __name__ == "__main__":
+    main()

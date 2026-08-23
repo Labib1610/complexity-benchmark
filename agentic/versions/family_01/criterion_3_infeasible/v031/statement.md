@@ -1,20 +1,18 @@
-# Problem C — Interlock Protocol Audit
+# Problem C — Vault Impossibility Certificate
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A distributed system consists of $n$ processing nodes numbered $1$ through $n$. Certain pairs of nodes are connected by direct high-bandwidth communication lines. Communication is symmetric, meaning a line between two nodes allows data to flow in both directions.
+You are tasked with storing $n$ delicate historical artifacts, numbered 1 through $n$, into exactly two climate-controlled vaults. Due to their varied material compositions, certain pairs of artifacts require mutually exclusive atmospheric conditions and cannot be placed in the same vault.
 
-During a system audit, engineers are looking for closed three-node feedback loops. A feedback loop consists of three distinct nodes such that a direct communication line exists between every pair among the three.
-
-It is guaranteed that the current network configuration contains at least one such three-node loop. Your task is to identify the lexicographically smallest group of three nodes forming a closed loop. Specifically, if the three nodes are $a$, $b$, and $c$ with $a < b < c$, you must select the valid triple that minimizes $a$ first, then $b$, and finally $c$.
+The provided list of incompatible pairs makes it impossible to divide all artifacts into just two vaults. Your task is to extract a direct proof of this impossibility. Specifically, you must identify a group of exactly three artifacts such that every artifact in the group is incompatible with both of the others. Because there are only two vaults available, any such group guarantees that at least two of the three artifacts would be forced into the same vault, which is forbidden. Output one such group.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n - 1) / 2, 2 \cdot 10^5)$), representing the number of processing nodes and the number of communication lines, respectively.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating a direct communication line between node $u$ and node $v$. No communication line is listed more than once.
-It is guaranteed that at least one valid set of three nodes exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of artifacts and the number of incompatible pairs.
+Each of the next $m$ lines contains two integers $u$ and $v$ — an incompatible pair.
+It is guaranteed that at least one group of three mutually incompatible artifacts exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line, satisfying $a < b < c$, representing the lexicographically smallest triple of nodes where lines exist between $a$ and $b$, $a$ and $c$, and $b$ and $c$.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are incompatible. Output the lexicographically smallest such group (smallest $a$; ties by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

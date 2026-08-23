@@ -1,0 +1,172 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            print("NO")
+            return
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    all_mask = (1 << n) - 1
+    deg = [a.bit_count() for a in adj]
+
+    # K4 detection: a K4 is never 3-colorable
+    if n >= 4:
+        has_k4 = False
+        for a in range(n):
+            for b in range(a + 1, n):
+                if not (adj[a] >> b) & 1:
+                    continue
+                for c in range(b + 1, n):
+                    if not ((adj[a] >> c) & 1 and (adj[b] >> c) & 1):
+                        continue
+                    # look for a fourth vertex d > c adjacent to a,b,c
+                    if (adj[a] & adj[b] & adj[c]) & ~((1 << (c + 1)) - 1):
+                        has_k4 = True
+                        break
+                if has_k4:
+                    break
+            if has_k4:
+                break
+        if has_k4:
+            print("NO")
+            return
+
+    def is_colorable(col):
+        color = col[:]          # local working copy
+        cm = [0, 0, 0, 0]       # color masks
+
+        for v in range(n):
+            c = color[v]
+            if c:
+                if adj[v] & cm[c]:
+                    return False
+                cm[c] |= 1 << v
+
+        def dfs(comp_mask):
+            colored = cm[1] | cm[2] | cm[3]
+            um = comp_mask & ~colored
+            if um == 0:
+                return True
+
+            best = -1
+            best_avail = 4
+            best_sat = -1
+            best_deg = -1
+            t = um
+            while t:
+                lsb = t & -t
+                v = lsb.bit_length() - 1
+                t ^= lsb
+                a1 = adj[v] & cm[1]
+                a2 = adj[v] & cm[2]
+                a3 = adj[v] & cm[3]
+                sat = (1 if a1 else 0) + (1 if a2 else 0) + (1 if a3 else 0)
+                avail = 3 - sat
+                if avail == 0:
+                    return False
+                if (avail < best_avail or
+                    (avail == best_avail and (sat > best_sat or
+                     (sat == best_sat and deg[v] > best_deg)))):
+                    best = v
+                    best_avail = avail
+                    best_sat = sat
+                    best_deg = deg[v]
+
+            v = best
+            if not (adj[v] & cm[1]):
+                color[v] = 1
+                cm[1] |= 1 << v
+                if dfs(comp_mask):
+                    return True
+                cm[1] &= ~(1 << v)
+                color[v] = 0
+            if not (adj[v] & cm[2]):
+                color[v] = 2
+                cm[2] |= 1 << v
+                if dfs(comp_mask):
+                    return True
+                cm[2] &= ~(1 << v)
+                color[v] = 0
+            if not (adj[v] & cm[3]):
+                color[v] = 3
+                cm[3] |= 1 << v
+                if dfs(comp_mask):
+                    return True
+                cm[3] &= ~(1 << v)
+                color[v] = 0
+            return False
+
+        rem = all_mask
+        while rem:
+            v = (rem & -rem).bit_length() - 1
+            comp = 0
+            stack = [v]
+            rem &= ~(1 << v)
+            while stack:
+                x = stack.pop()
+                comp |= 1 << x
+                nb = adj[x] & rem
+                while nb:
+                    lsb = nb & -nb
+                    y = lsb.bit_length() - 1
+                    stack.append(y)
+                    rem &= ~lsb
+                    nb ^= lsb
+            if not dfs(comp):
+                return False
+        return True
+
+    if not is_colorable([0] * n):
+        print("NO")
+        return
+
+    ans = [0] * n
+    colored_mask = 0
+
+    for i in range(n):
+        nb = adj[i]
+        forb = 0
+        t = nb
+        while t:
+            lsb = t & -t
+            v = lsb.bit_length() - 1
+            if ans[v]:
+                forb |= 1 << ans[v]
+            t ^= lsb
+
+        uncolored_nb = nb & ~colored_mask
+        chosen = 0
+        for c in (1, 2, 3):
+            if (forb >> c) & 1:
+                continue
+            ans[i] = c
+            if uncolored_nb == 0 or is_colorable(ans):
+                chosen = c
+                break
+            ans[i] = 0
+        if chosen == 0:
+            print("NO")
+            return
+        colored_mask |= 1 << i
+
+    out = sys.stdout
+    out.write("YES\n")
+    out.write(' '.join(map(str, ans)))
+    out.write("\n")
+
+if __name__ == "__main__":
+    solve()

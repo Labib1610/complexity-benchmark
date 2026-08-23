@@ -1,22 +1,20 @@
-# Shift Certificate Audit
+# Production Line Diagnostics
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility operates two non-overlapping work periods. Each employee is assigned to exactly one period. However, certain pairs of employees cannot be assigned to the same period due to operational restrictions.
+A manufacturing facility operates continuously using exactly two production lines. Certain pairs of manufacturing steps require a shared specialized calibration tool and therefore cannot be assigned to the same production line. The current batch of manufacturing steps cannot be distributed across the two lines without causing at least one tool collision.
 
-Management needs to document why two work periods are strictly insufficient for the current set of employee restriction requirements. To do this, you must identify three employees who all mutually restrict one another. Because every pair among these three employees cannot share a period, no two-period allocation can accommodate all three of them simultaneously.
+Your diagnostic software must isolate a root cause of this allocation failure by identifying a set of three steps where every pair within the set requires a shared tool. Such a trio forms an unresolvable bottleneck, as no two of these three steps can be placed on the same line.
 
-Among all valid groups of three mutually restricting employees, find the one that is lexicographically smallest. That is, if the three employee identifiers are listed in ascending order $a < b < c$, choose the triple that minimizes $a$ first, then $b$, and finally $c$.
+To ensure deterministic logging, if multiple such unresolvable trios exist, the system must output the one whose step identifiers are sequentially lowest.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1) / 2, 2 \cdot 10^5)$), representing the number of employees (numbered $1$ through $n$) and the total number of pairwise restrictions, respectively.
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that employee $u$ and employee $v$ cannot share the same work period. Each restriction pair is listed at most once.
-
-It is guaranteed that at least one such group of three mutually restricting employees exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of manufacturing steps and the number of tool collision pairs. Steps are numbered from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that step $u$ and step $v$ cannot be assigned to the same production line.
+It is guaranteed that at least one set of three steps, where every pair collides, exists in the provided data.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$ such that all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are pairwise restrictions. Output the lexicographically smallest such triple (minimizing $a$, then $b$, then $c$).
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three steps where every pair collides. Output the combination that is sequentially lowest (the smallest possible value for $a$; in case of a tie, the smallest possible value for $b$; and finally the smallest possible value for $c$).
 
 ## Example 1
 Input:

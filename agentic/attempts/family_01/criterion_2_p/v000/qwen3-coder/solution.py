@@ -1,0 +1,44 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 = unvisited, 1 = shift 1, 2 = shift 2
+    color = [0] * (n + 1)
+    
+    # Check each component
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            # BFS to color this component
+            queue = deque([start])
+            color[start] = 1
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                # Check all neighbors
+                for neighbor in adj[node]:
+                    if color[neighbor] == 0:
+                        # Assign opposite color
+                        color[neighbor] = 3 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Conflict found
+                        print("NO")
+                        return
+    
+    # If we get here, a valid assignment exists
+    print("YES")
+    result = [str(color[i]) for i in range(1, n + 1)]
+    print(" ".join(result))
+
+solve()

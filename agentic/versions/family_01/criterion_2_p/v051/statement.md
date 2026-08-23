@@ -1,9 +1,44 @@
-```json
-{
-  "statement": "# Staff Grouping\n\nTime limit: 1 s   Memory limit: 256 MB\n\nIn an operational facility, $n$ staff members, indexed $1$ through $n$, are subject to $m$ incompatibility constraints. Each constraint specifies a pair of individuals $(u, v)$ who cannot be assigned to the same group.\n\nTo staff the facility, every individual must be assigned to either Group 1 or Group 2. An assignment of all members is written as a sequence of group numbers $s_1, s_2, \dots, s_n$, where $s_i \in \\{1, 2\\}$ represents the group of member $i$. An assignment sequence is considered valid if no constrained pair $(u, v)$ shares the same group number.\n\nGiven the set of constraints, determine whether a valid assignment exists, and if so, determine the assignment sequence $s_1, s_2, \dots, s_n$ that is lexicographically smallest.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \\le n \\le 2 \\cdot 10^5$, $0 \\le m \\le 2 \\cdot 10^5$), representing the number of staff members and the number of incompatibility constraints, respectively.\nEach of the next $m$ lines contains two integers $u$ and $v$ ($1 \\le u, v \\le n$, $u \\neq v$), indicating that staff member $u$ and staff member $v$ cannot belong to the same group.\n\n## Output\nIf no valid group assignment exists, print `NO` on a single line.\nOtherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \\in \\{1, 2\\}$), representing the group assigned to staff member $i$ in the lexicographically smallest valid assignment.\n\n## Example 1\nInput:\n```\n4 4\n1 2\n2 3\n3 4\n1 4\n```\nOutput:\n```\nYES\n1 2 1 2\n```\n\n## Example 2\nInput:\n```\n3 3\n1 2\n1 3\n2 3\n```\nOutput:\n```\nNO\n```",
-  "rationale": "I reordered the text so the data model (staff members, constraints, representation as a sequence of 1s and 2s) is presented before the user learns what task needs to be performed. This forces a model to process and parse the constraint structures independently rather than recognizing the problem type from the first sentence.",
-  "preserved_answer": "The underlying constraints, labels, output format, lexicographical tie-breaking rule, and values remain identical to the seed problem, ensuring identical output for every test case.",
-  "preserved_class": "The problem remains standard 2-coloring (bipartite graph validation and canonical lexicographical assignment), which runs in linear time $O(n + m)$ using standard graph traversal (P).",
-  "risk": "none"
-}
+# Problem B — Frequency Allocation
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A wildlife tracking system consists of $n$ field sensors, consecutively labeled from 1 to $n$. The system uses exactly two transmission channels, Channel 1 and Channel 2, to relay data. Because of signal overlap, certain pairs of sensors are prone to mutual interference. If two such sensors are configured to transmit on the same channel, their signals become corrupted.
+
+You are given a list of $m$ interfering sensor pairs. You must decide whether it is possible to configure each sensor to use either Channel 1 or Channel 2 so that no two interfering sensors share a channel.
+When multiple valid configurations exist, the firmware requires the configuration sequence to be as small as possible in lexicographical order.
+
+## Input
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 2·10⁵, 0 ≤ $m$ ≤ 2·10⁵), which denote the number of sensors and the number of interfering pairs.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$), meaning that sensor $u$ and sensor $v$ must be assigned to different channels.
+
+## Output
+If there is no way to allocate the channels without causing interference, print a single line containing `NO`.
+If a safe allocation is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, \dots, c_n$ (where each $c_i \in \{1, 2\}$), representing the channel assignment for sensors 1 through $n$. This sequence must be the lexicographically smallest valid configuration.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
 ```

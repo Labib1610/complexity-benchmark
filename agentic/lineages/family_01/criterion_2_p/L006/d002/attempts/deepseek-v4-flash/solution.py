@@ -1,0 +1,105 @@
+import sys
+sys.setrecursionlimit(1_000_000)
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    comps = []
+
+    def bfs(start):
+        from collections import deque
+        q = deque([start])
+        color[start] = 0
+        comp = []
+        while q:
+            u = q.popleft()
+            comp.append(u)
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    q.append(v)
+                elif color[v] == color[u]:
+                    return None
+        return comp
+
+    for i in range(n):
+        if color[i] == -1:
+            comp = bfs(i)
+            if comp is None:
+                print("NO")
+                return
+            comps.append(comp)
+
+    # Now we have components, each is bipartite.
+    # We need to assign each component one of two orientations.
+    # For each component, we have two possible assignments (flip).
+    # We want lexicographically smallest sequence f_1..f_n.
+    # Since f_i in {1,2}, we can try to assign 1 to as early as possible.
+
+    # For each component, store the two color classes
+    # color[u] is 0 or 1 relative to the component's root.
+    # We'll decide for each component whether to flip.
+
+    # We'll process nodes in order and decide greedily.
+    # For each component, we need to know which nodes have which relative color.
+    # We'll store for each node its component id and its relative color.
+    comp_id = [-1] * n
+    rel_color = [-1] * n
+    for idx, comp in enumerate(comps):
+        for u in comp:
+            comp_id[u] = idx
+            rel_color[u] = color[u]
+
+    # For each component, we need to know if we can set a particular node to 1.
+    # Actually, we can decide for each component independently, but the lexicographic
+    # order forces us to decide based on the earliest node in that component.
+
+    # For each component, find the smallest index node in it.
+    comp_min_node = {}
+    for i in range(n):
+        cid = comp_id[i]
+        if cid not in comp_min_node:
+            comp_min_node[cid] = i
+
+    # For each component, determine if we can set the smallest index node to 1.
+    # If rel_color[smallest] == 0, then setting smallest to 1 means flip = (1 - 0) = 1? Let's think:
+    # If we don't flip: node gets rel_color+1
+    # If we flip: node gets (1-rel_color)+1 = 2 - rel_color
+    # We want the smallest index node to be 1 if possible.
+    # So for each component, decide flip based on the smallest index node.
+
+    flip = {}
+    for cid, node in comp_min_node.items():
+        # If we don't flip, value = rel_color[node] + 1
+        # If we flip, value = 2 - rel_color[node]
+        # We prefer value=1 if possible.
+        if rel_color[node] == 0:
+            # not flip gives 1, flip gives 2
+            flip[cid] = 0
+        else:
+            # not flip gives 2, flip gives 1
+            flip[cid] = 1
+
+    # Now construct answer
+    ans = [0] * n
+    for i in range(n):
+        cid = comp_id[i]
+        if flip[cid] == 0:
+            ans[i] = rel_color[i] + 1
+        else:
+            ans[i] = 2 - rel_color[i]
+
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

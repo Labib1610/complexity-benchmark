@@ -1,0 +1,50 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+    
+    best = None
+    
+    for a in range(1, n + 1):
+        # Convert to sorted list for deterministic iteration
+        # and to ensure we find lexicographically smallest
+        neighbors = sorted(adj[a])
+        sz = len(neighbors)
+        for i in range(sz):
+            b = neighbors[i]
+            # Check c in neighbors[j] where j > i
+            # We need b < c and a < b < c
+            # Since neighbors are sorted and > a, this holds
+            for j in range(i + 1, sz):
+                c = neighbors[j]
+                if c in adj[b]:
+                    # Found a triangle
+                    if best is None or (a, b, c) < best:
+                        best = (a, b, c)
+                        # Since we iterate a in increasing order,
+                        # and for fixed a we iterate b in increasing order,
+                        # and for fixed b we iterate c in increasing order,
+                        # the first found is lexicographically smallest.
+                        # We can return immediately.
+                        print(a, b, c)
+                        return
+    
+    # Should not reach here as per problem guarantee
+    if best:
+        print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    solve()

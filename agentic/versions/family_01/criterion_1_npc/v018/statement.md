@@ -1,20 +1,19 @@
-# Operational Scheduling
+# Problem A — Schedule Allocation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-An industrial plant maintains a roster of $n$ workers, indexed from $1$ to $n$. A collection of $m$ incompatible worker pairs is specified; two workers forming an incompatible pair cannot perform duties during the same time window.
+In a manufacturing facility, the workforce consists of $n$ employees. Over time, interpersonal issues have developed, resulting in a known list of incompatible employee pairs. The facility's operations are divided into three distinct daily schedules, which are designated by the numbers 1, 2, and 3. Management enforces a strict policy for organizing the workforce: any two employees who are listed as incompatible must be assigned to different schedules. Furthermore, every employee must be placed into exactly one of these three schedules.
 
-The plant's daily operations are divided into three distinct time windows, designated by the identifiers 1, 2, and 3. Each worker must be assigned to exactly one of these three time windows. A schedule is considered valid if no two workers in any incompatible pair are assigned to the same time window.
-
-Determine if a valid schedule exists. If multiple valid schedules exist, output the one that produces the lexicographically smallest sequence of time window assignments $s_1, s_2, \dots, s_n$. If no valid schedule exists, report this outcome.
+Your task is to determine whether it is possible to distribute the employees according to these rules. If it is possible, you must find the specific valid distribution that is lexicographically smallest when represented as a sequence of schedule numbers (meaning the schedule number for employee 1 is minimized, first and foremost, then employee 2, and so on).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of workers and the number of incompatible pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) representing an incompatible pair of workers.
+The first line contains two integers $n$ and $m$ — the number of employees and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of employees who are incompatible.
 
 ## Output
-If no valid schedule exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the assigned time window for worker $i$. Among all valid schedules, print the lexicographically smallest sequence.
+If there is no way to assign schedules that satisfies all rules, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the schedule assigned to employee $i$. If there are multiple valid assignments, output the one whose sequence $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Example 1
 Input:

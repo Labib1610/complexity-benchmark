@@ -1,0 +1,53 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # Values: 0 = unassigned, 1 = assigned 1, 2 = assigned 2
+    val = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if val[i] == 0:
+            # Start BFS for the connected component containing i
+            # We want to assign the lexicographically smallest valid configuration.
+            # Since we iterate i from 1 to n, setting i to 1 is optimal for lex order.
+            # If this leads to a contradiction, the component is not bipartite, so impossible.
+            
+            q = deque()
+            val[i] = 1
+            q.append(i)
+            
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if val[v] == 0:
+                        val[v] = 3 - val[u]
+                        q.append(v)
+                    elif val[v] == val[u]:
+                        # Contradiction found
+                        print("NO")
+                        return
+
+    print("YES")
+    # Print values from 1 to n
+    output = ' '.join(map(str, val[1:]))
+    print(output)
+
+if __name__ == '__main__':
+    solve()

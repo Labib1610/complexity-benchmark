@@ -1,0 +1,45 @@
+# Problem B — Museum Exhibition Planning
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A museum curator is organizing an exhibition featuring $n$ historical artifacts, sequentially cataloged from 1 to $n$. The museum has allocated exactly two display halls for this event: Hall 1 and Hall 2. Every artifact must be placed in exactly one of these two halls.
+
+During the planning phase, the curator identified $m$ specific pairs of artifacts that are thematically discordant. To ensure a cohesive experience for the visitors, the rules require that for every discordant pair, the two artifacts must be displayed in different halls.
+
+Your task is to organize the artifacts into the two halls in a way that respects all thematic constraints. If it is impossible to satisfy all the conditions, you must report this. In cases where multiple valid arrangements exist, the museum's cataloging system requires you to output the sequence of hall assignments that is lexicographically smallest.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of artifacts and the number of discordant pairs.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that artifact $u$ and artifact $v$ form a discordant pair.
+
+## Output
+If no valid arrangement is possible, output a single line containing `NO`.
+Otherwise, output a line containing `YES`. On the following line, output $n$ space-separated integers $h_1, h_2, \dots, h_n$ (where each $h_i \in \{1, 2\}$) representing the assigned hall for each artifact. This sequence must be the lexicographically smallest among all valid arrangements.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

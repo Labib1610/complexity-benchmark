@@ -1,20 +1,16 @@
-# Problem A — Three-Slot Assignment
+# Problem A — Triple Frequencies
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility operates across three distinct time slots labeled 1, 2, and 3. There are $n$ personnel, numbered 1 through $n$. Certain pairs of personnel are incompatible and cannot be assigned to the same time slot.
-
-Your task is to assign every person to exactly one time slot such that no incompatible pair is assigned to the same time slot, or report that no such assignment exists.
+A communication network has n transmitters. There are three available frequency channels labeled 1, 2, 3. Certain pairs of transmitters will cause interference if they operate on the same channel. Assign every transmitter to exactly one of the three channels so that no interfering pair shares a channel, or report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of personnel and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — an incompatible pair ($1 \le u, v \le n$, $u \neq v$).
+The first line contains two integers n and m — the number of transmitters and the number of interfering pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+Each of the next m lines contains two integers u v — an interfering pair.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line.
-On the second line, print $n$ integers $s_1\ s_2\ \dots\ s_n$ (where each $s_i \in \{1, 2, 3\}$), where $s_i$ is the time slot assigned to person $i$.
-Among all valid assignments, output the lexicographically smallest sequence (comparing $s_1$ first, then $s_2$, and so on).
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers c₁ c₂ … cₙ (each in {1,2,3}), where cᵢ is the channel of transmitter i. Among all valid assignments output the lexicographically smallest sequence (compare c₁ first, then c₂, and so on).
 
 ## Example 1
 Input:

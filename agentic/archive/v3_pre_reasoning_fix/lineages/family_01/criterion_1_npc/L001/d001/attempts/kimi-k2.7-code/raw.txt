@@ -1,0 +1,1027 @@
+<think>
+We need solve problem: graph with n up to 40, assign colors 1..3 to vertices so adjacent vertices get different colors, lexicographically smallest assignment. If not 3-colorable output NO.
+
+This is graph 3-coloring decision/lexicographically smallest for n=40. General problem NP-hard but n small; need algorithm efficient worst-case? 2 seconds. We can use backtracking with pruning, maybe meet-in-the-middle, or use DSATUR. n=40 may be too large for naive 3^n. But instances may be small or structured. Need robust solution. Let's think.
+
+We need lexicographically smallest 3-coloring. That suggests assign vertices in order 1..n, try color 1,2,3, check feasibility of partial assignment. Feasibility of extending a partially colored graph with 3 colors is 3-colorability. Need to test repeatedly. For n=40, we can implement a backtracking coloring algorithm with forward checking and maybe branch and bound. Since lexicographic order aligns with vertex order, we can do recursive assign 1..n, at each step maintain available colors for uncolored vertices. If any uncolored vertex has no available color -> backtrack. This simple backtracking with ordering by smallest domain (but we must assign in fixed order? Lexicographic requires first vertex fixed as low as possible, but within recursion we can still assign sequentially 1..n and prune via domains. That is essentially DPLL). n=40 worst-case could be large (e.g., graph with no edges -> many solutions, lexicographically smallest all 1's, recursion will assign 1 to all quickly because no conflict. Bad case maybe graph that is hard to color). Need algorithm that handles worst-case n=40 maybe with pruning enough.
+
+Alternative: Use BFS/backtracking with connected components; split graph? Could use exponential algorithm O(1.8899^n) for 3-coloring. n=40 => ~2e8 operations maybe high. But Python 2 sec might be tight.
+
+Observe constraints: m up to n(n-1)/2. Need maybe solve by checking if graph is 3-colorable and output lex smallest. There might be simpler structure: The graph is complement? Actually condition: adjacent vertices cannot have same color. That's standard graph coloring. Lex smallest.
+
+n=40 small enough for exact exponential with memoization (dynamic programming over subsets)? 3^40 impossible. But maybe graph is small enough for branching.
+
+We can design algorithm using recursive splitting with memoization on subsets? For graph with 40 vertices, number of independent sets? Maybe use lawler's O(2.4423^n) for chromatic number; 2.4423^40 ≈ 1.2e15 no.
+
+But for 3-coloring specifically, we can reduce to 2-SAT? Actually 3-coloring is NP-complete. For n=40, backtracking with heuristics may pass depending on test data.
+
+Could use SAT solver? Not available.
+
+Maybe problem originally expects backtracking due n<=40 and 3 colors. Let's craft robust solution:
+
+- Read n,m and adjacency bitmasks as integer bitmask per vertex (n<=40 fits Python int).
+- We need lexicographically smallest proper 3-coloring. We'll perform recursive search assigning colors in order. Maintain colors list (0..2), and for each unassigned vertex a bitmask of available colors. Also maintain conflict check quickly.
+
+Simplest: assign vertex i; for c in [0,1,2], if no neighbor of i with color c, assign and recurse. This checks only immediate neighbors, no look-ahead. For hard graphs with many conflicts, it may explore a lot. But with n=40 maybe acceptable? Hard graphs like Mycielski? Could blow up.
+
+Better include forward checking: maintain allowed colors sets for uncolored vertices; when assign v color c, for each uncolored neighbor u, remove c from allowed; if empty -> fail. This prunes significantly. Also maintain uncolored neighbor count.
+
+Additional pruning: if any uncolored vertex has allowed size 1, assign it (forced) recursively. But since we assign in lex order, forcing later vertices may change available colors for earlier uncolored? We assign sequentially 1..n. At step i, vertices <i assigned, >=i uncolored. A forced vertex j>=i can be assigned with the only available color; if conflict? We must ensure no neighbor with that color, which is already guaranteed if color in allowed. We can propagate forced assignments iteratively before choosing next variable. This can speed.
+
+But lex smallest: we need to try colors for vertex i in order. If any branch leads to solution, return. For each branch, we need full extension. With forward checking and forced propagation, we can test.
+
+Could also reorder components? Lex order fixed; but components can be colored independently. For lex smallest, we can solve each component separately and combine. However lex smallest across all vertices: component vertices interleave? Since vertices numbered globally. If graph disconnected, assignment for component A doesn't affect B; lex smallest can be obtained by assigning each vertex as low as possible given constraints, which backtracking naturally does. But decomposition into components might help performance: process vertices in order but within each connected component assign. Actually lex order is vertex order, so component ordering same. We can find connected components, for each component find all possible colorings? Hmm lex smallest overall: For each component, the assignment of that component's vertices only depends on intra-component constraints (no inter edges). So we can find lex smallest coloring of each component independently (with respect to their own vertex labels). Combine. This can reduce search if components small. Good. Since n=40, worst-case connected graph still 40.
+
+What about complement graph: Need assign same color only allowed on independent sets. Equivalent partition into 3 independent sets. Could find if graph is 3-colorable by checking if complement can be covered by 3 cliques? No.
+
+Maybe there is polynomial algorithm if graph is perfect? But no.
+
+Another approach: Use bitmask backtracking selecting largest clique? No.
+
+Potential meet-in-the-middle: Split vertices into two halves n1=20, n2=20. Enumerate all 3^n1 colorings of left half (~3.5 billion) too many. But we can prune with adjacency? Not enough.
+
+Could use inclusion-exclusion / chromatic polynomial. Not.
+
+Let's aim at efficient backtracking and hope tests not adversarial. But we are ChatGPT; should produce correct code, maybe optimize.
+
+We can implement a recursive solver with:
+
+- adjacency bitmask list `adj`.
+- `color = [-1]*n`.
+- For each uncolored vertex i, `avail_mask[i]` bits of allowed colors (1..3). Initially 7.
+- When color[v]=c, for each neighbor u uncolored: `avail_mask[u] &= ~ (1<<c)`. If becomes 0 -> fail.
+
+But scanning all uncolored neighbors each assignment O(n^2). n=40 fine. More overhead in recursion.
+
+Could also represent allowed as integer 0..7.
+
+Implement propagation of forced vertices (singleton domains). Since we assign in lex order, but forced assignment could be on any uncolored vertex. We can maintain a queue of vertices with one allowed color. When assign them, may create new forced. If a forced vertex has allowed color c but also neighbor of same color? Since allowed mask only excludes colors used by already colored neighbors, it should be safe. However forced assignment on a vertex may conflict? We only remove colors due to colored neighbors; if a vertex has allowed mask with c, it has no neighbor colored c, so assigning c is valid. Good.
+
+But we must be careful to undo changes when backtracking: maintain stack of modifications. Simpler: copy arrays at recursion? n=40 small; copying list of allowed ints at each recursion maybe okay but branching could be many; better use stack modifications.
+
+Alternative approach: implement recursive function that at each step picks first unassigned vertex in order, tries colors. But using copy of allowed list is easiest and maybe fine for n=40 if search small. Let's estimate worst-case branches maybe thousands; copying 40-int list each branch trivial.
+
+But with propagation, copying arrays and using queue is straightforward.
+
+Let's consider an even better algorithm for lex smallest: Since there are only 3 colors, we can check if color 1 possible for vertex i by testing 3-colorability of graph with i forced to 1 (and previous vertices fixed). If yes, set to 1. Else test color 2, else color 3. This requires solving many 3-colorability decision problems with forced assignments. Each can be solved by backtracking. This might be less efficient than building solution incrementally because each decision recomputes from scratch. But with memoization, maybe not.
+
+Better: Do recursion in order, return first solution.
+
+Need ensure we output lex smallest among valid. Since we try colors in increasing order at each vertex sequentially, first found solution is lex smallest. Good.
+
+Now we need to be robust for hard cases. Let's think of worst-case graphs for this algorithm. If graph is not 3-colorable, it must explore search tree until proving impossibility. For n=40, proving 3-colorability of random graphs near threshold can be hard but maybe manageable with heuristics.
+
+Maybe there is a standard optimized 3-coloring algorithm for n=40: Use BFS with branching on vertices with 3 choices; when pick vertex, branch color; prune with Kempe chains? Hmm.
+
+Could we transform 3-coloring into checking bipartiteness after contracting edges? Actually 3-coloring of triangle-free graphs is NP-hard. But n=40.
+
+Maybe we can use reduction to 2-SAT for instances where one color class is independent set; no.
+
+We can attempt to use `networkx`? Not allowed.
+
+Alternative: Use integer bitmask with adjacency and implement recursive with bitset of available colors plus ordering by degree. But lex order complicates.
+
+Maybe we can use `python` with recursion and it passes. Let's design a solver that handles components, uses DSATUR-like ordering but still lexicographic:
+
+Observation: Lexicographic order is by vertex index. To get lex smallest, at vertex 1 try colors. If graph has multiple components, vertex 1's component may force some pattern. But we can find lex smallest coloring of each component separately by recursively assigning only vertices of that component in their natural order. The global lex assignment is concatenation of component assignments (since inter-component no edges). Since vertex order is fixed, processing components separately doesn't change lex. This can reduce n. But worst-case one component still 40.
+
+Maybe we can exploit graph complement: Partition into 3 independent sets. For each vertex, available colors exclude colors of neighbors. Since colors only 3, the graph's chromatic number <=3. Could use recursive deletion of vertices with degree <=2? Actually for 3-coloring, we can reduce: If graph has vertex degree <=2, we can remove it and later color it greedily because with 3 colors any two neighbors forbid at most 2 colors. So removal preserves 3-colorability. This reduction can shrink graph. Moreover for lex smallest, we need assign removed vertices after their neighbors; but lex order might place removed vertex before its higher-index neighbors, causing problem because when assigning it in order we may not know neighbor colors? Wait if vertex has degree <=2, we can defer it to last (or after its neighbors) and color greedily. But lex order wants it as early as possible; we could still process in order if we know its neighbors' colors. But neighbors may be uncolored if they have higher index. However we can choose elimination order not index order.
+
+To get lex smallest while using reduction, we can use algorithm: Assign vertices in index order; for each vertex try colors. For the remaining uncolored subgraph, we can simplify by repeatedly removing degree<=2 vertices? But when testing feasibility of a partial assignment, we can apply reduction to the uncolored induced subgraph plus constraints from colored vertices. That may speed.
+
+But perhaps overkill.
+
+Let's look at n=40. Search with propagation should be fine for many. Need avoid exponential blowup in NO instances like K4 (4-clique). Backtracking: vertex1 color1, vertex2 color2, vertex3 color3, vertex4 has no color => backtrack quickly. Good.
+
+Hard instance maybe Grötzsch? Mycielski graph of order 5 has 11 vertices, 4-chromatic triangle-free. For n=40, random G(n,0.5) 3-colorable probability low; unsat proof may be hard. But maybe not adversarial.
+
+We can also add small set of optimizations:
+- Sort vertices? But lex order fixed. Within a component, we have to follow index order. Could we choose a spanning tree order? Lex smallest doesn't require index order assignment, only result lex. If we assign vertices in different order but still produce lex smallest, we need ensure. Not trivial.
+
+Could we use branch and bound with symmetry breaking? Colors symmetric except lex order: color 1 preferred for each vertex. No symmetry breaking beyond lex.
+
+Maybe implement iterative deepening? Not.
+
+Could use memoization on state of colored prefix? There are 4^40 states no. But for small components maybe.
+
+Let's design a solver with good pruning:
+
+Data structures:
+- `adj`: list of ints bitmask neighbors.
+- `color`: list of int, -1 uncolored.
+- `avail`: list of int mask (bits 0,1,2 for colors 0,1,2).
+- `pos`: current vertex index to assign (0..n-1). We always assign next vertex in order.
+- When try color c for v=pos, check if (avail[v]>>c)&1. Then assign; update neighbor avail; propagate forced vertices.
+
+But we can improve by skipping forced propagation? It helps. Implement recursive function `dfs(pos, avail)` but `avail` is list length n. Since n=40, copying list at each recursion is cheap. Propagation modifies a copy.
+
+Pseudo:
+
+def solve_from(avail, color, pos):
+    # pos is next index to consider (0..n)
+    if pos==n: return True
+    if color[pos]!=-1: # maybe assigned by propagation earlier? But we assign in order; propagation may assign later vertices. Need handle.
+        return solve_from(avail, color, pos+1)
+    v=pos
+    mask=avail[v]
+    for c in range(3):
+        if not (mask>>c)&1: continue
+        # try assign v=c
+        new_avail=avail[:]
+        new_color=color[:]
+        new_color[v]=c
+        # propagate
+        if propagate(v,c,new_avail,new_color):
+            # also need ensure that assigning v=c doesn't conflict with already colored neighbors? avail already reflects.
+            # After propagation, some later positions may be colored; continue recursion from pos+1
+            if solve_from(new_avail, new_color, pos+1):
+                color[:]=new_color[:]
+                return True
+    return False
+
+propagate(queue): start with v; for each neighbor u uncolored, remove c from avail[u]; if avail[u]==0 fail; if single color, assign that color and enqueue; continue.
+
+But careful: propagation may assign a vertex at index < pos? Since we maintain color in order, when backtracking from pos, earlier are fixed. Forced propagation should never assign a vertex with index < pos because those are already colored and their avail mask should be 0 (or we don't care). But if earlier uncolored? Not.
+
+At recursion entry pos, vertices <pos are colored; vertices >=pos uncolored (except propagation may color some >pos). Then `if color[pos]!=-1`, just advance.
+
+Complexity: copying arrays plus propagation. For n=40, arrays small. Branching maybe okay.
+
+But there is a subtle bug: When we propagate forced assignment of a vertex j > pos with single available color, that color might conflict with a neighbor that is uncolored but will later be forced same color? No, assigning same color to adjacent vertices is invalid. But if vertex j has single color c in avail, it means no colored neighbor has c. However there could be an uncolored neighbor k that also only has c available. Then when we assign j=c, we remove c from k's avail, making k empty -> propagation fails. Good. So propagation ensures consistency.
+
+Now lex smallest: Because we always process vertex pos in order and try colors 0,1,2; the first found full coloring is lex smallest. Correct.
+
+Can we further prune by checking if uncolored induced subgraph is 3-colorable ignoring colored vertices? But avail already accounts. Maybe check for clique of size 4 among uncolored -> no. Could precompute max clique lower bound; if >3 fail. But n=40, computing max clique each step expensive. However if graph contains K4, we can fail immediately at root. Could find all 4-cliques? O(n^4) = 2.5M okay. But not necessary.
+
+Another simple lower bound: If any uncolored vertex has degree to colored vertices using all 3 colors, avail empty -> caught.
+
+What about coloring with 2 colors? If graph is bipartite and we try colors in lex order, propagation will assign as many 1's as possible? Actually if a connected bipartite component, lex smallest assigns first vertex 1, then all even distances 1? Wait constraint adjacent different; to lex minimize, for vertex 2 neighbor of 1 cannot be 1, so try 1 fail, try 2, etc. Works.
+
+Potential issue: The simple DFS with propagation but no variable ordering (fixed index) may be slow on graphs where early vertices highly connected? But n=40.
+
+Let's test mentally Example 1: n=4, edges. avail initial 7.
+pos0 v1 try c0: propagate remove bit0 from neighbors 2,3,4. avail2=6 (bits1,2), avail3=6, avail4=6.
+pos1 v2 try c0? avail2 no. try c1: assign color2; propagate remove bit1 from neighbors 1(no),3 => avail3 becomes 4 (bit2 only), 4 => avail4 becomes 4 (bit2 only). propagation forces v3=2 (color3), removes bit2 from v4 => avail4=0 fail. Backtrack v2 try c2: assign color3; propagate remove bit2 from neighbors1,3,4. avail3 becomes 2 (bit1 only), avail4 becomes 2. Force v3=color2; remove bit1 from v4 => avail4=0 fail. Backtrack pos0 v1 c0 fails.
+pos0 try c1 (color2): remove bit1 from 2,3,4. avail2=5 (bits0,2), avail3=5, avail4=5.
+pos1 v2 try c0: remove bit0 from 1,3,4. avail3=4 (bit2), avail4=4. force v3=2 -> remove bit2 from v4 => 0 fail.
+v2 try c2: remove bit2 from 1,3,4 -> avail3=1(bit0), avail4=1. force v3=0 -> remove bit0 from v4 => 0 fail. Backtrack.
+pos0 try c2 (color3): remove bit2 from 2,3,4. avail2=3(bits0,1), avail3=3, avail4=3.
+pos1 v2 try c0: remove bit0 from1,3,4. avail3=2(bit1), avail4=2. force v3=1 -> remove bit1 from v4 => 0 fail.
+v2 try c1: remove bit1 from1,3,4. avail3=1(bit0), avail4=1. force v3=0 -> remove bit0 from v4 => 0 fail. Wait but solution exists 1 2 3 3? Our algorithm tries c0 (color1) for v1 and found no solution, c1 for v1 also no, c2 for v1 also no? But solution [1,2,3,3] corresponds colors 0,1,2,2. That has v1 color1 (c0). Why did our branch fail? Let's check graph: edges (1,2),(1,3),(2,3),(1,4),(2,4). It's K4 minus edge 3-4. Solution: v1=1, v2=2, v3=3, v4=3. With propagation:
+pos0 v1=c0; neighbors 2,3,4 lose color0. avail2={1,2}, avail3={1,2}, avail4={1,2}.
+pos1 v2 try c1 (color2): neighbors 1,3,4 lose color1. avail3={2}, avail4={2}. Force v3=c2: neighbors 1,4 lose color2. v4 avail becomes {} -> fail. But actual solution has v3=3 and v4=3 both color2; v3 neighbor v1,v2 not color2, v4 neighbor v1,v2 not color2, and v3-v4 nonedge. However propagation forced v3=c2 because its only available color was c2, then removed c2 from v4, but v4 could also be c2 because v3-v4 not adjacent. Wait propagation removed c2 from v4 incorrectly? No, propagation only removes color from neighbors of assigned vertex. v3 and v4 are not neighbors (edge 3-4 missing), so assigning v3=c2 should NOT remove c2 from v4. But earlier v4 avail={2} after v2=c1? Let's recompute: v1=c0 removed c0 from v4 -> v4 {c1,c2}. v2=c1 removed c1 from v4 -> v4 {c2}. Yes. v3 is not neighbor of v4, so v4 stays {c2}. I mistakenly said remove from v4. Actually v3 neighbors are 1,2. So propagation: assign v3=c2, remove c2 from v1 (colored), v2 (colored). No effect on v4. v4 remains {c2}. Then proceed pos? v3 index 2 now colored. pos advance to 3 (v4). avail v4 {c2}, assign c2. Solution found! Wait earlier I thought fail; my mental simulation wrong. Good.
+
+So algorithm finds [0,1,2,2] -> output 1 2 3 3. Good.
+
+Now complexity manageable.
+
+But what about propagation causing forced assignment of a vertex at index equal to pos? At pos we choose color; if after assignment some vertex becomes forced at same pos? It is the vertex itself? We assign it; remove color from neighbors. Good.
+
+Implementation details: To avoid copying color list and avail list at every branch, we can use in-place modification with stack of changes and recursion. Given small n, copy is fine. But Python recursion overhead plus copying could still be okay for n=40. However number of nodes could be high; copying 40-element lists maybe okay. Let's approximate worst-case 10^6 nodes => 40 million ints copy -> maybe heavy but okay in 2s? Python copying list of length 40 is 320 bytes; 1M copies 320MB memory moves; maybe okay. But if 10M nodes, too slow.
+
+Let's implement in-place with undo stack to be efficient.
+
+Data structures:
+- `color = [-1]*n`
+- `avail = [7]*n`
+- `adj = [...]`
+- recursive function dfs(pos):
+    while pos < n and color[pos] != -1:
+        pos += 1
+    if pos == n: return True
+    v = pos
+    # For lex order, try colors in 0..2 that are allowed.
+    # But note avail[v] might have multiple colors. We try c.
+    for c in (0,1,2):
+        if not (avail[v]>>c)&1: continue
+        # assign and propagate; record changes.
+        changes = []  # list of (u, old_avail)
+        ok = True
+        stack = [(v,c)]
+        color[v] = c
+        # We might also set avail[v] to 0? Not needed maybe. But for propagation we should treat v as colored.
+        while stack and ok:
+            x, col = stack.pop()
+            for u in neighbors[x]:
+                if color[u] != -1:
+                    continue
+                if (avail[u]>>col)&1:
+                    old = avail[u]
+                    avail[u] = old & ~(1<<col)
+                    changes.append((u, old))
+                    if avail[u] == 0:
+                        ok = False
+                        break
+                    # if single bit, assign
+                    if avail[u] & (avail[u]-1) == 0:  # power of two
+                        # find bit
+                        cu = (avail[u].bit_length() - 1)
+                        color[u] = cu
+                        stack.append((u, cu))
+        if ok:
+            # advance to next uncolored after pos
+            np = pos+1
+            while np < n and color[np] != -1:
+                np += 1
+            if dfs(np):
+                return True
+        # undo changes
+        for u, old in changes:
+            avail[u] = old
+        # undo colored vertices in changes + v
+        # Need reset color for all vertices assigned during propagation (including v and forced ones).
+        # We can track assigned vertices in a list assigned_here.
+    color[v] = -1  # after loop. But forced ones also need reset.
+    return False
+
+Need maintain list `assigned_here` to reset colors. For v and any forced u. Add to list when set color. Undo after branch.
+
+But there's a nuance: avail[v] remains old value (7 initially) unless changed by neighbor assignments. Since v colored, avail[v] not used. When undo, no need to restore avail[v] unless it was changed before. But if v was forced earlier, avail[v] was single color; when we assigned it we didn't update avail[v]. At undo we can leave avail[v] as is? It should reflect allowed colors from colored neighbors. Since v is uncolored after undo, avail[v] must be recomputed? In in-place approach, when we assign v color c, we don't remove c from v's own avail. But its avail could be stale (still the mask before assignment). When backtracking and trying another color, we just check `(avail[v]>>c)&1` using stale mask, which is correct because we haven't changed v's avail. However if a forced assignment later removed a color from v? But v is colored, so propagation skips colored neighbors. If later backtrack to v and uncolor it, its avail mask is whatever it was when first chosen. But during that branch, other vertices were colored and uncolored; we undo their avail changes, so v's avail remains correct. Good. But if v was forced by propagation from an earlier vertex (not at choice point), then at recursion entry pos, color[v]!=-1, we skip; we never backtrack v individually; when the earlier choice backtracks, v's color will be reset via assigned_here of that branch. Avail[v] will be restored via changes of that branch. Good.
+
+Need also handle that `color[u]` set when forced; we push onto stack to propagate. But if forced color cu computed from avail[u] single bit, ensure no colored neighbor has cu; by construction avail excludes colors of colored neighbors. However an uncolored neighbor may have same single color and will later be forced different? If same cu and adjacent, after assigning u=cu, neighbor's avail will have cu removed; if that leaves zero, fail. Good.
+
+Potential issue: propagation could force chain; but if a vertex has domain size 1 and we assign it, then later another vertex's domain size becomes 1 and we assign, etc.
+
+Edge case: Vertex with avail single bit but also has colored neighbor with that color? Can't, because colored neighbor's color would have been removed.
+
+This algorithm may find solution quickly.
+
+But we might still face large unsatisfiable search. Let's think of improvements.
+
+Connected components: Could split graph into connected components and solve each independently with same algorithm but smaller size. For lex smallest, process each component separately and combine. However our in-place DFS processes all vertices in order; if graph has many small components, propagation will not cross components, but DFS may assign each component in lex order. Splitting components could allow solving them separately and maybe faster because we don't carry state across. But not critical. We can implement component split to reduce worst-case? If graph disconnected into small pieces, independent solving is cheap anyway. But we can also reorder vertices by component while preserving relative order? Actually lex smallest of global assignment equals for each component, lex smallest assignment of that component, regardless of others. If we solve components independently, we need produce assignment for each component. Since components don't interact, the global lex smallest is obtained by taking for each component its lex smallest coloring (with its vertex labels). Because choices in one component don't affect feasibility of another. Lexicographic comparison across all vertices: For each position, its component's assignment can be minimized independently. So yes.
+
+Implementation of component split:
+- Find connected components via DFS/BFS.
+- For each component, extract subgraph with vertices in original order. Solve 3-coloring for that subgraph (vertices numbered within component). Lex smallest for that component is same as with global labels because relative order unchanged and no external constraints. Combine by mapping back.
+- This may reduce n to max component size. Worst-case connected n=40.
+
+But splitting components adds code but straightforward. It also avoids recursion across components; after solving one component, no backtracking over it. Good.
+
+We should also sort components? Lex order is fixed by vertex labels, so we can solve each component independently and place assignments in original positions. No need sort.
+
+However note: If a component has a vertex 1 and another component vertex 2, lex smallest global might not be component-wise lex smallest? Let's verify. Suppose component A contains vertices {1,4}, component B {2,3}. Lex order compares position1,2,3,4. Since components independent, we can choose any valid coloring for B regardless of A. To minimize global lex, we minimize position1 (in A), then position2 (in B), then position3 (in B), then position4 (in A). This is equivalent to minimize A's coloring lex (positions 1,4) and B's coloring lex (positions 2,3) independently. Because lex global decomposes as component subsequences. Yes.
+
+So we can solve per component.
+
+Now, for each component, we run DFS. If any component unsatisfiable, output NO.
+
+We might want to also handle isolated vertices: component size 1, assign 1.
+
+Now complexity for component of size 40.
+
+Can we add a reduction step: repeatedly remove vertices of degree <=2, since they can always be colored after their neighbors are colored. This can drastically reduce graph for sparse instances. But for lex smallest, we need assign removed vertices in original order. However we can use the following: For a component, find a core by removing low-degree vertices. Then solve core via backtracking (smaller). Then reinsert removed vertices greedily in reverse removal order. But to get lex smallest, the order of removal may not correspond to index order; greedy reinsertion in reverse removal order will produce some valid coloring but not necessarily lex smallest. We could then transform to lex smallest? Not easily.
+
+Alternatively, we can incorporate low-degree heuristic in branching: choose next vertex not fixed index but smallest domain / highest degree? But lex order demands first vertex. However maybe we can branch in index order but use low-degree for feasibility. Hmm.
+
+Could use algorithm for list coloring with lex order by assigning sequentially and using propagation as above. That is conceptually simple and likely passes.
+
+Let's consider using CSP with recursive splitting plus component decomposition. I think good.
+
+But we should think about worst-case 3-colorable graphs where many branches exist before finding lex smallest. Lex smallest tends to have early vertices color1, so search may prune quickly after first success. For unsatisfiable, it explores all possibilities for early vertices until none. Could be large if graph is almost 3-colorable. But n=40 maybe okay with propagation.
+
+Let's test with random graphs near 3-colorability threshold. For n=40, G(40, p) average degree ~? 3-coloring threshold for random graphs occurs around m ~ 1.5n? Actually for 3-colorability, threshold around average degree 4.7? For n=40, maybe many instances. Unsat proof with backtracking could be moderate.
+
+But maybe problem expects exact exponential algorithm using bitmask branch and bound. Let's consider implementing a more powerful algorithm: use `branch and bound with adjacency matrix and color ordering`. Since lex order, maybe no.
+
+Alternative approach: Since only 3 colors, we can use `network flow / 2-SAT` for triangle? No.
+
+Could use `Zeta transform` to compute chromatic polynomial? For n=40, O(2^n n) ~ 40*1e12 no.
+
+Could use `inclusion-exclusion` to count 3-colorings in O(2^n n) no.
+
+Backtracking is expected.
+
+Let's maybe add an optimization: choose next unassigned vertex with smallest domain but break ties by index? But lex smallest requires assign vertex 1 first. However we can still use look-ahead variable ordering internally if we then adjust result lex? Not straightforward: If we assign vertex 5 before vertex 2, the choices for vertex 2 later are constrained. The lex smallest result might still be found if we try values for early vertices appropriately? We could do recursive search that always branches on the uncolored vertex with smallest domain (MRV), and to ensure lex smallest, we can record all solutions and compare? Too expensive.
+
+Alternatively, we can find lex smallest by sequential decision with feasibility tests. Each feasibility test can be performed by a strong CSP solver using MRV; that might be faster because it doesn't enforce index order during search. For each vertex i in order, test color1 feasible for graph with previous vertices fixed. Feasibility is 3-coloring with forced assignments; we can solve using MRV backtracking quickly (only need yes/no). For each i, worst-case solve many decision problems (up to 3 per vertex = 120 solves). If each solve is fast, overall fast. But re-solving from scratch repeatedly could be heavy. However n small.
+
+Maybe better: Use one recursive search with index order and propagation. Simpler.
+
+Let's evaluate potential recursion depth and overhead. n=40, recursion depth <=40. In each branch, propagation loops. With in-place undo, overhead low.
+
+Let's code carefully.
+
+But I want to ensure no issue with Python recursion and mutability. Implement `solve_component(vertices, adj_comp)` returning colors list length k. We need map local indices 0..k-1 to global. Build adjacency bitmask for local vertices. Since k<=40, int bitmask works.
+
+Implement DFS:
+
+def color_component(k, adj):
+    color = [-1]*k
+    avail = [(1<<3)-1]*k
+
+    # stack for recursion
+    sys.setrecursionlimit(10000)
+
+    # Precompute neighbor lists for bitmask iteration? We can iterate bits of adj[v]. For each set bit u. k<=40, bit iteration okay.
+    def neighbors(v):
+        mask = adj[v]
+        while mask:
+            lsb = mask & -mask
+            u = (lsb.bit_length()-1)
+            yield u
+            mask ^= lsb
+
+    # propagation assignment
+    def assign_and_propagate(v, c, color, avail):
+        # returns (ok, assigned_list, changed_list)
+        # assigned_list: vertices whose color set (including v)
+        # changed_list: (u, old_avail) for avail changes (not including v maybe)
+        assigned = [v]
+        color[v] = c
+        stack = [v]
+        changed = []
+        while stack:
+            x = stack.pop()
+            col = color[x]
+            mask = adj[x]
+            # iterate neighbors
+            mm = mask
+            while mm:
+                lsb = mm & -mm
+                u = lsb.bit_length() - 1
+                if color[u] == -1:
+                    if (avail[u] >> col) & 1:
+                        old = avail[u]
+                        new = old & ~(1 << col)
+                        avail[u] = new
+                        changed.append((u, old))
+                        if new == 0:
+                            return False, assigned, changed
+                        # if single bit
+                        if new & (new - 1) == 0:
+                            cu = new.bit_length() - 1
+                            color[u] = cu
+                            assigned.append(u)
+                            stack.append(u)
+                mm ^= lsb
+        return True, assigned, changed
+
+    def dfs(pos):
+        # skip colored vertices
+        while pos < k and color[pos] != -1:
+            pos += 1
+        if pos == k:
+            return True
+        v = pos
+        # optional: if avail[v] has no colors fail (shouldn't)
+        mask = avail[v]
+        # try colors 0,1,2 in order
+        for c in range(3):
+            if not (mask >> c) & 1:
+                continue
+            ok, assigned, changed = assign_and_propagate(v, c, color, avail)
+            if ok:
+                # Need also assign v's own color already set; propagation may assign others.
+                # Continue recursion
+                if dfs(pos + 1):
+                    return True
+            # undo
+            for u, old in changed:
+                avail[u] = old
+            for u in assigned:
+                color[u] = -1
+        return False
+
+    if dfs(0):
+        return [c+1 for c in color]
+    else:
+        return None
+
+But note after `dfs(pos+1)`, some later vertices are colored; when backtracking, `assigned` includes v and forced vertices; undo sets them to -1. Good. However what about vertices that were assigned by later recursive choices (not forced in this branch)? They are undone in their own recursion levels via their assigned lists. Since recursion is LIFO, by the time this branch returns False, all deeper assignments have been undone. So color array for positions > pos should be -1 except maybe no. Good.
+
+But one subtlety: In `dfs`, after propagation, some vertices at positions <= pos might become colored? Actually color[pos]=v, and earlier positions are all colored (fixed). Propagation could force a vertex with index < pos? That would be a vertex already colored; but its avail mask is not maintained (it is colored). However if a vertex < pos had only one allowed color when considering newly colored v? It is already colored; no need. But propagation skips colored neighbors. Could it miss conflict? Suppose a vertex u < pos is colored c, and v is assigned c; but they are adjacent -> conflict should have been detected earlier because when u was colored, c was removed from v's avail; if c not in avail[v], we wouldn't try c. So safe. Thus propagation won't force earlier.
+
+Now, what about performance of repeatedly scanning all bits in adjacency? k <= 40, fine.
+
+Need map to global output.
+
+Connected components extraction:
+- Build global adjacency list maybe set.
+- visited array.
+- For each unvisited, BFS/DFS to collect component vertices. Sort them (they will be in order due BFS but sort to be safe).
+- For each component, solve. If None -> print NO and exit.
+- Combine into answer array length n: for idx, global vertex = comp_vertices[i], ans[global]=colors[i]+1.
+
+But wait: If graph has isolated vertex, component size 1; algorithm works.
+
+Now let's consider if `dfs(0)` always tries colors for vertex 0. Good.
+
+Potential bug: `avail[v]` mask may not reflect colors of colored neighbors because when we assigned an earlier vertex u, propagation removed c from v if u adjacent. Good. When we undo a branch, we restore avail changes. Good.
+
+Now complexity in worst-case. Could there be a case where propagation's forced assignments cause thrashing? Probably okay.
+
+Let's think about a graph that is a 5-cycle (odd cycle) requiring 3 colors. n=5. Our DFS:
+v0=0 -> remove 0 from v1,v4.
+v1 try 0? no (removed). try1 -> remove1 from v2,v0. v2 try? avail {0,2}? try0 -> remove0 from v3,v1. v3 avail {2}? because removed0,1 -> {2}. force v3=2 -> remove2 from v2,v4. v2 was 0 unaffected, v4 avail initially {1,2} after v0 removed0 => {1}; now remove2 => {1}. v4 pos4 avail {1}; assign 1 -> remove1 from v0,v3. OK. Solution [0,1,0,2,1]. Lex smallest? For 5-cycle, lex smallest is 1,2,1,2,3? Wait cycle 1-2-3-4-5-1. Assign v1=1, v2=2, v3=1, v4=2, v5=3 (since neighbor v1=1, v4=2). Our solution [0,1,0,2,1] -> 1,2,1,2,3. Good.
+
+Now consider graph that is not 3-colorable but has large search. For example complete graph K4. DFS:
+v0=0, remove from v1,v2,v3.
+v1 try0 no, try1 remove from v2,v3.
+v2 try0? removed, try1? removed, try2 remove from v3. v3 no colors -> backtrack. etc. Small.
+
+Hard unsat graph maybe Mycielski of 11 vertices. Search maybe moderate.
+
+Maybe we need further pruning: If uncolored subgraph contains a vertex with degree (within uncolored) >=3 but with only 2 available colors due to colored neighbors, fine.
+
+Let's consider performance for n=40, graph random near threshold. Could be millions of nodes. Python might be borderline. We can add heuristic: order colors? Fixed lex.
+
+Could add conflict detection via checking if any uncolored vertex has avail size 0 (propagation ensures no). Also could detect if two adjacent vertices have same single available color -> propagation catches when one assigned.
+
+Could add `if degree of v to uncolored neighbors is high` no.
+
+Another optimization: Use `adj` bit masks and precompute neighbor lists as Python lists for fast iteration, rather than iterating bits each time. Since k<=40, list of lists is fine.
+
+Implement `neighbors = [list of ints]`.
+
+Now in propagation, we need to iterate neighbors of x. Use for u in neigh[x]: if color[u]==-1 and (avail[u]>>col)&1: ...
+
+But `color[u]==-1` check each neighbor; fine.
+
+Potential issue with recursion and `pos+1` skip: Suppose after propagation, vertices at positions pos+1, pos+2 become colored. `dfs(pos+1)` will skip them via while loop. Good.
+
+Now think about graph components and lex smallest: Suppose component vertices list sorted. For each component we solve with local indices. Lex smallest for local is global lex for those positions because relative order preserved. Good.
+
+Now is there any case where global lex smallest requires a non-locally-lex coloring for a component due to interactions with other components? No interactions. So independent.
+
+Now produce code.
+
+But before finalizing, let's think if there are adversarial inputs designed to break simple backtracking. Since problem statement n<=40 maybe from some contest. They might expect using `meet-in-the-middle` or `branch and bound` due to NP-hard. But maybe tests moderate.
+
+Could we implement a more advanced exact algorithm for 3-coloring like `Lawler dynamic programming`? 2.442^40 too huge. Not.
+
+Could use `backtracking with heuristic of selecting vertex with max degree` but lex order. Could we compute lex smallest via solving CSP with custom variable ordering that is not index, but compare lex? Maybe we can produce all solutions? No.
+
+Let's attempt to incorporate a simple reduction for degree <=2 vertices to speed, while preserving lex smallest. Idea: When assigning vertices in index order, if current vertex v has degree <=2 among uncolored+colored? Actually with 3 colors and at most 2 colored neighbors, it always has an available color. This doesn't prune.
+
+Alternatively, we can use algorithm that processes vertices in order but for each vertex, before branching, we can check if setting color c leads to immediate contradiction via checking for a 4-clique? If v and three neighbors all pairwise adjacent and use colors... Hard.
+
+Could implement `low-degree elimination` as preprocessing for feasibility within branch: For the uncolored subgraph with list colors, repeatedly remove vertices whose list size > degree? Actually if a vertex has list of available colors of size k and degree d, Hall condition for list coloring. But 3-coloring is list coloring with lists {colors not used by colored neighbors} and uncolored neighbor constraints. Removing degree<=2 vertices does preserve 3-colorability as mentioned. We could apply this reduction in `assign_and_propagate` for fast detection of unsatisfiable subgraphs: repeatedly delete vertices of degree <=2 (in the uncolored graph) and reduce their lists? But list sizes may be 1 or 2. A vertex with degree <=2 always list colorable after deletion (greedy). So we can reduce the core to minimum degree 3. This can significantly shrink graph. However implementing it dynamically in each branch might be expensive but n=40. But maybe not needed.
+
+Actually, graph 3-coloring can be solved in O(1.3289^n) using reduction rules (Beigel/Eppstein), but complex.
+
+For contest, backtracking likely fine.
+
+Let's consider time limit 2 sec. Python recursion with propagation for n=40 maybe okay if not pathological. We can also use PyPy? The judge likely CPython. Need efficient.
+
+We can micro-opt:
+- Represent color as small int, avail as int.
+- Precompute neighbor list.
+- Use local variables in recursive function by closures or pass references.
+- Avoid tuple creation in changed list? Use two parallel lists? Not necessary.
+- In propagation, `changed` list may append (u, old) many times per branch. k=40, fine.
+
+Potential bug: When we undo changes, we also need undo color for assigned vertices. But what about `avail` of assigned vertices? We never changed them. However during propagation, if an assigned vertex (forced) is later a neighbor of another forced vertex, we skip because color[u]!=-1. We didn't record any change to its own avail. At undo, color set -1, avail unchanged (it was single color before assignment). That single color may now be stale because colored neighbors may have changed? Wait when we undo a branch, we undo all color changes in reverse? We undo assigned colors and avail changes. The avail of a forced vertex was changed by earlier neighbor assignments (its domain reduced to single). Those changes are recorded in `changed` and undone. So after undoing, avail of forced vertex returns to before. Good.
+
+But what about v itself? We don't record avail change for v. Its avail remains whatever before branch (could be full or reduced). If v was not previously colored, its avail reflects constraints from earlier vertices. That's correct. We set color[v] = -1 at undo. Good.
+
+Now after undo, what about v's avail if it was forced by a previous branch? It would have been set to single and colored, assigned list includes it in previous level; undo restores. Good.
+
+Now test with sample.
+
+Let's write a quick mental simulation for sample 2 K4: component size4 fully connected.
+v0=0 -> neighbors lose 0.
+v1 avail {1,2}; try1 -> neighbors lose1; v2 avail {2}; force v2=2 -> neighbors lose2; v3 avail {} -> fail. Undo.
+v1 try2 -> v2 avail {1}; force v2=1 -> v3 {} fail. Undo.
+v0 try1 -> similar fail. v0 try2 -> fail. Return None -> NO. Good.
+
+Now code.
+
+But we can improve further by early sorting of colors? Fixed.
+
+Potential issue with recursion stack and `color`/`avail` being list in closure: fine.
+
+Now consider component extraction when m can be 0. Then n components size1. DFS each: v0 avail {0,1,2}; try0 -> assign; solution colors [0]. Output all 1. Good.
+
+Now memory: fine.
+
+Now, is there possibility that `dfs` at pos with `color[pos]==-1` but `avail[pos]==0` due to some bug? Then loop over c skips all and returns False. Good.
+
+Now, one more thought: The propagation uses a stack of vertices whose color newly set. For each, we iterate all neighbors. But when we assign v initially, we set color[v]=c and push v. Good. For forced vertices, we determine cu from avail single bit and push. However there is a subtlety: A forced vertex could have avail single bit but also have a colored neighbor with that same color if that colored neighbor was set after the avail was last updated? No, because whenever a neighbor is colored, propagation immediately removes that color from avail. Since we maintain this invariant, avail always excludes colors of colored neighbors. Thus forced color is safe.
+
+Now, can propagation assign same color to adjacent vertices in same branch due to simultaneous forced? Example: two adjacent vertices u and w both have avail {c} because each has colored neighbors forbidding other colors but not adjacent to each other colored. Wait u and w adjacent; if both have only c in avail, then they have no colored neighbor with c. But u-w edge should have removed c from each other's avail? Since they are uncolored, propagation doesn't remove colors between uncolored vertices. So both can have avail {c}. When we pop u and assign c, we propagate to w, remove c from w -> empty -> fail. Good. So no invalid.
+
+Now, if we implement propagation queue as list/stack, the order may assign u first and fail, but a different assignment order not possible because c is only color. Good.
+
+Now, think about the size of recursion and copying overhead. In-place is good.
+
+Let's maybe add a pre-check for K4: find any 4-clique, if so NO quickly. But not necessary and could cost O(n^4) = 2.5M, okay. However if graph has no K4 but still not 3-colorable, doesn't help. Could skip.
+
+Actually a stronger necessary condition: graph must be K4-free. If m large, finding K4 may prune early. But simple DFS will detect quickly. Let's not add.
+
+Could add ordering of components by size maybe: solve small first; if any unsat, exit. Output combine. Since independent, order doesn't matter.
+
+Now code formatting.
+
+Potential hidden issue: The problem says each emitter must be tuned to one of three frequencies 1,2,3. Output n integers separated by spaces. Need print "YES" then second line. If NO, single line `NO`.
+
+Edge cases:
+- n=1,m=0 -> YES, 1.
+- self-interference? Input likely u!=v but not guaranteed? If self-pair u=v, then emitter cannot be same as itself, impossible. Need handle? Problem says pair of emitters, likely distinct. But if u==v appears, then no valid coloring because vertex adjacent to itself. Our adjacency list would include self-loop. Propagation: when assign v=c, it sees neighbor u=v colored != -1 so skip, so it wouldn't detect self conflict. Then might output invalid coloring. We should handle self-loops? Not in problem constraints. But to be safe, we can detect if u==v -> impossible. Also duplicate edges. Duplicate edges no issue. But we can ignore self-loop? Better to treat as impossible: if any u==v, print NO. But constraints imply distinct. I'll add a check to be robust, not necessary.
+
+- Duplicate edges: adjacency bitmask handles duplicates.
+
+Now, let's consider correctness proof for lex smallest. The DFS assigns vertices in increasing order; for each vertex tries colors in increasing order; returns first complete coloring. Any lex smaller configuration would differ at first position where they differ, with smaller color. Since algorithm tried that smaller color and found no completion, no lex smaller valid config exists. Good.
+
+Now complexity: exponential but n small.
+
+Let's consider if there is any issue with component splitting and lex smallest if component has vertices not contiguous. As argued independent. Good.
+
+Now final code.
+
+Wait, one more nuance: In component extraction, if we use adjacency bitmask global, we can collect component vertices. Then create local adjacency by mapping global -> local index. Sort comp vertices. Good.
+
+Now, potential recursion bug: In `dfs(pos)`, after branch and undo, we return False if none. But before returning False, we should ensure `color[pos]` is -1. Since in loop, after each branch we undo assigned list including v. After loop, set color[v] = -1? Actually after each branch we set color of assigned vertices to -1. The last branch failed and undone. But if no branches attempted (mask empty), color[v] is still -1 (we didn't set). So okay. But to be safe, set color[v] = -1 after loop.
+
+But there is scenario: we enter dfs(pos) with color[pos]==-1, and `mask` may include colors. In first iteration, we call assign_and_propagate setting color[v]. If it fails, we undo. Then second iteration etc. After all fail, color[v] is -1. Good.
+
+Now, maybe we can improve by caching `avail` to avoid scanning all colors? No.
+
+Now, let's think about potential stack overflow from recursion due to propagation forced chain. Depth of stack list could be up to k, fine.
+
+Let's consider if we should use iterative DFS for lex order? Recursion fine with setrecursionlimit.
+
+Now, final code with function solve().
+
+Pseudo:
+
+import sys
+
+def solve_component(k, neigh):
+    color = [-1]*k
+    avail = [7]*k
+    full = 7
+
+    def dfs(pos):
+        while pos < k and color[pos] != -1:
+            pos += 1
+        if pos == k:
+            return True
+        v = pos
+        mask = avail[v]
+        # Try colors
+        for c in range(3):
+            if not (mask >> c) & 1:
+                continue
+            assigned = [v]
+            changed = []
+            color[v] = c
+            stack = [v]
+            ok = True
+            while stack and ok:
+                x = stack.pop()
+                col = color[x]
+                for u in neigh[x]:
+                    if color[u] != -1:
+                        continue
+                    a = avail[u]
+                    if (a >> col) & 1:
+                        new = a & ~(1 << col)
+                        avail[u] = new
+                        changed.append((u, a))
+                        if new == 0:
+                            ok = False
+                            break
+                        # single bit?
+                        if new & (new - 1) == 0:
+                            cu = new.bit_length() - 1
+                            color[u] = cu
+                            assigned.append(u)
+                            stack.append(u)
+            if ok:
+                if dfs(pos + 1):
+                    return True
+            # undo
+            for u, old in changed:
+                avail[u] = old
+            for u in assigned:
+                color[u] = -1
+        return False
+
+    if dfs(0):
+        return color
+    return None
+
+def solve():
+    import sys
+    data = sys.stdin.read().strip().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        if u == v:
+            print("NO")
+            return
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # connected components
+    visited = [False]*n
+    ans = [0]*n
+    for i in range(n):
+        if not visited[i]:
+            # BFS
+            stack = [i]
+            visited[i] = True
+            comp = []
+            while stack:
+                x = stack.pop()
+                comp.append(x)
+                mask = adj[x]
+                while mask:
+                    lsb = mask & -mask
+                    y = lsb.bit_length()-1
+                    if not visited[y]:
+                        visited[y] = True
+                        stack.append(y)
+                    mask ^= lsb
+            comp.sort()
+            k = len(comp)
+            # build local adjacency lists
+            idx = {v: j for j, v in enumerate(comp)}  # dict; small
+            neigh = [[] for _ in range(k)]
+            for j, v in enumerate(comp):
+                mask = adj[v]
+                while mask:
+                    lsb = mask & -mask
+                    y = lsb.bit_length()-1
+                    neigh[j].append(idx[y])
+                    mask ^= lsb
+            colors = solve_component(k, neigh)
+            if colors is None:
+                print("NO")
+                return
+            for j, v in enumerate(comp):
+                ans[v] = colors[j] + 1
+    print("YES")
+    sys.stdout.write(" ".join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+
+We used dict idx mapping. For n=40, fine. Could use list of size n with -1 for mapping faster. Let's use list mapping: `loc = [-1]*n; for j,v in enumerate(comp): loc[v]=j`. Then build neigh.
+
+Also in component extraction, using bitmask iteration for BFS; fine.
+
+Potential issue: In `solve_component`, avail initial full for all vertices. But if component solved independently, there are no external constraints, so full. Good.
+
+Now test with examples mentally. Works.
+
+But there is a correctness subtlety with components: Suppose graph disconnected. The lex smallest global config is component-wise lex smallest. We solve each component independently. However our component solver assigns local index 0..k-1 in order of global indices (comp sorted). It returns lex smallest for that subsequence. Good.
+
+Now, consider performance of solve_component with in-place modifications. Good.
+
+But wait: In `dfs`, after assign_and_propagate, we call `dfs(pos+1)`. This will skip colored vertices. However what if a vertex at index `pos` (v) got assigned by propagation earlier (from a previous branch) and we call dfs(pos) with color[pos]!=-1? The while loop skips. Good.
+
+What about a vertex with index less than pos that is uncolored? Shouldn't happen because pos always first uncolored index at entry. But propagation from v=pos only assigns indices >=pos (since earlier colored). Could it assign a vertex with index < pos if that vertex is uncolored? No, earlier indices are colored. So fine.
+
+Now, is the `for u in assigned: color[u] = -1` enough? Yes, because only assigned vertices are colored in this branch; deeper recursion colors will be undone before returning. When `dfs(pos+1)` returns True, we propagate True up without undoing; the color assignment persists, as desired. When it returns False, the recursion has undone its own assignments, so only our assignments remain to undo. Good.
+
+Now, is there any case where `changed` includes an entry for a vertex that later becomes assigned and then its color set -1; its avail restored to old (which might be full or some mask). Correct.
+
+Edge case: A vertex may appear in `changed` multiple times within one branch (if multiple colored neighbors remove different colors). We restore each change in reverse order; since we append old value before each change, restoring works. Example: avail old 7; neighbor removes c0 -> new6 record (u,7); another removes c1 -> new4 record (u,6). Undo sets avail=6 then 7. Good.
+
+Now, we may want to sort neighbors lists? Not necessary.
+
+Potential issue: `new & (new-1) == 0` uses `new` int; for `new` >0. If new==0 we already failed. So okay. `new.bit_length()-1` gets index of single bit. Good.
+
+Now, is there risk that propagation stack becomes large and recursion with stack list uses while; okay.
+
+Now, we need output exactly required format. Print `YES` with newline, then line with n integers separated by spaces. Add newline at end. Use `print("YES")` and `print(" ".join(map(str, ans)))`.
+
+Now let's think about time. We can test on some random graphs mentally? Hard.
+
+Maybe we should add a heuristic: If any vertex has degree (within component) >= 3 and only one allowed color due to many colored neighbors, okay.
+
+Could add a check at start of component for 4-clique to quickly output NO. But not needed.
+
+Now, is there a possibility that the DFS with fixed ordering will be too slow for n=40 random graphs? Let's approximate. Random G(40, p) with average degree maybe 4. If 3-colorable, first solution found quickly. If not, proof may explore many branches. But n=40 small; backtracking with propagation often handles.
+
+Let's consider worst-case specially crafted graph like a 4-chromatic graph with many vertices. For instance Grötzsch? Mycielski graphs are sparse and 4-chromatic. For n=40, maybe Mycielski of size? Mycielski construction M_k has 3*2^{k-2}-1 vertices? M_4 (Grötzsch?) 11 vertices, M_5 23, M_6 47. So M_5 23 vertices. 3-coloring M_5 unsat. Search for 3-coloring of M_5 may be moderate. Our algorithm with fixed ordering may explore many branches but n=23 manageable.
+
+For n=40, a 4-chromatic graph could be more complex. But maybe okay.
+
+Now, maybe we can improve by using `branch on vertex with max degree` for feasibility inside component? But lex order restricts. Hmm.
+
+Wait, perhaps there is a polynomial-time algorithm for 3-coloring with n=40? Not general. The problem is NP-hard; contest likely expects exponential search with n=40. So backtracking acceptable.
+
+Let's also consider using Python's `sys.setrecursionlimit(1000000)`.
+
+Now, check input reading: `sys.stdin.read().strip().split()` may fail if trailing whitespace? `strip` handles. If input empty, return.
+
+Now, maybe we can optimize neighbor iteration by storing neighbor lists as Python lists of ints. Done.
+
+Now, what about memory? fine.
+
+Now, should we handle multiple test cases? Problem single test. Good.
+
+Now, let's think of correctness proof more formally for output. Already.
+
+Potential issue with self-loop: We print NO. But if there is a self-loop, graph not 3-colorable. Good.
+
+Potential issue with isolated vertex component: solve_component with k=1. DFS pos0, color0 try0 -> assign -> return True. Good.
+
+Now, code should be one Python 3 code block, no extra text. final answer just code.
+
+But before final, perhaps we can incorporate an additional pruning: if any vertex in component has degree >= 3 and forms K4? Skip.
+
+Actually, one optimization that may drastically reduce search for dense NO graphs: Use maximum clique lower bound. If any component has clique number >3, output NO. We can find a max clique of size 4 using simple recursive clique search (n=40). But in a dense graph, DFS for coloring will quickly detect K4 maybe. For sparse 4-chromatic graphs, no K4, so clique lower bound no help.
+
+Could add a quick check: if m > 3*n? Not necessarily.
+
+Now, another thought: The lex smallest assignment can be found greedily if graph is chordal or something? No.
+
+Let's also think about using BFS for 2-colorable components: If graph is bipartite, there are exactly 2 proper 2-colorings (up to swapping colors) per component if connected. But lex smallest may use 3 if necessary? For bipartite graph, 2 colors suffice, lex smallest uses 2 colors. Our DFS will find quickly.
+
+Now, let's consider the possibility that there are many valid colorings and lex smallest has early vertex color 1. Algorithm tries 1, propagation, recurses; likely succeeds quickly. Good.
+
+Now, maybe we can improve by trying color 1 and if fail due to contradiction far later, much work wasted. But no alternative.
+
+Now, code final.
+
+Wait, there is one subtle correctness issue with independent component solving and lex order. Consider two components A={1,3}, B={2}. Global lex order positions: 1 (A), 2 (B), 3 (A). Suppose A lex smallest coloring is (1,2) for vertices (1,3). B lex smallest is (1) for vertex2. Global config (1,1,2). Could there be a lex smaller config (1,1,1)? No because A requires vertices 1 and3 different if edge. So component-wise minimal is global minimal. More generally, the lex order is a product order: global sequence is formed by interleaving component subsequences. Minimizing each subsequence independently minimizes the product because no constraints couple subsequences. Formally, for any valid global config, its projection onto each component is a valid component coloring. Replacing each projection with the component-wise lex smallest yields a valid global config that is lex <= original. Thus global lex smallest = component-wise lex smallest. Good.
+
+Now, within a component, our DFS returns lex smallest. Good.
+
+Potential issue: Component-wise lex smallest may use different color permutations per component. Since colors are labeled, no symmetry. Good.
+
+Now, final code as one block.
+
+But we can further micro-opt `solve_component` by inlining `neigh` as local variable in dfs via closure; Python will look up closure variable each loop; fine. Maybe convert to nested function with `nonlocal`? color and avail are lists, mutable; no need nonlocal.
+
+Now, let me think about recursion overhead with `dfs(pos)` and while loops. Fine.
+
+Now, consider if we should precompute `single_bit_color` for masks 1..7 to avoid bit_length? Not necessary.
+
+Now, let's produce final answer. But before final, maybe we can test with some examples by mental or small.
+
+Example1: output YES and "1 2 3 3". Good.
+
+Example2: NO.
+
+Now, maybe there is a tricky case: n=2, m=1 edge 1-2. Lex smallest: 1 2. DFS: v0=0 -> v1 avail {1,2}; v1 try0? no (removed); try1 -> solution. Output 1 2. Good.
+
+n=3 triangle: Lex smallest 1 2 3. DFS: v0=0, v1 try1, v2 try2. Good.
+
+n=3 path 1-2-3: Lex smallest 1 2 1. DFS: v0=0, v1 try1? removed 0 so try0? Wait v1 neighbor v0=0, avail {1,2}; try1 (color2) -> remove1 from v2, v2 avail {0,2}; try0 (color1) -> solution [0,1,0] -> 1 2 1. Good. Actually lex smallest is indeed 1 2 1 (v2 can be 1 since not adjacent to v0? v2 adjacent v1 only). Good.
+
+Now, consider graph with edge 1-2,1-3,2-3? triangle output 1 2 3.
+
+Now, consider graph with 4 vertices path 1-2-3-4. Lex smallest: v1=1, v2=2, v3=1, v4=2? Wait v4 neighbor v3. If v3=1, v4 can be1? no, try1 fail, try2. So [1,2,1,2]. Our DFS: v0=0, v1 try1, v2 try0, v3 try1. Good.
+
+Now, code.
+
+Wait, the problem title "Harmonic Calibration" maybe from Codeforces? Let's search memory: Problem A? Not recall. Could be from some contest where n<=40, expected 3-coloring via backtracking. Good.
+
+Now, is there a risk that component solver with in-place arrays and `changed` list includes entries for vertices assigned in this branch, and when undo we restore avail then set color -1. However for v, avail[v] not recorded. But what if v was forced earlier and `color[v]` is not -1 when we call dfs(pos) but we skip. So v won't be chosen. Good.
+
+What if `dfs` returns False at root; solve_component returns None. Good.
+
+Now, we might want to avoid dict for mapping. Use list `loc = [-1]*n`. For each component, create loc for vertices. Resetting loc after component not necessary because we use fresh list. But creating list of size n per component (n times) O(n^2)=1600, fine. Or create once outside and reset only comp vertices. Simpler: create once `global_to_local = [-1]*n` and fill/reset. But not needed.
+
+Let's use list `loc = [-1]*n` outside loops and fill/reset to avoid O(n^2) but n small. To keep code clean, we can build mapping via dict in component. Since comp size small, dict overhead negligible. But we also need global adjacency bit iteration for BFS. Let's use list mapping for speed.
+
+Implementation plan for component extraction:
+
+global_to_local = [-1]*n
+for i in range(n):
+    if not visited[i]:
+        # BFS collect comp
+        stack=[i]; visited[i]=True; comp=[]
+        while stack: ...
+        comp.sort()
+        k=len(comp)
+        for j,v in enumerate(comp): global_to_local[v]=j
+        neigh=[[] for _ in range(k)]
+        for j,v in enumerate(comp):
+            mask=adj[v]
+            while mask:
+                lsb=mask & -mask
+                y=lsb.bit_length()-1
+                neigh[j].append(global_to_local[y])
+                mask^=lsb
+        colors=solve_component(k, neigh)
+        if colors is None: print NO; return
+        for j,v in enumerate(comp): ans[v]=colors[j]+1
+        # reset global_to_local for comp (optional, will be overwritten next comp)
+        for v in comp: global_to_local[v]=-1
+
+Good.
+
+Now, BFS using bitmask to push neighbors. Good.
+
+Now, perhaps we should also handle the case n up to 40, so bitmask bit_length fits.
+
+Now final code block.
+
+Wait, one more issue: In `solve_component`, `color` and `avail` are defined in outer function. The nested `dfs` references them; Python closure access may be slower but fine. To speed, we can pass them as arguments? Not needed.
+
+Now, let's consider whether recursion plus propagation might produce a situation where `dfs(pos)` is called with `pos` equal to a colored vertex due to propagation, but the while loop skips. Good.
+
+Now, maybe we can incorporate a check to avoid trying a color for v if a neighbor already has that color. Since avail[v] excludes colors of colored neighbors, okay.
+
+Now, what about using `range(3)` and bit masks; colors output +1.
+
+Now, final code.
+
+But let's consider if we can improve speed by implementing `solve_component` iteratively to avoid function call overhead? Recursion depth <=40, okay.
+
+Now, let's think about worst-case no solution: Could the DFS explore a huge tree before failing? For n=40, maybe but 2 sec? Let's approximate for a random graph with edge probability making it unsatisfiable but many partial colorings. For 3-coloring, the number of proper colorings of random graph G(n,p) maybe large if sparse; unsat threshold average degree ~4.69. At threshold, search may be hardest. Number of nodes might be large. But n=40 small. With propagation, the search can prune.
+
+Let's try to estimate with a simple recursion tree without propagation: 3 choices for vertex, but each edge reduces. For average degree 4.7, probability a random 3-coloring of complete graph? Hard. But with forward checking, likely manageable.
+
+If concerned, we can implement a more sophisticated exact algorithm: choose next vertex with smallest domain (MRV) and try colors, but maintain lex order by exploring all solutions and keeping lex min. Since n=40, if few solutions, MRV fast; but we need lex min. Could collect best solution? Branch and bound: maintain current best lex vector; prune branches that already exceed best. But we don't have initial best. We could first find any solution quickly using MRV (not necessarily lex), then use it as upper bound and search for lex smaller. This could be faster for finding lex min? Let's examine.
+
+Lex min search with fixed order may explore many branches before first solution if early vertices constrained. But if graph colorable, the lex min likely found relatively quickly because early vertices try color1. MRV may find some solution fast. Then to improve lex, we can enforce upper bound. However implementing MRV with lex bound and component interactions is more complex.
+
+Simple fixed-order propagation likely enough.
+
+But if early vertices cannot be color1 (e.g., vertex 1 connected to vertices 2,3,4 forming triangle among them? Actually vertex1 can always be color1. Vertex2 may need color2 or 3. The search tries color1 for each vertex; if impossible, backtrack. The first solution found at each prefix is lex min.
+
+Now, for a hard graph where vertex1 color1 leads to almost-solution requiring many backtracks, fixed order may be okay.
+
+I think final code is acceptable.
+
+Let's consider potential bug with `while stack and ok:`: Inside loop, if `ok=False` break, we exit while. Good. Then undo changes.
+
+Now, consider when propagation assigns a forced vertex, we push it onto stack. But we also need to ensure we don't process its neighbors that are colored with same color. `color[u]!=-1` skip. Good.
+
+Now, if a forced vertex has `avail` single bit but we set color[u]=cu without removing that color from its own avail. That's fine; it becomes colored. If later undone, avail[u] restored via changed list to old (which was single bit). Wait changed list records avail[u] before removal that made it single? Actually when avail[u] becomes single, we do not record an extra change for setting color; we already recorded the change that made it single. Example: avail old 3 (bits0,1); neighbor removes bit0 -> new 2 (bit1) record (u,3); since single, assign color1. Undo changes sets avail[u]=3, color=-1. Good. If avail old 4 (bit2); neighbor removes? new maybe 0 fail. If a vertex starts with avail single at time of assignment (e.g., v), we didn't record avail change for v. color[v] set to c, avail[v] remains old (single). On undo, we set color[v]=-1; avail[v] remains single, which is correct because constraints from earlier vertices still forbid other colors. Good.
+
+But what if v initially had avail mask e.g., 7, and we assign c=0. avail[v] stays 7. On undo, color=-1, avail=7. Good.
+
+Now, what if during branch a later vertex w gets assigned and removes a color from v? But v is colored, so propagation skips v. So avail[v] unchanged. On undo, fine.
+
+Now, maybe we should set avail[v]=0 when colored to avoid accidentally using it? We never use avail of colored vertices except in propagation when it becomes uncolored? No. In `dfs`, mask=avail[v] for v uncolored. In propagation, skip colored. So no need. But when undo, color set -1 and avail remains whatever. Good.
+
+Now, final code.
+
+One more thought: The problem says n distinct sound emitters, pairs u,v. m lines. Could there be multiple constraints duplicate. We handle via bitmask.
+
+Let's ensure we flush output.
+
+Now final answer: Provide only Python code block.
+
+Before final, maybe we can improve by adding `if k <= 1: return [0]*k` in solve_component? Not necessary but can avoid DFS. Actually if k==0? No.
+
+Let's include early return for trivial.
+
+Code:
+
+def solve_component(k, neigh):
+    if k == 0: return []
+    if k == 1: return [0]
+    ...
+
+Now, final.
+
+Wait, there is a possible recursion depth issue if propagation forces chain of all 40 vertices; recursion depth from dfs separate from propagation stack list. dfs depth <=40. fine.
+
+Now, let's produce final.
+</think>
+```python
+import sys
+
+def solve_component(k, neigh):
+    if k == 0:
+        return []
+    if k == 1:
+        return [0]
+
+    color = [-1] * k
+    avail = [7] * k   # bits 0,1,2 correspond to frequencies 1,2,3
+
+    sys.setrecursionlimit(10000)
+
+    def dfs(pos):
+        while pos < k and color[pos] != -1:
+            pos += 1
+        if pos == k:
+            return True
+
+        v = pos
+        mask = avail[v]
+
+        for c in range(3):
+            if not ((mask >> c) & 1):
+                continue
+
+            assigned = [v]
+            changed = []
+            color[v] = c
+            stack = [v]
+            ok = True
+
+            while stack and ok:
+                x = stack.pop()
+                col = color[x]
+                for u in neigh[x]:
+                    if color[u] != -1:
+                        continue
+                    a = avail[u]
+                    if (a >> col) & 1:
+                        new = a & ~(1 << col)
+                        avail[u] = new
+                        changed.append((u, a))
+                        if new == 0:
+                            ok = False
+                            break
+                        # single remaining color -> forced assignment
+                        if new & (new - 1) == 0:
+                            cu = new.bit_length() - 1
+                            color[u] = cu
+                            assigned.append(u)
+                            stack.append(u)
+
+            if ok:
+                if dfs(pos + 1):
+                    return True
+
+            # undo assignments and availability changes
+            for u, old in changed:
+                avail[u] = old
+            for u in assigned:
+                color[u] = -1
+
+        return False
+
+    if dfs(0):
+        return color
+    return None
+
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            print("NO")
+            return
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    visited = [False] * n
+    ans = [0] * n
+    global_to_local = [-1] * n
+
+    for i in range(n):
+        if visited[i]:
+            continue
+
+        # collect connected component
+        stack = [i]
+        visited[i] = True
+        comp = []
+        while stack:
+            x = stack.pop()
+            comp.append(x)
+            mask = adj[x]
+            while mask:
+                lsb = mask & -mask
+                y = lsb.bit_length() - 1
+                if not visited[y]:
+                    visited[y] = True
+                    stack.append(y)
+                mask ^= lsb
+
+        comp.sort()
+        k = len(comp)
+
+        for j, v in enumerate(comp):
+            global_to_local[v] = j
+
+        neigh = [[] for _ in range(k)]
+        for j, v in enumerate(comp):
+            mask = adj[v]
+            while mask:
+                lsb = mask & -mask
+                y = lsb.bit_length() - 1
+                neigh[j].append(global_to_local[y])
+                mask ^= lsb
+
+        colors = solve_component(k, neigh)
+        if colors is None:
+            print("NO")
+            return
+
+        for j, v in enumerate(comp):
+            ans[v] = colors[j] + 1
+            global_to_local[v] = -1
+
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+
+if __name__ == "__main__":
+    solve()
+```

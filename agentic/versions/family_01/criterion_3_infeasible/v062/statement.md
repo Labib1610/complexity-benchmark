@@ -1,24 +1,23 @@
-# Diagnostic Pipeline: Mutual Coupling Identification
+# Problem C — Rigid Cellular Structure
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-In an automated system health diagnostic pipeline, hardware modules are monitored for operational interference. The overall diagnostic workflow consists of three main phases:
+You are analyzing the blueprint of a large-scale structural framework. The framework consists of $n$ anchor points and $m$ straight steel struts. Each strut provides a bidirectional rigid connection between two distinct anchor points.
 
-1. **Link Ingestion**: The system registers all pairwise mutual couplings observed between $n$ numbered modules (indexed $1$ through $n$).
-2. **Cluster Identification (Current Stage)**: The pipeline isolates three distinct modules $a, b, c$ ($a < b < c$) that form a complete mutual coupling loop—meaning module $a$ couples with $b$, $a$ couples with $c$, and $b$ couples with $c$. To maintain reproducible diagnostic logs, the system must select the lexicographically smallest triple $(a, b, c)$ (minimizing $a$, then $b$, then $c$).
-3. **Targeted Calibration**: Once identified, the isolated module triple is passed to the phase-alignment controller for sequential frequency suppression.
+To ensure structural stability, the engineers rely on "fundamental rigid cells." A fundamental rigid cell is formed by exactly three distinct anchor points that are fully braced. This means that if a cell consists of anchor points $a$, $b$, and $c$, there must be a direct strut between $a$ and $b$, a direct strut between $a$ and $c$, and a direct strut between $b$ and $c$.
 
-You are tasked with implementing Stage 2 of this diagnostic pipeline. Given the logged pairwise couplings from Stage 1, identify and report the target triple $(a, b, c)$.
+Your task is to locate one such fundamental rigid cell. The blueprint is extensive, but the engineering specifications guarantee that the current design contains at least one such cell.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of modules and the total number of logged pairwise mutual couplings, respectively.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of anchor points and the number of struts. Anchor points are designated by integers from $1$ to $n$.
 
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a recorded pairwise mutual coupling between module $u$ and module $v$.
-
-It is guaranteed that at least one valid triple of mutually coupled modules exists.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that a strut connects anchor point $u$ and anchor point $v$. It is guaranteed that there is at most one strut connecting any specific pair of anchor points, and that the framework contains at least one fundamental rigid cell.
 
 ## Output
-Output a single line containing three space-separated integers $a$, $b$, and $c$ ($a < b < c$) corresponding to the lexicographically smallest triple of mutually coupled modules.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the anchor points that make up the cell. You must list them in ascending order ($a < b < c$).
+
+If there are multiple valid cells, output the one that is lexicographically smallest. A cell $(a_1, b_1, c_1)$ is lexicographically smaller than $(a_2, b_2, c_2)$ if $a_1 < a_2$; or if $a_1 = a_2$ and $b_1 < b_2$; or if $a_1 = a_2$, $b_1 = b_2$, and $c_1 < c_2$.
 
 ## Example 1
 Input:

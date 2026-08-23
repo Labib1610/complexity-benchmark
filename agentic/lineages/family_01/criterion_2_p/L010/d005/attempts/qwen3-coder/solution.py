@@ -1,0 +1,70 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        # No constraints, all slots can have type 1
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build graph where each edge represents a constraint that the sum of weights is 300g
+    # This means if one is type 1 (100g), the other must be type 2 (200g) and vice versa
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Color the graph with 2 colors ( bipartite check)
+    # Color 0 represents type 1 (100g), color 1 represents type 2 (200g)
+    color = [-1] * n
+    visited = [False] * n
+    
+    for i in range(n):
+        if not visited[i]:
+            # BFS to color component
+            queue = deque([i])
+            color[i] = 0
+            visited[i] = True
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        # Conflict: adjacent nodes have same color
+                        print("NO")
+                        return
+    
+    # Verify that all constraints are satisfied
+    for u, v in edges:
+        if (color[u] == 0 and color[v] == 0) or (color[u] == 1 and color[v] == 1):
+            # Both type 1 (100+100=200) or both type 2 (200+200=400) 
+            print("NO")
+            return
+    
+    # Convert colors to types: 0 -> 1, 1 -> 2
+    result = []
+    for c in color:
+        if c == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

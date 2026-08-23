@@ -1,18 +1,21 @@
-# Problem A — Workforce Pipeline: Shift Assignment Stage
+# Problem A — Scheduling Pipeline: Phase 2
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An automated workforce management system processes personnel scheduling through a multi-stage pipeline: conflict mapping (Stage 1), shift allocation (Stage 2), and roster publishing (Stage 3). Stage 1 has concluded, establishing a list of $n$ workers and $m$ conflict pairs between workers who cannot share a shift.
+A factory's automated management software operates in three phases. 
+In Phase 1, the HR module collects data on n workers and identifies pairs of workers who have interpersonal conflicts. 
 
-Your task is to execute **Stage 2: Shift Allocation**. You must assign each worker to exactly one of three available operational shifts (labeled 1, 2, and 3) such that no conflicting pair shares a shift. If multiple valid shift assignments exist, the system requires selecting the one that produces the lexicographically smallest sequence of shift numbers, ensuring deterministic input for Stage 3 publishing.
+Your task is to implement Phase 2: the shift assignment module. The factory runs three shifts labeled 1, 2, and 3. You must assign every worker to exactly one of the three shifts so that no conflicting pair shares a shift. 
+
+In Phase 3, the payroll module will take your assignment and generate the daily timetables. To ensure Phase 3 behaves predictably, if multiple valid assignments exist, you must provide the lexicographically smallest sequence of shift assignments (comparing the shift of worker 1 first, then worker 2, and so on). If no valid assignment is possible, Phase 2 must report that it is impossible so the software can alert management.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of workers and the number of conflict pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) denoting a conflicting pair of workers.
+The first line contains two integers n and m — the number of workers and the number of conflict pairs identified in Phase 1 (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid shift allocation exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each $s_i \in \{1, 2, 3\}$), where $s_i$ is the shift assigned to worker $i$. Output the lexicographically smallest sequence among all valid assignments.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

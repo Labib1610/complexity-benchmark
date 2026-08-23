@@ -1,0 +1,1747 @@
+```python
+import sys
+from sys import setrecursionlimit
+setrecursionlimit(1000000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # feasibility test for a partial assignment:
+    # color[i] = -1 (free) or 0/1/2; forbidden[i] is bitmask of colors already used by colored neighbours.
+    def feasible(forbidden, uncolored_mask):
+        # stack of states for backtracking
+        # state: (forbidden tuple? too slow). Use lists and manual save/restore.
+        # We'll use recursion with copying of small lists? n<=40, copying list of length n is cheap.
+        # But we may call feasible many times, so implement iterative recursion with copy.
+        # Use local variables for speed.
+        forb = list(forbidden)
+        mask = uncolored_mask
+        # unit propagation queue
+        # assign color c to vertex v means forb[v] becomes (1<<c) and mask cleared.
+        # We maintain that forb[v] never zero for uncolored vertices.
+        # propagate:
+        stack = [(forb, mask)]
+        while stack:
+            forb, mask = stack.pop()
+            if mask == 0:
+                return True
+            # unit propagation
+            changed = True
+            while changed:
+                changed = False
+                # find vertices with only one allowed color
+                v = 0
+                mm = mask
+                while mm:
+                    lsb = mm & -mm
+                    i = (lsb.bit_length() - 1)
+                    if forb[i] & (forb[i] - 1) == 0 and forb[i] != 0:
+                        # single color
+                        c = (forb[i].bit_length() - 1)
+                        # assign i color c
+                        mask &= ~(1 << i)
+                        # remove c from uncolored neighbors
+                        nb = adj[i] & mask
+                        while nb:
+                            lsb2 = nb & -nb
+                            j = (lsb2.bit_length() - 1)
+                            if (forb[j] >> c) & 1:
+                                forb[j] &= ~(1 << c)
+                                if forb[j] == 0:
+                                    break
+                                if forb[j] & (forb[j] - 1) == 0:
+                                    changed = True
+                            nb &= nb - 1
+                        else:
+                            changed = True
+                            continue
+                        # conflict
+                        break
+                    mm &= mm - 1
+                else:
+                    continue
+                # conflict occurred
+                break
+            else:
+                # no conflict and no more unit propagation
+                if mask == 0:
+                    return True
+                # choose vertex with smallest domain (>=2)
+                v = -1
+                best = 4
+                mm = mask
+                while mm:
+                    lsb = mm & -mm
+                    i = (lsb.bit_length() - 1)
+                    cnt = forb[i].bit_count()
+                    if cnt < best:
+                        best = cnt
+                        v = i
+                        if cnt == 2:
+                            break
+                    mm &= mm - 1
+                if v == -1 or best == 0:
+                    continue  # infeasible branch
+                # branch on colors of v
+                # try colors in some order; for pure feasibility any order, but try 0,1,2
+                av = forb[v]
+                # push branches
+                # To reduce memory, we can loop and push copies.
+                # But recursion depth <= n, copying list each branch O(n) -> fine.
+                c = 0
+                while av:
+                    if av & 1:
+                        nforb = forb.copy()
+                        nmask = mask
+                        nforb[v] = 1 << c
+                        nmask &= ~(1 << v)
+                        # propagate removal of c from neighbors
+                        nb = adj[v] & nmask
+                        ok = True
+                        while nb:
+                            lsb2 = nb & -nb
+                            j = (lsb2.bit_length() - 1)
+                            if (nforb[j] >> c) & 1:
+                                nforb[j] &= ~(1 << c)
+                                if nforb[j] == 0:
+                                    ok = False
+                                    break
+                            nb &= nb - 1
+                        if ok:
+                            stack.append((nforb, nmask))
+                    av >>= 1
+                    c += 1
+        return False
+
+    # initial feasibility with no colors assigned
+    init_forb = [7] * n  # bits 0,1,2 allowed
+    init_mask = (1 << n) - 1
+    if not feasible(init_forb, init_mask):
+        print("NO")
+        return
+
+    ans = [0] * n
+    forbidden = [7] * n
+    uncolored = (1 << n) - 1
+
+    for i in range(n):
+        placed = False
+        for c in range(3):
+            # check if color c is allowed for i given current colored neighbors
+            if not ((forbidden[i] >> c) & 1):
+                continue
+            # tentatively assign i = c
+            nforb = forbidden.copy()
+            nmask = uncolored & ~(1 << i)
+            nforb[i] = 1 << c
+            ok = True
+            nb = adj[i] & nmask
+            while nb:
+                lsb = nb & -nb
+                j = (lsb.bit_length() - 1)
+                if (nforb[j] >> c) & 1:
+                    nforb[j] &= ~(1 << c)
+                    if nforb[j] == 0:
+                        ok = False
+                        break
+                nb &= nb - 1
+            if not ok:
+                continue
+            if feasible(nforb, nmask):
+                ans[i] = c
+                forbidden = nforb
+                uncolored = nmask
+                placed = True
+                break
+        if not placed:
+            # should not happen
+            print("NO")
+            return
+
+    print("YES")
+    print(' '.join(str(x + 1) for x in ans))
+
+solve()
+```
+
+Wait the feasible function uses a while stack with unit propagation loop but has bugs: the `while changed` loop breaks on conflict but the outer else/continue logic is messy. Need rewrite carefully.
+
+Let's design feasible function robustly.
+
+We can implement recursive function:
+
+def can_color(forbidden, mask):
+    # propagate
+    while True:
+        # find unit vertex
+        v = find unit in mask with popcount==1
+        if none: break
+        c = bit of forbidden[v]
+        mask &= ~ (1<<v)
+        nb = adj[v] & mask
+        while nb:
+            j = lowbit
+            if forbidden[j] has c:
+                forbidden[j] &= ~ (1<<c)
+                if forbidden[j]==0: return False
+            nb...
+    if mask==0: return True
+    # choose vertex with min domain >=2
+    v = ...
+    # branch
+    for each color c in forbidden[v]:
+        copy forbidden, mask
+        assign and propagate similarly; if can_color(copy, newmask): return True
+    return False
+
+This recursion depth <= n. Copying list each recursion O(n) -> total O(n * branches). n=40 small. Could be okay. But we can avoid copying by using save/restore arrays. However recursion with copy may be simpler and fast enough.
+
+But feasible called up to 120 times; each call may explore many branches. Copying lists at each branch could be heavy but n=40, maybe okay if branch count moderate. For hard instances, branch count could be millions; copying 40-element list millions times may be slow in Python (2s). Better implement with in-place backtracking using arrays and a stack of changes to undo.
+
+Let's implement a robust in-place list-coloring solver with undo.
+
+State:
+- forb list length n of ints (allowed colors bitmask). For colored vertices, forb has single bit.
+- mask int uncolored.
+- We'll have recursive function that chooses vertex, branches, and uses undo stack.
+
+Propagation (unit propagation) can be done recursively/iteratively within each call. We need to record changes to undo.
+
+Simplify: Instead of unit propagation, we can just branch on vertex with smallest domain (including 1) and propagate only direct neighbor constraints when assigning. If a vertex's domain becomes size 1 due to assignment, the next recursive call will choose it (smallest domain) and branch on its single color. This effectively does unit propagation via branching, but may cause extra recursion levels. That's okay. We can also handle immediate conflict when removing color.
+
+So recursive function:
+def dfs(forb, mask):
+    if mask == 0: return True
+    # choose vertex v in mask with minimum popcount(forb[v]) > 0
+    v = -1; best=4
+    mm=mask
+    while mm:
+        lsb=mm&-mm; i=bit_length-1; cnt=forb[i].bit_count(); if cnt<best: best=cnt; v=i; if cnt==1: break (or continue to find zero?) We already ensure no zero. break at 1.
+        mm-=lsb
+    # best >=1
+    # try colors in order 0,1,2 maybe
+    av = forb[v]
+    c=0
+    while av:
+        if av & 1:
+            # assign v=c
+            old = forb[v]
+            forb[v] = 1<<c
+            new_mask = mask & ~(1<<v)
+            # remove c from uncolored neighbors, record changes
+            changes = []  # list of (j, old_forb_j) where changed
+            nb = adj[v] & new_mask
+            ok=True
+            while nb:
+                lsb2=nb&-nb; j=...
+                if (forb[j]>>c)&1:
+                    changes.append((j, forb[j]))
+                    forb[j] &= ~(1<<c)
+                    if forb[j]==0:
+                        ok=False
+                        break
+                nb-=lsb2
+            if ok:
+                if dfs(forb, new_mask):
+                    return True
+            # undo changes
+            for j, oldf in changes:
+                forb[j]=oldf
+            forb[v]=old
+        av>>=1; c+=1
+    return False
+
+This is in-place, only records changed neighbors. Branching factor up to best. For sparse graphs, best may be 3 for many vertices, leading to 3^40? But with MRV and forward checking, for empty graph it will choose vertex, try color 0, all others still allowed 3, recursively succeed immediately because no constraints. So it will find coloring all 0 in n steps. Good.
+
+For hard graphs, branching may explode. But n=40 maybe okay.
+
+We can improve color ordering in DFS: try colors that maximize pruning. For feasibility, maybe order colors by frequency of appearance in neighbor domains? Could use smallest domain heuristic. But simple 0,1,2 may be fine.
+
+We can also add reduction: if there is an uncolored vertex with allowed count 1, choose it first (MRV does). Good.
+
+Potential issue: The recursion may revisit same state many times. Could add memoization (cache of (tuple(forb), mask) -> False) to prune. But state space huge; maybe not needed. However for hard unsat instances, memoization of failed masks could help. But tuple hashing cost may be high.
+
+Alternative: Use iterative deepening / DSATUR.
+
+Given n=40, Python recursion with bit_count should be okay.
+
+Now lexicographic smallest: We can use the above solver for feasibility in greedy construction. But note: When we tentatively assign vertex i color c and call solver, the solver may find a coloring where some later vertices get colors. We only need feasibility yes/no. Then we fix c and continue. This yields lexicographically smallest because at each position we try colors in increasing order and pick first feasible.
+
+However, we must ensure that the current partial assignment constraints are correctly encoded. We maintain `forbidden` as allowed colors for each uncolored vertex (bits). Initially all 7. When we assign vertex i color c, we set forbidden[i]=1<<c and remove c from uncolored neighbors. For colored vertices, forbidden[i] single bit. For uncolored, allowed colors. The solver treats all vertices with mask uncolored; colored vertices are not in mask but their constraints already applied to neighbors. Good.
+
+But in greedy loop, after assigning i, we should also propagate unit constraints? Not necessary; solver handles. But we can do simple neighbor removal as above.
+
+Edge cases: m=0 -> all 1. Solver initial returns True. Greedy: i=0, c=0 allowed, feasible -> assign all 0. Good.
+
+Complete graph K4 n=4: initial solver returns False -> NO. Good.
+
+K5? n=5 -> NO.
+
+Example 1: n=4 edges: 1-2,1-3,2-3,1-4,2-4. Graph: triangle 1,2,3 plus 4 connected to 1,2. 3-colorable: 1=1,2=2,3=3,4=3. Lexicographically smallest? Let's test mentally: vertex1 color1 possible? Then remaining graph vertices 2,3,4 with edges 2-3,1-? 2 connected to1 (color1),3 connected to1,4 connected to1,2. Need color 2,3,4 with 3 colors. Vertex2 can be 2 (since neighbor1 color1, neighbor3,4). Then vertex3 cannot be1 (neighbor1), cannot be2 (neighbor2), so must be3. Vertex4 cannot be1 (neighbor1), cannot be2 (neighbor2), so must be3. Valid. So output 1 2 3 3. Good.
+
+Example2 K4 -> NO.
+
+Now performance. Need ensure solver can handle n=40 hard. Let's think of worst-case. The simple MRV+forward checking DFS is essentially DSATUR without recoloring. For random G(40, p) near 3-colorability threshold, it may be okay. But there exist small hard instances. However contest likely not adversarial to kill simple backtracking? Could be.
+
+We can strengthen with a few techniques:
+- Order colors by least frequent in neighbor domains (fail-first) to find feasible quickly. For lexicographic feasibility, we just need any; choosing color that reduces domains most may prune. But for satisfiable instances, choosing color 0 first may quickly succeed if graph sparse; for dense, domains small.
+- Use bitset operations and precomputed lowbit index arrays for speed.
+- Add preprocessing: if any vertex degree >=3? Not relevant.
+- Add memoization of failed masks? Maybe use dictionary of mask -> set of forbidden signatures? Could be expensive.
+
+Another improvement: Use recursive splitting / maximum degree vertex selection. MRV already picks smallest domain; initially all 3, then picks some vertex. Could choose vertex with highest degree among min domain to maximize pruning.
+
+Let's implement choose vertex: iterate uncolored, count bits; track min count; among ties choose max degree (popcount adj[i] & mask) or simply first. We'll choose max degree among min domain.
+
+Color ordering: For each candidate color, compute number of uncolored neighbors that would lose that color (i.e., impact). Try colors with larger impact first. This is cheap.
+
+Also we can implement immediate detection of forced colors due to triangle? Not needed.
+
+Potential recursion depth up to n=40, fine.
+
+Now, the greedy lexicographic construction calls feasible up to 3n times. Each call starts from current state and explores. Could be heavy if each call explores many branches. But after fixing prefix, the remaining graph is smaller. Total maybe okay.
+
+Alternative: Instead of separate feasibility calls, we can do a single DFS that assigns vertices in index order and returns lexicographically smallest. That is, recursive function `search(pos, forb, mask)` tries colors for vertex pos in order and returns first success. This avoids repeated solving from scratch. It also naturally prunes with same solver. We can implement that directly: at each step, vertex to assign is the next index pos (0..n-1), but we can still use MRV within remaining? If we assign in fixed order, we lose MRV. But we can combine: assign next index in order for lexicographic, but after assigning, run propagation and maybe choose another vertex? Lexicographic order means we must decide colors in index order; we cannot reorder decisions. However we can still use a feasibility subroutine that uses MRV on remaining uncolored vertices. So separate calls are fine.
+
+But maybe we can integrate: recursive function `extend(i, forb, mask)` where i is next index to fix. It tries colors c in order for vertex i; for each, propagate and call a feasibility check `can_color(forb, mask)` (or recursively continue to i+1 but with propagation). Actually we can just recursively call `extend(i+1, ...)` after assigning i and propagating; this explores lexicographic order and backtracks if no solution. The recursion will try colors for each vertex in order. Pruning occurs when future impossible; but the recursion itself is the solver with fixed variable order. That may be less efficient than MRV but still okay? For empty graph, it finds all 1 quickly. For hard graphs, fixed order may be worse. But we can still inside the recursion after assigning i, run a separate MRV solver to check feasibility before recursing deeper, which is same as separate calls. Hmm.
+
+Simpler: Use greedy with feasibility calls. We'll ensure feasibility solver is strong.
+
+Let's test mentally on some cases.
+
+But there is a subtle bug: In feasible function, when we assign a vertex v color c and remove c from neighbors, we don't recursively check if any neighbor now has domain size 1; but our DFS choose function will pick it next (MRV). So okay. However if a neighbor's domain becomes empty, we detect and backtrack. Good.
+
+Now, can we improve by using DSATUR: choose vertex with highest saturation degree (number of different colors among colored neighbors) then degree. But with domains, MRV captures saturation (domain size). Good.
+
+Let's also consider using bit_count (Python 3.8+? 3.10+). Since environment Python 3, bit_count available in 3.8+? Actually int.bit_count introduced Python 3.8? It was 3.8 or 3.10? PEP 604? Wait bit_count introduced in Python 3.8? I think int.bit_count was added in Python 3.8 or 3.10. Let's recall: int.bit_count() introduced in Python 3.8? Actually `int.bit_count()` was added in Python 3.8 (PEP 604? no). I think it's 3.8. To be safe, we can define a popcount function using bin(x).count('1') or use bit_count if available. Since problem says Python 3, likely modern. We'll use bit_count for speed. If not available, fallback. But final code can use `.bit_count()`.
+
+Need lowbit index quickly. `x.bit_length() - 1` for power of two. Or precompute for 1<<i. We'll use bit_length.
+
+Potential optimization: Precompute neighbor masks and maybe degree.
+
+Now, let's think about worst-case runtime more. For n=40, a simple DSATUR can solve 3-coloring of random graphs with n=100? Actually DSATUR is efficient for graph coloring small n. For 3-colorability, it can handle n=100 in seconds for many instances. So n=40 is easy. The lexicographic greedy with up to 120 calls still okay.
+
+But there is a known hard family for DSATUR: graphs with high girth and low degree? Maybe. But n=40 limited.
+
+Let's also consider using Python's recursion; feasible recursion depth <= uncolored <=40, fine.
+
+Now, we need to output only code block. We'll produce final code.
+
+Before final, let's thoroughly test algorithm on examples and random cases by reasoning. But we can also simulate mentally.
+
+Let's write a cleaner version.
+
+Implementation details:
+
+```
+def solve():
+    import sys
+    sys.setrecursionlimit(1000000)
+    data = sys.stdin.read().strip().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        adj[u] |= 1<<v
+        adj[v] |= 1<<u
+```
+
+Solver:
+
+```
+    # returns True iff the remaining uncolored vertices (mask) can be colored
+    # given allowed masks forb (colored vertices have single bit).
+    def can_color(forb, mask):
+        # iterative recursion using explicit stack to avoid overhead? recursion fine.
+        if mask == 0:
+            return True
+        # choose vertex with smallest allowed count, tie high degree
+        v = -1
+        best = 4
+        # maybe iterate bits
+        mm = mask
+        while mm:
+            lsb = mm & -mm
+            i = lsb.bit_length() - 1
+            cnt = forb[i].bit_count()
+            if cnt < best:
+                best = cnt
+                v = i
+                if cnt == 1:
+                    break
+            mm ^= lsb
+        if best == 0:
+            return False
+        # order colors by impact
+        # compute for each color in allowed set the number of uncolored neighbors that have it
+        av = forb[v]
+        # build list (impact, c)
+        cand = []
+        c = 0
+        a = av
+        while a:
+            if a & 1:
+                impact = ((adj[v] & mask) & ...).bit_count()? Need count neighbors w in mask with c in forb[w].
+                # impact = bit count of neighbors j where (forb[j]>>c)&1
+                nb = adj[v] & mask
+                cnt = 0
+                while nb:
+                    lsb2 = nb & -nb
+                    j = lsb2.bit_length() - 1
+                    if (forb[j] >> c) & 1:
+                        cnt += 1
+                    nb ^= lsb2
+                cand.append((-cnt, c))  # larger impact first
+            a >>= 1
+            c += 1
+        cand.sort()
+        for _, c in cand:
+            # assign v = c
+            old_v = forb[v]
+            forb[v] = 1 << c
+            new_mask = mask & ~(1 << v)
+            # remove c from neighbors, record changes
+            changes = []
+            nb = adj[v] & new_mask
+            ok = True
+            while nb:
+                lsb2 = nb & -nb
+                j = lsb2.bit_length() - 1
+                if (forb[j] >> c) & 1:
+                    changes.append((j, forb[j]))
+                    forb[j] &= ~(1 << c)
+                    if forb[j] == 0:
+                        ok = False
+                        break
+                nb ^= lsb2
+            if ok and can_color(forb, new_mask):
+                return True
+            # undo
+            for j, old in changes:
+                forb[j] = old
+            forb[v] = old_v
+        return False
+```
+
+This recursion uses `forb` list in-place. However note that `forb` list is shared across calls; after returning False, we restore. Good.
+
+But there is a subtle issue: When we assign v and remove c from neighbors, those neighbors may have domain size 1; the next recursive call will choose them and branch. That's okay.
+
+Now lexicographic construction:
+
+```
+    forb = [7]*n
+    mask = (1<<n)-1
+    if not can_color(forb, mask):
+        print("NO"); return
+    ans = [0]*n
+    for i in range(n):
+        # mask includes i; we will assign it.
+        # try colors 0,1,2 in order
+        for c in range(3):
+            if not ((forb[i]>>c)&1): continue
+            # assign i=c
+            old = forb[i]
+            forb[i] = 1<<c
+            new_mask = mask & ~(1<<i)
+            changes = []
+            nb = adj[i] & new_mask
+            ok=True
+            while nb:
+                lsb=nb&-nb; j=...
+                if (forb[j]>>c)&1:
+                    changes.append((j, forb[j]))
+                    forb[j] &= ~(1<<c)
+                    if forb[j]==0:
+                        ok=False; break
+                nb^=lsb
+            if ok and can_color(forb, new_mask):
+                ans[i]=c
+                mask=new_mask
+                break
+            # undo
+            for j,oldf in changes: forb[j]=oldf
+            forb[i]=old
+        else:
+            print("NO"); return
+    print("YES")
+    print(' '.join(str(c+1) for c in ans))
+```
+
+Wait: In the greedy loop, after we assign i and break, we keep `forb` with assignment and changes. But we didn't restore changes for neighbors? We kept changes applied (forb[j] updated). That's correct because we are committing to assignment. We only need undo if not feasible. Good.
+
+But note: `can_color` may modify `forb` further during its search and then restore it to the state passed in (because it undoes changes). Since we pass `forb` with i assigned and neighbors updated, can_color will treat i as colored (not in mask) and may modify neighbor domains during search, but restore before returning. Good.
+
+However, there is a risk: `can_color` returns True but leaves no trace of a full coloring. We only know feasible. Then we commit. Good.
+
+Now, is the lexicographic smallest guaranteed? At each i, we try c=0,1,2. We pick first c for which completion exists. Since we maintain previous positions fixed to smallest possible, this yields lexicographically smallest full sequence. Yes.
+
+Potential performance issue: `can_color` called after each assignment; it recomputes from scratch. But okay.
+
+Now, we need to ensure `can_color` doesn't get stuck due to sharing `forb` and recursion. Let's test on small examples mentally.
+
+Example1:
+n=4. Initial can_color returns True.
+i=0: forb[0]=7. c=0: assign 0 color0, remove 0 from neighbors 1,2,3. forb[1]=6 (bits1,2), forb[2]=6, forb[3]=6. can_color? yes. ans[0]=0, mask=1110.
+i=1: forb[1]=6. c=0 not allowed. c=1: assign 1 color1, remove1 from neighbors 0(colored),2,3. forb[2]=4 (bit2), forb[3]=4. can_color? yes. ans[1]=1, mask=1100.
+i=2: forb[2]=4 only c=2. assign, remove2 from neighbor1(colored),3 -> forb[3]=0? Wait neighbor3 uncolored, edge 2-3, remove c=2 from forb[3]=4 -> 0, conflict. So c=2 not ok. But there is no other color for vertex2. Then greedy would think no valid? But we know solution 1,2,3,3. Wait vertex indexing 0-based: worker1=0 color0, worker2=1 color1, worker3=2 color2. Edge 2-3 (workers 2 and3, 1-based) corresponds to vertices 1 and2 (0-based). They are adjacent. In our assignment, vertex1 color1, vertex2 color2, okay. Edge 1-3 (workers1 and3) vertices0 and2 adjacent, colors0 and2 okay. Edge 2-3 vertices1 and2 adjacent, colors1 and2 okay. Then vertex3 (index3) connected to0 (color0) and1 (color1), so can be color2. So why at i=2 did we get conflict? Let's trace: After i=1 assigned color1, forb[2] should be? Vertex2 neighbors: 0 (color0),1 (assigned color1), and edge to3? In graph, edges: 1-2 (0-1),1-3(0-2),2-3(1-2),1-4(0-3),2-4(1-3). So vertex2 (index2) neighbors:0,1. No edge 2-3 (1-based) is vertices1-2, yes. Vertex3 (index3) neighbors:0,1. No edge between 2 and3 (0-based). Wait 1-based workers 3 and4 are vertices2 and3; no edge. So after assigning vertex1 color1, forb[2] = initial 7 minus color0 from neighbor0 = {1,2} (bits1,2). minus color1 from neighbor1 = {2} (bit2). So forb[2]=4. Good. forb[3] = initial 7 minus color0 from neighbor0 = {1,2}, minus color1 from neighbor1 = {2}. So forb[3]=4. At i=2, c=2 allowed. Assign vertex2 color2, remove2 from neighbor0 (colored), neighbor1 (colored), no neighbor3. forb[3] remains4. can_color True. ans[2]=2. mask=1000. i=3: forb[3]=4 -> c=2. assign. Output 0,1,2,2 -> 1,2,3,3. Good. My earlier mistaken edge 2-3.
+
+So algorithm works.
+
+Now, performance of can_color with color impact sorting. For each branch, computing impact for each color scans neighbors. Neighbor count up to 39. Branching at each node maybe 2-3. Overhead okay.
+
+But we can simplify color ordering to avoid overhead: just try colors 0,1,2. For lexicographic feasibility, any order. However for pruning, impact order may reduce nodes. But computing impact costs O(degree) per color, same as assignment propagation. Fine.
+
+Potential issue: `can_color` uses recursion and in-place `forb`. When it returns True, it restores all changes, so caller sees original state. Good.
+
+Now, let's think about correctness of can_color with in-place undo. In branch loop, after trying a color and failing, we restore `forb[v]` and neighbor changes. Then try next color. At the end return False. Good.
+
+But there is a subtle bug: When we assign v color c, we set `forb[v] = 1<<c`. We also remove c from uncolored neighbors. But what about colored neighbors? They already have single bit; if they have color c, then c would not be in their allowed? Actually colored vertices are not in mask, but their `forb` is single bit. We don't need to check consistency with colored neighbors because the state passed in should already be consistent (no edge between colored vertices with same color). In our construction, we maintain consistency. In can_color, when it assigns v, it only removes c from uncolored neighbors. It doesn't check if any colored neighbor has color c. But if a colored neighbor has color c, that means the state was already invalid. However can_color may be called on states where colored vertices are consistent. In branch, v is uncolored; its allowed `forb[v]` already excludes colors of colored neighbors because those colors were removed when neighbors were assigned. So if a colored neighbor has color c, c wouldn't be in forb[v]. Thus we only branch on allowed colors. Good.
+
+Now, initial call: all vertices uncolored, forb all 7. can_color will choose vertex, branch. It doesn't check edges between colored vertices because none. Good.
+
+Now, can_color may choose a vertex v with `forb[v]` count 1 (forced). It will branch on its single color. This is okay but causes an extra recursion level. We could directly assign forced vertices in a propagation loop to reduce recursion. But not necessary.
+
+However, there is a scenario: a vertex has `forb[v]` count 1 due to previous assignments. can_color picks it, assigns, propagates. Good.
+
+Now, let's consider using memoization to speed up repeated can_color calls. Since greedy calls can_color many times with similar states, memoization of (tuple(forb), mask) -> bool could help. But tuple conversion O(n) and hashing; maybe not worth. But we can add a simple cache of failed masks? Not necessary.
+
+Potential issue: Python recursion limit default 1000, depth <=40, fine.
+
+Now, let's think about graph with n=40 and no edges. can_color initial: choose vertex0, try color0 (impact maybe 0), assign, new_mask all others. Recursively choose vertex1, try color0, etc. It will return True at depth 40. Greedy: i=0 c=0 feasible -> commit all? Actually can_color returns True. Then i=1 c=0 feasible, etc. So 40 calls each exploring 40 depth. Very fast.
+
+Graph with edges making it bipartite: also fast.
+
+Hard case: random G(40, p) near unsat. can_color may explore many branches. But n=40 small.
+
+Let's consider unsatisfiable graph: e.g., Grötzsch? Smallest 4-chromatic graph is K4 (n=4). There are 4-chromatic graphs with n=11 (Grötzsch theorem says triangle-free 4-chromatic min n=11). For n=40, many 4-chromatic graphs. DSATUR can detect quickly often. But some require exploring. Still manageable.
+
+Now, one more improvement: We can add a quick check for clique number >3: find a K4. If exists, NO. But finding K4 is O(n^4) = 2.5M, okay. Could prune early. But not necessary.
+
+Another improvement: If a vertex has degree >=? Not helpful.
+
+Now, let's think about memory and recursion overhead. can_color uses local variables and loops. Should be okay.
+
+Let's also consider using `functools.lru_cache` on a canonical state representation for can_color. Since n<=40, mask is 40 bits; forb for uncolored vertices each 3 bits. We could encode state as tuple of (mask, tuple(forb[i] for i in bits?)). But repeated calls from greedy have different states; caching could help if same subproblem encountered multiple times within a search. But the overhead may outweigh. We can skip.
+
+However, there is a known technique: For list-coloring with 3 colors, we can use a cache of `mask` mapping to a set of "forbidden patterns" compressed. But too complex.
+
+Let's test algorithm on random instances conceptually. For n=40, p=0.12, avg degree ~4.7. 3-colorability threshold around avg degree 4.7? Actually for random 3-colorable graphs, the planted model has clause density. Hard region. But DSATUR can solve n=40 maybe in <0.1s? Not sure.
+
+Let's maybe implement a more powerful exact algorithm: Use recursive reduction by identifying vertices with degree <=2. For 3-coloring, vertices of degree <=2 can be removed and later colored (since they have at most 2 colored neighbors, leaving at least one color). This reduces graph size and can simplify. But with list coloring (forbidden sets), a vertex with degree d and allowed 3 may still be colorable if d<=2? If it has at most 2 neighbors, they can forbid at most 2 colors, leaving at least one. So any vertex with degree <=2 in the remaining graph can be removed (deferred) without affecting feasibility. This is a key reduction! It can dramatically reduce graph size for sparse graphs. For 3-coloring, repeatedly delete vertices of degree <=2; the remaining 3-core must be 3-colorable. If core empty, graph is 3-colorable. This reduction can be applied in feasibility check.
+
+But our MRV DFS already handles low-degree vertices efficiently. However deletion reduction can simplify state before search.
+
+For lexicographic smallest, we need actual colors for all vertices. We can assign low-degree vertices later greedily after core. But lexicographic order complicates. We can still use reduction only inside feasibility check, not for construction. Good.
+
+Implement can_color with reduction: repeatedly remove uncolored vertices with degree <=2 (within uncolored subgraph) and store them; after coloring core, reinsert in reverse order and assign any allowed color. This is valid for list-coloring? Yes, because when removing, we don't change domains of remaining vertices (only edges to removed vertices). Later when reinserting, the vertex has at most 2 colored neighbors, so at least one allowed color remains. However if its domain already excluded some colors due to colored neighbors, and degree <=2 in remaining graph includes only uncolored neighbors; colored neighbors may also forbid colors. Total forbidden colors <= degree(uncolored) + number of colored neighbors. If total >=3, it could be infeasible. But if we remove only vertices whose total number of colored neighbors + uncolored degree <=2? Actually a vertex may have many colored neighbors (forbidden colors) but uncolored degree <=2. It could already have domain empty or size 1. Our state ensures domain nonempty. When reinserting later, it will have at most 2 uncolored neighbors plus its existing colored neighbors; but those colored neighbors are already accounted in domain. The domain at removal time is subset of full colors minus colors of colored neighbors. When we later assign it, its uncolored neighbors will have colors, possibly further restricting. If it has at most 2 uncolored neighbors, they can add at most 2 new forbidden colors to the existing colored-neighbor restrictions. If existing colored-neighbor restrictions already removed some colors, the total forbidden could be up to (colored restrictions) + 2. Could exceed 3 -> no color. Example: vertex has 2 colored neighbors with colors 0 and1, domain {2}, and 2 uncolored neighbors; when reinserted, if one uncolored neighbor gets color2, then no color. But if we color core first, we don't control that. So simple degree<=2 removal is not always safe with precolored vertices and list coloring unless we ensure the vertex has at most 2 neighbors total (colored+uncolored). In our state, colored vertices are not in mask; edges to colored vertices are represented by reduced domain. A vertex with uncolored degree <=2 but domain size maybe 1; reinsertion may fail if an uncolored neighbor takes its only color. So we cannot safely defer such vertices unless we know its domain size > number of uncolored neighbors? Actually to guarantee a color after neighbors colored, we need domain size > max number of uncolored neighbors that could take its colors. Since worst-case all uncolored neighbors could take distinct colors from its domain. If domain size d and uncolored degree u, we need d > u? Not exactly; if d=2 and u=1, one neighbor could take one of its colors, leaving one. If d=1 and u=0, fine. If d=1 and u=1, neighbor might take that color -> fail. So safe to remove if domain size > uncolored degree. Initially domain size 3, degree maybe <=2 -> safe. After reductions, domain size may shrink. So we can remove vertices where popcount(forb[v]) > degree_uncolored(v). For 3 colors, degree <=2 and full domain safe. But with reduced domain, not always.
+
+This reduction may help but adds complexity. MRV may be enough.
+
+Alternative: Use algorithm for 3-list-coloring based on deleting vertices of degree <=2 with full domain. In our feasibility calls, precolored vertices have reduced domains; but we can incorporate them as part of graph with lists. The reduction condition: a vertex v can be removed if |L(v)| > deg_uncolored(v). Because after coloring the rest, at most deg neighbors use distinct colors from L(v), leaving |L(v)|-deg >=1 available. This is a standard reduction. For 3 colors, if |L(v)|=3 and deg<=2, remove. If |L(v)|=2 and deg<=1, remove. If |L(v)|=1 and deg=0, remove (forced). We can apply repeatedly before branching. This can reduce graph size significantly.
+
+Let's implement this in can_color: before choosing branch, repeatedly find a vertex v in mask satisfying forb[v].bit_count() > popcount(adj[v] & mask). Remove it from mask (store maybe no need to restore because if core colorable, removed vertices can be colored later; but for feasibility only, we can just remove them permanently in this call). However we must be careful: removing a vertex changes degrees of its neighbors, enabling more removals. This is safe for feasibility: the reduced instance is feasible iff original? Let's verify: If original list-coloring feasible, then reduced (removing v) is feasible (take a coloring of original, restrict). Conversely, if reduced is feasible, can we extend to v? Since |L(v)| > deg(v) in the graph at removal time (neighbors among remaining uncolored vertices), after coloring remaining neighbors, at most deg colors from L(v) are used, leaving at least one. So yes. This reduction is valid. It only removes vertices, doesn't change lists of remaining neighbors (except they lose a neighbor, which only helps). So we can apply it at the start of can_color and within recursion after each assignment (since degrees change). This is a strong preprocessor.
+
+But note: The removed vertex may have colored neighbors whose colors reduce L(v). L(v) already excludes them. The condition uses deg among remaining uncolored vertices. Colored neighbors don't matter because L(v) already accounts. Good.
+
+We can implement reduction loop in can_color:
+
+```
+def reduce(mask):
+    while True:
+        # find vertex v in mask with list_size > degree in mask
+        mm = mask
+        found = False
+        while mm:
+            lsb = mm & -mm
+            i = ...
+            deg = (adj[i] & mask).bit_count()
+            if forb[i].bit_count() > deg:
+                mask &= ~(1<<i)
+                found = True
+                break
+            mm ^= lsb
+        if not found:
+            break
+    return mask
+```
+
+This loop repeatedly removes one vertex; O(n^2) per call. Could be okay. We can optimize by maintaining degree counts, but n small.
+
+After reduction, if mask==0 return True. Then choose vertex with smallest list (MRV). Branch.
+
+This reduction will eliminate trees and low-degree parts, leaving core where every vertex has list_size <= degree. Since max list size 3, core has min degree at least list size. For full domains, degree >=3. This is similar to 3-core. For sparse graphs, core small/empty.
+
+This should make solver very fast.
+
+But we need to be careful: The reduction removes vertices from mask but does not record them; can_color returns True if reduced mask colorable. Since reduction is equivalence, fine. It doesn't produce a coloring, only feasibility.
+
+Let's integrate reduction into can_color. Also in greedy construction, after assigning a vertex, we could reduce before calling can_color, but can_color does it.
+
+Now, is reduction safe when lists can be size 0? We only call if no zero lists. If a vertex has list size 0, it's already infeasible; but our propagation ensures no zero before call. However reduction may encounter zero? We can check: if any forb[i]==0 return False.
+
+Now, choose vertex after reduction. Use MRV.
+
+Let's also consider color ordering. With reduction, search core.
+
+Now, repeated can_color calls from greedy: each call reduces and searches. Good.
+
+Potential issue: Reduction condition |L(v)| > deg(v) where deg counts neighbors within current mask (including other reduced-core vertices). For a vertex with list size 3 and degree 2, remove. For list size 2 and degree 1, remove. For list size 1 and degree 0, remove. This is exactly the condition for a vertex to be colorable after the rest.
+
+This is powerful. For a graph that is a tree, all leaves removed, core empty -> feasible quickly.
+
+Now, can we also use the fact that colors are unlabeled to fix a vertex color? Not needed.
+
+Let's think about correctness proof for reduction in list coloring: Standard. Yes.
+
+Now, implement can_color with reduction and recursion.
+
+Potential recursion with reduction: After assigning a color and removing from neighbors, some vertices may become reducible. The next recursive call will reduce them. Good.
+
+Now, let's think about the greedy construction with reduction. At each step, we assign vertex i (in order). But can_color may reduce vertex i if it's not yet assigned? In greedy, before assigning i, mask includes i. We try colors. For each color, we assign i and call can_color. can_color will reduce among remaining vertices. Fine.
+
+Now, one subtlety: In greedy, after assigning i and breaking, we keep the state with i assigned and neighbor domains updated. But can_color may have reduced other vertices (removed them from mask conceptually) but since it only modifies mask locally (parameter) and forb in-place but restores, the mask in greedy is updated only for i. The reduction inside can_color doesn't modify the greedy mask; it uses a local copy. Good.
+
+Wait, can_color receives `mask` by value (int) and `forb` list by reference. It may modify `forb` during reduction? Reduction only removes vertices from mask, doesn't modify forb. It may branch and modify forb, but restores. So after can_color returns, forb is same as passed. Good.
+
+Now, we need to ensure can_color doesn't leave `forb` with any vertex reduced to empty due to branch attempts. It restores changes. Good.
+
+Now, let's think about possible infinite recursion or state loops. can_color reduces mask, chooses vertex, branches. Each branch reduces mask by at least one (assigns v). So depth <= n. Good.
+
+Now, let's consider using reduction in can_color but not in greedy. Fine.
+
+Now, let's think about edge cases with self-loops? Input may not have u=v. If it does, a worker cannot share shift with themselves -> impossible unless n? We can handle: if u==v, then no valid assignment (worker must differ from themselves). But constraints likely u!=v. We can ignore or handle by checking. If u==v, adjacency self-loop; our algorithm: assigning vertex color c, removing c from neighbors includes itself? We don't add self to adj. So would think feasible. Better to handle: if any u==v, print NO. But problem says two workers, likely distinct. We'll add a check just in case.
+
+Now, let's think about multiple edges. adj bitset handles duplicates.
+
+Now, let's consider memory. adj list of ints. Fine.
+
+Now, let's think about Python version and bit_count. Use `.bit_count()`. If environment older, but likely okay. We can add fallback:
+
+```
+try:
+    (0).bit_count()
+except AttributeError:
+    def popcount(x): return bin(x).count('1')
+else:
+    def popcount(x): return x.bit_count()
+```
+
+But using function call overhead maybe slower. We can just use `.bit_count()` directly; assume Python 3.8+. Actually I recall `int.bit_count()` was introduced in Python 3.8? Let me verify: Python 3.8 added `int.to_bytes`? Hmm. I know `int.bit_count()` was introduced in Python 3.8 or 3.10. Quick memory: In Python 3.10 release notes, "int.bit_count() returns number of ones in binary representation". I think it was added in Python 3.8? Wait, `int.bit_count()` was added in Python 3.8 (PEP 572? no). Let me recall using it in Codeforces with Python 3.8+? Codeforces uses Python 3.10. Most online judges use 3.8+. To be safe, we can define a local variable `popcount = int.bit_count` if exists, else fallback. But final code can use `.bit_count()`; it's standard now. The problem statement says Python 3, not specific version. I'll include a compatibility wrapper to be safe, but it may add a line. We can do:
+
+```
+try:
+    bit_count = int.bit_count
+except AttributeError:
+    def bit_count(x):
+        return bin(x).count('1')
+```
+
+Then use `bit_count(x)`. Function call overhead small. Or just use `.bit_count()` and hope. Since we want robust, include wrapper.
+
+Actually we can define local function `bc = int.bit_count` if exists. But if not, fallback. Let's include.
+
+Now, let's think about optimizing lowbit index. We use `x.bit_length() - 1` for power of two. That's fast.
+
+Now, let's write final code with these components.
+
+But before final, let's consider if there is a simpler polynomial solution? No, 3-coloring NP-complete. n=40 exponential.
+
+Now, let's think about possible improvements for lexicographic smallest. The greedy with feasibility calls is straightforward. But maybe we can do it in one search: `search(i, forb, mask)` tries colors for vertex i in order, and for each, reduces and recursively calls `search(i+1, ...)`. This is essentially the same but without separate can_color calls; it uses recursion with fixed order. However it may be less efficient because it doesn't use MRV for future vertices? It still can reduce and use MRV in a feasibility check before committing? Actually if we just recursively assign in index order with forward checking, it's a DFS that explores lexicographic order and stops at first solution. That directly yields lexicographically smallest without separate feasibility calls. It may be simpler and possibly fast enough. But fixed variable order can be much slower than MRV. However we can combine: at each step, assign next index, propagate, then run reduction/MRV solver to check feasibility before recursing. That's same as separate calls.
+
+Maybe separate calls are fine.
+
+Let's consider worst-case number of can_color calls: For each vertex, we may try 1-3 colors; each infeasible color triggers a can_color that returns False possibly after some search. The total work could be more than a single search. But n small.
+
+Alternatively, we can construct lexicographically smallest by a single DFS that uses MRV but with tie-breaking by index? That wouldn't guarantee lexicographic because decisions not in index order. The first found coloring may not be lexicographically smallest. We could find a coloring and then try to minimize lexicographically by iterative improvement? Hard.
+
+Greedy is clean.
+
+Now, let's think about can_color returning True for initial state but greedy failing to place a vertex. Shouldn't happen if can_color correct and we maintain state consistent. But if it does, print NO.
+
+Now, let's test on K4 n=4 all edges. Initial can_color: reduce? each vertex degree 3, list size 3, not reducible. Choose vertex0, branch colors. Try color0, remove from neighbors 1,2,3 -> list size2 each. Reduce? each degree2, list size2, not >. Choose vertex1, list size2, branch color1 (not0). Remove from neighbors 2,3 -> list size1 each. Reduce? vertex2 degree1, list size1 not >; vertex3 degree1, list1 not >. Choose vertex2, branch its single color2. Remove from neighbor3 -> list size0 -> fail. Backtrack. Try vertex1 color2, similar fail. Backtrack to vertex0 color1, etc. All fail -> False. Good.
+
+Output NO.
+
+Now, test on graph with a triangle plus isolated vertex. n=4 edges 0-1,1-2,0-2. can_color initial: reduce? degrees: 0,1,2 degree2 list3 -> not reducible (need >). isolated vertex3 degree0 list3 -> reducible (3>0), remove. Core triangle. Branch vertex0 color0, neighbors list {1,2}. vertex1 branch color1, neighbor2 list {2}, assign, success. Greedy: i=0 c0 feasible -> assign0. i=1 c0 not allowed, c1 feasible -> assign1. i=2 only c2. i=3 c0. Output 1,2,3,1. Lexicographically smallest? Yes: vertex0 must be1 (any). vertex1 cannot be1, try2. vertex2 cannot1/2 ->3. vertex3 free ->1. Good.
+
+Now, test on graph that is a path 0-1-2-3. Greedy: i=0 c0 feasible -> assign0. i=1 c0 not allowed, c1 feasible -> assign1. i=2 c0 allowed? neighbor1 color1, so yes. c0 feasible -> assign0. i=3 c0 not allowed (neighbor2 color0), c1 feasible -> assign1. Output 1,2,1,2. Lexicographically smallest? Let's see: vertex0=1. vertex1 can be2 or3; smallest 2. vertex2 can be1 or3 (not2); smallest1. vertex3 can be2 or3 (not1); smallest2. Yes.
+
+Now, test on graph where greedy choice at vertex0 color0 leads to no solution but color1 leads to solution. Example: a 5-cycle? 5-cycle is 3-colorable. Lexicographically smallest: vertex0=1, vertex1=1? No edge 0-1, so vertex1 can be1 if not adjacent. Actually cycle 0-1-2-3-4-0. Vertex0=1. Vertex1 not adjacent to0, can be1. Then vertex2 adjacent to1, cannot1, try1? no, try2. Vertex3 adjacent to2, cannot2, try1. Vertex4 adjacent to3 and0, cannot1 (neighbor0) and cannot? neighbor3 color1, so cannot1, try2. Valid: 1,1,2,1,2. Greedy: i0 c0 feasible? yes. i1 c0 feasible? Need color remaining cycle 2-3-4 with vertex2 not0, vertex4 not0. Path 2-3-4 with endpoints not0. Is it feasible? yes (2=1,3=0? wait colors 0,1,2; vertex2 not0 ->1, vertex3 not1 ->0 or2, vertex4 not0 and not vertex3. Choose 3=0,4=1 or2. Feasible). So assign i1=0. i2 c0 not allowed, c1 feasible? assign2=1, then path vertex3 not1, vertex4 not0 and not3. Vertex3 can be0 or2; if3=0,4 can be1 or2 (not0) -> feasible. So assign2=1. i3 c0 allowed? neighbor2=1, yes. c0 feasible? assign3=0, vertex4 neighbor0=0 and neighbor3=0 -> cannot0, can be1 or2 -> feasible. assign3=0. i4 c0 not allowed, c1 feasible -> assign1. Output 1,1,2,1,2. Good.
+
+Now, consider a graph where early greedy choice of color0 for vertex0 is feasible but leads to lexicographically smallest? Greedy ensures by feasibility. Good.
+
+Now, performance of reduction: For a graph with average degree low, core empty -> can_color returns True quickly. For dense graphs, core small. Good.
+
+Let's implement reduction carefully. We need function `reduce(mask, forb)` that returns reduced mask. It should also detect empty list (forb[i]==0) -> infeasible. But propagation ensures no zero. However after reduction removal, no changes to lists. So no new zeros. But initial call may have zeros if precolored conflict? We can check.
+
+Implementation:
+
+```
+def reduce_mask(mask, forb):
+    # repeatedly remove vertices with list_size > degree in mask
+    changed = True
+    while changed:
+        changed = False
+        mm = mask
+        while mm:
+            lsb = mm & -mm
+            i = lsb.bit_length() - 1
+            if forb[i] == 0:
+                return None  # infeasible
+            deg = bit_count(adj[i] & mask)
+            if bit_count(forb[i]) > deg:
+                mask &= ~lsb
+                changed = True
+                break
+            mm ^= lsb
+    return mask
+```
+
+Return None if infeasible. In can_color, if reduce returns None -> False.
+
+But note: Removing a vertex may reduce degree of neighbors, making them reducible. Loop handles.
+
+Now, can_color:
+
+```
+def can_color(forb, mask):
+    mask = reduce_mask(mask, forb)
+    if mask is None:
+        return False
+    if mask == 0:
+        return True
+    # choose vertex
+    v = -1; best = 4
+    mm = mask
+    while mm:
+        lsb = mm & -mm
+        i = lsb.bit_length() - 1
+        cnt = bit_count(forb[i])
+        if cnt < best:
+            best = cnt
+            v = i
+            if cnt == 1:
+                break
+        mm ^= lsb
+    # branch
+    ...
+```
+
+Wait, after reduction, there may be vertices with list size 1 and degree 0; reduction would remove them (1>0). So no list size1 with degree0. But list size1 with degree1 remains (not reducible). best can be 1. Branching on it is forced; we could directly assign, but branch works.
+
+Now, color ordering by impact. We can compute impact as number of uncolored neighbors (in mask) that currently allow c. Since after assigning v, those neighbors will lose c. Larger impact means more constraint, maybe better for pruning. But for satisfiable instances, it might lead to solution faster? Not necessarily. We can also try colors that keep domains larger? Hmm. For feasibility, we want to find a solution quickly; trying color with smallest impact may leave more options. But for pruning hard unsat, larger impact first. Hard to know. We can try colors in order 0,1,2 for simplicity. Since we need lexicographically smallest only in construction, not in can_color. For can_color, any order. Let's keep simple order 0,1,2 to avoid overhead. But we can add a small heuristic: try colors that are not used by already colored neighbors? Already all allowed. Maybe try color 0 first often finds solution quickly (all 1s if no constraints). Good.
+
+Actually for core with constraints, trying 0 first may be fine. We'll skip impact sorting to reduce overhead.
+
+But we might want to prune unsat faster by trying a color that appears least in neighbor domains? That's the "least constraining value" heuristic for finding solutions, not pruning. For 3-coloring, choosing a color that is least used by neighbors may avoid conflicts. But computing that costs. Let's keep 0,1,2.
+
+However, there is a subtle improvement: Since colors are symmetric in can_color, we can fix the first chosen vertex to color 0 to reduce symmetry. But with precolored vertices, symmetry already broken. We can still do it: in can_color, after reduction choose first vertex v, and only try colors that are in its allowed set but we can map? Not safe with lists. If allowed set is full {0,1,2}, trying all three is symmetric only if no other precolored vertices. If there are precolored vertices, symmetry broken. So can't simply fix.
+
+But we can add a symmetry break for connected components with no precolored vertices: fix the lowest-index vertex in each component to color 0. This reduces search. But our greedy construction already assigns vertices in index order with lexicographic colors, so symmetry broken by those assignments. For can_color called during greedy, there are precolored vertices (the prefix). For initial can_color, no precolored; we could fix vertex0 to color0. But initial can_color just returns yes/no; if we fix, we might miss colorings where vertex0 not 0. However we can fix because colors are symmetric: if any 3-coloring exists, there is one with vertex0=0 (permute colors). But with list coloring where vertex0 has full list, yes. So initial can_color can fix vertex0=0. But then greedy construction will assign vertex0=0 anyway (lexicographically smallest). So not needed.
+
+For can_color during greedy, prefix vertices are fixed with specific colors, so no symmetry.
+
+Thus simple can_color is fine.
+
+Now, let's think about the reduction condition more. In list coloring, a vertex v is reducible if |L(v)| > deg_{G'}(v). We remove it from the graph. This is valid because after coloring the rest, v has at most deg neighbors using colors, leaving at least |L(v)|-deg >=1 available. Yes.
+
+But what about the case where v has a colored neighbor with a color not in L(v)? Already L(v) excludes it. The condition doesn't consider colored neighbors because they are already fixed and accounted in L(v). Good.
+
+Now, after reduction, the remaining core has every vertex v with |L(v)| <= deg(v). Since max |L|=3, min degree >=1. For vertices with |L|=1, deg>=1. For |L|=2, deg>=2. For |L|=3, deg>=3. This is a dense-ish core.
+
+Now, can_color with reduction may still explore. But core size limited.
+
+Let's test on a 5-cycle: initial lists full, degrees all 2. Condition |L|=3 > deg=2 -> all vertices reducible! Wait 3>2, so reduce_mask removes all vertices, returns mask=0 -> can_color True immediately. That's correct: any cycle is 3-colorable. Good. For a 4-cycle, also reducible. For any graph with max degree <=2, reducible -> 3-colorable (unless odd cycle with 2 colors? But 3 colors always colorable). Good.
+
+For a triangle: |L|=3, deg=2 -> reducible! Wait triangle vertices degree 2, list size3 >2, so reduce removes all -> True. Indeed triangle is 3-colorable. Good.
+
+For K4: each vertex degree3, list size3, not reducible. Core K4. Branch.
+
+For a graph with minimum degree 3, core may be large. But n=40.
+
+Now, consider a 4-chromatic graph like Grötzsch (n=11, triangle-free, min degree 3?). It will have core. can_color will branch. Fine.
+
+Now, consider list-coloring feasibility during greedy: after prefix assignments, some vertices have lists size1 or2. Reduction may remove many. Good.
+
+Now, let's think about the greedy construction with reduction. At step i, we try colors in order 0,1,2. For each, we assign and call can_color. can_color reduces and searches. If can_color returns True, we commit. Good.
+
+Potential issue: can_color may be expensive for the first vertex if graph hard. But n=40.
+
+Now, let's think about implementing `reduce_mask` efficiently. It loops over mask each time until no removal. In worst case core size k, it will scan k times and remove n-k vertices. Each scan O(k). Total O(n*k). n=40, fine.
+
+Now, let's think about recursion and `forb` list. In can_color, reduction doesn't modify forb. Branch modifies forb for neighbors and restores. Good.
+
+Now, let's think about the greedy loop's undo. When trying color c for vertex i, we copy? We modify forb in place and record changes. If can_color returns False, we restore changes and forb[i]. If True, we keep changes and update mask. Good.
+
+But note: We also need to restore `forb[i]` to old value if not feasible. We do.
+
+Now, let's think about initial can_color call: It will reduce and maybe return True quickly. Good.
+
+Now, let's consider if graph has a vertex with self-loop (u==v). We can check and print NO. Add:
+
+```
+if u == v:
+    print("NO"); return
+```
+
+But if multiple lines, we can detect. However problem likely no self-loops. We'll include.
+
+Now, let's think about reading input. Use sys.stdin.buffer.read. Good.
+
+Now, let's think about output format. If NO, single line "NO". If YES, first line "YES", second line n integers separated by spaces. We must ensure trailing newline. print adds newline.
+
+Now, let's consider if n=1, m=0. Output YES and "1". Greedy: i=0 c0 feasible -> assign. Good.
+
+Now, n=40, m=0. Output all 1. can_color initial reduce removes all -> True. Greedy each step c0 feasible -> assign. Good.
+
+Now, let's think about a graph that is 3-colorable but not 2-colorable with many vertices. can_color reduces core maybe empty if max degree <=2; if higher, core. For random G(40,0.12), avg degree ~4.7, core maybe most vertices. Search may be harder. But DSATUR with reduction should handle.
+
+Let's maybe add another reduction: If two uncolored vertices u,v are adjacent and have identical lists of size 2? Not helpful.
+
+Another reduction: If a vertex has list size 1, we can propagate it immediately (like unit propagation). Our MRV will choose it and branch forced. But we can add explicit propagation loop to avoid recursion overhead: repeatedly find vertices with list size 1, assign them, remove color from neighbors. This is unit propagation. Combined with reduction. Let's implement propagation in can_color before reduction/branching. It can reduce search.
+
+Propagation algorithm:
+- queue of vertices with list size 1 in mask.
+- While queue not empty:
+   v = queue.pop()
+   if v not in mask or forb[v] not single: continue
+   c = bit of forb[v]
+   mask &= ~ (1<<v)
+   for each uncolored neighbor j: if c in forb[j], remove; if forb[j]==0 -> return False; if single -> queue.append(j)
+This assigns forced vertices. It may create new forced vertices.
+
+This is stronger than just MRV branching. It also handles list size 1 vertices that reduction doesn't remove (degree>=1). It can quickly detect conflicts.
+
+We can integrate propagation into can_color at start and after each assignment. Implementation with in-place forb and queue.
+
+Let's design can_color with propagation + reduction + branch.
+
+```
+def can_color(forb, mask):
+    # propagate forced assignments
+    # use a list as queue; initially all vertices in mask with popcount==1
+    queue = [i for i in bits if bit_count(forb[i]) == 1]
+    while queue:
+        v = queue.pop()
+        if not (mask & (1<<v)): continue
+        fv = forb[v]
+        if fv & (fv-1): continue  # no longer single
+        c = fv.bit_length() - 1
+        mask &= ~(1<<v)
+        nb = adj[v] & mask
+        while nb:
+            lsb = nb & -nb
+            j = lsb.bit_length() - 1
+            if (forb[j] >> c) & 1:
+                forb[j] &= ~(1<<c)
+                if forb[j] == 0:
+                    return False
+                if forb[j] & (forb[j]-1) == 0:
+                    queue.append(j)
+            nb ^= lsb
+    # reduce
+    mask = reduce_mask(mask, forb)
+    if mask is None: return False
+    if mask == 0: return True
+    # choose MRV
+    ...
+    # branch assign v=c and propagate? We can call can_color recursively with propagation at entry.
+```
+
+But note: After reduction removes vertices, some neighbors may become forced? Reduction doesn't change lists, so no. But degrees change, maybe more reducible; reduce loop handles.
+
+Now, when branching and assigning v=c, we remove c from neighbors. Then recursive can_color will propagate forced vertices. Good.
+
+However, propagation may assign vertices that are not in lexicographic order; that's fine for feasibility.
+
+Now, in-place propagation modifies forb. If propagation leads to failure, we need to restore forb before returning False. Since can_color returns False, caller may be in a branch and will restore its own changes. But propagation changes are not recorded. We need to record them or copy forb. Hmm. In recursive can_color, if propagation fails, we return False; but the current `forb` has been modified (some forced assignments and domain reductions). The caller (previous branch) expects `forb` to be restored to the state before calling can_color. Since can_color doesn't restore on failure, the caller's undo of its own assignment changes may not revert propagation changes deeper? Wait, propagation occurs at the start of can_color before any branch-specific changes. The caller passed `forb` in a certain state. can_color may modify it during propagation and then branch. If it returns False, it may leave `forb` altered. The caller will then undo the changes it made for the branch (neighbor removals and v assignment), but not propagation changes made by can_color. So `forb` will be inconsistent for trying next branch.
+
+Therefore, with in-place propagation, we must either:
+- Copy `forb` at the start of can_color, do propagation on copy, and discard on return. But copying each call O(n) may be okay.
+- Or record all changes and undo them before returning False or True.
+
+Simpler: At the start of can_color, make a copy of `forb` and work on it. Since n=40, copying a list of 40 ints is cheap. Then we don't need to restore; the original `forb` remains unchanged. The recursive call returns True/False but doesn't modify caller's `forb`. This avoids complex undo for propagation and reduction. Branching can also work on the copy. But then each recursive call copies forb -> O(n) per node. If many nodes, could be heavy. But n=40, maybe okay.
+
+Alternatively, use in-place with undo stack for propagation. Let's evaluate.
+
+Copying at each recursion: depth up to n, branching many. For empty graph, recursion depth 40, each call copies 40 ints -> 1600 int copies, trivial. For hard graph with millions of nodes, copying 40 ints per node -> 40 million int copies, maybe okay in 2s? Python list copy of 40 elements is fast (C memmove). 1e6 copies ~ maybe 0.05s? Actually copying list of 40 ints maybe ~0.5 microseconds? Not sure. Could be okay.
+
+But we also need to copy for reduction? Reduction doesn't modify forb. Propagation modifies copy. Branch modifies copy. So copy at start is enough.
+
+However, the greedy construction passes `forb` by reference and expects can_color not to modify it. If can_color copies at start, original unchanged. Good.
+
+Let's implement can_color with copying to simplify. But we need to be careful with performance for many calls. We can also implement in-place with undo for branch only and copy for propagation? Hmm.
+
+Maybe best: Use a recursive function that takes `forb` as a tuple? Immutable. But tuple operations to modify are O(n). Not good.
+
+Let's use list copy at each call. Since n<=40, it's fine.
+
+But can we avoid copying when mask==0? trivial.
+
+Implementation:
+
+```
+def can_color(forb, mask):
+    # forb is list; make local copy to mutate
+    forb = list(forb)
+    # propagate forced
+    queue = [...]
+    while queue:
+        ...
+    # reduce
+    mask = reduce_mask(mask, forb)
+    if mask is None: return False
+    if mask == 0: return True
+    # choose
+    v = ...
+    # branch
+    av = forb[v]
+    c = 0
+    while av:
+        if av & 1:
+            nforb = forb.copy()
+            nmask = mask & ~(1<<v)
+            nforb[v] = 1<<c
+            # remove c from neighbors in nforb
+            ok = True
+            nb = adj[v] & nmask
+            while nb:
+                lsb = nb & -nb
+                j = ...
+                if (nforb[j]>>c)&1:
+                    nforb[j] &= ~(1<<c)
+                    if nforb[j]==0:
+                        ok=False
+                        break
+                nb ^= lsb
+            if ok and can_color(nforb, nmask):
+                return True
+        av >>= 1
+        c += 1
+    return False
+```
+
+This copies forb at each recursive call and each branch. Branch copy is `forb.copy()` (list of 40). Recursive call copies again. So each node has two copies: one at function entry and one for each branch. For hard instances, many copies. But still maybe okay.
+
+We can reduce copies by not copying at function entry if we use in-place propagation with a queue and then branch on a copy. But propagation changes need to be undone or discarded. Since we copy for branches anyway, we can propagate in-place on the passed `forb` (which is a copy from parent branch). At function entry, `forb` is already a copy dedicated to this call; we can mutate it freely. We don't need to copy again at entry. Branch copies from current `forb`. On return False, we just return; the current `forb` copy will be discarded by parent (parent has its own copy). So no need to undo. Good.
+
+Thus design: can_color receives a `forb` list that it owns (can mutate). It propagates in-place. It reduces mask (doesn't mutate forb). It chooses v. For each color, it creates `nforb = forb.copy()`, assigns v, removes c from neighbors in nforb, and recursively calls can_color(nforb, nmask). If recursive returns True, propagate up. If False, discard nforb. At the end, return False. The original `forb` passed to this call is mutated by propagation but that's okay because it's owned by this call; no one else uses it after return. The caller passed either a fresh copy (in greedy) or a branch copy (in recursion) and doesn't need it back.
+
+Wait, in recursion, parent creates `nforb = forb.copy()` and passes it to child. Child mutates nforb. Parent doesn't use nforb after child returns (if False, it tries next branch with a new copy; if True, returns True). So fine.
+
+In greedy, we create a copy `nforb = forb.copy()` for the tentative assignment, pass to can_color. can_color mutates it. After can_color returns, if False, we restore original forb; if True, we replace forb with nforb (the committed state). Good.
+
+So no undo within can_color needed. Great.
+
+Now, propagation in can_color: We need initial queue of vertices with list size 1 in mask. We can build by scanning mask. Then process. If conflict, return False. This propagation may assign many vertices. It modifies forb (owned). Good.
+
+But note: After propagation, some vertices may become reducible. We then reduce mask. However reduction may remove vertices that have list size 1 and degree 0? Actually propagation would have assigned them (list size1 -> queue). So after propagation, no list size1 in mask. Reduction condition then removes vertices with list size2 degree<=1 and list size3 degree<=2. Good.
+
+Should we interleave reduction and propagation? Reduction doesn't change lists, but removing vertices changes degrees, possibly making others reducible. It won't create new forced vertices. Propagation may create new forced vertices after branch. After propagation, reduce. That's fine.
+
+Now, what about propagation after reduction? Reduction removes vertices, which may reduce degrees of remaining vertices but not their lists. Could a vertex become forced because its degree dropped? No, forced means list size1, which reduction doesn't create. So no.
+
+Now, branch: assign v=c. This may create forced neighbors. Recursive call will propagate.
+
+Now, color ordering: try colors in order 0,1,2. But maybe we can use a heuristic: try colors in order of increasing count among colored neighbors? Not relevant. Let's try 0,1,2.
+
+But for pruning unsat, maybe try color with fewest occurrences in neighbor domains? Actually if a color is rare among neighbors, assigning it less likely to cause conflict? Hmm. For finding a solution, least constraining value (LCV) chooses color that rules out fewest options for neighbors. For 3-coloring, LCV would choose color that appears in fewest neighbor domains. But computing that costs. Could help for satisfiable instances. For unsat, all fail regardless order (mostly). We'll keep simple.
+
+Now, let's think about the reduction function with mask and forb. Since can_color owns forb, reduce can use it.
+
+```
+def reduce_mask(mask, forb):
+    changed = True
+    while changed:
+        changed = False
+        mm = mask
+        while mm:
+            lsb = mm & -mm
+            i = lsb.bit_length() - 1
+            deg = bit_count(adj[i] & mask)
+            if bit_count(forb[i]) > deg:
+                mask ^= lsb
+                changed = True
+                break
+            mm ^= lsb
+    return mask
+```
+
+No infeasibility detection (forb[i]==0) because propagation ensures none. But we can include check.
+
+Now, propagation function:
+
+```
+def propagate(forb, mask):
+    # queue vertices with list size 1
+    queue = []
+    mm = mask
+    while mm:
+        lsb = mm & -mm
+        i = lsb.bit_length() - 1
+        if forb[i] & (forb[i] - 1) == 0 and forb[i] != 0:
+            queue.append(i)
+        mm ^= lsb
+    while queue:
+        v = queue.pop()
+        if not (mask & (1 << v)):
+            continue
+        fv = forb[v]
+        if fv & (fv - 1):
+            continue
+        c = fv.bit_length() - 1
+        mask &= ~(1 << v)
+        nb = adj[v] & mask
+        while nb:
+            lsb = nb & -nb
+            j = lsb.bit_length() - 1
+            if (forb[j] >> c) & 1:
+                forb[j] &= ~(1 << c)
+                if forb[j] == 0:
+                    return None
+                if forb[j] & (forb[j] - 1) == 0:
+                    queue.append(j)
+            nb ^= lsb
+    return mask
+```
+
+Return None if conflict, else mask.
+
+Now can_color:
+
+```
+def can_color(forb, mask):
+    mask = propagate(forb, mask)
+    if mask is None:
+        return False
+    mask = reduce_mask(mask, forb)
+    if mask == 0:
+        return True
+    # choose MRV
+    v = -1; best = 4
+    mm = mask
+    while mm:
+        lsb = mm & -mm
+        i = lsb.bit_length() - 1
+        cnt = bit_count(forb[i])
+        if cnt < best:
+            best = cnt
+            v = i
+            if cnt == 1:
+                break
+        mm ^= lsb
+    # branch
+    av = forb[v]
+    c = 0
+    while av:
+        if av & 1:
+            nforb = forb.copy()
+            nmask = mask & ~(1 << v)
+            nforb[v] = 1 << c
+            nb = adj[v] & nmask
+            ok = True
+            while nb:
+                lsb = nb & -nb
+                j = lsb.bit_length() - 1
+                if (nforb[j] >> c) & 1:
+                    nforb[j] &= ~(1 << c)
+                    if nforb[j] == 0:
+                        ok = False
+                        break
+                nb ^= lsb
+            if ok and can_color(nforb, nmask):
+                return True
+        av >>= 1
+        c += 1
+    return False
+```
+
+Wait, after propagate, there should be no list size1 in mask (they are assigned). But reduction may leave vertices with list size1 and degree1 (not reducible). So best can be 1. Branching on it: av has one bit, loop runs once. Good.
+
+Now, in branch, we assign v=c and remove from neighbors. We don't propagate immediately; recursive call will. Good.
+
+Potential issue: The recursion may explore many branches due to no memoization. But with propagation and reduction, okay.
+
+Now, let's think about the initial call `can_color([7]*n, (1<<n)-1)`. Propagate: no forced. Reduce: remove all vertices with degree <=2. If core empty, return True. Good.
+
+Now, greedy construction:
+
+```
+forb = [7]*n
+mask = (1<<n)-1
+if not can_color(forb.copy(), mask): print NO
+ans = [0]*n
+for i in range(n):
+    for c in range(3):
+        if not ((forb[i]>>c)&1): continue
+        nforb = forb.copy()
+        nmask = mask & ~(1<<i)
+        nforb[i] = 1<<c
+        ok = True
+        nb = adj[i] & nmask
+        while nb:
+            lsb = nb & -nb
+            j = lsb.bit_length() - 1
+            if (nforb[j]>>c)&1:
+                nforb[j] &= ~(1<<c)
+                if nforb[j]==0:
+                    ok=False
+                    break
+            nb ^= lsb
+        if ok and can_color(nforb, nmask):
+            ans[i] = c
+            forb = nforb
+            mask = nmask
+            break
+    else:
+        print NO; return
+```
+
+Note: We don't need to propagate in greedy before calling can_color; can_color will. Good.
+
+Now, one issue: In greedy, when we try color c for vertex i, we check `if not ((forb[i]>>c)&1): continue`. But `forb[i]` may have been reduced by previous assignments. Good.
+
+Now, after committing, `forb` includes vertex i with single bit and neighbor domains updated. can_color may have propagated/searched but returned original? Wait can_color receives `nforb` and mutates it. After returning True, `nforb` may be further modified by propagation? Actually can_color mutates `nforb` during propagation and search. But if it returns True, it found a coloring; however `nforb` after return may not reflect that coloring because propagation assigned forced vertices and branch choices were made on copies. The original `nforb` passed to can_color is mutated only by propagation (forced assignments) but not by branch decisions (branches use copies). So after can_color returns True, `nforb` contains the committed prefix plus any forced assignments discovered during the feasibility check. That's fine; it represents a partial state that is feasible. We can use it as the state for subsequent greedy steps. The forced assignments are valid deductions, so including them is okay. It may actually reduce future work. Good.
+
+But note: can_color may have reduced vertices (removed from mask) but didn't modify forb. So `nforb` still has those vertices with their lists; mask in greedy is updated only for assigned vertex i. The reduced vertices are still in `mask` (uncolored) in greedy. That's fine; reduction is just a solver technique, not actual assignment. We don't remove them from greedy mask. Good.
+
+Now, is it possible that can_color returns True but the mutated `nforb` contains a forced assignment that conflicts with lexicographic smallest? Forced assignments are necessary, so any valid coloring must have them. Thus including them doesn't affect lexicographic minimality. Good.
+
+Now, let's think about correctness of using `nforb` after can_color as the state for next steps. Since can_color may have assigned forced vertices (list size1) and removed colors from neighbors, these are necessary consequences of the prefix. So state is valid. Good.
+
+Now, potential issue: can_color may have made branch assignments on copies that led to success, but those are not reflected in `nforb`. So `nforb` may not encode the full coloring found, but we don't need it. We only need to know prefix feasible. For next vertex, we assign next index based on `nforb`. Since `nforb` is a valid partial state (prefix + forced deductions), any extension to a full coloring exists. Good.
+
+Now, let's think about performance of can_color with copying. At each recursive node, we do `forb.copy()` for each color branch. For a vertex with 2 colors, two copies. For 3 colors, three copies. If search tree has many nodes, copying cost adds. But n=40.
+
+Alternative in-place branch with undo would avoid branch copies. We can implement that to be more efficient. Let's consider implementing in-place branch with undo stack; it's not too hard.
+
+In can_color, `forb` is owned. For each color c:
+- assign v: save old_v = forb[v]; forb[v] = 1<<c; mask_without_v = mask & ~...
+- remove c from neighbors, save changes list.
+- recurse.
+- undo: restore neighbors, restore forb[v].
+
+This avoids copying the whole list for each branch. Only O(degree) changes recorded. Since propagation is in-place, no issue. This is more efficient.
+
+Let's implement in-place branch.
+
+```
+def can_color(forb, mask):
+    mask = propagate(forb, mask)
+    if mask is None: return False
+    mask = reduce_mask(mask, forb)
+    if mask == 0: return True
+    # choose v
+    v = ...
+    av = forb[v]
+    c = 0
+    while av:
+        if av & 1:
+            old_v = forb[v]
+            forb[v] = 1 << c
+            new_mask = mask & ~(1 << v)
+            changes = []
+            nb = adj[v] & new_mask
+            ok = True
+            while nb:
+                lsb = nb & -nb
+                j = lsb.bit_length() - 1
+                if (forb[j] >> c) & 1:
+                    changes.append((j, forb[j]))
+                    forb[j] &= ~(1 << c)
+                    if forb[j] == 0:
+                        ok = False
+                        break
+                nb ^= lsb
+            if ok and can_color(forb, new_mask):
+                return True
+            # undo
+            for j, old in changes:
+                forb[j] = old
+            forb[v] = old_v
+        av >>= 1
+        c += 1
+    return False
+```
+
+This is efficient. The `forb` list is owned by the call; child mutates it, but on return we undo changes. Propagation changes are not undone because they are valid deductions for this call; but if the call returns False, the parent will undo its own changes. However propagation changes made in this call are not undone before returning False to parent. That means parent sees `forb` with propagation changes from child? Wait, parent passed its own `forb` to child. Child mutates it. If child returns False, parent needs `forb` restored to the state before child call. Parent only undoes the neighbor changes it made for that branch (and v assignment). It does not undo child's propagation changes. So `forb` would be left with propagation changes from the failed child, corrupting parent's state for next branch.
+
+Example: Parent assigns v=c, removes c from neighbors, calls child. Child propagates forced assignments, maybe assigns vertex w and removes color from x. If child fails, parent undoes v's neighbor removals and v assignment, but x's domain remains reduced (color removed by child). Then parent tries next color for v with incorrect domain for x. This is a bug.
+
+Therefore, with in-place propagation, we must undo propagation changes as well, or copy forb at child entry.
+
+Option 1: Copy forb at the start of can_color. Then child works on copy, parent unaffected. This reintroduces copy per node but avoids undo complexity. Since propagation changes are on the copy, no need to undo.
+
+Option 2: Keep in-place but record all changes (including propagation) in a global undo stack and revert before returning. This is more complex but efficient.
+
+Given n=40, copying at each node may be acceptable. Let's estimate worst-case nodes. For hard 3-coloring n=40, search tree could be large, maybe millions. Copying list of 40 ints per node: 40 million ints copied. Each int is small (<=7). List copy uses C memmove of pointers; 40 pointers ~320 bytes. 1e6 copies ~320 MB memory traffic, maybe 0.1-0.2s. Acceptable. Python overhead for function calls and loops dominates.
+
+But we also copy for each branch? If we copy at function entry, we don't need branch copies. In branch, we mutate the copy and pass to child. So each node one copy. Good.
+
+Let's implement can_color with `forb = list(forb)` at entry. Then in-place propagation and reduction and branch (no branch copy; use in-place with undo? Wait if we copy at entry, the copy is owned by this call. For branching, we can still use in-place with undo because child will copy at its entry. Actually if child copies at entry, we don't need to undo before passing; we can mutate the copy and pass it; child will copy again. But then we need the copy for next branch. So we need to create a copy for each branch anyway, or undo.
+
+If can_color copies at entry, then within the function we can do propagation in-place on the copy. For branching, we can create `nforb = forb.copy()` for each branch, mutate it, and call child. Child copies again. So each branch creates a copy. That's two copies per node (function entry + each branch). For a node with k branches, k+1 copies. Could be more.
+
+Alternatively, can_color does not copy at entry; it assumes `forb` is a copy from parent branch. Parent creates `nforb = forb.copy()` and passes it. Then child owns it. For branching, child creates copies for each branch. So each node (except root) is created by a copy from parent. The root is copied once in greedy/initial. So each node one copy. Propagation in-place on owned copy. This is the design: caller always passes a fresh copy. In greedy, we pass `nforb.copy()`? Wait root call: we pass `forb.copy()` (initial). can_color receives it, mutates. It doesn't copy again. For branches, can_color creates `nforb = forb.copy()` and recurses. Good. So each recursive call gets a fresh copy from its parent. No copy at function entry. This is efficient: one copy per branch.
+
+But then propagation changes are on the owned copy; no undo needed. Branch copies are fresh. Good.
+
+So can_color:
+
+```
+def can_color(forb, mask):
+    # forb is a list owned by this call (will be mutated)
+    mask = propagate(forb, mask)
+    if mask is None: return False
+    mask = reduce_mask(mask, forb)
+    if mask == 0: return True
+    # choose v
+    ...
+    av = forb[v]
+    c = 0
+    while av:
+        if av & 1:
+            nforb = forb.copy()
+            nmask = mask & ~(1<<v)
+            nforb[v] = 1<<c
+            nb = adj[v] & nmask
+            ok = True
+            while nb:
+                lsb = nb & -nb
+                j = ...
+                if (nforb[j]>>c)&1:
+                    nforb[j] &= ~(1<<c)
+                    if nforb[j]==0:
+                        ok=False
+                        break
+                nb ^= lsb
+            if ok and can_color(nforb, nmask):
+                return True
+        av >>= 1
+        c += 1
+    return False
+```
+
+This is clean. Each branch copies. Propagation in-place on owned copy. No undo.
+
+Now, root call in greedy: we create `nforb = forb.copy()` for tentative assignment and pass to can_color. can_color mutates it. Good.
+
+Initial feasibility: `if not can_color([7]*n, fullmask):`. Here we pass a new list; can_color owns it.
+
+Now, is there any risk that can_color returns True but the passed `forb` is mutated with forced assignments that we want to keep? In greedy, yes we keep `nforb`. In initial feasibility, we don't care.
+
+Now, performance: Each node copies list. For empty graph, nodes = n, copies ~ n*(branching?) Actually root copies for each branch? Root chooses v0, tries c=0, creates copy and recurses. It doesn't try c=1 because recursion returns True. So copies = n. Good.
+
+For hard unsat, many nodes. But n=40.
+
+Now, we need to ensure propagate uses the owned copy and returns mask. Good.
+
+Let's also consider using `reduce_mask` after propagation. It doesn't copy. Good.
+
+Now, one more optimization: In propagate, we can use a list as stack. Initial queue scanning mask. We can also avoid scanning by maintaining it, but n small.
+
+Now, let's think about the reduction condition with list size after propagation. Propagation removes all singletons. So reduction removes vertices with list size 2 degree <=1 and list size 3 degree <=2. Good.
+
+Now, let's think about whether reduction can create new singletons? No, it only removes vertices. So no need to propagate after reduction.
+
+Now, let's think about whether we should reduce before propagate. If a vertex has list size 2 and degree 0, reduction removes it. If list size 1 and degree 0, propagate would assign it. Either order fine. We do propagate first, then reduce. After propagate, no singletons, so reduction removes 2-degree<=1 and 3-degree<=2.
+
+Now, let's think about correctness of propagate with queue: We add all singletons initially. Process. When we remove a color from neighbor, if neighbor becomes singleton, add. Good. If neighbor becomes empty, conflict. Good.
+
+Now, what about a vertex that becomes singleton due to being the only uncolored neighbor? Already handled.
+
+Now, let's think about possible bug: In propagate, when we assign v (singleton), we remove v from mask. Then we iterate over neighbors in mask. But if a neighbor j also singleton with same color c, removing c from j would make it empty -> conflict. That's correct because adjacent vertices both forced to same color -> infeasible.
+
+Now, let's think about the choose vertex step. We want min list size. Since propagate removed singletons, min size >=2 (unless reduction left singleton with degree>=1). Actually after reduction, a singleton with degree1 remains (not reducible). So min could be1. We break at cnt==1 to choose forced vertex quickly. Good.
+
+Now, color ordering: try 0,1,2. But maybe for a vertex with list {0,2}, we try 0 then2. Fine.
+
+Now, let's think about the greedy loop and can_color returning True but with `nforb` mutated. After committing, `forb = nforb`. Then next iteration i+1. But `forb[i+1]` may have been reduced by propagation in can_color. Good.
+
+Now, let's think about lexicographic minimality with forced assignments. Suppose at step i, color c is feasible. We commit. can_color may have forced some later vertex j to a specific color. That forced color is the only possible in all completions, so lexicographically minimal. Good.
+
+Now, let's think about a scenario where at step i, color c is feasible, but the lexicographically smallest full assignment requires at step i color c and later some vertex k (k>i) forced to a color larger than another feasible completion with same prefix? Forced assignments are necessary, so no alternative. For unforced later vertices, greedy will choose smallest feasible at each step. So overall lexicographically smallest. Good.
+
+Now, let's consider if the graph is disconnected. Greedy assigns vertices in order across components. Lexicographically smallest across components is determined by each vertex independently. Good.
+
+Now, let's think about possible issue with `reduce_mask` removing vertices that are in the prefix? Mask only uncolored. Prefix vertices not in mask. Good.
+
+Now, let's think about memory. Recursion depth <= n=40. Each call has local variables. Fine.
+
+Now, let's think about time limit 2s. Python with this algorithm should pass for n=40. But let's consider worst-case adversarial. Is there a graph with n=40 that makes this algorithm explore too many branches? Possibly a 4-regular 4-chromatic graph. Reduction: list size3, degree4 -> not reducible. Propagate none. Core all 40. Branching on MRV vertex with list size3. Search space up to 3^40 but pruning strong. For 4-chromatic, unsat; algorithm may explore many branches. But n=40 small. DSATUR can solve 4-coloring of n=100? Actually DSATUR for chromatic number can be slow on large random graphs, but n=40 is small.
+
+Let's maybe add a simple bound: If the graph contains a vertex of degree >=? Not helpful.
+
+Another improvement: Use a small initial vertex ordering for MRV? MRV dynamic is good.
+
+We can also add a check for K4 to quickly reject some. But not necessary.
+
+Let's consider implementing a more advanced exact algorithm if needed: Use BFS over independent sets for 3-coloring. But likely not.
+
+Given time, let's produce final code with the above design. We'll include bit_count fallback.
+
+Let's write final code now.
+
+But before final, let's test with examples.
+
+Example1:
+Input:
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+
+Our code should output YES and 1 2 3 3.
+
+Example2: NO.
+
+Let's simulate initial can_color for Example1: propagate none. reduce: degrees: v0 deg3, v1 deg3, v2 deg2, v3 deg2. Lists all3. Vertices2,3 degree2 -> reducible, remove. Then v0,v1 degree1 (edge between them) list3 -> reducible (3>1), remove. mask0 -> True. Greedy: i0 c0 feasible -> assign. i1 c0 not allowed, c1 feasible -> assign. i2 only c2 -> assign. i3 only c2 -> assign. Output 1 2 3 3. Good.
+
+Example2 K4: reduce none (deg3). can_color explores and returns False. Output NO.
+
+Now, let's test with a graph that is a 4-cycle plus a diagonal? Actually K4 minus edge is 3-colorable. n=4 edges all except 2-3. Greedy: i0 c0. i1 c0 not allowed (edge0-1), c1 feasible? assign. i2: neighbors1 (color1), no edge0-2? In K4 minus edge 2-3 (1-based 2 and3? Let's define vertices 0,1,2,3, edges all except 1-2. Then i2 neighbor0 (color0) and3? no. forb[2] = {1,2}. c1 allowed? neighbor1 color1, so no. c2 allowed. assign. i3 neighbor0 color0,1 color1,2 color2 -> only? Actually edge2-3 exists, so forb[3] after i2 = {1}? Wait initial forb[3] after i0,i1: neighbor0 color0, neighbor1 color1 -> {2}. Then i2 assigned color2, neighbor3 edge -> remove2 -> empty? But K4 minus edge 2-3 means no edge between vertices2 and3 (1-based workers3 and4?). Wait I'm mixing. Let's not worry.
+
+Now, let's think about a potential bug: In `reduce_mask`, after removing a vertex, we break and restart scanning. This is O(n^2). Fine.
+
+Now, let's think about `propagate` initial queue: We scan mask and add singletons. But if a vertex has list size 0, we return None. We should check. Add:
+
+```
+if forb[i] == 0: return None
+```
+
+Now, in can_color, after propagate returns None -> False.
+
+Now, let's think about the greedy loop: When trying color c, we remove c from neighbors and if any neighbor list becomes 0, skip. We don't propagate singletons here; can_color will. Good.
+
+Now, let's think about the case where `forb[i]` is singleton due to previous forced assignments from can_color. In greedy loop, we try c in 0,1,2; only allowed ones. The first allowed c may be the forced one. We call can_color; it will propagate and return True. Good.
+
+Now, let's think about whether we need to call can_color for each color even if `forb[i]` is singleton. If singleton, only one color to try; can_color will return True (since initial feasibility ensured). We can skip can_color if singleton to save time. But not necessary.
+
+Now, let's think about the output. Use `sys.stdout.write` maybe. print fine.
+
+Now, let's consider the possibility that the input has extra whitespace or trailing newline. `read().split()` handles.
+
+Now, let's think about recursion limit. Depth <=40, default 1000 fine. But set higher just in case.
+
+Now, let's think about using `sys.setrecursionlimit(10000)`.
+
+Now, let's write final code.
+
+Wait, one more thought: The reduction condition `list_size > degree` is valid for list coloring. But in our state, `degree` counts uncolored neighbors in mask. However, a vertex may have colored neighbors that have reduced its list. The list size already accounts for colored neighbors. The condition guarantees that after coloring the remaining uncolored neighbors, at most `degree` additional colors are forbidden, leaving at least `list_size - degree` colors. Since list_size > degree, at least one. Good.
+
+Now, is it safe to remove a vertex with list_size > degree even if its list contains colors not available to neighbors? Yes, because we only need existence of a color for v after neighbors colored. The neighbors' colors are constrained by their own lists and edges. The worst case is they use distinct colors from L(v). Since there are at most degree neighbors, they can block at most degree colors. So safe.
+
+Now, can we also reduce a vertex if its list is a subset such that |L(v)| > deg? Yes.
+
+Now, after reduction, the remaining graph has no such vertex. This is a "Gallai tree"? Not exactly.
+
+Now, let's think about a graph that is a triangle with a pendant vertex attached to each triangle vertex (n=6). Degrees: pendant deg1 list3 -> reducible. After removing pendants, triangle vertices degree2 list3 -> reducible. Core empty. Good.
+
+Now, a graph that is two triangles sharing a vertex (bowtie). Degrees: shared vertex deg4, others deg2. The deg2 vertices reducible, then shared vertex degree0 list3 -> reducible. Empty. Good.
+
+Now, a 4-chromatic graph like complete graph K4 or odd cycle with chords? K4 core. can_color explores 4! / sym = 6? Actually tries v0 colors3, v1 colors2, v2 forced, fail each -> 6 leaves. Fine.
+
+Now, a larger 4-chromatic graph like Mycielski graph M4 (Grötzsch) has 11 vertices, triangle-free, chromatic number4. can_color may explore more. n=40 maybe Mycielski M5 (23 vertices) or M6 (47). For n=40, could be M5 (23 vertices) plus isolates. Hard? Mycielski graphs are known to be hard for DSATUR? Maybe. But n=40 still manageable.
+
+Let's consider adding a symmetry reduction for the initial can_color: Since no precolored, we can fix the first chosen vertex to color 0. But our can_color is general; we can simply in initial feasibility set vertex0 color0 and call can_color. If any 3-coloring exists, there is one with vertex0=0 by color permutation. This halves search. But greedy will assign vertex0=0 anyway. For initial feasibility, we can do this. However, if graph has precolored? Initial has none. So yes. But not necessary.
+
+For can_color during greedy, prefix breaks symmetry.
+
+Now, let's think about whether we can use a more efficient data structure for adjacency and masks. Python ints fine.
+
+Now, let's write code.
+
+Potential micro-optimizations:
+- Precompute `bit_count = int.bit_count` with fallback.
+- Use local variables in functions for speed (e.g., `adj_local = adj`, `bc = bit_count`).
+- Use while loops for bit iteration.
+
+Let's write final code with functions inside solve to capture adj and bit_count.
+
+One concern: The `propagate` function uses a list queue and may push many items. For n=40, fine.
+
+Let's also consider using `array('b')` or list of ints? List fine.
+
+Now, final code:
+
+```
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0]*n
+    for _ in range(m):
+        u = int(next(it))-1
+        v = int(next(it))-1
+        if u == v:
+            print("NO")
+            return
+        adj[u] |= 1<<v
+        adj[v] |= 1<<u
+
+    try:
+        bc = int.bit_count
+    except AttributeError:
+        def bc(x):
+            return bin(x).count('1')
+
+    def propagate(forb, mask):
+        # build queue of singletons
+        queue = []
+        mm = mask
+        while mm:
+            lsb = mm & -mm
+            i = lsb.bit_length() - 1
+            fi = forb[i]
+            if fi == 0:
+                return None
+            if fi & (fi - 1) == 0:
+                queue.append(i)
+            mm ^= lsb
+        while queue:
+            v = queue.pop()
+            bit = 1 << v
+            if not (mask & bit):
+                continue
+            fv = forb[v]
+            if fv & (fv - 1):
+                continue
+            c = fv.bit_length() - 1
+            mask &= ~bit
+            nb = adj[v] & mask
+            while nb:
+                lsb = nb & -nb
+                j = lsb.bit_length() - 1
+                if (forb[j] >> c) & 1:
+                    forb[j] &= ~(1 << c)
+                    if forb[j] == 0:
+                        return None
+                    if forb[j] & (forb[j] - 1) == 0:
+                        queue.append(j)
+                nb ^= lsb
+        return mask
+
+    def reduce_mask(mask, forb):
+        changed = True
+        while changed:
+            changed = False
+            mm = mask
+            while mm:
+                lsb = mm & -mm
+                i = lsb.bit_length() - 1
+                if bc(forb[i]) > bc(adj[i] & mask):
+                    mask ^= lsb
+                    changed = True
+                    break
+                mm ^= lsb
+        return mask
+
+    sys.setrecursionlimit(10000)
+
+    def can_color(forb, mask):
+        # forb is owned by this call
+        mask = propagate(forb, mask)
+        if mask is None:
+            return False
+        mask = reduce_mask(mask, forb)
+        if mask == 0:
+            return True
+        # choose vertex with smallest domain
+        v = -1
+        best = 4
+        mm = mask
+        while mm:
+            lsb = mm & -mm
+            i = lsb.bit_length() - 1
+            cnt = bc(forb[i])
+            if cnt < best:
+                best = cnt
+                v = i
+                if cnt == 1:
+                    break
+            mm ^= lsb
+        av = forb[v]
+        c = 0
+        # local references
+        adj_local = adj
+        while av:
+            if av & 1:
+                nforb = forb.copy()
+                nmask = mask & ~(1 << v)
+                nforb[v] = 1 << c
+                nb = adj_local[v] & nmask
+                ok = True
+                while nb:
+                    lsb = nb & -nb
+                    j = lsb.bit_length() - 1
+                    if (nforb[j] >> c) & 1:
+                        nforb[j] &= ~(1 << c)
+                        if nforb[j] == 0:
+                            ok = False
+                            break
+                    nb ^= lsb
+                if ok and can_color(nforb, nmask):
+                    return True
+            av >>= 1
+            c += 1
+        return False
+
+    full_mask = (1 << n) - 1
+    init_forb = [7] * n
+    if not can_color(init_forb, full_mask):
+        print("NO")
+        return
+
+    forb = [7] * n
+    mask = full_mask
+    ans = [0] * n
+    for i in range(n):
+        bit_i = 1 << i
+        for c in range(3):
+            if not ((forb[i] >> c) & 1):
+                continue
+            nforb = forb.copy()
+            nmask = mask & ~bit_i
+            nforb[i] = 1 << c
+            nb = adj[i] & nmask
+            ok = True
+            while nb:
+                lsb = nb & -nb
+                j = lsb.bit_length() - 1
+                if (nforb[j] >> c) & 1:
+                    nforb[j] &= ~(1 << c)
+                    if nforb[j] == 0:
+                        ok = False
+                        break
+                nb ^= lsb
+            if ok and can_color(nforb, nmask):
+                ans[i] = c
+                forb = nforb
+                mask = nmask
+                break
+        else:
+            print("NO")
+            return
+
+    out = sys.stdout
+    out.write("YES\n")
+    out.write(' '.join(str(c + 1) for c in ans))
+    out.write('\n')
+
+solve()
+```
+
+Wait, in `reduce_mask`, we compute `bc(adj[i] & mask)` each time. Since mask changes as we remove vertices, degree changes. Good.
+
+But there is a subtle issue: `reduce_mask` removes vertices but doesn't check `forb[i]==0`. Propagate ensures no zero in mask. But after branch assignment and before propagate, a neighbor may become zero; branch loop checks and skips. In recursive can_color, propagate will catch. Good.
+
+Now, let's think about `can_color` root initial: `init_forb` list passed; can_color mutates it. Fine.
+
+Now, potential performance issue: `reduce_mask` recomputes degree from scratch each removal, scanning mask. For n=40, fine.
+
+Now, let's think about correctness of `propagate` initial queue: It scans mask and adds singletons. But what if a vertex has list size 0? It returns None. Good.
+
+Now, one more thing: In `can_color`, after `propagate` and `reduce_mask`, we choose v. But `reduce_mask` may have removed vertices from mask, but `forb` still contains their lists. They are not considered. Good.
+
+Now, let's think about whether `reduce_mask` could remove a vertex that is adjacent to a colored vertex with a color not in its list. Since list already excludes it, degree among remaining uncolored neighbors may be small, but total forbidden colors (colored + uncolored) could be 3. Example: vertex v has list size 2 (colors {0,1}) due to a colored neighbor with color2. It has two uncolored neighbors. Condition list_size2 > degree2? No, not removed. If degree1, condition 2>1 -> removed. Is that safe? v has list {0,1}, one uncolored neighbor. After coloring rest, that neighbor can use at most one of {0,1}, leaving at least one. Safe. Good.
+
+Example: list size1, degree0 -> removed (1>0). Safe (forced color). Propagate would have assigned it, but reduction also safe.
+
+Example: list size3, degree2 -> removed. Safe.
+
+Now, what about a vertex with list size2, degree0 (isolated with two allowed colors). Reduction removes it. Safe.
+
+Now, what about a vertex with list size3, degree0 (isolated). Removed. Safe.
+
+Now, after reduction, every remaining vertex v has list_size <= degree. Since max list 3, degree >=1. For list size2, degree>=2. For list size3, degree>=3. This means core has minimum degree at least 2? Actually vertices with list size1 have degree>=1. So min degree >=1. Not super dense.
+
+Now, let's think about a graph that is a long path: all vertices reducible, core empty. Good.
+
+Now, let's think about a cycle of length 5: all reducible. Good.
+
+Now, a graph with min degree 3 but 3-colorable (e.g., cubic 3-colorable). Core all vertices. can_color branches. Cubic graphs with n=40: search maybe moderate.
+
+Now, let's think about 4-regular 4-chromatic graphs. Core all. Branching may be large but n=40.
+
+Now, maybe we should add a symmetry break in can_color for the first branching when no vertices are precolored (i.e., all lists full). In initial call, all lists full. We can fix the chosen vertex v to color 0 by only trying one color? But colors symmetric only if all lists full and no precolored. However, after reduction, the core may still have all lists full. We can fix one vertex's color to reduce search by factor 3. But our can_color is called from greedy with prefix, so not all lists full. For initial feasibility, we could do it separately. But not necessary.
+
+Actually, we can add a small optimization in can_color: if `mask == full_mask` (no colored vertices), then we can fix the chosen vertex v to color 0 (try only c=0) because any coloring can be permuted to make v=0. But this is only valid if v's list is full {0,1,2}. Since no colored, yes. This reduces initial search. But initial can_color is only called once; not critical.
+
+For can_color during greedy, prefix colored, no symmetry.
+
+Now, let's think about whether `can_color` with copying may cause memory blow due to many copies in recursion? Each copy is small; Python GC may keep them until recursion unwinds? Actually when a branch returns False, the local `nforb` goes out of scope and can be freed. Recursion depth 40, each level holds one `forb` copy. So memory ~40 lists. Fine.
+
+Now, let's think about Python's default recursion overhead. Each call does propagate (scan mask), reduce (scan mask), choose, branch. For n=40, okay.
+
+Now, let's consider if we can avoid `reduce_mask` scanning from scratch by using a precomputed degree order. Not needed.
+
+Now, let's think about possible bug with `propagate` queue: We add singletons initially. But after we assign a vertex v and remove color c from neighbor j, if j becomes singleton, we add. However, if j was already in queue from initial and not processed yet, duplicate in queue. The check `if not (mask & bit): continue` and `if fv & (fv-1): continue` handle duplicates. Good.
+
+Now, let's think about `propagate` returning mask after assigning forced vertices. It removes them from mask. Good.
+
+Now, let's think about `reduce_mask` after propagate. It may remove vertices. It returns mask. Good.
+
+Now, let's think about the choose vertex loop: It uses `bc(forb[i])`. For colored vertices not in mask, ignored. Good.
+
+Now, let's think about branch loop: `av = forb[v]` may be e.g., 5 (bits0,2). c iterates 0,1,2; checks av&1. For c=1, av&1=0 skip. Good.
+
+Now, after branch copy, we assign v and remove c from neighbors. We don't propagate; recursive call will. Good.
+
+Now, let's think about the greedy loop: It doesn't use `reduce_mask` or `propagate` directly; can_color does. Good.
+
+Now, let's think about the case where `forb[i]` is 0 at start of greedy iteration. That would mean no color possible for vertex i given prefix. Then the loop `for c in range(3)` skips all, else clause prints NO. But if initial can_color returned True and we maintained consistency, this shouldn't happen. However, due to can_color's reduction not assigning reduced vertices, maybe a vertex later becomes impossible? No, reduction only removes vertices that are guaranteed colorable; it doesn't make others impossible. Propagation ensures forced. So if can_color True at start, greedy should succeed. But safe to print NO.
+
+Now, let's think about reading input with `sys.stdin.buffer.read().split()` returns bytes; `int()` handles. Good.
+
+Now, let's think about output: The second line should have n integers separated by spaces. We do that.
+
+Now, let's consider if n=0? Problem says n>=1. Fine.
+
+Now, let's think about self-loop: If u==v, we print NO. But what if there are multiple restrictions and one self-loop? NO. Good.
+
+Now, let's think about parallel edges: adj bitset handles.
+
+Now, let's think about graph with a K4 subgraph but n>4. can_color will detect infeasibility. Good.
+
+Now, let's think about a graph that is 3-colorable but has a vertex with degree >2 and list size3. Reduction won't remove it. Fine.
+
+Now, let's think about possible improvement: Use `functools.lru_cache` on `(tuple(forb), mask)` to memoize can_color results. But tuple conversion O(n) and hashing; may slow. However for hard unsat, memoization can drastically cut search if same subproblems reappear. But with MRV and dynamic choices, same subproblem unlikely? Could be. Not needed.
+
+Now, let's think about whether `reduce_mask` might remove too many vertices causing `can_color` to return True for an infeasible instance. We argued it's valid. Let's double-check with a concrete list-coloring counterexample. Suppose vertex v has list {0,1}, degree 1 neighbor u. u has list {0,1}, edge v-u. Remove v (2>1). Remaining graph u alone, list {0,1}, feasible (color u=0 or1). Then v can be colored with the other color. Good.
+
+Suppose v list {0,1}, degree1 neighbor u. u list {0}, edge. Remove v. Remaining u forced 0. Then v cannot be 0, can be1. Good.
+
+Suppose v list {0}, degree0. Remove v. Remaining colored later. v can be0. Good.
+
+Suppose v list {0,1}, degree0. Remove v. v can be0 or1. Good.
+
+Suppose v list {0,1,2}, degree2 neighbors u,w. u list {0}, w list {1}. Remove v. Color u=0,w=1. Then v can be2. Good. If u and w both list {0}, then after coloring rest, u and w forced 0, v has neighbors both 0, degree2, list size3, can choose1 or2. Good.
+
+Now, suppose v list {0,1}, degree0, but there is a colored neighbor with color2 (so list excludes2). Remove v. v can be0 or1. Good.
+
+Now, suppose v list {0,1}, degree1 neighbor u, and there is a colored neighbor with color0. So list {1} actually? Wait colored neighbor with color0 reduces list to {1}. Then list size1, degree1 (uncolored neighbor). Condition 1>1 false, not removed. Propagate would assign v=1. Good.
+
+Now, suppose v list {0,1}, degree1 neighbor u, and colored neighbor with color2. List size2, degree1 -> removed. After coloring rest, u may be color0 or1. v can choose the other. Good.
+
+Now, suppose v list {0,1}, degree1 neighbor u, and colored neighbor with color0. List becomes {1}, size1, degree1 -> not removed. Propagate assigns v=1. Good.
+
+Now, suppose v list {0,1}, degree1 neighbor u, and colored neighbor with color1. List {0}, size1, degree1 -> propagate assigns v=0. Good.
+
+All valid.
+
+Now, is reduction valid in sequence? Removing vertices one by one, each removal safe given current graph. Since removal only deletes vertex and incident edges, lists of remaining unchanged. The order doesn't matter. So valid.
+
+Now, let's think about `propagate` plus `reduce_mask` order. Propagate assigns forced vertices, which may reduce lists of neighbors and create new forced. After no more forced, reduce removes vertices. Could reduction before propagation be better? Maybe some vertices reducible only after propagation? But propagate runs first. If a vertex has list size2 and degree2, not reducible. Propagation might not affect it. Reduction might remove a neighbor, lowering its degree, making it reducible. The loop repeats reduction until no more. But after reduction, no new forced. So order propagate->reduce is fine. Could there be a vertex that is reducible before propagation but propagation makes it not reducible? Propagation only removes colors, never increases list size, and removes vertices, never increases degree. So if reducible before propagate, it remains reducible after? Actually removing colors reduces list size, could make list_size <= degree. But reduction is still safe if it was safe before. However we run propagate first, so we might miss removing a vertex that becomes reducible only after propagation? Wait propagate reduces lists, which can only make list_size smaller, making reduction condition harder to satisfy. So a vertex reducible before propagate may become not reducible after. But that's okay; we just don't remove it. It might still be colorable. We could do reduction before propagation to remove more vertices. But reduction before propagation might remove a vertex that propagation would have forced? Both safe. To maximize reduction, we could interleave: reduce, propagate, reduce, etc. But not necessary.
+
+Actually, consider a vertex v with list size3, degree3, and a neighbor u that is forced to a color not in v's? Wait list full. Propagation might force u to color0, reducing v's list to {1,2}, degree2 (after u removed). Then v list size2, degree2, not reducible. If we reduced before propagate, v degree3 list3 not reducible. So no difference.
+
+Consider v list size3, degree2, but has a forced colored neighbor? If colored neighbor forbids one color, list size2, degree2 -> not reducible. But before propagation, list size3 (propagation hasn't applied colored neighbor? Actually colored neighbors are already applied to lists in our state; propagation only handles uncolored forced vertices). So colored neighbors are always in lists. So propagate doesn't change colored-neighbor restrictions.
+
+Thus propagate first is fine.
+
+Now, one more thought: In `can_color`, after propagate and reduce, we choose MRV. But we could also choose a vertex with max degree among min domain for better pruning. Let's add tie-breaking by degree. Implementation:
+
+```
+if cnt < best or (cnt == best and bc(adj[i] & mask) > bc(adj[v] & mask)):
+    best = cnt; v = i
+```
+
+But computing degree for each candidate costs. n small. We can include.
+
+Actually, choosing highest degree among min domain is DSATUR-like. Let's add.
+
+```
+deg_i = bc(adj[i] & mask)
+if cnt < best or (cnt == best and deg_i > best_deg):
+    best = cnt; v = i; best_deg = deg_i
+```
+
+Initialize best_deg = -1.
+
+This may improve pruning.
+
+Now, color ordering: maybe try colors in order 0,1,2. For a vertex with list {0,2}, we try 0 then2. Fine.
+
+Now, let's think about whether we should sort colors by something. Maybe try the color that is most constrained (fewest available elsewhere) first for pruning. But for finding a solution, maybe least constraining. Let's keep 0,1,2.
+
+Now, let's think about the initial feasibility call. We can pass a copy? We pass `init_forb` list; can_color will mutate it. We don't need it after. Good.
+
+Now, let's think about the greedy construction: We call `can_color` many times. Each call copies and explores. Could we reuse the fact that the previous can_color found a feasible coloring? Not easily.
+
+Now, let's think about potential recursion depth with propagate: Propagate may assign many vertices recursively via queue, but it's iterative. Recursion depth of can_color <= number of branch assignments <= n. Good.
+
+Now, let's think about the time for `reduce_mask` in each can_color call. It scans mask repeatedly. For core size k, it may do O(k^2). k<=40. Fine.
+
+Now, let's think about whether `reduce_mask` should also remove vertices with `forb[i] == 0` returning None. Propagate handles zeros. But if a vertex has list size0 and degree0, propagate returns None. Good.
+
+Now, let's think about the possibility of `propagate` queue being large due to duplicates. We can use a set, but overhead. Duplicates limited.
+
+Now, let's think about using `deque` vs list as stack. List pop is faster. Use list.
+
+Now, let's think about final code formatting. We'll output a single code block.
+
+Now, before final, let's consider if there is a polynomial algorithm for 3-coloring with n=40? No.
+
+Now, let's consider if the problem might expect output "NO" with no extra spaces. We do print("NO") which adds newline. Fine.
+
+Now, let's consider if output "YES" second line with trailing newline. Fine.
+
+Now, let's think about potential issue: In `can_color`, after `propagate` returns mask (some forced vertices removed), we call `reduce_mask`. But `reduce_mask` may remove vertices that have list size > degree. However, some of those vertices might have been forced by propagation if their list size became 1 and degree0. Propagation would have assigned them. So reduction only removes non-forced vertices. Good.
+
+Now, let's think about a scenario where propagate creates a singleton with degree0 (list size1). It will be assigned and removed. So no singletons remain. Good.
+
+Now, let's think about whether we need to handle the case where `forb[i]` for uncolored vertex becomes 0 due to propagation but we return None. Good.
+
+Now, let's think about the greedy loop: It doesn't check if `mask` includes i. It iterates i from 0..n-1. At step i, vertex i should be uncolored. Since we assign in order and never remove, yes. But can_color may have forced vertex i (if i not yet assigned but list size1). Wait, can_color is called after assigning vertices 0..i-1. Vertex i is uncolored. can_color may propagate and assign vertex i if forced (list size1). If it does, then in the greedy loop, when we reach i, `forb[i]` is singleton and `mask` doesn't include i. We still try to assign it; `forb[i]` has single allowed color, we call can_color with nmask = mask & ~bit_i (already without i). That's fine; can_color will see i colored (not in mask) and propagate. It returns True. So we commit the forced color. Good.
+
+But what if can_color forced vertex i to a color, and in greedy we try a different color? We check `(forb[i] >> c) & 1`; only forced color allowed. So we commit forced color. Good.
+
+Thus can_color's forced assignments are compatible with greedy.
+
+Now, let's think about whether can_color could force vertex i to a color that is not lexicographically smallest among completions with prefix 0..i-1. Forced means only possible, so smallest. Good.
+
+Now, let's think about whether can_color could force a vertex j < i? No, because vertices < i are already colored and not in mask. Their lists are singleton. Propagation won't change them. Good.
+
+Now, let's think about whether can_color could force vertex i+1 before we decide i. In greedy, we call can_color for each candidate color of i. can_color may force i+1 depending on choice of i. That's fine; it reflects consequences.
+
+Now, let's think about whether the greedy loop's `else` clause (no color works) could happen due to can_color returning False for all colors even though initial can_color True. Could happen if our can_color is buggy or if state inconsistent. We trust.
+
+Now, let's think about potential issue with `reduce_mask` removing vertices that are in the prefix? Mask excludes colored prefix. Good.
+
+Now, let's think about the `adj` list indexing. Vertices 0..n-1. Good.
+
+Now, let's think about the bit_count fallback. If `int.bit_count` not available, `bc` function defined. But we use `bc` in many places; function call overhead. For n=40, fine. If available, `bc = int.bit_count` is a bound method; calling `bc(x)` is a method call, fast. Good.
+
+Now, let's think about using `sys.setrecursionlimit`. We set 10000. Good.
+
+Now, let's think about whether we should use `if __name__ == "__main__": solve()`. Not necessary but okay. We'll include `solve()` call.
+
+Now, let's think about final code length. It's moderate.
+
+Now, let's consider if there is any issue with Python's default recursion and copying causing TLE. We can micro-opt.
+
+Potential micro-optimizations:
+- In `can_color`, localize `adj`, `bc`, `propagate`, `reduce_mask` as local variables? They are closures; access is okay but local variable lookup faster. We can assign `adj_local = adj` etc. But not necessary.
+- In branch loop, we compute `nforb = forb.copy()` and then mutate. Could avoid copying by using in-place with undo since child copies at entry? Wait child `can_color` does not copy at entry; it expects owned copy. If we pass the same `forb` mutated, child will mutate it further, and parent needs it for next branch. So we need copy. Unless we implement child copying at entry. Let's consider: If can_color copies `forb` at entry (`forb = list(forb)`), then parent can mutate `forb` in-place for the branch and pass it; child will copy. Then parent doesn't need branch copy. But then each node copies at entry. Which is better? Each node one copy vs each branch one copy. For nodes with branching factor >1, entry copy is better (one copy per node instead of per branch). For nodes with branching factor 1 (forced), same. Since most nodes in search may have branching factor 2 or 3, entry copy reduces copies significantly.
+
+Let's change design: `can_color(forb, mask)` makes `forb = list(forb)` at the very beginning. Then it mutates this owned copy. For branching,

@@ -1,0 +1,1451 @@
+Let me analyze this problem step by step.
+
+We have $n$ drones and need to assign each one a depth tier from {1, 2, 3}. For pairs of drones $(u, v)$ that are in overlapping zones, we need to ensure that $2 \cdot d_u \cdot d_v$ is NOT evenly divisible by $d_u + d_v$.
+
+Let me check which pairs of depth tiers satisfy this condition:
+- $d_u = 1, d_v = 1$: $2 \cdot 1 \cdot 1 = 2$, $1 + 1 = 2$. Is $2$ divisible by $2$? Yes. So (1, 1) is NOT allowed.
+- $d_u = 1, d_v = 2$: $2 \cdot 1 \cdot 2 = 4$, $1 + 2 = 3$. Is $4$ divisible by $3$? No. So (1, 2) is allowed.
+- $d_u = 1, d_v = 3$: $2 \cdot 1 \cdot 3 = 6$, $1 + 3 = 4$. Is $6$ divisible by $4$? No. So (1, 3) is allowed.
+- $d_u = 2, d_v = 2$: $2 \cdot 2 \cdot 2 = 8$, $2 + 2 = 4$. Is $8$ divisible by $4$? Yes. So (2, 2) is NOT allowed.
+- $d_u = 2, d_v = 3$: $2 \cdot 2 \cdot 3 = 12$, $2 + 3 = 5$. Is $12$ divisible by $5$? No. So (2, 3) is allowed.
+- $d_u = 3, d_v = 3$: $2 \cdot 3 \cdot 3 = 18$, $3 + 3 = 6$. Is $18$ divisible by $6$? Yes. So (3, 3) is NOT allowed.
+
+So the forbidden pairs are: (1, 1), (2, 2), (3, 3).
+
+This means that for any pair of drones $(u, v)$ in an overlapping zone, they must have DIFFERENT depth tiers!
+
+So this is essentially a graph coloring problem where we need to color the graph with 3 colors such that adjacent vertices have different colors. And we want the lexicographically smallest valid coloring.
+
+Since $n \le 40$, we can use backtracking with pruning. For lexicographically smallest, we try colors 1, 2, 3 in order for each vertex.
+
+Let me think about the algorithm:
+1. Build the adjacency list from the input.
+2. Use backtracking to assign colors to vertices 1 to n.
+3. For each vertex, try colors 1, 2, 3 in order.
+4. Check if the assignment is valid (no adjacent vertices have the same color).
+5. If we successfully assign colors to all vertices, output the result.
+6. If no valid assignment exists, output "NO".
+
+Since $n \le 40$ and we have 3 colors, the worst case is $3^{40}$ which is too large. But with pruning (checking validity as we go), it should be much faster in practice.
+
+Actually, let me think more carefully. The graph coloring problem is NP-hard, but with $n \le 40$ and 3 colors, we might be able to use some optimizations.
+
+One approach is to use constraint propagation or more sophisticated backtracking. But let's first try simple backtracking and see if it works.
+
+Actually, for 3-coloring, there's a well-known approach using the fact that if a vertex has degree >= 3, we can potentially use some pruning. But let's just try the simple approach first.
+
+Wait, let me reconsider. With $n = 40$ and potentially a dense graph, simple backtracking might be too slow. Let me think about optimizations:
+
+1. **Forward checking**: When we assign a color to a vertex, we can check if any unassigned neighbor still has at least one valid color.
+
+2. **Degree heuristic**: Assign colors to vertices with higher degrees first (MRV - Minimum Remaining Values heuristic).
+
+But for lexicographically smallest, we need to process vertices in order 1, 2, ..., n. So we can't reorder vertices.
+
+Let me think about the structure of the problem more. If the graph is a complete graph $K_n$, then we need $n$ colors. With only 3 colors, we can only color $K_3$ (a triangle). So if the graph contains $K_4$ as a subgraph, it's impossible.
+
+Actually, for 3-coloring, the problem is solvable in polynomial time for certain graph classes, but in general it's NP-complete.
+
+Given the constraints ($n \le 40$), let's try backtracking with some optimizations:
+
+1. Use bitmask to represent the graph for faster checking.
+2. Use forward checking to prune early.
+
+Let me code this:
+
+```python
+import sys
+
+def solve():
+    input = sys.stdin.read().split()
+    idx = 0
+    n = int(input[idx]); idx += 1
+    m = int(input[idx]); idx += 1
+    
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(input[idx]) - 1; idx += 1
+        v = int(input[idx]) - 1; idx += 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    colors = [0] * n  # 0 means unassigned, 1, 2, 3 are the colors
+    
+    def is_valid(v, c):
+        for u in adj[v]:
+            if colors[u] == c:
+                return False
+        return True
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if is_valid(v, c):
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This is the basic backtracking approach. Let me think if it's fast enough.
+
+For $n = 40$, in the worst case (sparse graph), we might have many valid colorings, and the backtracking should find one quickly. For dense graphs, the constraints are tighter, so pruning should be effective.
+
+But wait, there's a potential issue. If the graph is very sparse (like no edges), then all $3^{40}$ colorings are valid, and we'd find the first one (all 1s) immediately. If the graph has some structure that makes it hard to color, we might need to explore many branches.
+
+Let me think about worst cases for 3-coloring:
+- A complete graph $K_4$ or larger is impossible to 3-color.
+- A cycle of odd length requires 3 colors.
+- Some graphs are specifically designed to be hard for backtracking.
+
+Given the time limit of 2 seconds and $n \le 40$, I think the basic backtracking should work for most cases. Let me add some optimizations:
+
+1. **Early termination for impossible cases**: If any vertex has degree >= 3 and all its neighbors are already colored with different colors, we can terminate early.
+
+Actually, let me think about this differently. For 3-coloring, if a vertex has degree >= 3, it doesn't immediately make it impossible. But if a vertex has 3 neighbors that are all colored with different colors (1, 2, 3), then it's impossible.
+
+Let me add forward checking:
+
+```python
+def forward_check(v, c):
+    # After assigning color c to vertex v, check if all unassigned neighbors still have valid colors
+    for u in adj[v]:
+        if colors[u] == 0:  # unassigned
+            available = 0
+            for c2 in [1, 2, 3]:
+                if c2 != c:  # can't use c since v is using it
+                    valid = True
+                    for w in adj[u]:
+                        if colors[w] == c2:
+                            valid = False
+                            break
+                    if valid:
+                        available += 1
+            if available == 0:
+                return False
+    return True
+```
+
+Hmm, this is getting complicated. Let me simplify and just use the basic backtracking with the validity check.
+
+Actually, I realize that for the lexicographically smallest solution, we need to try colors in order 1, 2, 3 for each vertex. The basic backtracking should work.
+
+Let me also consider using bitmasks for efficiency:
+
+```python
+import sys
+
+def solve():
+    input = sys.stdin.read().split()
+    idx = 0
+    n = int(input[idx]); idx += 1
+    m = int(input[idx]); idx += 1
+    
+    # Use bitmask for adjacency
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(input[idx]) - 1; idx += 1
+        v = int(input[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    
+    # colors_mask[c] is a bitmask of vertices with color c
+    colors_mask = [0, 0, 0, 0]  # index 0 unused, 1, 2, 3 are colors
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            # Check if color c is valid for vertex v
+            if (adj_mask[v] & colors_mask[c]) == 0:  # no neighbor has color c
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should be more efficient with bitmask operations.
+
+Let me trace through the examples:
+
+Example 1:
+- n=4, m=5
+- Edges: (1,2), (1,3), (2,3), (1,4), (2,4)
+- This is a graph where vertices 1, 2, 3 form a triangle, and vertex 4 is connected to 1 and 2.
+- For the triangle (1, 2, 3), we need 3 different colors.
+- Vertex 4 is connected to 1 and 2, so it can't have the same color as 1 or 2.
+- If 1 has color 1, 2 has color 2, 3 has color 3, then 4 can have color 3 (since it's not connected to 3).
+- So the answer is 1 2 3 3, which matches the expected output.
+
+Example 2:
+- n=4, m=6
+- Edges: (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
+- This is a complete graph K4.
+- K4 requires 4 colors, but we only have 3.
+- So the answer is NO, which matches the expected output.
+
+The algorithm seems correct. Let me finalize the code:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I should double-check the bitmask approach. Since n can be up to 40, we need at least 40 bits. Python integers can handle this, so it should be fine.
+
+Actually, let me reconsider the time complexity. In the worst case, the backtracking could explore many branches. But with the constraint that adjacent vertices must have different colors, the search space is pruned significantly.
+
+For a graph with maximum degree d, each vertex has at most d neighbors, so at most d colors are "blocked" for that vertex. With 3 colors, if d >= 3, then some colors might be blocked, reducing the branching factor.
+
+Let me think about the worst case more carefully. Consider a path graph: 1-2-3-4-...-n. For this graph:
+- Vertex 1 can have any of 3 colors.
+- Vertex 2 can have any of 2 colors (different from vertex 1).
+- Vertex 3 can have any of 2 colors (different from vertex 2).
+- And so on.
+
+So the number of valid colorings is approximately $3 \cdot 2^{n-1}$, which is about $3 \cdot 2^{39} \approx 1.6 \times 10^{12}$ for n=40. This is too many to enumerate!
+
+But wait, we're looking for the lexicographically smallest, which means we try colors 1, 2, 3 in order. For a path graph:
+- Vertex 1: try color 1, it works.
+- Vertex 2: try color 1, it conflicts with vertex 1. Try color 2, it works.
+- Vertex 3: try color 1, it works (different from vertex 2's color 2).
+- Vertex 4: try color 1, it conflicts with vertex 3. Try color 2, it conflicts with vertex 3? No, vertex 3 has color 1. So color 2 works.
+- And so on.
+
+So for a path graph, the lexicographically smallest coloring is 1, 2, 1, 2, 1, 2, ... which is found very quickly.
+
+The worst case for backtracking is when the graph has a structure that forces many backtracks. For 3-coloring, this could be graphs with many triangles or other structures that constrain the coloring.
+
+Let me think about a potential worst case. Consider a graph where:
+- Vertices 1, 2, 3 form a triangle (need 3 different colors).
+- Vertices 4, 5, 6 form another triangle.
+- And so on.
+
+For each triangle, we need 3 different colors. The lexicographically smallest would be:
+- Triangle 1: 1, 2, 3
+- Triangle 2: 1, 2, 3
+- And so on.
+
+This is found quickly because we try colors in order.
+
+But what if the triangles are connected? For example:
+- Vertices 1, 2, 3 form a triangle.
+- Vertices 3, 4, 5 form another triangle (sharing vertex 3).
+
+Then:
+- Vertex 1: color 1
+- Vertex 2: color 2 (different from 1)
+- Vertex 3: color 3 (different from 1 and 2)
+- Vertex 4: color 1 (different from 3)
+- Vertex 5: color 2 (different from 3 and 4)
+
+This is also found quickly.
+
+I think the key insight is that for lexicographically smallest, we try colors 1, 2, 3 in order, and if a color works, we commit to it. This greedy approach often finds a solution quickly if one exists.
+
+The problematic case would be when the greedy choice leads to a dead end later, forcing backtracking. For example:
+- Vertices 1, 2, 3 form a triangle.
+- Vertex 4 is connected to vertices 1, 2, 3.
+
+If we greedily assign:
+- Vertex 1: color 1
+- Vertex 2: color 2
+- Vertex 3: color 3
+- Vertex 4: needs a color different from 1, 2, 3, but we only have 3 colors!
+
+So this would require backtracking. But wait, this is K4, which is impossible to 3-color. So the backtracking would explore all possibilities and return NO.
+
+For K4, the backtracking would try:
+- 1: 1, 2: 2, 3: 3, 4: no valid color, backtrack
+- 1: 1, 2: 2, 3: try other colors... but 3 needs to be different from 1 and 2, so only color 3 works.
+- 1: 1, 2: 3, 3: 2, 4: no valid color, backtrack
+- ... and so on.
+
+For K4, there are $3 \cdot 2 \cdot 1 \cdot 0 = 0$ valid colorings, so the backtracking would explore all $3! = 6$ permutations for the first 3 vertices and find no valid color for vertex 4.
+
+Actually, for K4, the backtracking would explore:
+- 1: 1, 2: 2, 3: 3, 4: no valid color
+- 1: 1, 2: 3, 3: 2, 4: no valid color
+- 1: 2, 2: 1, 3: 3, 4: no valid color
+- 1: 2, 2: 3, 3: 1, 4: no valid color
+- 1: 3, 2: 1, 3: 2, 4: no valid color
+- 1: 3, 2: 2, 3: 1, 4: no valid color
+
+So 6 branches, which is very fast.
+
+The real worst case would be a graph that is "almost" 3-colorable but requires many backtracks to find the right coloring. This is related to the concept of "backtracking hardness" in graph coloring.
+
+Given the constraints (n <= 40, time limit 2 seconds), I believe the basic backtracking should work. Let me also add a simple optimization: check if the graph is bipartite (2-colorable), in which case we can use a simple BFS to find a 2-coloring, which is also the lexicographically smallest 3-coloring (using only colors 1 and 2).
+
+Actually, for lexicographically smallest, if the graph is bipartite, we'd use colors 1 and 2, which is smaller than using color 3. So checking for bipartiteness could be a useful optimization.
+
+But let me first test the basic backtracking and see if it's fast enough.
+
+Actually, I realize there might be an issue with the recursion depth. Python's default recursion limit is 1000, which should be fine for n <= 40. But let me use iterative backtracking to be safe.
+
+Hmm, iterative backtracking is more complex. Let me stick with recursive for now and increase the recursion limit if needed.
+
+Let me also think about another optimization: if a vertex has no neighbors, it can always be colored with 1 (the smallest color). This is already handled by the backtracking.
+
+I think the basic backtracking should work. Let me finalize the code:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]  # colors_mask[c] = bitmask of vertices with color c
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:  # no neighbor has color c
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I should also handle the case where m = 0 (no edges). In this case, all drones can have color 1, which is the lexicographically smallest. The backtracking should handle this correctly.
+
+Let me trace through:
+- v = 0: try color 1, no neighbors have color 1 (since no neighbors), so it works.
+- v = 1: try color 1, no neighbors have color 1, so it works.
+- And so on.
+
+So the output would be "YES" followed by "1 1 1 ... 1", which is correct.
+
+I think the code is correct. Let me also add sys.setrecursionlimit to be safe:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize I should double-check the problem statement again. Let me re-read it.
+
+"For any two drones u and v in an overlapping zone, with assigned depth tiers d_u and d_v, the product 2 * d_u * d_v must not be evenly divisible by the sum d_u + d_v."
+
+So the condition is: $2 \cdot d_u \cdot d_v$ is NOT divisible by $d_u + d_v$.
+
+I calculated earlier:
+- (1, 1): $2 \cdot 1 \cdot 1 = 2$, $1 + 1 = 2$. $2 / 2 = 1$, so divisible. NOT allowed.
+- (1, 2): $2 \cdot 1 \cdot 2 = 4$, $1 + 2 = 3$. $4 / 3$ is not an integer. Allowed.
+- (1, 3): $2 \cdot 1 \cdot 3 = 6$, $1 + 3 = 4$. $6 / 4 = 1.5$, not an integer. Allowed.
+- (2, 2): $2 \cdot 2 \cdot 2 = 8$, $2 + 2 = 4$. $8 / 4 = 2$, so divisible. NOT allowed.
+- (2, 3): $2 \cdot 2 \cdot 3 = 12$, $2 + 3 = 5$. $12 / 5 = 2.4$, not an integer. Allowed.
+- (3, 3): $2 \cdot 3 \cdot 3 = 18$, $3 + 3 = 6$. $18 / 6 = 3$, so divisible. NOT allowed.
+
+So the forbidden pairs are (1, 1), (2, 2), (3, 3), which means adjacent vertices must have different colors. This confirms my earlier analysis.
+
+The code looks correct. Let me also think about edge cases:
+- n = 1, m = 0: Output "YES" and "1".
+- n = 2, m = 1, edge (1, 2): Output "YES" and "1 2" (lexicographically smallest).
+- n = 2, m = 0: Output "YES" and "1 1".
+
+Let me trace through the second case:
+- v = 0: try color 1, no neighbors have color 1 (colors_mask[1] = 0), so it works. colors[0] = 1, colors_mask[1] = 1.
+- v = 1: try color 1, adj_mask[1] = 1 (vertex 0 is a neighbor), colors_mask[1] = 1, so (adj_mask[1] & colors_mask[1]) = 1 != 0. Color 1 is not valid.
+- v = 1: try color 2, (adj_mask[1] & colors_mask[2]) = (1 & 0) = 0. Color 2 is valid. colors[1] = 2, colors_mask[2] = 2.
+- v = 2: v == n, return True.
+- Output: "YES" and "1 2".
+
+This is correct!
+
+Let me also verify the first example:
+- n = 4, m = 5
+- Edges: (1, 2), (1, 3), (2, 3), (1, 4), (2, 4)
+- adj_mask[0] = 0b1110 (vertices 1, 2, 3 are neighbors of vertex 0)
+- adj_mask[1] = 0b1101 (vertices 0, 2, 3 are neighbors of vertex 1)
+- adj_mask[2] = 0b0011 (vertices 0, 1 are neighbors of vertex 2)
+- adj_mask[3] = 0b0011 (vertices 0, 1 are neighbors of vertex 3)
+
+Wait, let me recalculate. Vertices are 0-indexed in my code.
+- Edge (1, 2) -> (0, 1)
+- Edge (1, 3) -> (0, 2)
+- Edge (2, 3) -> (1, 2)
+- Edge (1, 4) -> (0, 3)
+- Edge (2, 4) -> (1, 3)
+
+So:
+- adj_mask[0] = (1 << 1) | (1 << 2) | (1 << 3) = 0b1110
+- adj_mask[1] = (1 << 0) | (1 << 2) | (1 << 3) = 0b1101
+- adj_mask[2] = (1 << 0) | (1 << 1) = 0b0011
+- adj_mask[3] = (1 << 0) | (1 << 1) = 0b0011
+
+Now let's trace the backtracking:
+- v = 0: try color 1, (adj_mask[0] & colors_mask[1]) = (0b1110 & 0) = 0. Valid. colors[0] = 1, colors_mask[1] = 0b0001.
+- v = 1: try color 1, (adj_mask[1] & colors_mask[1]) = (0b1101 & 0b0001) = 0b0001 != 0. Invalid.
+- v = 1: try color 2, (adj_mask[1] & colors_mask[2]) = (0b1101 & 0) = 0. Valid. colors[1] = 2, colors_mask[2] = 0b0010.
+- v = 2: try color 1, (adj_mask[2] & colors_mask[1]) = (0b0011 & 0b0001) = 0b0001 != 0. Invalid.
+- v = 2: try color 2, (adj_mask[2] & colors_mask[2]) = (0b0011 & 0b0010) = 0b0010 != 0. Invalid.
+- v = 2: try color 3, (adj_mask[2] & colors_mask[3]) = (0b0011 & 0) = 0. Valid. colors[2] = 3, colors_mask[3] = 0b0100.
+- v = 3: try color 1, (adj_mask[3] & colors_mask[1]) = (0b0011 & 0b0001) = 0b0001 != 0. Invalid.
+- v = 3: try color 2, (adj_mask[3] & colors_mask[2]) = (0b0011 & 0b0010) = 0b0010 != 0. Invalid.
+- v = 3: try color 3, (adj_mask[3] & colors_mask[3]) = (0b0011 & 0b0100) = 0. Valid. colors[3] = 3, colors_mask[3] = 0b1100.
+- v = 4: v == n, return True.
+- Output: "YES" and "1 2 3 3".
+
+This matches the expected output!
+
+Let me also verify the second example:
+- n = 4, m = 6
+- Edges: (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)
+- This is K4, a complete graph.
+
+adj_mask:
+- adj_mask[0] = 0b1110
+- adj_mask[1] = 0b1101
+- adj_mask[2] = 0b1011
+- adj_mask[3] = 0b0111
+
+Backtracking:
+- v = 0: color 1. colors_mask[1] = 0b0001.
+- v = 1: color 1 invalid (neighbor 0 has color 1). color 2. colors_mask[2] = 0b0010.
+- v = 2: color 1 invalid (neighbor 0 has color 1). color 2 invalid (neighbor 1 has color 2). color 3. colors_mask[3] = 0b0100.
+- v = 3: color 1 invalid (neighbor 0 has color 1). color 2 invalid (neighbor 1 has color 2). color 3 invalid (neighbor 2 has color 3). No valid color.
+- Backtrack to v = 2: try other colors... but we've tried all 3 colors for v = 2.
+- Backtrack to v = 1: try color 3. colors_mask[2] = 0, colors_mask[3] = 0b0010.
+- v = 2: color 1 invalid. color 2. colors_mask[2] = 0b0100.
+- v = 3: color 1 invalid. color 2 invalid. color 3 invalid. No valid color.
+- Backtrack to v = 2: try color 3. colors_mask[2] = 0, colors_mask[3] = 0b0110.
+- v = 3: color 1 invalid. color 2 invalid. color 3 invalid. No valid color.
+- Backtrack to v = 1: no more colors to try.
+- Backtrack to v = 0: try color 2. colors_mask[1] = 0, colors_mask[2] = 0b0001.
+- v = 1: color 1. colors_mask[1] = 0b0010.
+- v = 2: color 1 invalid. color 2 invalid. color 3. colors_mask[3] = 0b0100.
+- v = 3: color 1 invalid. color 2 invalid. color 3 invalid. No valid color.
+- ... (continue backtracking)
+
+Eventually, all branches are exhausted, and the function returns False. Output: "NO".
+
+This matches the expected output!
+
+The code is correct. Let me finalize it:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I'm a bit worried about the time complexity for worst-case inputs. Let me think about potential optimizations.
+
+One optimization is to use constraint propagation. When we assign a color to a vertex, we can propagate this constraint to its neighbors. If any neighbor has no valid colors left, we can backtrack immediately.
+
+Another optimization is to use the degree heuristic: assign colors to vertices with higher degrees first. But this conflicts with the lexicographically smallest requirement.
+
+Let me think about a different approach. Since we want the lexicographically smallest solution, we can use a greedy approach with backtracking:
+1. For each vertex in order 1, 2, ..., n:
+   a. Try colors 1, 2, 3 in order.
+   b. If a color is valid (no neighbor has the same color), assign it.
+   c. If no color is valid, backtrack to the previous vertex and try a different color.
+
+This is essentially what the current code does. The key is that the backtracking is efficient because we're looking for the lexicographically smallest solution, which means we try the smallest colors first.
+
+Let me think about the worst case more carefully. The worst case for backtracking is when the graph has a structure that forces many backtracks. For 3-coloring, this could be:
+1. Graphs with many triangles that are interconnected.
+2. Graphs that are "almost" 3-colorable but require specific color assignments.
+
+For case 1, consider a graph with many triangles sharing edges. For example:
+- Vertices 1, 2, 3 form a triangle.
+- Vertices 2, 3, 4 form a triangle.
+- Vertices 3, 4, 5 form a triangle.
+- And so on.
+
+For this graph, the lexicographically smallest coloring would be:
+- 1: 1, 2: 2, 3: 3, 4: 1, 5: 2, ...
+
+This is found quickly because each triangle forces a specific color assignment.
+
+For case 2, consider a graph that is 3-colorable but requires specific color assignments. For example:
+- Vertices 1, 2, 3 form a triangle.
+- Vertex 4 is connected to vertices 1, 2, 3.
+- Vertex 5 is connected to vertices 1, 2, 3, 4.
+
+Wait, this is K5, which is not 3-colorable. Let me think of a different example.
+
+Actually, I think the key insight is that for lexicographically smallest, we try colors 1, 2, 3 in order, and if a color works, we commit to it. This greedy approach often finds a solution quickly if one exists.
+
+The problematic case would be when the greedy choice leads to a dead end later, forcing backtracking. But for 3-coloring, this is relatively rare because the constraint is simple (adjacent vertices must have different colors).
+
+Let me also consider using a more efficient data structure. Instead of using bitmasks, I could use adjacency lists and check validity by iterating through neighbors. But bitmasks are generally faster for this type of operation.
+
+I think the current code should be efficient enough. Let me also add a check for the trivial case where the graph is empty (no edges):
+
+Actually, the current code handles this case correctly. If there are no edges, all vertices can have color 1, which is the lexicographically smallest.
+
+Let me also consider the case where the graph is bipartite. In this case, we can use a simple BFS to find a 2-coloring, which is also the lexicographically smallest 3-coloring. But the backtracking should handle this efficiently as well.
+
+I'm confident that the current code is correct and efficient enough for the given constraints. Let me finalize it:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, I just realized that I should double-check the bitmask operations. Let me trace through a simple example:
+
+n = 3, m = 2, edges: (1, 2), (2, 3)
+
+adj_mask:
+- adj_mask[0] = 0b010 (vertex 1 is a neighbor)
+- adj_mask[1] = 0b101 (vertices 0 and 2 are neighbors)
+- adj_mask[2] = 0b010 (vertex 1 is a neighbor)
+
+Backtracking:
+- v = 0: color 1. colors_mask[1] = 0b001.
+- v = 1: color 1 invalid (adj_mask[1] & colors_mask[1] = 0b101 & 0b001 = 0b001 != 0). color 2. colors_mask[2] = 0b010.
+- v = 2: color 1 valid (adj_mask[2] & colors_mask[1] = 0b010 & 0b001 = 0). colors[2] = 1, colors_mask[1] = 0b101.
+- v = 3: v == n, return True.
+- Output: "YES" and "1 2 1".
+
+This is correct! The lexicographically smallest valid coloring is 1, 2, 1.
+
+The code is correct. Let me finalize it.
+
+Actually, let me reconsider the time complexity one more time. For n = 40 and a dense graph, the backtracking could potentially explore many branches. But with the constraint that adjacent vertices must have different colors, the search space is pruned significantly.
+
+Let me think about the worst case for a dense graph. If the graph is K40 (complete graph), then we need 40 colors, but we only have 3. So the backtracking would quickly determine that it's impossible.
+
+For a graph that is 3-colorable but has many edges, the backtracking should still be efficient because the constraints are tight.
+
+I'm confident that the current code is correct and efficient enough. Let me finalize it:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, I'm still a bit worried about the time complexity. Let me think about potential optimizations.
+
+One optimization is to use forward checking. When we assign a color to a vertex, we can check if all unassigned neighbors still have at least one valid color. If not, we can backtrack immediately.
+
+Let me implement this:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    
+    def forward_check(v, c):
+        # After assigning color c to vertex v, check if all unassigned neighbors still have valid colors
+        neighbors = adj_mask[v]
+        unassigned_neighbors = neighbors & ~colors_mask[1] & ~colors_mask[2] & ~colors_mask[3]
+        # Wait, this doesn't work because colors_mask tracks vertices with each color, not unassigned vertices.
+        # Let me think differently.
+        
+        # For each unassigned neighbor u of v:
+        # - u cannot use color c (since v is using it)
+        # - u needs at least one valid color among {1, 2, 3} \ {c} \ {colors of u's assigned neighbors}
+        
+        # This is getting complicated. Let me just use the basic backtracking for now.
+        return True
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                if backtrack(v + 1):
+                    return True
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, let me think about forward checking more carefully. The idea is:
+1. When we assign a color c to vertex v, we mark c as "unavailable" for all unassigned neighbors of v.
+2. For each unassigned neighbor u, we check if u still has at least one available color.
+3. If any unassigned neighbor has no available colors, we backtrack immediately.
+
+To implement this efficiently, I can maintain a bitmask of available colors for each vertex. But this adds complexity.
+
+Let me try a simpler approach: just check if any unassigned neighbor has all 3 colors blocked by its assigned neighbors.
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    assigned_mask = 0  # bitmask of assigned vertices
+    
+    def forward_check(v, c):
+        # Check if all unassigned neighbors of v still have at least one valid color
+        neighbors = adj_mask[v]
+        unassigned = neighbors & ~assigned_mask
+        u = unassigned
+        while u:
+            # Get the lowest set bit
+            bit = u & -u
+            u_idx = bit.bit_length() - 1
+            # Check if this neighbor has at least one valid color
+            neighbor_colors = adj_mask[u_idx] & assigned_mask
+            # Count how many colors are blocked
+            blocked = 0
+            for c2 in [1, 2, 3]:
+                if neighbor_colors & colors_mask[c2]:
+                    blocked += 1
+                elif c2 == c and (adj_mask[u_idx] & (1 << v)):
+                    # v is a neighbor of u_idx and v is using color c
+                    blocked += 1
+            if blocked == 3:
+                return False
+            u ^= bit
+        return True
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                assigned_mask |= (1 << v)
+                if forward_check(v, c) and backtrack(v + 1):
+                    return True
+                assigned_mask ^= (1 << v)
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, there's a bug in the forward_check function. Let me fix it:
+
+```python
+def forward_check(v, c):
+    # Check if all unassigned neighbors of v still have at least one valid color
+    neighbors = adj_mask[v]
+    unassigned = neighbors & ~assigned_mask
+    u = unassigned
+    while u:
+        # Get the lowest set bit
+        bit = u & -u
+        u_idx = bit.bit_length() - 1
+        # Check if this neighbor has at least one valid color
+        # Colors blocked by assigned neighbors
+        blocked = 0
+        for c2 in [1, 2, 3]:
+            if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                blocked += 1
+            elif c2 == c:
+                # v is using color c and v is a neighbor of u_idx
+                blocked += 1
+        if blocked == 3:
+            return False
+        u ^= bit
+    return True
+```
+
+Hmm, this is still not quite right. Let me think more carefully.
+
+For an unassigned neighbor u of v:
+- u cannot use color c (since v is using it and v is a neighbor of u).
+- u cannot use any color that is used by any of u's assigned neighbors.
+
+So the available colors for u are: {1, 2, 3} \ {c} \ {colors of u's assigned neighbors}.
+
+Let me rewrite:
+
+```python
+def forward_check(v, c):
+    neighbors = adj_mask[v]
+    unassigned = neighbors & ~assigned_mask
+    u = unassigned
+    while u:
+        bit = u & -u
+        u_idx = bit.bit_length() - 1
+        # Available colors for u_idx
+        available = 3  # start with all 3 colors
+        # Remove colors used by assigned neighbors of u_idx
+        for c2 in [1, 2, 3]:
+            if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                available -= 1
+        # Also remove color c if v is a neighbor of u_idx (which it is, since u_idx is a neighbor of v)
+        if (adj_mask[u_idx] & colors_mask[c]) == 0:
+            # c is not blocked by other assigned neighbors, but it's blocked by v
+            available -= 1
+        if available <= 0:
+            return False
+        u ^= bit
+    return True
+```
+
+Wait, this is still not right. Let me think again.
+
+For an unassigned neighbor u of v:
+- u's assigned neighbors are: adj_mask[u] & assigned_mask
+- Colors used by u's assigned neighbors: for each c2 in {1, 2, 3}, if (adj_mask[u] & colors_mask[c2]) != 0, then c2 is blocked.
+- Additionally, c is blocked because v is using it and v is a neighbor of u.
+
+So:
+```python
+def forward_check(v, c):
+    neighbors = adj_mask[v]
+    unassigned = neighbors & ~assigned_mask
+    u = unassigned
+    while u:
+        bit = u & -u
+        u_idx = bit.bit_length() - 1
+        # Count blocked colors for u_idx
+        blocked = 0
+        for c2 in [1, 2, 3]:
+            if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                # c2 is used by an assigned neighbor of u_idx
+                blocked += 1
+            elif c2 == c:
+                # c is used by v, and v is a neighbor of u_idx
+                blocked += 1
+        if blocked == 3:
+            return False
+        u ^= bit
+    return True
+```
+
+This looks correct now. Let me integrate it into the main code:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    assigned_mask = 0
+    
+    def forward_check(v, c):
+        neighbors = adj_mask[v]
+        unassigned = neighbors & ~assigned_mask
+        u = unassigned
+        while u:
+            bit = u & -u
+            u_idx = bit.bit_length() - 1
+            blocked = 0
+            for c2 in [1, 2, 3]:
+                if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                    blocked += 1
+                elif c2 == c:
+                    blocked += 1
+            if blocked == 3:
+                return False
+            u ^= bit
+        return True
+    
+    def backtrack(v):
+        nonlocal assigned_mask
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                assigned_mask |= (1 << v)
+                if forward_check(v, c) and backtrack(v + 1):
+                    return True
+                assigned_mask ^= (1 << v)
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize there's still a subtle issue. In the forward_check, I'm checking if c2 == c, but c is the color being assigned to v. Since v is a neighbor of u_idx (because u_idx is a neighbor of v), u_idx cannot use color c. But I need to make sure I'm not double-counting if c is already blocked by another assigned neighbor.
+
+Let me fix this:
+
+```python
+def forward_check(v, c):
+    neighbors = adj_mask[v]
+    unassigned = neighbors & ~assigned_mask
+    u = unassigned
+    while u:
+        bit = u & -u
+        u_idx = bit.bit_length() - 1
+        blocked = 0
+        for c2 in [1, 2, 3]:
+            if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                blocked += 1
+            elif c2 == c and (adj_mask[u_idx] & (1 << v)) != 0:
+                # v is a neighbor of u_idx and v is using color c
+                blocked += 1
+        if blocked == 3:
+            return False
+        u ^= bit
+    return True
+```
+
+Wait, but u_idx is already a neighbor of v (since u_idx is in `neighbors = adj_mask[v]`). So `(adj_mask[u_idx] & (1 << v)) != 0` is always true. Let me simplify:
+
+```python
+def forward_check(v, c):
+    neighbors = adj_mask[v]
+    unassigned = neighbors & ~assigned_mask
+    u = unassigned
+    while u:
+        bit = u & -u
+        u_idx = bit.bit_length() - 1
+        blocked = 0
+        for c2 in [1, 2, 3]:
+            if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                blocked += 1
+            elif c2 == c:
+                # v is a neighbor of u_idx and v is using color c
+                blocked += 1
+        if blocked == 3:
+            return False
+        u ^= bit
+    return True
+```
+
+This should be correct now. The condition `elif c2 == c` handles the case where c is not already blocked by another assigned neighbor, but it's blocked by v.
+
+Let me trace through an example to verify:
+
+n = 4, m = 5, edges: (1, 2), (1, 3), (2, 3), (1, 4), (2, 4)
+
+adj_mask:
+- adj_mask[0] = 0b1110
+- adj_mask[1] = 0b1101
+- adj_mask[2] = 0b0011
+- adj_mask[3] = 0b0011
+
+Backtracking:
+- v = 0: color 1. colors_mask[1] = 0b0001, assigned_mask = 0b0001.
+  - forward_check(0, 1): neighbors = 0b1110, unassigned = 0b1110.
+    - u_idx = 1: blocked = 1 (color 1 is blocked by v=0). Not all 3 blocked.
+    - u_idx = 2: blocked = 1 (color 1 is blocked by v=0). Not all 3 blocked.
+    - u_idx = 3: blocked = 1 (color 1 is blocked by v=0). Not all 3 blocked.
+  - forward_check returns True.
+- v = 1: color 1 invalid (adj_mask[1] & colors_mask[1] = 0b1101 & 0b0001 = 0b0001 != 0). color 2. colors_mask[2] = 0b0010, assigned_mask = 0b0011.
+  - forward_check(1, 2): neighbors = 0b1101, unassigned = 0b1100.
+    - u_idx = 2: blocked = 2 (color 1 by v=0, color 2 by v=1). Not all 3 blocked.
+    - u_idx = 3: blocked = 2 (color 1 by v=0, color 2 by v=1). Not all 3 blocked.
+  - forward_check returns True.
+- v = 2: color 1 invalid. color 2 invalid. color 3. colors_mask[3] = 0b0100, assigned_mask = 0b0111.
+  - forward_check(2, 3): neighbors = 0b0011, unassigned = 0b0000 (no unassigned neighbors).
+  - forward_check returns True.
+- v = 3: color 1 invalid. color 2 invalid. color 3. colors_mask[3] = 0b1100, assigned_mask = 0b1111.
+  - forward_check(3, 3): neighbors = 0b0011, unassigned = 0b0000.
+  - forward_check returns True.
+- v = 4: v == n, return True.
+- Output: "YES" and "1 2 3 3".
+
+This matches the expected output!
+
+Let me also verify the second example:
+
+n = 4, m = 6, edges: (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)
+
+adj_mask:
+- adj_mask[0] = 0b1110
+- adj_mask[1] = 0b1101
+- adj_mask[2] = 0b1011
+- adj_mask[3] = 0b0111
+
+Backtracking:
+- v = 0: color 1. colors_mask[1] = 0b0001, assigned_mask = 0b0001.
+  - forward_check(0, 1): neighbors = 0b1110, unassigned = 0b1110.
+    - u_idx = 1: blocked = 1 (color 1 by v=0).
+    - u_idx = 2: blocked = 1 (color 1 by v=0).
+    - u_idx = 3: blocked = 1 (color 1 by v=0).
+  - forward_check returns True.
+- v = 1: color 1 invalid. color 2. colors_mask[2] = 0b0010, assigned_mask = 0b0011.
+  - forward_check(1, 2): neighbors = 0b1101, unassigned = 0b1100.
+    - u_idx = 2: blocked = 2 (color 1 by v=0, color 2 by v=1).
+    - u_idx = 3: blocked = 2 (color 1 by v=0, color 2 by v=1).
+  - forward_check returns True.
+- v = 2: color 1 invalid. color 2 invalid. color 3. colors_mask[3] = 0b0100, assigned_mask = 0b0111.
+  - forward_check(2, 3): neighbors = 0b1011, unassigned = 0b1000.
+    - u_idx = 3: blocked = 3 (color 1 by v=0, color 2 by v=1, color 3 by v=2).
+  - forward_check returns False!
+- Backtrack to v = 2: no more colors to try.
+- Backtrack to v = 1: try color 3. colors_mask[2] = 0, colors_mask[3] = 0b0010, assigned_mask = 0b0011.
+  - forward_check(1, 3): neighbors = 0b1101, unassigned = 0b1100.
+    - u_idx = 2: blocked = 2 (color 1 by v=0, color 3 by v=1).
+    - u_idx = 3: blocked = 2 (color 1 by v=0, color 3 by v=1).
+  - forward_check returns True.
+- v = 2: color 1 invalid. color 2. colors_mask[2] = 0b0100, assigned_mask = 0b0111.
+  - forward_check(2, 2): neighbors = 0b1011, unassigned = 0b1000.
+    - u_idx = 3: blocked = 3 (color 1 by v=0, color 2 by v=2, color 3 by v=1).
+  - forward_check returns False!
+- v = 2: color 3 invalid (adj_mask[2] & colors_mask[3] = 0b1011 & 0b0010 = 0b0010 != 0).
+- Backtrack to v = 1: no more colors to try.
+- Backtrack to v = 0: try color 2. colors_mask[1] = 0, colors_mask[2] = 0b0001, assigned_mask = 0b0001.
+  - forward_check(0, 2): neighbors = 0b1110, unassigned = 0b1110.
+    - u_idx = 1: blocked = 1 (color 2 by v=0).
+    - u_idx = 2: blocked = 1 (color 2 by v=0).
+    - u_idx = 3: blocked = 1 (color 2 by v=0).
+  - forward_check returns True.
+- v = 1: color 1. colors_mask[1] = 0b0010, assigned_mask = 0b0011.
+  - forward_check(1, 1): neighbors = 0b1101, unassigned = 0b1100.
+    - u_idx = 2: blocked = 2 (color 1 by v=1, color 2 by v=0).
+    - u_idx = 3: blocked = 2 (color 1 by v=1, color 2 by v=0).
+  - forward_check returns True.
+- v = 2: color 1 invalid. color 2 invalid. color 3. colors_mask[3] = 0b0100, assigned_mask = 0b0111.
+  - forward_check(2, 3): neighbors = 0b1011, unassigned = 0b1000.
+    - u_idx = 3: blocked = 3 (color 1 by v=1, color 2 by v=0, color 3 by v=2).
+  - forward_check returns False!
+- ... (continue backtracking)
+
+Eventually, all branches are exhausted, and the function returns False. Output: "NO".
+
+This matches the expected output!
+
+The forward checking optimization helps prune the search space early. Let me finalize the code:
+
+```python
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    assigned_mask = 0
+    
+    def forward_check(v, c):
+        neighbors = adj_mask[v]
+        unassigned = neighbors & ~assigned_mask
+        u = unassigned
+        while u:
+            bit = u & -u
+            u_idx = bit.bit_length() - 1
+            blocked = 0
+            for c2 in [1, 2, 3]:
+                if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                    blocked += 1
+                elif c2 == c:
+                    blocked += 1
+            if blocked == 3:
+                return False
+            u ^= bit
+        return True
+    
+    def backtrack(v):
+        nonlocal assigned_mask
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                assigned_mask |= (1 << v)
+                if forward_check(v, c) and backtrack(v + 1):
+                    return True
+                assigned_mask ^= (1 << v)
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize that the forward_check might not be necessary for correctness, but it can help with efficiency. Let me test both versions and see if there's a significant difference.
+
+For now, let me keep the forward_check optimization. The code should be efficient enough for the given constraints.
+
+One more thing: I should make sure that the recursion depth is not too deep. With n <= 40, the recursion depth is at most 40, which is well within Python's default recursion limit of 1000. So I don't need to increase the recursion limit.
+
+Let me finalize the code:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    assigned_mask = 0
+    
+    def forward_check(v, c):
+        neighbors = adj_mask[v]
+        unassigned = neighbors & ~assigned_mask
+        u = unassigned
+        while u:
+            bit = u & -u
+            u_idx = bit.bit_length() - 1
+            blocked = 0
+            for c2 in [1, 2, 3]:
+                if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                    blocked += 1
+                elif c2 == c:
+                    blocked += 1
+            if blocked == 3:
+                return False
+            u ^= bit
+        return True
+    
+    def backtrack(v):
+        nonlocal assigned_mask
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                assigned_mask |= (1 << v)
+                if forward_check(v, c) and backtrack(v + 1):
+                    return True
+                assigned_mask ^= (1 << v)
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This should be the final solution. Let me double-check the code one more time.
+
+Actually, I just realized that I should handle the case where n = 0. But according to the problem statement, n >= 1, so this case shouldn't occur.
+
+Also, I should handle the case where m = 0 (no edges). In this case, all drones can have color 1, which is the lexicographically smallest. The backtracking should handle this correctly.
+
+Let me trace through:
+- v = 0: color 1. colors_mask[1] = 0b0001, assigned_mask = 0b0001.
+  - forward_check(0, 1): neighbors = 0, unassigned = 0. forward_check returns True.
+- v = 1: color 1. colors_mask[1] = 0b0011, assigned_mask = 0b0011.
+  - forward_check(1, 1): neighbors = 0, unassigned = 0. forward_check returns True.
+- ... and so on.
+
+So the output would be "YES" followed by "1 1 1 ... 1", which is correct.
+
+The code is correct. Let me finalize it.
+
+Wait, I should also consider the case where the graph has self-loops. But according to the problem statement, the edges are between different drones (u and v are distinct), so self-loops shouldn't occur.
+
+Also, I should consider the case where there are duplicate edges. But the problem statement doesn't mention this, and the bitmask approach handles duplicate edges correctly (OR operation is idempotent).
+
+The code is correct. Let me finalize it.
+
+Actually, let me reconsider the time complexity one more time. With forward checking, the backtracking should be more efficient. But in the worst case, it could still be slow.
+
+Let me think about a potential worst case. Consider a graph where:
+- Vertices 1, 2, ..., k form a clique (complete subgraph).
+- Vertices k+1, k+2, ..., n are connected to all vertices in the clique.
+
+For k = 3, this is a K3 with additional vertices connected to all 3 vertices in the K3. This is 3-colorable (the K3 uses colors 1, 2, 3, and the additional vertices can use any color not used by their neighbors in the K3).
+
+For k = 4, this is a K4 with additional vertices. K4 is not 3-colorable, so the entire graph is not 3-colorable.
+
+The forward checking should help prune the search space early for these cases.
+
+I'm confident that the code is correct and efficient enough for the given constraints. Let me finalize it.
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj_mask = [0] * n
+    for _ in range(m):
+        u = int(data[idx]) - 1; idx += 1
+        v = int(data[idx]) - 1; idx += 1
+        adj_mask[u] |= (1 << v)
+        adj_mask[v] |= (1 << u)
+    
+    colors = [0] * n
+    colors_mask = [0, 0, 0, 0]
+    assigned_mask = 0
+    
+    def forward_check(v, c):
+        neighbors = adj_mask[v]
+        unassigned = neighbors & ~assigned_mask
+        u = unassigned
+        while u:
+            bit = u & -u
+            u_idx = bit.bit_length() - 1
+            blocked = 0
+            for c2 in [1, 2, 3]:
+                if (adj_mask[u_idx] & colors_mask[c2]) != 0:
+                    blocked += 1
+                elif c2 == c:
+                    blocked += 1
+            if blocked == 3:
+                return False
+            u ^= bit
+        return True
+    
+    def backtrack(v):
+        nonlocal assigned_mask
+        if v == n:
+            return True
+        for c in [1, 2, 3]:
+            if (adj_mask[v] & colors_mask[c]) == 0:
+                colors[v] = c
+                colors_mask[c] |= (1 << v)
+                assigned_mask |= (1 << v)
+                if forward_check(v, c) and backtrack(v + 1):
+                    return True
+                assigned_mask ^= (1 << v)
+                colors_mask[c] ^= (1 << v)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This is the final solution.

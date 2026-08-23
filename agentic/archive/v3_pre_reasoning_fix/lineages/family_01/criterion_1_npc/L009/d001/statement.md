@@ -1,0 +1,49 @@
+# Problem A — Operational Modes
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A manufacturing facility processes $n$ distinct production tasks. The facility can run each task under one of three possible operational modes, designated as mode 1, mode 2, and mode 3. Every task must be assigned to exactly one mode.
+
+Due to shared machinery and resource contention, specific pairs of tasks are mutually restrictive. If two tasks are mutually restrictive, they cannot be executed under the same operational mode. You must devise an allocation that assigns a mode to every task while strictly avoiding any shared modes between restrictive pairs. If no such allocation can be formed, you must report the failure.
+
+The facility's management requires the schedule to be front-loaded. This means that among all valid allocations, you must select the one that assigns the lowest possible mode number to task 1. If ties remain, you must select the one that assigns the lowest possible mode number to task 2, and so forth, continuing sequentially through all tasks.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of production tasks and the number of mutually restrictive pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of tasks that are mutually restrictive.
+
+## Output
+If no valid allocation exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $m_1, m_2, \ldots, m_n$ (each in $\{1, 2, 3\}$), where $m_i$ represents the operational mode assigned to task $i$. To formally satisfy the front-loading priority, among all valid allocations output the lexicographically smallest sequence (compare $m_1$ first, then $m_2$, and so on).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

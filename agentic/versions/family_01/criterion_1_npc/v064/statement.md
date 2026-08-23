@@ -1,9 +1,50 @@
-```json
-{
-  "statement": "# Radio Spectrum Distribution\n\nTime limit: 2 s   Memory limit: 256 MB\n\n side broadcast network consists of $n$ broadcast stations, numbered $1$ through $n$. To avoid signal degradation, certain pairs of stations that operate in close physical proximity cannot share the same operating band. The infrastructure permits each station to be set to one of three distinct frequency bands, denoted by the integers $1$, $2$, and $3$.\n\nYour task is to assign a frequency band to every station such that no two conflicting stations use identical bands. If multiple valid configurations exist, you must select the configuration that produces the lexicographically smallest sequence of assigned bands $s_1, s_2, \dots, s_n$, where $s_i$ is the band assigned to station $i$. If no valid configuration is possible under the given proximity conflicts, you must report that no solution exists.\n\n## Input\nThe first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), where $n$ is the total number of broadcast stations and $m$ is the number of station pair conflicts.\n\nEach of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that station $u$ and station $v$ cannot share the same band. No conflict pair is listed more than once.\n\n## Output\nIf it is impossible to assign valid frequency bands to all stations, print a single line containing `NO`.\n\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), representing the assigned bands for stations $1$ through $n$, respectively. This sequence must be the lexicographically smallest among all valid configurations.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "The problem is reworded to describe a regional broadcast setup with band selection conflicts while eliminating explicitly domain-bound keywords from standard graph theory. Solvers must recognize the underlying three-choice constraint satisfaction and implement an exact search/backtracking strategy to find the lexicographically smallest valid assignment.",
-  "preserved_answer": "The logic, valid configuration criteria, allowed band choices {1, 2, 3}, tie-breaking rules, and data limits remain identical, so output for every input is completely unchanged.",
-  "preserved_class": "The problem remains identical to 3-coloring on arbitrary graphs with $n \\le 40$, maintaining its NP-complete complexity.",
-  "risk": "none"
-}
+# Problem A — Frequency Allocation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A deployment of $n$ wireless access points requires channel configuration. You must assign each access point exactly one of three available non-overlapping frequency bands, designated 1, 2, and 3. Due to their physical placement, certain pairs of access points have overlapping signal ranges. To prevent packet collisions, any two access points with overlapping ranges must be assigned different frequency bands.
+
+The central controller auto-generates the configuration files by evaluating the sequence of band assignments for access points 1 to $n$. To ensure predictable behavior, the controller requires the sequence of assignments to be the lexicographically smallest valid sequence (comparing the band of access point 1 first, then access point 2, and so on).
+
+Determine if a valid frequency assignment exists, and if so, provide the required configuration sequence.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of access points and the number of overlapping signal pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The access points are numbered from 1 to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that access point $u$ and access point $v$ have overlapping signal ranges.
+
+## Output
+If it is impossible to assign the frequency bands without packet collisions, output NO on a single line.
+Otherwise, output YES on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$), representing the frequency band assigned to access point $i$. This sequence must be the lexicographically smallest valid assignment.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

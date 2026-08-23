@@ -1,20 +1,20 @@
-# Transmitter Cross-Talk Audit
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A regulatory body is conducting an audit of $n$ radio transmitters, indexed from $1$ to $n$. A set of $m$ pair-wise signal overlaps has been recorded; each overlap indicates that a specific pair of transmitters experiences mutual cross-talk and cannot operate on the same frequency channel.
+At the manufacturing plant, the human resources department maintains a registry of schedule conflicts. Specifically, there are $n$ employees, and the department has identified $m$ specific pairs of individuals who have overlapping external obligations and are therefore prohibited from working simultaneously on the same assembly line.
 
-The network provider claims that the entire network can be successfully operated using only two distinct frequency channels. The compliance team aims to refute this claim by identifying three distinct transmitters that all experience mutual cross-talk with one another—meaning every pair among these three transmitters overlaps.
+Management has mandated that the entire workforce be partitioned into exactly two distinct assembly lines. However, an internal audit has revealed that the current density of conflicts makes this proposed two-line arrangement unachievable. Rather than attempting an assignment, you are required to furnish a concrete justification for why the mandate cannot be fulfilled.
 
-At least one such mutual cross-talk triplet is guaranteed to exist in the recorded network data. To standardise compliance reports, you must locate the lexicographically smallest triplet of transmitter indices $(a, b, c)$ satisfying $a < b < c$ such that cross-talk occurs between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$.
+To formally document this failure, you must locate a trio of employees such that every individual in the trio has a recorded conflict with both of the other two members of that trio. The registry is guaranteed to contain at least one such trio. You must isolate and report one such group to serve as the proof of impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n - 1) / 2, 2 \cdot 10^5)$) — the number of transmitters and the number of overlapping pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a cross-talk relationship between transmitter $u$ and transmitter $v$. No overlapping pair is listed more than once.
-It is guaranteed that at least one triplet of mutually overlapping transmitters exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the following $m$ lines provides two integers $u$ and $v$ — a pair of employees with overlapping external obligations.
+It is guaranteed that at least one trio of mutually conflicting employees exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line ($a < b < c$) representing the lexicographically smallest triplet of mutually overlapping transmitters (minimizing $a$; then $b$; then $c$).
+Print three integers $a$, $b$, and $c$ on a single line, ordered such that $a < b < c$, representing a trio where the pairs $a$–$b$, $a$–$c$, and $b$–$c$ are all present in the conflict registry. Output the lexicographically smallest such trio (the one with the smallest $a$; in case of a tie, the smallest $b$; and if still tied, the smallest $c$).
 
 ## Example 1
 Input:

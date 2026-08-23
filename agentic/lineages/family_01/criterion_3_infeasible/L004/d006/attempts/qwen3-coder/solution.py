@@ -1,0 +1,62 @@
+import sys
+from itertools import combinations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        edges.append((u, v))
+        index += 2
+    
+    # Build adjacency list
+    adj = [set() for _ in range(n + 1)]
+    for u, v in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We need to find a triangle in the complement graph
+    # That is, three nodes u<v<w such that none of (u,v), (u,w), (v,w) are edges
+    # But we want the complement: we want three nodes where ALL possible edges are present
+    # So we want a triangle in the original graph
+    
+    # No, re-read the problem:
+    # We want to find three compounds such that NO matter how you split them into two groups,
+    # at least one group contains a reactive pair.
+    # This means that among these three compounds, every pair reacts.
+    # I.e., they form a triangle in the graph.
+    
+    # So we just need to find any triangle in the graph.
+    # And among all triangles, pick the lexicographically smallest one.
+    
+    # Collect all edges in a set for fast lookup
+    edge_set = set()
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+        edge_set.add((u, v))
+    
+    # Try all combinations of 3 nodes
+    nodes = list(range(1, n+1))
+    best = None
+    
+    for combo in combinations(nodes, 3):
+        u, v, w = sorted(combo)
+        # Check if all three edges exist
+        edges_here = [(u,v), (u,w), (v,w)]
+        if all(e in edge_set for e in edges_here):
+            if best is None or (u, v, w) < best:
+                best = (u, v, w)
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

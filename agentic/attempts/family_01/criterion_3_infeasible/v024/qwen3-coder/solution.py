@@ -1,0 +1,61 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list - but we'll store as sets for fast lookup
+    adj = [set() for _ in range(n + 1)]
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        index += 2
+    
+    # For each node, get its neighbors
+    # We want to find a triangle (3 nodes all connected to each other)
+    # That means for nodes a,b,c: a-b, a-c, b-c all exist (all incompatible)
+    
+    # Let's go through all combinations in lexicographical order
+    # To do this efficiently, we iterate through a < b < c
+    # and check if all three edges exist
+    
+    # For efficiency, let's sort adjacency lists and use a smarter approach
+    # For each node a, look at its neighbors b > a
+    # For each such b, look at neighbors c of b where c > b
+    # Check if c is also a neighbor of a
+    
+    for a in range(1, n - 1):  # a can be at most n-2 to leave room for b and c
+        neighbors_a = list(adj[a])
+        # Only consider neighbors greater than a
+        neighbors_a = [x for x in neighbors_a if x > a]
+        neighbors_a.sort()
+        
+        # For each pair of neighbors of a
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            if b >= n: continue  # b must leave room for c
+            neighbors_b = list(adj[b])
+            neighbors_b = [x for x in neighbors_b if x > b]
+            neighbors_b.sort()
+            
+            # Convert neighbors of a to a set for fast lookup (excluding b itself)
+            set_a = set(neighbors_a[i+1:])  # Neighbors of a that are > b
+            
+            # Check each neighbor c of b (where c > b) 
+            for c in neighbors_b:
+                if c in set_a:
+                    # Found triangle a-b, a-c, b-c
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    main()

@@ -1,22 +1,22 @@
-# Frequency Interference Analysis
+# Problem C — Feedback Loop Isolation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-## Description
-Consider a monitoring facility tracking $n$ active signal channels, numbered from $1$ through $n$. Due to overlapping frequency bands, certain pairs of channels experience severe mutual interference.
+A deep-space communication array consists of numerous relay stations, each assigned a unique integer identifier. To maintain data integrity, pairs of these stations establish dedicated, bidirectional quantum entanglement links. The architecture of this array is provided to you as a list of all active links between specific pairs of stations.
 
-A system log records $m$ distinct unordered pairs of channels that interfere with each other. A critical fault mode occurs when three distinct channels $a$, $b$, and $c$ form a fully interconnected group—that is, channel $a$ interferes with $b$, channel $a$ interferes with $c$, and channel $b$ interferes with $c$.
+Due to a configuration anomaly, the network contains closed feedback loops. A critical feedback loop occurs whenever three distinct stations are completely interconnected—that is, each of the three stations shares a direct link with the other two. System diagnostics confirm that at least one such three-station configuration exists in the current network topology.
 
-Your task is to identify one such fault group of three channels. If multiple such groups exist, report the triple $(a, b, c)$ with $1 \le a < b < c \le n$ that is lexicographically smallest (minimizing $a$ first; if tied, minimizing $b$; if still tied, minimizing $c$).
+Your task is to isolate a source of the anomaly by identifying three stations that form a critical feedback loop. If there are multiple such configurations, you must report the lexicographically first one.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of signal channels and the total number of interference pairs.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating a mutual interference pair between channel $u$ and channel $v$.
-
-It is guaranteed that no pair is reported more than once and that at least one such group of three mutually interfering channels exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)), representing the number of relay stations and the number of active entanglement links, respectively. Stations are numbered from 1 to n.
+Each of the following m lines contains two integers u and v, indicating that a bidirectional link exists between station u and station v.
+It is guaranteed that at least one critical feedback loop exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line separated by spaces such that $a < b < c$ and all three channel pairs $(a, b)$, $(a, c)$, and $(b, c)$ are present in the interference log. Output the lexicographically smallest triple under the tie-breaking rule.
+Print three integers a, b, and c on a single line, separated by spaces, representing the identifiers of the three stations in a critical feedback loop.
+The identifiers must be printed in ascending order (a < b < c).
+To satisfy the lexicographical requirement, you must minimize a. If there are multiple valid loops with the same a, minimize b. If there are still ties, minimize c.
 
 ## Example 1
 Input:

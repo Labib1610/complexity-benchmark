@@ -1,20 +1,18 @@
-# Problem B — Sector Assignment
+# Problem B — Safety Scheduling
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing plant operates two non-overlapping work sectors, labeled 1 and 2. The plant employs $n$ personnel, indexed from $1$ to $n$. Due to safety regulations and supervisory constraints, certain pairs of personnel are designated as mutually exclusive and cannot be assigned to the same sector.
+A manufacturing plant operates exactly two daily production periods, designated as period 1 and period 2. The plant employs $n$ technicians, numbered from 1 to $n$. To maintain safety standards, certain pairs of technicians who have previously disagreed on safety protocols must not be scheduled during the same production period.
 
-You must assign every employee to exactly one sector (1 or 2) such that no mutually exclusive pair is placed in the same sector. If multiple valid assignments exist, choose the one that yields the lexicographically smallest sequence of assignments $(s_1, s_2, \dots, s_n)$, where $s_i$ is the sector assigned to employee $i$. A sequence $A = (a_1, \dots, a_n)$ is lexicographically smaller than $B = (b_1, \dots, b_n)$ if at the first index $k$ where $a_k \neq b_k$, $a_k < b_k$.
+You are provided with a list of $m$ such incompatible pairs. Your task is to determine if it is possible to assign every technician to either period 1 or period 2 such that no two incompatible technicians work during the same period. If this is possible, you must provide the assignment. To standardize the scheduling system across the plant, if there are multiple valid ways to assign the technicians, you must output the sequence of assignments that is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the total number of employees and the number of mutually exclusive pairs, respectively.
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a pair of employees who cannot share a sector.
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 2·10⁵, 0 ≤ $m$ ≤ 2·10⁵), representing the number of technicians and the number of incompatible pairs.
+Each of the following $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$), indicating that technician $u$ and technician $v$ cannot be assigned to the same period.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), denoting the lexicographically smallest valid assignment.
+If there is no way to assign the periods without violating the safety standards, output a single line containing `NO`.
+If a valid assignment exists, output `YES` on the first line. On the second line, output $n$ integers $s_1, \dots, s_n$ (where each $s_i$ is either 1 or 2), representing the period assigned to each technician from 1 to $n$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

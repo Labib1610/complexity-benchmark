@@ -1,0 +1,275 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1])
+        idx += 2
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Find lexicographically smallest triangle
+    for a in range(1, n + 1):
+        adj_a = adj[a]
+        # We need b and c in adj_a with b < c and edge (b,c) exists.
+        # To get lexicographically smallest (a,b,c), for fixed a we want smallest b, then smallest c.
+        # Iterate b in sorted order of adj_a, but only b > a? No, b can be < a.
+        # Wait: lexicographically smallest sequence when sorted ascending: (a,b,c) with a<b<c.
+        # So a is the smallest element. Thus a must be the minimum of the triangle.
+        # So b and c must be > a.
+        # So we only consider b, c > a.
+        # This means for a given a, we look at neighbors > a.
+        neighbors = [x for x in adj_a if x > a]
+        # To find smallest b then smallest c, we can iterate b in sorted order.
+        neighbors.sort()
+        # For each b, check if there's c in adj_a and adj_b with c > b.
+        # To get lex smallest, we want smallest b, then smallest c.
+        # So for b in sorted neighbors:
+        #   for c in sorted neighbors > b:
+        #       if c in adj[b]: found
+        # But this could be O(deg^2). With deg up to n, and n=2000, worst case O(n^3) if dense.
+        # However m <= 2e5, so sum of deg = 4e5. 
+        # We can optimize: for each a, we want the smallest b>a in adj[a], then smallest c>b in adj[a] and adj[b].
+        # Let's iterate b in sorted neighbors, and for each b, iterate c in sorted neighbors after b, check c in adj[b].
+        # Since neighbors is sorted, we can break early when found.
+        # The total work: for each a, we iterate pairs (b,c) in neighbors until found.
+        # In worst case (no triangle with a as min), we check all pairs. But sum over a of deg(a)^2 could be large.
+        # But we are guaranteed a triangle exists. The first a that is the minimum of some triangle will find it.
+        # The minimum of the lex smallest triangle is the smallest a that is part of any triangle as the minimum.
+        # Actually the lex smallest triangle has the smallest possible a. So we iterate a from 1 to n.
+        # For each a, we check if there's a triangle with a as minimum. The first a that has one gives the answer.
+        # For that a, we find smallest b then c.
+        # The work for a that fails: we check all pairs of neighbors > a. 
+        # But if a fails, it means no two neighbors of a (both > a) are connected. 
+        # The number of pairs checked for failing a is C(deg, 2). Sum over failing a could be large.
+        # However, we can optimize by checking adjacency using sets.
+        # Let's just do it; with n=2000 and m=2e5, worst-case dense graph has many triangles, so we find early.
+        # Worst case for this approach: graph is a complete bipartite or something with no triangles for small a.
+        # But we are guaranteed at least one triangle. 
+        # Let's think of worst case: a=1 has many neighbors but no edges among them (independent set), 
+        # then a=2, etc. But sum of C(deg,2) over a could be up to n * C(n/2,2) ~ n^3/8 = 1e9 for n=2000. Too slow.
+        # Need better approach.
+        pass
+    
+    # Better approach:
+    # We want lex smallest (a,b,c) with a<b<c and edges ab, ac, bc.
+    # Iterate a from 1 to n. For each a, consider neighbors > a.
+    # We want to find if there exist b,c in neighbors with b<c and edge bc.
+    # To find smallest b then c: 
+    #   For b in sorted neighbors:
+    #       For c in sorted neighbors with c > b:
+    #           if c in adj[b]: found (a,b,c)
+    #   But to avoid O(deg^2) per a, we can do:
+    #   For each a, we want the smallest b in neighbors such that adj[b] intersects neighbors at some c > b.
+    #   Actually we want smallest b, then smallest c.
+    #   Let's iterate b in sorted neighbors. For each b, we want the smallest c > b in neighbors that is also in adj[b].
+    #   The smallest c > b in neighbors ∩ adj[b].
+    #   We can compute this by iterating c in sorted neighbors after b and checking membership in adj[b].
+    #   But we can break at first found.
+    #   To speed up: for each b, the candidates c are neighbors of a that are > b and in adj[b].
+    #   Since we want smallest c, we iterate c in sorted neighbors from the position after b.
+    #   The issue is when there is no such c, we waste time.
+    #   Alternative: For each a, build a set of neighbors > a. Then for each b in this set (sorted), 
+    #   we want min c in set with c > b and c in adj[b]. 
+    #   We can iterate b in sorted order, and for each b, iterate its neighbors > b that are also in the set.
+    #   But again could be slow.
+    #   
+    #   Key insight: We only need to find the first a that works. For a that doesn't work, 
+    #   the subgraph induced by neighbors > a has no edges. 
+    #   The number of edges among neighbors > a is 0.
+    #   But checking this still requires work.
+    #   
+    #   Another approach: For each a, we want to find a triangle with a as min. 
+    #   This is equivalent to finding an edge in the subgraph induced by N(a) ∩ {a+1,...,n}.
+    #   To find lex smallest, we want smallest b then c.
+    #   Let's iterate b in sorted neighbors > a. For each b, we check if any neighbor of b (that is > b and in neighbors of a) exists.
+    #   The first b that has such a neighbor, we take the smallest such c.
+    #   To check efficiently: for b, we look at adj[b] ∩ (neighbors of a) ∩ {>b}.
+    #   We can iterate over the smaller of adj[b] and neighbors_of_a.
+    #   But we want the smallest c > b in the intersection.
+    #   If we iterate over adj[b] and check membership in neighbors_of_a (a set), we can collect those > b and take min.
+    #   But we want to break early: as soon as we find any c, we want the smallest.
+    #   So for b, iterate c in sorted(adj[b])? No, adj[b] is a set.
+    #   We can iterate c in sorted neighbors_of_a that are > b, and check if c in adj[b]. 
+    #   The first one found is the smallest c. Break.
+    #   If none found for this b, continue to next b.
+    #   The work for a failing a: for each b in neighbors, we scan neighbors_of_a from b's position to end, checking set membership.
+    #   This is O(deg * deg) = O(deg^2) per a.
+    #   
+    #   To optimize: Note that if a fails, the induced subgraph on neighbors > a has no edges.
+    #   So for each b in neighbors, adj[b] ∩ neighbors = empty (for elements > b, but actually for all elements in neighbors except possibly < b, but we only care > b).
+    #   Actually if the induced subgraph has no edges, then for any b, c in neighbors with b<c, c not in adj[b].
+    #   So the check for each b will scan all c > b in neighbors and find none. Total O(deg^2).
+    #   
+    #   But we can use the following: process a in increasing order. Maintain for each pair (b,c) whether edge exists.
+    #   Actually, we can use the fact that m is up to 2e5. 
+    #   The total number of edges is 2e5. For each a, the number of edges among neighbors > a is at most m.
+    #   But we need to find the first a with at least one such edge.
+    #   
+    #   Alternative: For each edge (u,v) with u<v, it forms a triangle with a if a < u and a is connected to both u and v.
+    #   So for each edge (u,v), the possible a's are common neighbors of u and v that are < u.
+    #   The lex smallest triangle (a,b,c) has smallest a. So we want the smallest a that is a common neighbor of some edge (b,c) with a<b<c.
+    #   So we can iterate a from 1 to n. For each a, we want to know if there's an edge (b,c) with b,c in adj[a], b<c, and a<b.
+    #   This is the same as before.
+    #   
+    #   Let's think about complexity. n=2000, m=2e5.
+    #   If we iterate a from 1 to n, and for each a, we iterate over edges (b,c) where b,c > a and b,c in adj[a].
+    #   The number of such edges is the number of edges in the subgraph induced by adj[a] ∩ {a+1..n}.
+    #   Sum over a of (number of edges among neighbors > a) = sum over edges (u,v) of (number of common neighbors < u).
+    #   Each edge (u,v) contributes to a's where a < u and a in adj[u] and a in adj[v], i.e., a in common neighbors of u and v with a < u.
+    #   The number of common neighbors of u and v is at most min(deg(u), deg(v)).
+    #   Sum over edges of min(deg(u), deg(v)) could be large. In worst case, complete graph: each edge has n-2 common neighbors, m ~ n^2/2, sum ~ n^3/2 = 4e9. Too large.
+    #   
+    #   But we only need the first a that works. In a complete graph, a=1 works immediately.
+    #   The worst case is when small a's have no triangles, but later a's do.
+    #   For example, a=1 is connected to many nodes but no edges among them. a=2 similarly, etc.
+    #   But the total number of edges is 2e5. If a=1 has d neighbors with no edges among them, that's fine.
+    #   The issue is the work to verify no edges among neighbors.
+    #   
+    #   We can use the following strategy: For each a, to check if there's an edge among neighbors > a, 
+    #   we can iterate over neighbors b > a, and for each b, iterate over its neighbors c > b that are in adj[a].
+    #   To make this efficient, we can iterate over the smaller degree node.
+    #   But we want to find the smallest b then c.
+    #   
+    #   Let's try: For each a, let S = sorted list of neighbors > a.
+    #   For i in range(len(S)):
+    #       b = S[i]
+    #       # We want smallest c in S[i+1:] that is in adj[b]
+    #       # To find this, iterate j from i+1 to len(S)-1:
+    #       #   c = S[j]
+    #       #   if c in adj[b]: found (a,b,c)
+    #       # If not found, continue.
+    #       # But this is O(|S|^2) per a.
+    #       # 
+    #       # Optimization: instead of checking all c, we can check adj[b] ∩ S.
+    #       # The smallest c > b in adj[b] ∩ S.
+    #       # We can iterate over adj[b] (if smaller) or S (if smaller).
+    #       # But we want the smallest c > b.
+    #       # If we iterate over adj[b] and filter those in S and > b, we can take min.
+    #       # But we want to break early if we find a small c.
+    #       # Actually, since S is sorted, we can iterate over S[i+1:] and check membership in adj[b].
+    #       # The first hit is the smallest c.
+    #       # The cost is the number of checks until first hit, or |S| if no hit.
+    #       # 
+    #       # To reduce cost when no hit: we can first check if adj[b] ∩ S is non-empty.
+    #       # But that's the same.
+    #       #
+    #       # Alternative: For each a, we can iterate over edges (b,c) with b,c in S.
+    #       # But we don't have edges indexed by S.
+    #       #
+    #       # Given constraints, maybe O(n * d^2) is acceptable if d is small on average.
+    #       # But worst case d ~ n, and n=2000, n^3 = 8e9. Too slow.
+    #       #
+    #       # We need a better method.
+    #       pass
+    
+    # Let's think differently. We want the lex smallest triangle.
+    # The lex smallest triangle has the smallest a. So we iterate a from 1 to n.
+    # For each a, we want to find if there's a triangle with a as the smallest vertex.
+    # This means we need an edge between two neighbors of a that are both > a.
+    # To find the smallest b then c, we can:
+    #   For each a, let S = list of neighbors > a, sorted.
+    #   We want the smallest b in S such that there exists c in S, c > b, with edge bc.
+    #   For such b, we want the smallest such c.
+    #   To find this efficiently:
+    #     For each b in S (in order), we want the smallest c > b in S that is adjacent to b.
+    #     This is the smallest element in adj[b] ∩ S that is > b.
+    #     We can find this by iterating over adj[b] and checking membership in S, but we want the smallest > b.
+    #     Alternatively, since S is sorted, we can iterate over S from b's position and check adj[b].
+    #     But to avoid O(|S|) per b when no such c exists, we can do:
+    #       For each b, the candidates are adj[b] ∩ S. If this is empty, skip.
+    #       To check if adj[b] ∩ S is non-empty efficiently, we can iterate over the smaller of adj[b] and S.
+    #       But we want the smallest c > b.
+    #       If we iterate over adj[b] and collect those in S and > b, we can take min. But we want to break early.
+    #       Actually, we can iterate over adj[b] in sorted order? adj[b] is a set, not sorted.
+    #       We can sort adj[b] once, but that's O(deg log deg) per node, total O(m log m) ~ 2e5 * 18 = 3.6e6, acceptable.
+    #       Then for each b, we can binary search in sorted adj[b] for elements > b, and check which are in S.
+    #       But checking membership in S is O(1) if S is a set.
+    #       So for each b, we iterate over sorted adj[b] starting from the first element > b, and check if it's in S.
+    #       The first one found is the smallest c.
+    #       The cost per b is the number of elements in adj[b] > b until first hit in S, or all if none.
+    #       In the worst case where a fails, for each b, we scan all of adj[b] > b and find none in S.
+    #       But adj[b] > b has at most deg(b) elements. Sum over b in S of deg(b) could be large.
+    #       However, if a fails, it means for all b, c in S with b<c, c not in adj[b].
+    #       So adj[b] ∩ S = empty for all b in S (for elements > b, but actually for all elements in S except possibly < b, but we only check > b).
+    #       Wait, if a fails, there are no edges among S. So for any b in S, adj[b] ∩ S = empty.
+    #       So when we iterate over sorted adj[b] > b, none are in S. We scan all of adj[b] > b.
+    #       The total work for failing a is sum_{b in S} |adj[b] > b| <= sum_{b in S} deg(b).
+    #       Sum over a of sum_{b in S_a} deg(b) = sum over b of deg(b) * (number of a < b such that a in adj[b]).
+    #       = sum over b of deg(b) * (number of neighbors of b that are < b).
+    #       <= sum over b of deg(b) * deg(b) = sum of deg(b)^2.
+    #       In worst case, one node has degree n-1, sum of squares ~ (n-1)^2 + ... ~ n^2 = 4e6. Acceptable.
+    #       Actually, sum of deg^2 is maximized when degrees are as unequal as possible. With m=2e5, max sum of squares is when one node has degree up to n-1=1999, and others share the rest. 
+    #       sum deg^2 <= (n-1)^2 + (m - (n-1)) * 1^2 + ... but actually the remaining edges are distributed. 
+    #       The maximum sum of squares given sum = 2m = 4e5 and each <= n-1=1999 is achieved by making as many as possible equal to 1999.
+    #       Number of nodes with degree 1999: floor(4e5 / 1999) = 200. So 200 nodes with degree 1999, sum of squares = 200 * 1999^2 ~ 200 * 4e6 = 8e8. That's too large.
+    #       Hmm, 8e8 operations might be too slow in Python.
+    #       But wait, the work is sum over a of sum_{b in S_a} |adj[b] > b|. 
+    #       For a failing a, S_a = neighbors of a > a. The work is sum_{b in S_a} |adj[b] > b|.
+    #       But |adj[b] > b| is the number of neighbors of b that are > b.
+    #       Sum over a of sum_{b in S_a} |adj[b] > b| = sum over b of |adj[b] > b| * (number of a < b with a in adj[b]).
+    #       = sum over b of |adj[b] > b| * |adj[b] < b|.
+    #       <= sum over b of deg(b) * deg(b) / 4 (since |adj[b] > b| * |adj[b] < b| <= (deg/2)^2 if split evenly, but actually <= deg^2/4).
+    #       So sum <= sum deg^2 / 4 <= 8e8 / 4 = 2e8. Still potentially slow.
+    #       But in practice, the first a that works will stop the loop. The worst case is when many a's fail.
+    #       However, we are guaranteed at least one triangle. The lex smallest triangle has some a*. For all a < a*, they fail. The work is sum over a < a* of sum_{b in S_a} |adj[b] > b|.
+    #       This could be large if a* is large and many a's have large S_a.
+    #       But maybe the constraints make it acceptable. Let's try to implement and see.
+    #       Alternatively, we can optimize by noting that for a failing a, S_a is an independent set. 
+    #       So we can first check if S_a has any edges by iterating over edges, but that's not directly helpful.
+    #       
+    #       Another optimization: For each a, instead of iterating over b in S and then over adj[b], 
+    #       we can iterate over all edges (b,c) with b,c in S. But we don't have edges indexed by S.
+    #       However, we can iterate over all edges (u,v) with u<v, and for each, if u > a and v > a and u in adj[a] and v in adj[a], then (a,u,v) is a triangle.
+    #       But we want the smallest a, so we iterate a from 1 to n, and for each a, we want the smallest edge (b,c) in S_a.
+    #       To find the smallest b then c, we can iterate over edges in order of b then c.
+    #       But edges are not sorted.
+    #       We can sort edges by b then c once. Then for each a, we iterate over sorted edges and find the first one with both endpoints in S_a.
+    #       But S_a changes with a. Checking membership is O(1) with set.
+    #       The cost per a is the number of edges until first hit. In worst case, O(m) per a, total O(n*m) = 4e8. Too slow.
+    #       
+    #       Let's go with the previous approach and hope it's fast enough.
+    #       We can further optimize: for each a, we iterate b in S_a (sorted). For each b, we want the smallest c > b in adj[b] ∩ S_a.
+    #       We can pre-sort adj[b] for each b. Then for each b, we can iterate over sorted adj[b] starting from the first element > b, and check if it's in S_a (as a set). The first hit is c.
+    #       To make S_a a set for O(1) lookup, we can create a set from S_a.
+    #       The work per b is the number of elements in adj[b] > b until first hit in S_a, or all if none.
+    #       For failing a, this is sum_{b in S_a} |adj[b] > b|.
+    #       As computed, this could be up to 2e8 in worst case, but likely much less in practice.
+    #       Let's implement this.
+    
+    # Pre-sort adjacency lists
+    sorted_adj = [sorted(adj[i]) for i in range(n + 1)]
+    
+    for a in range(1, n + 1):
+        S = [x for x in sorted_adj[a] if x > a]
+        if len(S) < 2:
+            continue
+        S_set = set(S)
+        # Iterate b in S
+        for b in S:
+            # Find smallest c > b in adj[b] that is in S_set
+            # adj[b] is sorted. We can iterate over elements > b.
+            # Binary search for the first element > b in sorted_adj[b]
+            adj_b = sorted_adj[b]
+            # Find start index: first element > b
+            # Since adj_b is sorted, we can use bisect
+            import bisect
+            start = bisect.bisect_right(adj_b, b)
+            for c in adj_b[start:]:
+                if c in S_set:
+                    # Found
+                    print(a, b, c)
+                    return
+            # If not found, continue to next b
+        # If no b worked, continue to next a
+    
+    # Should not reach here since guaranteed at least one triangle
+    pass
+
+solve()

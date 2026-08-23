@@ -2,21 +2,15 @@
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A factory operates three shifts labeled 1, 2, 3. There are $n$ workers. Certain pairs of workers are in conflict and cannot be scheduled on the same shift.
-
-You must assign every worker $i$ to exactly one shift $s_i \in \{1, 2, 3\}$ such that:
-- No two workers in conflict share the same shift.
-- The shift assignment satisfies the global capacity constraint: $n \le \sum_{i=1}^n s_i \le 3n$.
-
-If no valid assignment exists, report that it is impossible. Otherwise, output the assignment that is lexicographically smallest.
+A factory runs three shifts labeled 1, 2, 3. There are n workers. Some pairs of workers are in conflict and must not be placed on the same shift. Assign every worker to exactly one of the three shifts so that no conflicting pair shares a shift, the sum of all assigned shift labels does not exceed 3n, and the product of the shift labels assigned to any conflicting pair is at least 2. If this is impossible, report it.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of workers and the number of conflict pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ $v$ — a conflicting pair.
+The first line contains two integers n and m — the number of workers and the number of conflict pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise print `YES` on the first line. On the second line print $n$ integers $s_1\ s_2\ \dots\ s_n$ (each in \{1, 2, 3\}), where $s_i$ is the shift of worker $i$. Among all valid assignments output the lexicographically smallest sequence (compare $s_1$ first, then $s_2$, and so on).
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence (compare s₁ first, then s₂, and so on).
 
 ## Example 1
 Input:

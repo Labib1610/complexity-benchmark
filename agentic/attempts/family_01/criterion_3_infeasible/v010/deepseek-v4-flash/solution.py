@@ -1,0 +1,40 @@
+import sys
+import sys
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # For each vertex, we need to find if there is a triangle
+    # We can use the fact that we need lexicographically smallest triple
+    # So we iterate a from 1 to n, then b from a+1 to n, etc.
+    
+    # Build adjacency matrix for O(1) check
+    # But n <= 2000, so n^2 = 4e6, which is fine
+    adj_mat = [[False] * (n + 1) for _ in range(n + 1)]
+    for u, v in edges:
+        adj_mat[u][v] = True
+        adj_mat[v][u] = True
+    
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            if not adj_mat[a][b]:
+                continue
+            # a and b are connected
+            # find smallest c > b such that a-c and b-c are edges
+            # We can intersect adjacency lists
+            for c in range(b + 1, n + 1):
+                if adj_mat[a][c] and adj_mat[b][c]:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()

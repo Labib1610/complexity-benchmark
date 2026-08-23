@@ -1,0 +1,928 @@
+Let me analyze this problem:
+
+1. We have n servers, each must be assigned tier 1 or tier 2.
+2. We have m synchronization links connecting pairs of servers.
+3. A link operates correctly only if the product of tiers is exactly 2.
+4. Product = 1 means both are tier 1 (under-provisioning)
+5. Product = 4 means both are tier 2 (interference)
+6. Product = 2 means one is tier 1 and one is tier 2 (correct)
+
+So for each edge (u, v), exactly one of u and v must be tier 1, and the other must be tier 2.
+
+This is essentially a bipartite graph problem! We need to check if the graph is bipartite and color it with two colors (tier 1 and tier 2).
+
+For lexicographically smallest sequence, we want to minimize the sequence from left to right. So we prefer tier 1 over tier 2 when possible.
+
+Let me think about this more carefully:
+- If the graph is bipartite, we can assign tiers.
+- For lexicographically smallest, we want to assign tier 1 to as many low-numbered servers as possible.
+
+Wait, but the constraint is that for each edge, one endpoint must be tier 1 and the other tier 2. So if we fix one node's tier, all connected nodes' tiers are determined.
+
+Let me think about connected components:
+- Each connected component can have two possible assignments (flipping all tiers).
+- For lexicographically smallest, in each component, we should choose the assignment where the smallest-numbered node has tier 1.
+
+Algorithm:
+1. Build the graph.
+2. For each connected component:
+   - Try to color it bipartitely.
+   - If not possible, output NO.
+   - Otherwise, we have two valid colorings. Choose the one where the smallest node in the component has tier 1.
+3. Output the result.
+
+Let me trace through Example 1:
+- Graph: 1-2-3-4, 1-4
+- This is a cycle of length 4.
+- If 1 is tier 1, then 2 must be tier 2, 3 must be tier 1, 4 must be tier 2.
+- Check: 1-4: 1*2 = 2 ✓
+- Result: 1 2 1 2 ✓
+
+Example 2:
+- Graph: 1-2, 1-3, 2-3
+- This is a triangle (cycle of length 3).
+- If 1 is tier 1, then 2 must be tier 2, 3 must be tier 2.
+- But 2-3: 2*2 = 4 ≠ 2. ✗
+- So this is not bipartite. Output NO. ✓
+
+Now let me implement this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr])
+    ptr += 1
+    m = int(input[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[ptr])
+        ptr += 1
+        v = int(input[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)  # 0 = unassigned, 1 = tier 1, 2 = tier 2
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        # BFS to color this component
+        # We want the smallest node to have tier 1
+        queue = deque([start])
+        tier[start] = 1
+        component = [start]
+        
+        valid = True
+        while queue and valid:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]  # If u is 1, v is 2; if u is 2, v is 1
+                    queue.append(v)
+                    component.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+        
+        if not valid:
+            print("NO")
+            return
+        
+        # Check if we should flip this component
+        # Find the smallest node in the component
+        min_node = min(component)
+        if tier[min_node] != 1:
+            # Flip all tiers in this component
+            for node in component:
+                tier[node] = 3 - tier[node]
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, there's an issue. When I start BFS from node `start`, I'm assigning tier 1 to `start`. But `start` might not be the smallest node in its component.
+
+Let me reconsider. When I iterate through nodes 1 to n, if a node is unassigned, I start a BFS from it. The component will include all reachable nodes. After the BFS, I check if the smallest node in the component has tier 1. If not, I flip.
+
+But actually, since I'm iterating from 1 to n, the first unassigned node I encounter in a component will be the smallest node in that component (because all smaller nodes have already been processed and assigned).
+
+Hmm, but that's not quite right either. Let me think again...
+
+Actually, when I iterate from 1 to n, if node `start` is unassigned, it means all nodes from 1 to start-1 have been assigned (either directly or as part of a component). So `start` is indeed the smallest unassigned node. But `start` might not be the smallest node in its component if there are nodes smaller than `start` that are in the same component but were already assigned.
+
+Wait, that can't happen. If a node is in the same component as `start` and is smaller than `start`, it would have been processed earlier and would have assigned `start` as well.
+
+So yes, when I encounter an unassigned node `start`, it is the smallest node in its component. So I should assign tier 1 to `start` for lexicographically smallest result.
+
+Let me re-verify:
+- Iterate from 1 to n.
+- If node i is unassigned, start BFS from i, assigning tier 1 to i.
+- This ensures the smallest node in each component gets tier 1.
+
+Actually, I realize there might be isolated nodes (nodes with no edges). For such nodes, we can assign either tier 1 or tier 2. For lexicographically smallest, we should assign tier 1.
+
+Let me trace through my algorithm again:
+- For node 1: If unassigned, assign tier 1. BFS to assign connected nodes.
+- For node 2: If unassigned (not connected to 1), assign tier 1. BFS...
+- And so on.
+
+This should work. Let me refine the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        ptr += 1
+        v = int(input_data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)  # 0 = unassigned, 1 = tier 1, 2 = tier 2
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        # BFS to color this component
+        # Assign tier 1 to start (smallest node in this component)
+        queue = deque([start])
+        tier[start] = 1
+        
+        valid = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if not valid:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Let me trace through Example 1 again:
+- n=4, m=4
+- Edges: 1-2, 2-3, 3-4, 1-4
+- Start with node 1, tier[1] = 1
+- BFS: 
+  - Process 1: neighbors are 2 and 4. tier[2] = 2, tier[4] = 2. Queue: [2, 4]
+  - Process 2: neighbors are 1 and 3. tier[1] = 1 (already set, different from tier[2]=2, OK). tier[3] = 1. Queue: [4, 3]
+  - Process 4: neighbors are 3 and 1. tier[3] = 1 (already set, different from tier[4]=2, OK). tier[1] = 1 (already set, different from tier[4]=2, OK).
+  - Process 3: neighbors are 2 and 4. tier[2] = 2 (different from tier[3]=1, OK). tier[4] = 2 (different from tier[3]=1, OK).
+- Result: tier = [0, 1, 2, 1, 2]
+- Output: YES, 1 2 1 2 ✓
+
+Let me trace through Example 2:
+- n=3, m=3
+- Edges: 1-2, 1-3, 2-3
+- Start with node 1, tier[1] = 1
+- BFS:
+  - Process 1: neighbors are 2 and 3. tier[2] = 2, tier[3] = 2. Queue: [2, 3]
+  - Process 2: neighbors are 1 and 3. tier[1] = 1 (different from tier[2]=2, OK). tier[3] = 2 (same as tier[2]=2, NOT OK!)
+- valid = False
+- Output: NO ✓
+
+Great, the algorithm seems correct. Let me also handle edge cases:
+- n=1, m=0: Single node, no edges. Assign tier 1. Output: YES, 1
+- n=2, m=0: Two isolated nodes. Assign tier 1 to both. Output: YES, 1 1
+- n=2, m=1, edge 1-2: Assign tier 1 to 1, tier 2 to 2. Output: YES, 1 2
+
+The algorithm handles these correctly.
+
+One more thing: the problem says "If the product is 1, the link suffers from under-provisioning. If the product is 4, the link suffers from interference." This confirms that both endpoints being tier 1 (product 1) or both being tier 2 (product 4) are invalid. Only one being tier 1 and the other being tier 2 (product 2) is valid.
+
+I think my solution is correct. Let me finalize it:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        ptr += 1
+        v = int(input_data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        valid = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if not valid:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Actually, I want to double-check the lexicographically smallest property.
+
+Consider a graph with two components:
+- Component 1: nodes 1, 3 with edge 1-3
+- Component 2: nodes 2, 4 with edge 2-4
+
+My algorithm:
+- Start with node 1, tier[1] = 1. BFS: tier[3] = 2.
+- Next, node 2 is unassigned, tier[2] = 1. BFS: tier[4] = 2.
+- Result: 1 1 2 2
+
+Is this lexicographically smallest? Let's check alternatives:
+- If we flip component 1: tier[1] = 2, tier[3] = 1. Result: 2 1 1 2. Compare with 1 1 2 2: 1 < 2, so 1 1 2 2 is smaller.
+- If we flip component 2: tier[2] = 2, tier[4] = 1. Result: 1 2 2 1. Compare with 1 1 2 2: 1 = 1, 1 < 2, so 1 1 2 2 is smaller.
+
+So my algorithm gives the correct lexicographically smallest result.
+
+But wait, what if the smallest node in a component is not the starting node of BFS?
+
+Consider:
+- Component: nodes 2, 3 with edge 2-3
+- Node 1 is isolated.
+
+My algorithm:
+- Start with node 1, tier[1] = 1. No neighbors, so just tier[1] = 1.
+- Next, node 2 is unassigned, tier[2] = 1. BFS: tier[3] = 2.
+- Result: 1 1 2
+
+Is this correct? Let's check:
+- Node 1 is isolated, so it can be tier 1 or tier 2. For lexicographically smallest, tier 1.
+- Component with nodes 2, 3: smallest node is 2, so tier[2] = 1, tier[3] = 2.
+- Result: 1 1 2 ✓
+
+What if the graph is:
+- Component: nodes 1, 3 with edge 1-3
+- Node 2 is isolated.
+
+My algorithm:
+- Start with node 1, tier[1] = 1. BFS: tier[3] = 2.
+- Next, node 2 is unassigned, tier[2] = 1. No neighbors.
+- Result: 1 1 2
+
+Is this correct?
+- Component with nodes 1, 3: smallest node is 1, so tier[1] = 1, tier[3] = 2.
+- Node 2 is isolated, so tier[2] = 1 for lexicographically smallest.
+- Result: 1 1 2 ✓
+
+What about:
+- Component: nodes 2, 3 with edge 2-3
+- Node 1 is isolated.
+
+My algorithm:
+- Start with node 1, tier[1] = 1. No neighbors.
+- Next, node 2 is unassigned, tier[2] = 1. BFS: tier[3] = 2.
+- Result: 1 1 2
+
+Is this correct?
+- Node 1 is isolated, tier[1] = 1.
+- Component with nodes 2, 3: smallest node is 2, so tier[2] = 1, tier[3] = 2.
+- Result: 1 1 2 ✓
+
+OK so my algorithm is correct. The key insight is that when we iterate from 1 to n and encounter an unassigned node, that node is the smallest unassigned node in its component (because all smaller nodes have already been processed).
+
+Actually, let me think about this more carefully. When we process node i:
+- If tier[i] != 0, it means i was assigned as part of a previous component's BFS.
+- If tier[i] == 0, it means i is not connected to any node j < i (otherwise, when we processed j, we would have assigned i).
+
+So when we start BFS from node i with tier[i] == 0, node i is indeed the smallest node in its component. Assigning tier 1 to i gives the lexicographically smallest assignment for that component.
+
+Great, the algorithm is correct!
+
+Let me also think about the time complexity:
+- Building the adjacency list: O(n + m)
+- BFS for each component: O(n + m) total
+- Output: O(n)
+
+Total: O(n + m), which should be efficient enough.
+
+Space complexity:
+- Adjacency list: O(n + m)
+- tier array: O(n)
+- Queue: O(n) in the worst case
+
+Total: O(n + m), which should fit within the memory limit.
+
+I think the solution is complete. Let me write the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        ptr += 1
+        v = int(input_data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        valid = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if not valid:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I should double-check one more thing. The problem says "If the product is 1, the link suffers from under-provisioning. If the product is 4, the link suffers from interference."
+
+So:
+- Product = 1: both are tier 1 (under-provisioning) - INVALID
+- Product = 2: one is tier 1, one is tier 2 (correct) - VALID
+- Product = 4: both are tier 2 (interference) - INVALID
+
+My algorithm ensures that for each edge, one endpoint is tier 1 and the other is tier 2, which gives product = 2. This is correct.
+
+Actually, I realize I should also handle the case where there are no edges (m = 0). In this case, all nodes are isolated, and we can assign tier 1 to all of them for lexicographically smallest. My algorithm handles this correctly because each node is its own "component" and gets tier 1.
+
+Let me also consider the case where there are duplicate edges or self-loops. The problem doesn't explicitly say there are no duplicates or self-loops, but typically in such problems, we assume:
+1. No self-loops (u != v)
+2. No duplicate edges
+
+If there are self-loops, then the graph is definitely not bipartite (a node can't be both tier 1 and tier 2). My algorithm would detect this because when processing a self-loop (u, u), tier[u] would already be assigned, and we'd check if tier[u] == tier[u], which is always true, so we'd output NO.
+
+If there are duplicate edges, my algorithm would just process the same edge twice, which doesn't change the result.
+
+So my algorithm handles these edge cases correctly.
+
+One more thing: I should make sure the output format is correct. The problem says:
+- If no valid assignment: output "NO" on a single line.
+- If valid: output "YES" on the first line, then the tiers on the second line.
+
+My code does this correctly.
+
+I think the solution is complete and correct. Here's the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        ptr += 1
+        v = int(input_data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        valid = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if not valid:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Hmm, let me reconsider the problem statement once more. It says:
+
+"If such an assignment exists, you must also provide it. Since the deployment script applies the tiers to the servers in numerical order, you must provide the lexicographically smallest sequence of tiers (from server 1 up to server n) if there is more than one valid configuration."
+
+So we need the lexicographically smallest sequence. My algorithm assigns tier 1 to the smallest node in each component, which should give the lexicographically smallest result.
+
+But wait, I want to make sure. Let's think about it differently.
+
+For each connected component, there are exactly two valid assignments (if the graph is bipartite). We need to choose one of them for each component such that the overall sequence is lexicographically smallest.
+
+The lexicographically smallest sequence is determined by comparing from left to right. So we want to minimize tier[1], then tier[2], and so on.
+
+For each component, the smallest node in that component determines which assignment we should choose. If the smallest node in a component is node k, then:
+- If we assign tier 1 to node k, then tier[k] = 1.
+- If we assign tier 2 to node k, then tier[k] = 2.
+
+For lexicographically smallest, we want tier[k] = 1 (since 1 < 2).
+
+My algorithm does exactly this: when we encounter an unassigned node k (which is the smallest in its component), we assign tier 1 to it.
+
+So the algorithm is correct.
+
+Actually, let me think about this more carefully. Consider a component with nodes {2, 3, 4} and edges 2-3, 3-4.
+
+If we assign tier 1 to node 2:
+- tier[2] = 1, tier[3] = 2, tier[4] = 1
+- Sequence: ?, 1, 2, 1 (where ? is for node 1)
+
+If we assign tier 2 to node 2:
+- tier[2] = 2, tier[3] = 1, tier[4] = 2
+- Sequence: ?, 2, 1, 2
+
+For lexicographically smallest, we compare:
+- If node 1 is tier 1: 1, 1, 2, 1 vs 1, 2, 1, 2. At position 2, 1 < 2, so the first is smaller.
+- If node 1 is tier 2: 2, 1, 2, 1 vs 2, 2, 1, 2. At position 2, 1 < 2, so the first is smaller.
+
+So in both cases, assigning tier 1 to node 2 (the smallest in its component) gives the lexicographically smallest result.
+
+This confirms that my algorithm is correct.
+
+Let me also think about the case where node 1 is in a component with other nodes.
+
+Consider a component with nodes {1, 2} and edge 1-2.
+
+If we assign tier 1 to node 1:
+- tier[1] = 1, tier[2] = 2
+- Sequence: 1, 2
+
+If we assign tier 2 to node 1:
+- tier[1] = 2, tier[2] = 1
+- Sequence: 2, 1
+
+For lexicographically smallest, 1 < 2 at position 1, so the first is smaller.
+
+My algorithm assigns tier 1 to node 1, which is correct.
+
+OK I'm confident the algorithm is correct. Let me finalize the code.
+
+Actually, I just realized there might be an issue with how I'm reading input. Let me use a more robust method:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        valid = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if not valid:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This should work correctly. Let me trace through the examples one more time.
+
+Example 1:
+- n=4, m=4
+- Edges: 1-2, 2-3, 3-4, 1-4
+- adj[1] = [2, 4]
+- adj[2] = [1, 3]
+- adj[3] = [2, 4]
+- adj[4] = [3, 1]
+
+BFS from node 1:
+- tier[1] = 1, queue = [1]
+- Process 1: tier[2] = 2, tier[4] = 2, queue = [2, 4]
+- Process 2: tier[1] = 1 (already set, different from tier[2]=2, OK), tier[3] = 1, queue = [4, 3]
+- Process 4: tier[3] = 1 (already set, different from tier[4]=2, OK), tier[1] = 1 (already set, different from tier[4]=2, OK), queue = [3]
+- Process 3: tier[2] = 2 (already set, different from tier[3]=1, OK), tier[4] = 2 (already set, different from tier[3]=1, OK), queue = []
+
+Result: tier = [0, 1, 2, 1, 2]
+Output: YES, 1 2 1 2 ✓
+
+Example 2:
+- n=3, m=3
+- Edges: 1-2, 1-3, 2-3
+- adj[1] = [2, 3]
+- adj[2] = [1, 3]
+- adj[3] = [1, 2]
+
+BFS from node 1:
+- tier[1] = 1, queue = [1]
+- Process 1: tier[2] = 2, tier[3] = 2, queue = [2, 3]
+- Process 2: tier[1] = 1 (already set, different from tier[2]=2, OK), tier[3] = 2 (already set, same as tier[2]=2, NOT OK!)
+- valid = False
+
+Output: NO ✓
+
+Great, the algorithm works correctly for both examples.
+
+One last thing: I should make sure the code handles the case where n=0 or m=0 correctly.
+
+If n=0: The problem says 1 <= n, so this shouldn't happen.
+If m=0: All nodes are isolated, and we assign tier 1 to all. Output: YES, 1 1 1 ... 1.
+
+My algorithm handles m=0 correctly because each node is its own "component" and gets tier 1.
+
+I'm confident the solution is correct. Here's the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        valid = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if not valid:
+            print("NO")
+            return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Actually, I want to simplify the code a bit. Instead of using a flag `valid`, I can use a function and return early:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This is cleaner. Let me verify once more:
+
+- If we find a conflict (tier[v] == tier[u]), we print "NO" and return immediately.
+- If we finish all BFS without conflict, we print "YES" and the tier sequence.
+
+This should work correctly.
+
+Actually, I realize I should double-check the output format. The problem says:
+- "On the second line, output n space-separated integers (all 1s or 2s)"
+
+My code outputs: `' '.join(str(tier[i]) for i in range(1, n + 1))`
+
+This gives a space-separated string of integers, which is correct.
+
+Let me also make sure there's no trailing space or newline issues. The `print` function adds a newline at the end, which is correct.
+
+I think the solution is complete and correct. Here's the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I want to reconsider the problem once more. The problem says:
+
+"a synchronization link operates correctly only if the product of the operational tiers of the two connected servers is exactly 2"
+
+So for each edge (u, v), we need tier[u] * tier[v] = 2.
+
+This means one of them is tier 1 and the other is tier 2. This is exactly the bipartite graph condition.
+
+My algorithm ensures that for each edge, the two endpoints have different tiers (one is 1, the other is 2). This gives product = 1 * 2 = 2, which is correct.
+
+I'm confident the solution is correct.
+
+One more consideration: the problem says the graph can have up to 2*10^5 nodes and 2*10^5 edges. My algorithm uses BFS which has time complexity O(V + E) = O(n + m), which should be efficient enough.
+
+The space complexity is also O(n + m) for the adjacency list and tier array, which should fit within the 256 MB memory limit.
+
+I'm satisfied with the solution. Here's the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Hmm, I realize I should also handle potential edge cases like:
+1. What if there are multiple edges between the same pair of nodes? This shouldn't affect the result since we're just checking if the graph is bipartite.
+2. What if there are self-loops? A self-loop would mean a node needs to have a different tier from itself, which is impossible. My algorithm would detect this because tier[u] == tier[u] is always true.
+
+Let me trace through a self-loop case:
+- Edge: 1-1
+- adj[1] = [1]
+- BFS from node 1:
+  - tier[1] = 1, queue = [1]
+  - Process 1: neighbor is 1. tier[1] = 1 (already set, same as tier[1]=1). Conflict!
+  - Output: NO ✓
+
+Great, the algorithm handles self-loops correctly.
+
+I'm confident the solution is complete and correct. Here's the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    tier = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if tier[start] != 0:
+            continue
+        
+        queue = deque([start])
+        tier[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if tier[v] == 0:
+                    tier[v] = 3 - tier[u]
+                    queue.append(v)
+                elif tier[v] == tier[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(str(tier[i]) for i in range(1, n + 1)))
+
+solve()
+```

@@ -1,22 +1,20 @@
-# Chemical Vault Partitioning
+# Problem A — Deployment Tiers
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A research facility must store $n$ hazardous chemical substances, labeled from $1$ to $n$, across three isolated containment vaults designated as $1$, $2$, and $3$. Every substance must be assigned to exactly one vault.
+A software system consists of $n$ microservices, identified by integers from 1 to $n$. You must assign each microservice a security tier. A tier is represented by a positive integer strictly less than 4.
 
-Certain pairs of substances are chemically incompatible and cause unstable reactions if placed within the same vault. Thus, incompatible substances must always be assigned to different vaults.
+Extensive testing has revealed that certain pairs of microservices exhibit parallel execution flaws. If a pair with this flaw operates at the exact same security tier, the system becomes unstable. To guarantee stability, the two microservices in any such pair must be assigned to different tiers.
 
-Find an assignment of all $n$ substances to the three vaults such that no two incompatible substances occupy the same vault. If multiple valid vault assignments exist, choose the one that forms the lexicographically smallest sequence of vault numbers $(s_1, s_2, \dots, s_n)$, where $s_i$ denotes the vault assigned to substance $i$.
+You must determine a valid tier assignment for all $n$ microservices. If there are several valid ways to assign the tiers, you must prefer the configuration that assigns the lowest possible tier to microservice 1. If ties remain, you must break them by minimizing the tier assigned to microservice 2, continuing this element-by-element comparison up to microservice $n$. If no such configuration is possible, you must report this failure.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of chemical substances and the number of incompatible pairs, respectively.
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that substance $u$ and substance $v$ are incompatible.
+The first line provides $n$ and $m$ — the number of microservices and the number of flawed pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$, indicating that microservice $u$ and microservice $v$ share a parallel execution flaw.
 
 ## Output
-If no valid vault assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \dots s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the vault assigned to substance $i$. If multiple valid assignments exist, output the lexicographically smallest sequence.
+If the system cannot be stabilized, output a single line with the word NO.
+Otherwise, output YES on the first line. On the second line, output $n$ integers separated by spaces, representing the tiers assigned to microservices 1 through $n$ respectively, following the tie-breaking rules described above.
 
 ## Example 1
 Input:

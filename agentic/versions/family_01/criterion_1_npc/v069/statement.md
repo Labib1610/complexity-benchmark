@@ -1,24 +1,21 @@
-# Operational Shift Assignment Stage
+# Problem A — Resilient Deployment
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-As part of an automated workforce deployment pipeline, an enterprise manages duty schedules through a multi-stage workflow:
-1. **Data Ingestion**: Registering personnel records and compiling records of concurrent duty restrictions.
-2. **Shift Partitioning**: Distributing all $n$ personnel across three distinct operational windows (labeled 1, 2, and 3) such that no restricted pair shares the same window.
-3. **Resource Allocation**: Provisioning equipment for each finalized window roster.
+A software architecture consists of $n$ microservices. To ensure high availability, these microservices must be distributed across three distinct cloud environments, identified as 1, 2, and 3.
 
-Your program is responsible solely for Stage 2. Given the output of Stage 1—consisting of $n$ personnel (indexed 1 to $n$) and $m$ pairwise restriction rules—you must compute a valid window assignment for every individual or report that no valid configuration exists.
+Certain pairs of microservices provide fallback functionality for each other. If a pair of such mutually dependent microservices were hosted in the same environment and that environment experienced an outage, the system would lose both the primary and fallback mechanisms at once. Therefore, you must guarantee that any two microservices with this relationship are deployed to entirely different environments.
 
-To ensure consistent downstream processing in Stage 3, if multiple valid window rosters exist, you must produce the one that is lexicographically smallest (comparing the assigned window of person 1 first, then person 2, and so on).
+Your task is to determine if it is possible to assign every microservice to exactly one of the three cloud environments without violating any of these separation requirements. When multiple valid deployment configurations exist, the automated provisioning system resolves the choice by selecting the configuration that is lexicographically smallest. This means it strongly prefers placing microservice 1 in environment 1, then environment 2, and finally environment 3; if there are still multiple options, it applies the same preference to microservice 2, and so forth.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of personnel and the number of pairwise restrictions.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that person $u$ and person $v$ cannot be assigned to the same operational window.
+The first line provides two integers $n$ and $m$ — the number of microservices and the number of fallback dependencies ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a mutually dependent pair of microservices that cannot share an environment.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the assigned operational window for person $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
+If there is no way to deploy the microservices safely, print a single line containing NO.
+If a safe deployment is possible, print YES on the first line. On the second line, print $n$ integers $e_1\ e_2\ \dots\ e_n$ (where each $e_i \in \{1,2,3\}$), representing the environment assigned to each microservice $1 \dots n$. This sequence must be the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

@@ -1,0 +1,27 @@
+n, m = map(int, input().split())
+edges = []
+adj = [[] for _ in range(n + 1)]
+
+for _ in range(m):
+    u, v = map(int, input().split())
+    edges.append((u, v))
+    adj[u].append(v)
+    adj[v].append(u)
+
+# Convert adjacency lists to sets for faster lookup
+for i in range(1, n + 1):
+    adj[i] = set(adj[i])
+
+# Iterate through all edges to find triangles
+best = None
+
+for u, v in edges:
+    # Find common neighbors of u and v
+    for w in adj[u]:
+        if w in adj[v]:
+            # Found a triangle: u, v, w
+            triangle = tuple(sorted([u, v, w]))
+            if best is None or triangle < best:
+                best = triangle
+
+print(*best)

@@ -1,9 +1,51 @@
-```json
-{
-  "statement": "# Facility Shift Scheduling\n\n**Time limit:** 2 s  \n**Memory limit:** 256 MB\n\nAn industrial facility operates across 3 consecutive daily operational windows, numbered 1, 2, and 3. A workforce of $n$ workers, identified by unique IDs from $1$ to $n$, must each be assigned to exactly one operational window.\n\nTo maintain workplace safety, certain pairs of workers are designated as restricted pairs. Two workers in a restricted pair cannot share the same operational window.\n\nThe facility assigns workers sequentially in order of their IDs from $1$ to $n$. Operational window 1 is preferred over window 2, which in turn is preferred over window 3. We seek a schedule sequence $s_1, s_2, \dots, s_n$ (where $s_i \in \{1, 2, 3\}$ is the window assigned to worker $i$) that is lexicographically smallest. Specifically, the assignment must first minimize $s_1$; if there are multiple choices for $s_1$, it must minimize $s_2$, and so on, continuing through $s_n$.\n\nDetermine whether a valid schedule exists that satisfies all pairwise safety restrictions, and if so, produce the lexicographically first schedule sequence.\n\n## Input\nThe first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of workers and the number of pairwise restrictions.\n\nEach of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that worker $u$ and worker $v$ cannot be assigned to the same operational window.\n\n## Output\nIf no valid scheduling configuration exists, print a single line containing `NO`.\n\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), representing the assigned operational windows prioritized by the lexicographical order rule.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "The problem is framed emphasizing a sequential worker-by-worker process from ID 1 to n, tempting models to apply a straightforward greedy local choice. However, satisfying the global restrictions and finding the true lexicographically minimal assignment still requires searching over the 3-state assignments.",
-  "preserved_answer": "The underlying mathematical problem remains finding the lexicographically first 3-coloring of a graph with n vertices and m edges, so all outputs for all inputs remain identical.",
-  "preserved_class": "The problem remains 3-colorability with lexicographical tie-breaking on up to 40 nodes, which is NP-complete.",
-  "risk": "none"
-}
+# Frequency Band Allocation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A network administrator is deploying a local wireless infrastructure consisting of $n$ access points. To avoid signal interference, the access points must be assigned to one of three distinct frequency bands, labeled 1, 2, and 3.
+
+Certain pairs of access points have overlapping coverage areas and therefore cannot operate on the same frequency band. The conflict topology is provided as a list of overlapping pairs. 
+
+Because interference is often localized, networks typically have a sparse conflict structure. In such well-behaved topologies, administrators can often finalize the band plan by simply processing the access points one by one, greedily assigning the lowest available band (1, 2, or 3) that does not conflict with its already-configured neighbors. 
+
+However, your program must be completely robust. You must determine if *any* interference-free assignment is possible for the given network using exactly three bands. If multiple valid assignments exist, you must output the lexicographically first sequence of bands (comparing the band of access point 1 first, then access point 2, and so on). If no such configuration is possible under any assignment, report that it cannot be done.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of access points and the number of overlapping pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of access points with overlapping coverage.
+
+## Output
+If no valid assignment of the three bands exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $b_1, b_2, \ldots, b_n$ (each in $\{1,2,3\}$), where $b_i$ is the frequency band of access point $i$. This sequence must be the lexicographically smallest valid assignment.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

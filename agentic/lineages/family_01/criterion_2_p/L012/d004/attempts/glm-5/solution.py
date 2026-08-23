@@ -1,0 +1,103 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    is_bipartite = True
+    
+    for i in range(n):
+        if color[i] == -1:
+            queue = deque([i])
+            color[i] = 0
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+
+    if not is_bipartite:
+        print("NO")
+        return
+
+    print("YES")
+    # To minimize C_n, we want to minimize the binary number formed by s_1...s_n
+    # where s_i is mapped to bit b_i = s_i - 1.
+    # We iterate through vertices. If a vertex is uncolored (isolated component),
+    # we assign it 0 (s_i=1).
+    # If it is part of a component, we check if flipping the component
+    # (swapping 0 and 1) would result in a smaller binary number.
+    # We only need to check the first vertex of the component encountered.
+    
+    visited = [False] * n
+    result = [0] * n
+    
+    for i in range(n):
+        if not visited[i]:
+            if not adj[i]: # Isolated vertex
+                result[i] = 0
+                visited[i] = True
+            else:
+                # BFS to find component and check flip condition
+                # We need to find the first vertex in this component
+                # that appears in index order.
+                # Since we iterate i from 0 to n-1, 'i' is the first vertex.
+                # We check if color[i] should be 0 or 1.
+                
+                # Determine if we should flip
+                # We prefer color[i] = 0.
+                # If current color[i] is 1, we must check if we can flip.
+                # We can flip if the component is bipartite (which it is).
+                # Flipping swaps all colors in the component.
+                # We want the first vertex to be 0.
+                # If color[i] is already 0, no flip.
+                # If color[i] is 1, we flip.
+                
+                flip = (color[i] == 1)
+                
+                # Apply to whole component
+                queue = deque([i])
+                visited[i] = True
+                while queue:
+                    u = queue.popleft()
+                    # Assign result based on original color and flip
+                    if flip:
+                        result[u] = 1 - color[u]
+                    else:
+                        result[u] = color[u]
+                    
+                    for v in adj[u]:
+                        if not visited[v]:
+                            visited[v] = True
+                            queue.append(v)
+    
+    # Convert 0/1 to 1/2
+    output_str = " ".join(str(x + 1) for x in result)
+    print(output_str)
+
+if __name__ == '__main__':
+    solve()

@@ -1,0 +1,77 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Precompute for each subset the set of forbidden vertices (neighbors of any vertex in subset)
+    forbidden = [0] * (1 << n)
+    for mask in range(1 << n):
+        f = 0
+        mm = mask
+        while mm:
+            b = mm & -mm
+            v = b.bit_length() - 1
+            f |= adj[v + 1]
+            mm ^= b
+        forbidden[mask] = f
+
+    # DP over subsets: dp[mask] = True if mask can be partitioned into independent sets
+    dp = [False] * (1 << n)
+    dp[0] = True
+    for mask in range(1 << n):
+        if not dp[mask]:
+            continue
+        avail = ((1 << n) - 1) ^ mask
+        # iterate over submasks of avail that are independent sets
+        sub = avail
+        while sub:
+            if (forbidden[sub] & sub) == 0:
+                dp[mask | sub] = True
+            sub = (sub - 1) & avail
+
+    if not dp[(1 << n) - 1]:
+        print("NO")
+        return
+
+    # Reconstruct lexicographically smallest assignment
+    color = [0] * (n + 1)
+    mask = 0
+    for c in range(1, 4):
+        if mask == (1 << n) - 1:
+            break
+        avail = ((1 << n) - 1) ^ mask
+        # find the lexicographically smallest independent set S subset of avail
+        # such that dp[mask | S] is True and S is nonempty (if possible)
+        best = None
+        sub = avail
+        while sub:
+            if (forbidden[sub] & sub) == 0 and dp[mask | sub]:
+                if best is None or sub < best:
+                    best = sub
+            sub = (sub - 1) & avail
+        if best is None:
+            # must assign remaining to next color (should not happen if dp[full] is True)
+            best = avail
+        # assign color c to vertices in best
+        b = best
+        while b:
+            bit = b & -b
+            v = bit.bit_length() - 1
+            color[v + 1] = c
+            b ^= bit
+        mask |= best
+
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()

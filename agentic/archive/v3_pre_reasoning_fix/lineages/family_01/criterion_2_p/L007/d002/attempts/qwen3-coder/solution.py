@@ -1,0 +1,63 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Try both starting configurations for each component
+    # Color 0 = state 1, Color 1 = state 2
+    color = [-1] * (n + 1)
+    
+    # Check if bipartite (2-colorable)
+    for start in range(1, n + 1):
+        if color[start] == -1:
+            queue = deque([start])
+            color[start] = 0
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # Verify the solution satisfies the constraint
+    for u, v in edges:
+        # A valve is stable if one pressure is twice the other
+        # States are 1 and 2, so we need one to be 1 and other to be 2
+        if not ((color[u] == 0 and color[v] == 1) or (color[u] == 1 and color[v] == 0)):
+            print("NO")
+            return
+    
+    # Convert colors to pressures (0 -> 1, 1 -> 2)
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

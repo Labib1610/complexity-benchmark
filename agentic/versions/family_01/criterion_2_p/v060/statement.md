@@ -1,22 +1,20 @@
-# Vault Assignment for Chemical Storage
+# Problem B — Orbital Bandwidth Allocation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A chemical processing plant manages $N$ hazardous compounds, numbered $1$ through $N$. To safely store these materials, the facility operates two separate containment units: Vault 1 and Vault 2. Every compound must be placed into exactly one vault.
+An orbital network consists of $n$ communication satellites, numbered 1 through $n$. During initial deployment, technicians observed that certain pairs of satellites are positioned such that their signal footprints overlap. Specifically, there are $m$ known pairs of satellites that will cause destructive interference if they operate on the same frequency band.
 
-Certain pairs of compounds are mutually volatile and cannot be stored together. If two compounds form a volatile pair, they must be assigned to different containment units (one in Vault 1 and the other in Vault 2).
+Each satellite must be configured to broadcast permanently on one of two available frequency bands, designated as Band 1 and Band 2. A band configuration is represented as a sequence of $n$ integers, where the $i$-th integer specifies the band assigned to satellite $i$. A configuration is considered safe if, for every overlapping pair identified by the technicians, the two satellites in the pair are assigned to different frequency bands.
 
-You are given the list of all volatile pairs. Determine whether it is possible to assign every compound to a vault without placing any volatile pair in the same unit. If such an assignment exists, find the assignment sequence $s_1, s_2, \dots, s_N$ (where $s_i \in \{1, 2\}$ indicates the vault number for compound $i$) that is lexicographically smallest. If no valid assignment can satisfy all conditions, output `NO`.
+Your task is to analyze the overlap data and determine whether a safe configuration is possible for all $n$ satellites. If it is possible, you must find the safe configuration that is lexicographically smallest. If no safe configuration can be established, you must report that it is impossible.
 
 ## Input
-The first line contains two integers $N$ and $M$ ($1 \le N \le 200\,000$, $0 \le M \le 200\,000$), representing the total number of compounds and the number of volatile pairs, respectively.
-
-The following $M$ lines each contain two space-separated integers $u$ and $v$ ($1 \le u, v \le N$, $u \neq v$), indicating that compound $u$ and compound $v$ form a volatile pair.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of satellites whose signal footprints overlap.
 
 ## Output
-If no safe assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $N$ space-separated integers $s_1, s_2, \dots, s_N$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid vault assignment sequence.
+If no safe configuration exists, print a single line containing the word NO.
+Otherwise, print YES on the first line. On the second line, print $n$ integers $b_1 \dots b_n$ (each either 1 or 2), representing the lexicographically smallest safe configuration.
 
 ## Example 1
 Input:

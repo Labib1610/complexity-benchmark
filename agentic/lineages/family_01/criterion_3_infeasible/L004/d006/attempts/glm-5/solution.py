@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u][v] = True
+        adj[v][u] = True
+    
+    # Iterate over all triples in lexicographical order
+    for i in range(1, n - 1):
+        for j in range(i + 1, n):
+            for k in range(j + 1, n + 1):
+                # Count edges among the triple (i, j, k)
+                cnt = 0
+                if adj[i][j]:
+                    cnt += 1
+                if adj[i][k]:
+                    cnt += 1
+                if adj[j][k]:
+                    cnt += 1
+                
+                # If 2 or more edges, the triple is not bipartite
+                if cnt >= 2:
+                    print(i, j, k)
+                    return
+
+if __name__ == "__main__":
+    solve()

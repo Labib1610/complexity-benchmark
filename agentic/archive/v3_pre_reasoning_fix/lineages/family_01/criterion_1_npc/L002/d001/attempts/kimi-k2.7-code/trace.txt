@@ -1,0 +1,1756 @@
+We need solve problem. Need output only code block. Need think algorithm.
+
+Problem: assign n up to 40 vertices to 3 colors such that no edge endpoints same color. Need lexicographically smallest assignment (colors 1,2,3). Graph 3-coloring with n=40. Need exact algorithm. Since 3 colors and n small, can use meet-in-the-middle or branch and bound/backtracking. Need lexicographically smallest solution. We can do recursive backtracking with ordering vertices 1..n, assign colors 1..3, check constraints with already colored neighbors. n=40 worst-case graph with no edges -> 3^40 huge, but we can prune heavily? Need smarter.
+
+We need determine 3-colorability and lexicographically smallest. n=40, m up to 780. 3-coloring NP-complete but n=40 manageable with branch and bound or inclusion-exclusion meet-in-the-middle.
+
+Approach: Since lexicographically smallest with colors 1,2,3, we can try greedy/backtracking: assign vertex i the smallest feasible color that still allows completion. Need completion check (3-colorability of remaining graph with some precolored vertices). n=40, we can use exact algorithm for completion many times. Could use DSATUR branch and bound to find any coloring, but for lexicographically smallest we need test feasibility after tentative assignment.
+
+Alternative: Since only 3 colors, we can formulate as 2-SAT? No.
+
+n=40 small enough for O(3^{n/2}) meet-in-the-middle. We can split vertices into two halves A (size n1 <=20) and B (size n2 <=20). For each half, enumerate all valid 3-colorings (respecting internal edges) and store color pattern. For compatibility across cut edges, a coloring of A and B is compatible if for every cut edge (u in A, v in B), colors differ. Need lexicographically smallest full assignment.
+
+Number of valid colorings per half can be up to 3^20 ≈ 3.5e9 if no edges, too many. But we can compress by considering for each vertex in B, allowed colors based on A. Actually meet-in-the-middle not good for empty graph.
+
+But n=40, 3-coloring can be solved via inclusion-exclusion in O(2^n * n) = ~40*1e12 too big. Not good.
+
+Need branch and bound. For n=40, a good implementation of DSATUR can solve random graphs quickly. But worst-case (no edges) we can output all 1s quickly. Worst-case for 3-coloring algorithms might be dense graphs or critical graphs. Need guarantee within 2 seconds in Python? Might be tight. Need robust algorithm.
+
+Observation: Lexicographically smallest assignment prefers color 1 for early vertices. We can use SAT/backtracking with constraint propagation and maybe memoization (caching of state). Since n=40, graph small. We can use recursive with bitsets (64-bit ints) representing adjacency. Colors 0,1,2.
+
+We need find lexicographically smallest coloring. We can do recursion on vertices in order. At each vertex i, try colors 1,2,3. For each color, check if any already colored neighbor has same color. If not, assign and recurse. This is simple backtracking. Pruning: if remaining uncolored subgraph is not 3-colorable? Hard.
+
+But maybe n=40 and m arbitrary, simple backtracking with forward checking might be enough? Worst-case no edges: tries color 1 for all and succeeds immediately, no branching. Worst-case for lex smallest might be graph that forces many branches. Consider graph that is 3-colorable but vertex 1 cannot be color 1, etc. Could explore some branches. But n=40 manageable.
+
+However there are hard instances for 3-coloring with 40 vertices? Yes, random 3-colorable graphs with certain edge density can be hard, but n=40 small. DSATUR solves n=100 random? Usually. But Python recursion with bitsets can be okay.
+
+Need ensure lexicographically smallest. Simple backtracking in natural order trying colors 1..3 and returning first found gives lexicographically smallest. Because it fixes prefix as small as possible.
+
+We can improve by choosing vertex ordering dynamically (DSATUR) for speed, but that doesn't directly produce lexicographic order. We can still produce lexicographic by testing prefixes? Could find lex smallest via iterative assignment with feasibility checks. At each vertex i, test colors 1..3 with previous assignments fixed; use a fast 3-colorability solver for remaining graph. That solver can use DSATUR ordering independent of lex. We need call it up to 3n times (120). If each call is fast, fine.
+
+Simpler: implement recursive backtracking with vertex order 0..n-1 and colors 1..3, with adjacency bitsets and pruning based on lower bound of colors needed? Could use branch and bound with bitset coloring (Tomita algorithm for max clique? Not exactly).
+
+Let's think about exact 3-coloring for n=40. We can use BFS over subsets: dynamic programming on independent sets. Number of proper colorings = sum over partitions into 3 independent sets. We can compute via inclusion-exclusion: P(G,3) = \sum_{S subset V} (-1)^{|S|} 3^{c(G-S)}? That's chromatic polynomial via deletion-contraction? Not easy.
+
+Alternative algorithm: Since 3 colors, we can reduce to checking if graph is bipartite after choosing one color class as independent set. For each independent set S (color 1 vertices), the remaining graph G[V\S] must be bipartite. We want lex smallest assignment. We can iterate candidate sets for color 1? Not feasible.
+
+But n=40, we can use branch and bound with bitset representation and maybe memoization on connected components. Split graph into connected components; color each independently. Lexicographic order across components? Since vertices numbered globally, but components can be colored independently. However lex smallest global assignment requires considering interleaving of components? Actually assignment for each vertex independent; if components are independent, any combination of component colorings works. Lex smallest global is component-wise? Not exactly because vertex indices interleave. But we can process vertices in order; when encountering a new component, solve it with its internal vertex order and choose lex smallest among color permutations? Since colors are labeled, and component isolated from others, its coloring can be chosen independently to minimize its contribution to global lex order. The global lex order compares at first differing vertex; earlier vertices across components are fixed by order. So for each component, given assignments of earlier vertices (none within component), choose lex smallest valid coloring of that component with its vertices sorted by index. Since components don't interact, we can solve each component separately in its vertex order and concatenate. But careful: a component's lex smallest coloring with colors 1..3 is just backtracking on its vertices sorted by index. So component decomposition doesn't change algorithm but can reduce state.
+
+Could implement DSATUR with bitsets and recursion. Need lex smallest. Maybe simple recursive with forward checking and ordering by degree? But lex order requires natural index order. However we can still use natural order and prune.
+
+Let's design robust solver.
+
+Represent colors as 0,1,2. For each vertex, adjacency bitmask (n <= 40 fits in Python int). Maintain arrays color[n] = -1..2. At step i, assign vertex i. Check conflict with neighbors j < i: if color[j]==c and edge (i,j) then invalid. Since we check all lower-index neighbors, enough because edges only matter when both colored. Then recurse.
+
+Pruning: For the uncolored subgraph, a necessary condition is that it is 3-colorable. We can compute lower bound on chromatic number: if there is a clique of size 4 -> impossible. We can find max clique lower bound. But building for each node expensive.
+
+Alternative pruning: For each uncolored vertex, maintain set of available colors given colored neighbors. If any uncolored vertex has no available colors -> backtrack. This is forward checking. Also if an uncolored vertex has only one available color, we could assign it (unit propagation) to reduce branching. This helps.
+
+But worst-case graph with no edges: each vertex has 3 available, but first assignment all 1 succeeds. Fine.
+
+Worst-case might be graph that is not 3-colorable; need prove unsatisfiability. Simple backtracking may explore huge space. For n=40 non-3-colorable, e.g., complete graph K4 plus many vertices? Actually K4 makes immediate fail. Hard unsatisfiable instances are 4-chromatic graphs with n=40. Branch and bound could explore many. But maybe still okay with forward checking and component splitting.
+
+Could implement a SAT solver style with watched literals? Overkill.
+
+Let's consider using python's itertools? No.
+
+Maybe there is a polynomial-time algorithm? 3-coloring is NP-complete, but n=40 small.
+
+We can use meet-in-the-middle with m constraints. For empty graph, enumeration huge. But empty graph is trivially colorable all 1. The hard part is constraints. Maybe we can use algorithm based on maximum independent set / bipartite check. Since 3-coloring: choose color class 1 as independent set; remaining must be bipartite. We can search for independent set assignments for first half and use bipartite check for second half? Let's explore.
+
+Lex smallest: we want early vertices colored 1 if possible. Equivalent to find coloring minimizing vector.
+
+We can formulate as 2-SAT after fixing color 1 set? Not.
+
+Another exact algorithm: Use branch and bound for graph coloring with bitsets (Brelaz/DSATUR). It can color graphs up to 100 vertices with 4 colors quickly in Python? Possibly. But we need lex smallest.
+
+Idea: Use DSATUR to find a valid coloring quickly (any). Then use it to bound lex search? We need lex smallest, can do branch-and-bound minimizing vector. At each vertex in order, if current prefix already exceeds best known, prune. But best known initially from any coloring. Since lex smallest is sought, we can improve best by trying to reduce colors at earlier vertices. This is like iterative deepening on prefix: find coloring with vertex1 color 1 if possible, else 2, etc. We can call feasibility solver with prefix constraints.
+
+Specifically, algorithm:
+For i from 0 to n-1:
+  for c in [1,2,3]:
+    set color[i]=c (and previous colors fixed)
+    if feasible(remaining vertices i+1..n-1 with constraints and precolored vertices):
+       break
+  assign c.
+This requires solving up to 3n feasibility problems. Each feasibility: 3-color extension with some precolored vertices. n decreases. We need a fast exact 3-colorability subroutine.
+
+If we implement a good 3-colorability solver (DSATUR branch and bound) for n<=40, running ~120 times might be okay if average n smaller. But worst-case each call full n and hard -> maybe too slow.
+
+We can instead integrate: recursive backtracking in natural order with feasibility lookahead using same solver but memoized. Hmm.
+
+Maybe simple natural backtracking with propagation is enough for n=40 within 2s. Let's estimate worst-case branching. For random 3-colorable graph with p around 0.5? Actually random graphs near threshold are hard. But n=40, 3-coloring threshold average degree ~4-5. Branching with forward checking maybe manageable. Non-3-colorable random graphs with n=40, average degree high prune quickly due to conflicts. Low degree graphs have many colorings but search finds one quickly.
+
+Potential worst-case: graph that is a disjoint union of many triangles? Each triangle forces colors 1,2,3 in some order. Lex smallest for each triangle (vertices a<b<c): assign a=1, b=2, c=3 (if edges a-b,a-c,b-c). Backtracking tries a=1, b=2, c=3 success. Easy.
+
+Graph that is path/cycle: easy.
+
+Hard 3-colorable graphs (Mycielski) with high girth and no triangles but chromatic number 4? Wait 3-colorable hard instances are those with many edges but still 3-colorable, e.g., random 3-colorable with equal parts and p~0.5? Actually random 3-colorable graphs are easy with BP. But exact backtracking may struggle at n=40? Let's test mentally: n=40, partition into 3 color classes ~13 each, edges random between classes with prob 0.5 (no within-class). Search natural order tries color 1 first. Since each vertex has neighbors in all colors, constraints propagate. Might be okay.
+
+Could there be adversarial input designed to break simple backtracking? Since problem statement likely from contest, expected solution might be meet-in-the-middle or backtracking with n=40. Need robust.
+
+Let's think of meet-in-the-middle with constraints to handle worst-case. Since n<=40, split into two halves of 20. For each half, enumerate all valid colorings? In worst-case no edges, 3^20 ~ 3.5B too many. But for no edges answer trivial. However we can compress colorings by equivalence under color permutation? For compatibility across cut, colors labeled, so cannot globally permute. But within a half, we can classify colorings by the colors assigned to boundary vertices? Number of boundary vertices could be up to 20, still 3^20.
+
+Alternative meet-in-the-middle: enumerate assignments for smaller half (say n1=15) -> 3^15=14M, feasible. For each assignment of A, derive forbidden colors for each vertex in B from cut edges. Then need check if B can be colored with those forbidden colors and internal edges. That's a list-coloring problem on B (n2=25) with each vertex up to 2 forbidden colors. Still NP-hard but n2=25 smaller. We could recursively color B. But enumerating 14M assignments might be heavy but possible in optimized C, not Python.
+
+Maybe better: use inclusion-exclusion / chromatic polynomial via subset convolution? n=40, 3 colors. Number of proper 3-colorings can be computed by summing over independent sets: Let a(S)=1 if S independent else 0. Number of ordered partitions into 3 independent sets = sum_{S independent} sum_{T independent, T subset V\S} 1 = sum_{S independent} b(V\S) where b(U)=number of independent subsets of U. We can compute b for all subsets via DP over subsets: b[mask] = b[mask without v] + b[mask without v and neighbors]? Standard independent set DP O(2^n). For n=40, 2^40 ~ 1e12 impossible.
+
+But we can split: compute for half. Not.
+
+Maybe use branch and bound with bitsets is expected.
+
+Let's design a strong backtracking solver with bitsets and forward checking, plus component decomposition, and maybe SAT-style unit propagation. Since n=40, recursion depth 40. Use Python ints for adjacency. For each vertex, maintain color. Also maintain for each uncolored vertex a bitmask of allowed colors (bits 0..2). When assigning a vertex, update neighbors' allowed masks: remove color c. If any becomes 0 -> conflict. If exactly 1, push to queue for unit propagation (assign it). This propagation can cascade. This is essentially a constraint satisfaction solver. For 3-coloring, this is strong.
+
+But unit propagation may cause assignments out of index order; that's fine for feasibility. For lex smallest, we need assign vertices in index order. We can do recursive on index order but use propagation to assign future vertices forced. However propagation choices could conflict with lex smallest? If a future vertex is forced to a color, no choice. If propagation assigns a vertex with a single available color, that's forced by current prefix and constraints, so fine. It doesn't affect lex smallest because no alternative.
+
+But propagation may need to be undone on backtrack; we can implement recursion with copying allowed masks (list of ints) and colors. n=40 small, copying list of length n each recursion is okay. Or use trail stack.
+
+Algorithm for feasibility of full graph (no precolored): initial allowed = 0b111 for all. Recursively select uncolored vertex with smallest number of available colors (MRV) >0; if none, success. Try each available color; assign and propagate. This is DSATUR with propagation. It finds any coloring quickly.
+
+For lex smallest, we can use prefix search with this feasibility subroutine. But maybe simpler: integrate lex order by selecting vertex in natural order but with propagation. However MRV ordering doesn't respect natural order. To get lex smallest, we can do:
+
+def dfs(pos, colors, allowed):
+    # pos is next vertex index to assign in natural order (0..n)
+    # but some later vertices may have been forced by propagation; we need handle.
+
+Actually if we assign in natural order and propagate, when we backtrack to change color of vertex i, all assignments of vertices >i made by propagation must be undone. That's manageable with trail.
+
+But natural order with forward checking may be less efficient than MRV. However n=40 okay.
+
+Alternatively, to get lex smallest, we can at each step i try colors 1..3 and call feasibility on remaining graph with precolored vertices 0..i. Feasibility solver can use MRV. This is clean. Number of calls up to 120. Need ensure each call fast.
+
+We can also reuse partial state? Not necessary.
+
+Let's evaluate feasibility solver performance. Implement recursive with bitsets and MRV + propagation. For n=40, it should solve hard instances quickly. But called many times. Could be okay.
+
+However there is a subtlety: precolored vertices fixed; we propagate them initially. Then MRV on rest.
+
+Potential issue: For lex smallest, when testing color c for vertex i, we fix colors of vertices 0..i. The feasibility solver may assign vertex i+1 etc. If feasible, we choose c and proceed to i+1. This works.
+
+But we can make it faster by not restarting from scratch each time: after fixing vertex i to c and finding feasible, we already have a full coloring from the feasibility check. Then for next i+1, we can use that coloring as a witness and test colors. But simpler to restart.
+
+Worst-case 120 feasibility calls on n=40 hard graphs. Each call maybe milliseconds? 120*10ms=1.2s okay. Python recursion overhead maybe okay.
+
+Let's design feasibility solver carefully.
+
+Data structures:
+- n <= 40.
+- adj[i]: int bitmask of neighbors.
+- color[i]: -1 uncolored, 0/1/2.
+- allowed[i]: int bitmask of colors still allowed (1<<0 | 1<<1 | 1<<2 initially; for precolored, only assigned color).
+When assign vertex v to color c:
+  color[v]=c; allowed[v]=1<<c.
+  For each neighbor u with color[u]==-1:
+    new = allowed[u] & ~(1<<c)
+    if new==0: conflict
+    if new != allowed[u]: allowed[u]=new; record change; if popcount(new)==1: push u to queue for forced assignment.
+Forced assignment queue: while queue: pop u; if color[u]!=-1: continue (maybe already assigned); mask=allowed[u]; if mask has single bit: c=bit; assign u to c (recursive propagation). Need avoid reassigning differently.
+
+But forced assignment may cause conflicts; if a vertex has single allowed color, it's forced, but assigning it may reduce neighbor options. This is unit propagation.
+
+We need to be careful with recursion depth due to propagation; can implement propagate function returning (ok, trail). Trail records changes to restore.
+
+Simplify: Since n small, we can copy arrays at each recursion. At each decision, copy color list and allowed list, then assign and propagate iteratively modifying copies. If conflict, return False. If success after propagation, recurse on copied state. Copying two lists of length n (<=40) per node is cheap.
+
+But propagation loop may be O(n^2) per decision, fine.
+
+MRV selection: among uncolored vertices, choose one with fewest allowed colors (>=2). If any has 0 -> conflict (should be caught). If all uncolored have 3 colors, choose maybe highest degree or first. MRV reduces branching.
+
+Base case: no uncolored -> return True (and maybe store coloring). For lex prefix feasibility, we only need boolean.
+
+We can also order color tries in feasibility solver? Not needed for boolean. But for speed, maybe try colors that appear in allowed.
+
+Potential improvement: If graph has high-degree vertex, MRV picks it. Good.
+
+Now lex smallest algorithm:
+
+Read n,m. Build adjacency bitmasks (0-index). If m==0: output YES and all 1s.
+
+Otherwise:
+colors = [-1]*n
+For i in range(n):
+    for c in [0,1,2]:
+        # test
+        test_colors = colors copy
+        test_allowed = [7]*n; for j<i set allowed[j]=1<<colors[j]; for j>=i allowed[j]=7 initially? Actually we can build initial state for feasibility with precolored vertices 0..i-1 as colors assigned, and vertex i as c. Then propagate.
+        if feasible(test_colors, test_allowed):
+            colors[i]=c; break
+    else: print NO; return
+
+After loop, output YES and colors+1.
+
+But building allowed from colors each call: allowed[j]=1<<colors[j] for assigned, 7 for uncolored. Then assign i to c and propagate.
+
+We can optimize by maintaining current state and updating, but fine.
+
+However there is a problem: The feasibility solver with MRV may find a coloring where vertex i+1 etc. assigned, but when we later fix vertex i+1 to a different color (trying lex smaller), the previous full coloring may not be valid. We restart each time, so okay.
+
+Edge cases: self loops? Not specified; assume u != v. Could have duplicate edges? Not specified; ignore duplicates via bitmask.
+
+Need ensure lex smallest output uses colors 1,2,3.
+
+Let's test mentally on examples.
+
+Example1: n=4 edges K4 minus edge 3-4. Lex algorithm:
+i=0: try c=0. Precolored 1. Feasible? Need color rest with constraints. 2 adjacent to1, can't 0; try etc. Likely feasible -> assign 1. i=1: try c=0? vertex2 adjacent to1, conflict with vertex1 color0, so not allowed. try c=1? vertex2 adjacent to1? yes edge1-2, so color1 conflict. try c=2 -> assign 2. i=2: vertex3 adjacent to1 (color0) and2(color1), allowed only color2. try c=0 conflict, c=1 conflict, c=2 feasible -> assign3. i=3: vertex4 adjacent to1,2; colors0,1 used, allowed2 -> assign3. Output 1 2 3 3. Good.
+
+Example2 K4: i=0 c=0. Feasible? yes assign. i=1 c=0 conflict edge -> c=1 feasible. i=2: try c=0 conflict with1, c=1 conflict with2, c=2 feasible? vertex3 adjacent to1,2 both colors0,1 -> allowed2 assign. i=3: adjacent to all three colors, no color -> infeasible. Backtrack? At i=3 no color feasible -> NO. Good.
+
+Now complexity. Let's consider worst-case no edges: i=0 c=0 feasible (all 1). etc. Each feasibility call trivial.
+
+Worst-case 4-chromatic graph: At i=0 maybe c=0 feasible? If graph 4-chromatic, no full coloring, so at each i all colors infeasible eventually. But we may waste time. However with n=40, 4-chromatic graphs often have K4 or odd cycles etc. Simple backtracking may explore. But 120 calls maybe okay.
+
+But is there a case where graph is 3-colorable but vertex1 cannot be color1, and testing c=0 takes huge time before failing? Possibly. We can add quick lower-bound pruning: if graph contains K4, infeasible. We can check for K4 in precolored+remaining? Not necessary maybe.
+
+Could we improve by using the feasibility solver to also produce a full coloring and use it to speed subsequent tests? For prefix search, after assigning vertex i to c, we find a full extension. For next vertex i+1, we can try c'=0,1,2. The previous extension gives a candidate; if c' matches that extension, feasible. If not, need solve. But implementing reuse complex.
+
+Alternative: Instead of prefix search, do a single recursive search in natural order with propagation and MRV but ensure lex smallest. We can combine: at each step choose the next uncolored vertex in natural order (not MRV), but still use propagation. This is a single DFS; tries colors 1..3. It will find lex smallest. Complexity: branching at each vertex up to 3, but propagation reduces. For no edges, linear. For hard graphs, maybe okay. This avoids multiple solver calls. Let's consider implementing this single DFS with propagation and maybe MRV fallback? If we force natural order, we lose MRV efficiency. But n=40 small.
+
+However for 3-coloring hard instances, MRV is important. Natural order may blow up. Example: random 3-colorable graph with n=40, natural order may still be okay with propagation? Let's think. Branching factor ~ available colors. With many constraints, average maybe <2. Depth 40 -> 2^40 worst. But propagation and conflicts prune. Still might be large.
+
+Prefix search with MRV feasibility may be more efficient because each feasibility call uses MRV. But multiple calls.
+
+Maybe best: single DFS with dynamic variable ordering that respects lexicographic minimization. Is there a way? Lex smallest assignment can be found by branch-and-bound with best vector. We can use MRV to find any coloring first (best). Then search for better lex vector by forcing early vertices smaller. This is essentially prefix search but reusing solver.
+
+Simpler robust approach: Use python's `sys.setrecursionlimit`. Implement feasibility solver with MRV and propagation. Then prefix search. I think this will pass.
+
+But let's further optimize feasibility solver.
+
+Implementation details of `feasible(colors, allowed)`:
+Input: `colors` list (some assigned), `allowed` list. We will mutate copies. Return bool.
+
+Pseudo:
+
+def is_colorable(colors, allowed):
+    n=len(colors)
+    # propagate precolored/forced
+    # Use stack of vertices to assign forced.
+    # First, for assigned vertices, propagate removal? allowed already single.
+    # We can call assign for each precolored vertex.
+    # But to avoid reassign, we can start with queue of assigned vertices.
+    # Simpler: create local copies col=list(colors), alw=list(allowed)
+    # queue = [v for v in range(n) if col[v]!=-1]
+    # while queue:
+    #   v=queue.pop()
+    #   c=col[v]
+    #   for u in neighbors of v:
+    #       if col[u]!=-1:
+    #           if col[u]==c: return False
+    #       else:
+    #           if alw[u] & (1<<c):
+    #               alw[u] &= ~(1<<c)
+    #               if alw[u]==0: return False
+    #               if bit_count(alw[u])==1: queue.append(u); col[u]=...? Wait we need assign later.
+    # But if we set col[u] in queue, we need know color. We can push (u, color) or compute in loop.
+    # Actually when alw[u] becomes single, we can determine its color and assign: set col[u]=c2, push u.
+    # However if alw[u] already single before processing v, we should have assigned earlier. So maintain invariant: uncolored vertices may have alw single but not assigned? We can assign them immediately when they become single.
+    # So in propagation, when removing color from neighbor, if becomes single, assign it.
+    # But what about initial allowed single for precolored? They are already assigned.
+    # Need also check conflict between precolored adjacent same color during initial propagation. The loop handles.
+    # After propagation, choose MRV vertex with alw count >=2 (or maybe 1 if not assigned? should be assigned). If none, return True.
+    # For each color in alw[v] (try maybe in some order), copy col,alw, assign v to color, propagate, recurse.
+    # 
+    # To avoid copying too much, we can implement recursion with trail: maintain global arrays and a list of changes. But copies easier.
+    # 
+    # However copying col and alw at each decision: O(n) each. Branching maybe many. n=40, okay.
+
+Let's implement `propagate(col, alw, v, c)` that assigns v=c and propagates, mutating col,alw, returns success bool. It will also assign forced vertices.
+
+def assign_and_propagate(col, alw, v, c):
+    stack=[(v,c)]
+    while stack:
+        v,c=stack.pop()
+        if col[v]!=-1:
+            if col[v]!=c: return False
+            continue
+        col[v]=c
+        alw[v]=1<<c
+        nb = adj[v]
+        # iterate neighbors u
+        u=0
+        mask=nb
+        while mask:
+            lsb=mask & -mask
+            u=(lsb.bit_length()-1)
+            mask ^= lsb
+            if col[u]!=-1:
+                if col[u]==c:
+                    return False
+            else:
+                if alw[u] & (1<<c):
+                    alw[u] &= ~(1<<c)
+                    if alw[u]==0:
+                        return False
+                    if alw[u] & (alw[u]-1) == 0: # single bit
+                        # determine color
+                        cu = (alw[u].bit_length()-1)
+                        stack.append((u,cu))
+    return True
+
+But note: when we assign v=c, we set alw[v]=1<<c. If v was precolored with same color, fine. If v had allowed single and we assign, fine.
+
+However there is a subtle bug: Suppose neighbor u has alw[u] single color c (same as v). We will detect alw[u] & (1<<c) nonzero, remove it -> 0 -> fail. Good.
+
+What if neighbor u is uncolored and alw[u] becomes single after removal; we push it. But if multiple neighbors remove colors, the single color might be determined correctly. Good.
+
+But we also need to handle case where alw[u] was single before but not assigned (shouldn't happen if we always assign when becomes single). In initial state, precolored vertices are assigned; uncolored have 7. Good.
+
+Now recursion:
+
+def dfs(col, alw):
+    # find uncolored vertex with min allowed count >0
+    minv=-1; mincnt=4
+    for v in range(n):
+        if col[v]==-1:
+            cnt = alw[v].bit_count()
+            if cnt < mincnt:
+                mincnt=cnt
+                minv=v
+                if cnt==2: # can't be less than 2 because single would be assigned
+                    pass
+    if minv==-1: return True
+    # if mincnt==0: return False (should not)
+    mask=alw[minv]
+    # try colors in some order; for boolean any order. Maybe order by color bits.
+    while mask:
+        lsb=mask & -mask
+        c=lsb.bit_length()-1
+        mask ^= lsb
+        col2=col[:] ; alw2=alw[:]
+        if assign_and_propagate(col2,alw2,minv,c):
+            if dfs(col2,alw2):
+                return True
+    return False
+
+This solves feasibility.
+
+Potential issue: `assign_and_propagate` may assign many vertices; after it returns, col2 has no uncolored vertex with single allowed? Actually it assigns all forced vertices. Good.
+
+Now prefix search:
+
+def solve():
+    read input
+    colors=[-1]*n
+    allowed=[7]*n
+    for i in range(n):
+        found=False
+        for c in (0,1,2):
+            col=colors[:]
+            alw=allowed[:]
+            if assign_and_propagate(col,alw,i,c) and dfs(col,alw):
+                colors[i]=c
+                allowed[i]=1<<c
+                # We should also propagate current assignment into allowed for subsequent iterations? 
+                # Since colors/allowed reflect prefix assignments only (no future assignments), allowed for uncolored should be 7 minus colors of assigned neighbors. 
+                # If we just set colors[i]=c and allowed[i]=1<<c, allowed for future vertices remains 7, but when testing next vertex we will propagate prefix. However allowed for neighbors of i should be reduced to avoid recomputing. 
+                # To keep allowed consistent, we should propagate the assignment of i in the current state (colors, allowed) as well. 
+                # We can call assign_and_propagate on a copy and if feasible, update colors and allowed to the state after propagation? But that would assign forced future vertices, which we don't want to fix permanently because lex choices for future may differ. 
+                # However forced assignments are mandatory given prefix; we could fix them. But lex smallest requires that at next vertex we choose smallest feasible color. If a future vertex is forced, its color is determined; we can assign it now and skip in loop. That might be okay and even speeds up. But careful: forced color may be determined by current prefix; if we later change color of vertex i (backtrack), we recompute. Since we only proceed if feasible, any forced assignments are valid for all extensions. Thus we can update colors/allowed to the propagated state (with forced assignments). Then in the for loop, when i reaches a forced vertex, it already has color; skip? We need handle that.
+                # Simpler: maintain colors and allowed as prefix only, no propagation to future. Then for testing next vertex, we call assign_and_propagate on copy with prefix. This recomputes propagation each time. Simpler and correct. But allowed for neighbors of i not updated, so when testing i+1, propagation will handle. However allowed list for uncolored remains 7, which is fine because we only use allowed in assign_and_propagate copies, not in main state. Main state just records colors. So set colors[i]=c; continue.
+                found=True
+                break
+        if not found:
+            print("NO"); return
+    print("YES")
+    print(' '.join(str(c+1) for c in colors))
+
+But note: In the test for vertex i, we copy `colors` (prefix) and `allowed` (all 7 for uncolored). Then assign_and_propagate(i,c). Since allowed for uncolored is 7, propagation from prefix will reduce. Good.
+
+However `allowed` main list remains all 7 for uncolored; we don't need it. We can just pass `[7]*n` each test with prefix colors. But copying allowed each time is fine.
+
+But there is inefficiency: each feasibility call recomputes propagation from scratch for prefix. Acceptable.
+
+Wait: In test loop, `allowed` is always [7]*n for uncolored. We can just create alw=[7]*n; for j<i: alw[j]=1<<colors[j]. Then assign i. That's O(n) per test. Fine.
+
+Potential issue: `assign_and_propagate` uses global adjacency. Good.
+
+Now, is prefix search correct for lex smallest? Yes: at each vertex, we test colors in increasing order and pick first feasible. Since previous vertices fixed to smallest feasible colors, result lex smallest.
+
+But we must be careful: When we test color c for vertex i, we need to consider that future vertices can be any colors. Feasibility solver returns any extension. Good.
+
+Now complexity: For each i, up to 3 feasibility calls. Feasibility solver uses MRV. Should be okay.
+
+But we can improve by using the found full coloring to quickly decide feasibility for next colors. Not needed.
+
+Let's test on edge cases.
+
+Case n=1,m=0: i=0 try c=0 feasible -> colors[0]=0. Output YES 1.
+
+Case n=2, edge 1-2: i=0 c=0 feasible. i=1 try c=0 conflict with neighbor (propagation fail), c=1 feasible -> output 1 2.
+
+Case graph with K4: as above NO.
+
+Now, can `dfs` get stuck due to recursion depth? Depth <= n=40, fine.
+
+Potential bug in `assign_and_propagate`: When we assign v=c and set alw[v]=1<<c, if v was already colored with same c, we skip? We check col[v]!=-1; if col[v]!=c return False; if same continue. But if col[v] same and alw[v] maybe not single? It should be single. Continue okay. But we might push same vertex multiple times; handled.
+
+But initial propagation from prefix: In prefix search, we call assign_and_propagate on a vertex i that is uncolored in col. It will assign and propagate. It also checks conflicts with precolored neighbors. Good.
+
+Now, is MRV selection after propagation correct? After propagation, all uncolored vertices have allowed count >=2 (since singles assigned). We choose min. Good.
+
+Color try order in dfs: any. For speed, maybe try colors in order of bits. Not relevant.
+
+Now, can we add symmetry breaking? Not needed.
+
+Let's think about worst-case runtime more concretely. Suppose graph is 3-colorable but with many symmetries, e.g., empty graph. Prefix search: each feasibility call trivially succeeds with all 1s. Fast.
+
+Suppose graph is a large 4-chromatic graph with no K4 (e.g., Grötzsch? Actually triangle-free 4-chromatic need at least 11 vertices (Grötzsch theorem says triangle-free planar are 3-colorable; but general triangle-free 4-chromatic exists, e.g., Mycielski M4 has 11 vertices). For n=40, could be disjoint union of such graphs. Prefix search may test color 0 for first vertex of each component; if graph 4-chromatic, eventually fail and backtrack. The feasibility solver will explore search space for each prefix. Could be large but n=40 limited.
+
+Could there be a 4-chromatic graph on 40 vertices that is hard for our solver? Possibly. But contest time limit 2s. Maybe they expect smarter algorithm.
+
+Let's consider alternative exact algorithm: Use BFS with bitmask and connected components, plus maybe reduce graph by removing degree <=2 vertices? For 3-coloring, vertices of degree <=2 can be deferred: if graph minus them is 3-colorable, they can always be colored because at most 2 neighbors forbid at most 2 colors, leaving at least one. This is key! We can iteratively remove vertices of degree <=2 (in the remaining graph), solve the core (minimum degree >=3), then color removed vertices in reverse order greedily. This drastically reduces n for sparse graphs. For dense graphs, core small. This is a standard kernelization for 3-coloring.
+
+Specifically, a vertex of degree <=2 is always colorable last given any coloring of rest. So we can peel them. The remaining core has minimum degree >=3. For n=40, core size may be small. But worst-case core could be all vertices if min degree >=3 (e.g., 4-chromatic graph). Still helps.
+
+We can combine peeling with backtracking. For lex smallest, peeling needs care because removed vertices are interspersed by index. We can process core first with backtracking, then assign peeled vertices greedily in reverse removal order. Lex smallest? The greedy assignment for a degree<=2 vertex chooses smallest available color given core+later-peeled assignments. Since we remove in some order, reverse order assignment is forced to be smallest possible? For lex smallest global, we might want peeled vertices (which may have low index) to be as small as possible. But if a low-index vertex is peeled early, its color is determined after many others, potentially not lex smallest. So peeling conflicts with lex order unless we peel in reverse index order? Let's think.
+
+If we want lex smallest, we should decide colors for vertex 1 first. Peeling removes low-degree vertices; if vertex 1 has degree <=2, we could still try colors 1..3 first and fix it, then solve rest. Peeling doesn't help for lex first vertex.
+
+But for feasibility subroutine (not lex), peeling helps a lot: reduce graph to core, then backtrack. We can incorporate peeling in `is_colorable` to speed it up. Since prefix search calls feasibility many times, speed matters.
+
+Feasibility with peeling:
+Given precolored vertices, we cannot peel precolored vertices? Actually precolored vertices are fixed; they have degree in remaining graph. Vertices of degree <=2 that are uncolored can be peeled because after coloring rest, they can be colored. But if they have precolored neighbors, degree counts only uncolored neighbors? When coloring rest, a peeled vertex sees its neighbors (some precolored, some colored later). It has at most 2 neighbors total in remaining graph at peel time; those neighbors may be precolored or will be colored before it in reverse order. Thus at most 2 colors forbidden, leaving at least one. So peeling valid even with precolored vertices, as long as uncolored degree <=2 in current graph (including edges to precolored). Wait if a peeled vertex has two precolored neighbors with different colors, it still has one available. Good.
+
+So in `is_colorable`, we can compute a degeneracy order: repeatedly remove uncolored vertices with degree <=2 (in the subgraph of uncolored+precolored? Edges to precolored don't affect degree for peeling? Actually degree in graph induced by uncolored vertices plus precolored? A vertex with many precolored neighbors and no uncolored neighbors has degree 0 in uncolored subgraph, so peeled. That's fine. We should consider degree among uncolored vertices plus maybe precolored? For the property "at most 2 colored neighbors before it", if we remove vertices and later color core, a peeled vertex's neighbors are either precolored or core vertices colored before it. The number of such neighbors equals its degree in the original graph minus neighbors that are peeled after it. If at peel time it has <=2 neighbors remaining (uncolored+precolored), then in reverse order it will have <=2 already-colored neighbors. So degree should be counted in the graph induced by remaining vertices (including precolored). Precolored remain. So peel if degree in remaining graph <=2.
+
+Implementation: maintain list of uncolored vertices; compute degree in current remaining graph. Use queue. Remove vertices, store order. After core obtained, solve core via backtracking. Then assign peeled vertices in reverse order greedily.
+
+This can reduce n significantly. For lex prefix feasibility, we only need boolean; we can use peeling.
+
+But implementing peeling with precolored vertices and propagation may be complex but doable.
+
+However maybe not necessary. Let's evaluate if simple MRV backtracking is enough. n=40, with MRV and propagation, even hard graphs maybe solved in <0.1s. Called up to 120 times -> 12s maybe too much. Peeling would reduce.
+
+We can also cache feasibility results? Since prefixes differ, not easy.
+
+Alternative: Instead of prefix search with full feasibility each time, we can do a single DFS in natural order but with peeling-based lookahead: at each vertex i, try colors; after assigning, run peeling/propagation to check if remaining core is colorable. This is similar to prefix search but reuses state. But simpler to implement prefix search with a fast feasibility solver enhanced by peeling.
+
+Let's design a strong feasibility solver with peeling + MRV backtracking.
+
+Feasibility solver `can_color(precolored_colors)`:
+- Input: list col of length n, -1 uncolored, 0/1/2 colored.
+- We will peel all uncolored vertices of degree <=2 in the graph induced by all vertices (precolored remain). Actually we can also peel precolored? They are already colored, no need.
+- Build remaining set R = vertices not peeled. R includes precolored and uncolored core with min degree >=3 (or precolored with degree maybe anything).
+- Solve coloring of R (with precolored fixed) using backtracking MRV+propagation.
+- If no coloring -> False.
+- If coloring found -> True (peeled vertices can be colored greedily later).
+
+But note: peeling uncolored vertices with degree <=2 in remaining graph is valid because we can color them after R. However if a peeled vertex has precolored neighbors, those are in R and remain. Good.
+
+Implementation of peeling:
+We need adjacency bitmask. Maintain `present` bitmask of vertices still present. Compute degree of each present uncolored vertex as popcount(adj[v] & present). If <=2, remove (mark peeled). Use queue; when removing, update neighbors' degrees. Continue until no uncolored present vertex has degree <=2. The remaining present set is core.
+
+But precolored vertices with degree <=2 could also be peeled? They are already colored; they don't need to be in core. Removing them from graph for core solving is fine because their colors are fixed and they only affect neighbors via constraints. However if we remove a precolored vertex, its neighbors lose a degree count, possibly enabling more peeling. But the precolored vertex's color still forbids that color for neighbors when coloring core and later peeled vertices. Since we keep its color fixed, removing it from present set for degree calculation is okay; we just need to remember its color for constraints. But in core backtracking, when assigning a core vertex, we must consider precolored neighbors (including peeled precolored) to remove colors. So adjacency to precolored vertices must be considered even if they are not in core. We can handle by initial propagation of all precolored vertices (including peeled) to reduce allowed of core vertices. Then core backtracking ignores peeled vertices.
+
+Thus peeling algorithm:
+- Input col.
+- present = all vertices.
+- queue all uncolored v in present with degree(present) <=2.
+- While queue: remove v from present, add to peel_order. For each uncolored neighbor u still present, if degree now <=2, queue.
+- After peeling, core = present.
+- Compute initial allowed for core vertices: 0b111 minus colors of precolored neighbors (including peeled precolored and core precolored). We can do via propagation of all precolored vertices in core? Actually precolored vertices in core are part of present; we can treat them as assigned. For each core vertex u uncolored, allowed[u] = 0b111; for each precolored neighbor w (any), remove color col[w]. If allowed becomes 0 -> infeasible.
+- Then run backtracking on core uncolored vertices with MRV+propagation.
+- If success, return True.
+
+Peeling reduces core size. For many graphs, core small.
+
+But we also need to handle that some precolored vertices may be adjacent with same color -> infeasible immediately. We can check during initial propagation.
+
+Now, can we integrate propagation with peeling? Backtracking on core with propagation will handle constraints from precolored core vertices. For precolored peeled vertices, we already reduced allowed. Good.
+
+Potential issue: A peeled uncolored vertex may have two precolored neighbors with same color, leaving two colors available; fine. It will be colored later.
+
+Now, lex prefix search: At step i, we have precolored vertices 0..i-1. We test color c for i. We call can_color with col prefix. It peels and solves core. If feasible, we set colors[i]=c and continue.
+
+But note: The prefix search doesn't know about peeled vertices being forced; it will still iterate i over all vertices. That's fine.
+
+Complexity: Each can_color call peels and backtracks on core. For n=40, core maybe <=20. Good.
+
+But implementing peeling correctly with bitmasks and queue in Python is doable.
+
+However, maybe even simpler: Since n=40, we can use a SAT solver style with watched literals? Not.
+
+Let's consider if we can avoid prefix search by doing a single DFS with natural order and using peeling/core solving as lookahead. Actually prefix search is essentially repeated lookaheads. But maybe we can find lex smallest directly via recursive function that chooses next vertex in natural order and uses `can_color` to test each color. That's what prefix search does.
+
+Could we instead do a single recursive search with natural order and propagation (no separate lookahead), and rely on propagation to prune enough? For n=40 maybe yes. Let's try to estimate with hard random 3-colorable graphs. MRV natural order? Without MRV, branching at each vertex maybe ~1.5-2. Could be okay. But prefix search with MRV core solver is safer.
+
+Let's design final solution with peeling + MRV backtracking for feasibility, and prefix search.
+
+But we need be careful with time for implementing peeling and debugging. Let's think if there is an even simpler robust method: Use python `z3`? Not allowed.
+
+Maybe use `networkx`? Not.
+
+Let's consider using BFS over colorings with memoization on connected components and automorphism? Too complex.
+
+I think peeling+MRV is good.
+
+Let's refine feasibility solver.
+
+Detailed algorithm `is_feasible(col)`:
+Input col list, values -1/0/1/2.
+Steps:
+1. Check for adjacent same-colored precolored vertices. We can do initial propagation.
+2. Peel uncolored vertices of degree <=2.
+   - present_mask = (1<<n)-1
+   - degree[v] = popcount(adj[v] & present_mask) for all v.
+   - queue = [v for v in range(n) if col[v]==-1 and degree[v]<=2]
+   - peeled_mask = 0
+   - while queue:
+        v=queue.pop()
+        if not (present_mask>>v)&1: continue
+        if col[v]!=-1: continue # should not
+        present_mask ^= 1<<v
+        peeled_mask |= 1<<v
+        # update uncolored neighbors still present
+        nb = adj[v] & present_mask
+        while nb:
+            lsb=nb&-nb; u=bit_length-1; nb^=lsb
+            if col[u]!=-1: continue
+            degree[u]-=1
+            if degree[u]<=2: queue.append(u)
+   - core_mask = present_mask.
+3. Build allowed for core uncolored vertices.
+   - allowed = dict or list length n (only for core).
+   - For v in core where col[v]==-1:
+        mask = 0b111
+        nb = adj[v] & ~peeled_mask? Actually neighbors in core or peeled precolored. We need remove colors of all precolored neighbors (colored vertices), whether in core or peeled. Since uncolored peeled vertices will be colored later, they don't constrain now. So only precolored neighbors matter.
+        precolored_neighbors_mask = adj[v] & colored_mask (where col!=-1)
+        Iterate those neighbors and remove their colors.
+        If mask==0: return False.
+        allowed[v]=mask.
+   - For v in core precolored: allowed[v]=1<<col[v].
+4. Run DFS on core.
+   - If core has no uncolored -> return True.
+   - Use MRV: select uncolored v in core with smallest popcount(allowed[v]) (>=2 because 0 handled, 1 forced). Actually there could be forced single allowed vertices; we can propagate them initially or handle in DFS.
+   - For each color in allowed[v] (bits), assign and propagate within core. Recurse.
+   - Return True if any.
+
+Propagation within core:
+Similar to assign_and_propagate but only core vertices. It will consider precolored core vertices (allowed single) and uncolored core vertices. It doesn't need to consider peeled precolored because their colors already removed from allowed. However when assigning a core vertex, its precolored peeled neighbors don't need propagation (already accounted). Its uncolored peeled neighbors are not in core, ignore. Good.
+
+But wait: A peeled uncolored vertex may have a core neighbor; when core neighbor gets color, the peeled vertex loses that color. Since peeled vertex colored after core, we need to ensure it still has an available color. Since it has degree <=2 at peel time, and core neighbors are at most 2 (because other peeled neighbors are colored after it? Actually in reverse peel order, a peeled vertex's neighbors that remain at time of peeling are either core or peeled earlier (i.e., colored later). At peeling, it had <=2 neighbors in present set. Those neighbors are colored before it in reverse order. So it will see at most 2 colored neighbors, leaving >=1 color. Good. So no need to track during core solving.
+
+Thus core solving independent.
+
+Now, initial propagation of precolored vertices: We can incorporate by setting allowed for uncolored core vertices as above. Also need check conflicts between precolored vertices: if two precolored neighbors have same color, allowed removal will result mask maybe still nonzero? Example: uncolored v has two precolored neighbors both color0; mask becomes {1,2} nonzero, but the two precolored vertices themselves are adjacent? We need check edge between precolored same color. We can check all edges between precolored vertices: for each precolored v, for each precolored neighbor u>v, if col[u]==col[v] return False. Or during initial allowed building, if a precolored vertex has a precolored neighbor same color, we can detect? Not directly because we only look at uncolored vertices. So add explicit check.
+
+Simpler: Run `assign_and_propagate` for all precolored vertices on a copy of allowed to both check conflicts and reduce allowed. But that propagates to uncolored neighbors and may force assignments. Since we will do propagation in DFS anyway, we can just start DFS with allowed initialized from precolored neighbors and rely on propagation for forced assignments. But conflict between precolored vertices must be caught. We can check by iterating edges among precolored: for v in colored, nb=adj[v]&colored_mask; if any same color -> False. Since n small, O(m) check.
+
+Alternatively, during peeling, if two precolored adjacent same color, the graph is infeasible; return False early.
+
+Now, DFS with propagation on core:
+
+def dfs_core(col_core_allowed?):
+We can maintain arrays `col` (global length n) and `allowed` length n. Only core vertices matter. We'll copy as needed.
+
+Pseudo:
+
+def can_color_core(col, allowed, core_mask):
+    # col list includes precolored and -1 for uncolored core
+    # allowed list for core vertices
+    # find MRV uncolored in core
+    v = -1; best=4
+    cm=core_mask
+    while cm:
+        lsb=cm&-cm; u=bit-1; cm^=lsb
+        if col[u]==-1:
+            cnt=allowed[u].bit_count()
+            if cnt<best:
+                best=cnt; v=u
+                if cnt==2: pass
+    if v==-1: return True
+    if best==0: return False
+    mask=allowed[v]
+    while mask:
+        lsb=mask&-mask; c=bit-1; mask^=lsb
+        col2=col[:]; allowed2=allowed[:]
+        if propagate(col2, allowed2, v, c, core_mask):
+            if can_color_core(col2, allowed2, core_mask):
+                return True
+    return False
+
+Propagation only within core:
+
+def propagate(col, allowed, v, c, core_mask):
+    stack=[(v,c)]
+    while stack:
+        v,c=stack.pop()
+        if col[v]!=-1:
+            if col[v]!=c: return False
+            continue
+        col[v]=c
+        allowed[v]=1<<c
+        nb = adj[v] & core_mask
+        while nb:
+            lsb=nb&-nb; u=bit-1; nb^=lsb
+            if col[u]!=-1:
+                if col[u]==c: return False
+            else:
+                if allowed[u] & (1<<c):
+                    allowed[u] &= ~(1<<c)
+                    if allowed[u]==0: return False
+                    if allowed[u] & (allowed[u]-1)==0:
+                        cu = allowed[u].bit_length()-1
+                        stack.append((u,cu))
+    return True
+
+Note: core_mask includes precolored core vertices. When assigning v, neighbors in core uncolored get updated. Precolored neighbors already have allowed single; if same color conflict caught.
+
+Now, initial allowed for core uncolored: we can set allowed[v]=7 and then call propagate for each precolored core vertex? That would also handle conflicts and forced. Simpler: initialize col copy from input, allowed = [0]*n; for v in core: if col[v]!=-1: allowed[v]=1<<col[v]; else allowed[v]=7. Then for each precolored core vertex v, call propagate(col, allowed, v, col[v], core_mask). But propagate will also try to assign forced uncolored vertices; that's okay. However if we propagate all precolored, we modify col/allowed. Then we can call DFS. This handles conflicts and initial forced assignments. But we need to be careful not to propagate precolored peeled vertices (they are not in core). We already removed their colors from allowed manually? If we propagate only core precolored, uncolored core allowed doesn't account for peeled precolored neighbors. So we need to pre-remove those colors first.
+
+Option: For each uncolored core v, compute mask = 7; then for each precolored neighbor w (any, including peeled), mask &= ~(1<<col[w]). If mask==0 return False. Set allowed[v]=mask. For precolored core v, allowed[v]=1<<col[v]. Then run propagate for all precolored core vertices to catch inter-precolored conflicts and force singles. Actually inter-precolored conflicts can be caught by checking neighbors; propagate will detect when processing one precolored and encountering another with same color. But if we process precolored v, neighbor u precolored same color -> col[u]!=-1 and col[u]==c -> return False. Good.
+
+But we can also just check same-color edges among precolored upfront.
+
+Simpler: Build allowed as above with precolored neighbor colors. Then call DFS; propagation will handle forced singles. No need to explicitly propagate precolored core first because allowed already reflects them. However if a precolored core vertex has a precolored neighbor same color, DFS propagation may not detect it unless we try to assign a core uncolored neighbor? Actually conflict between precolored vertices doesn't affect allowed of uncolored vertices (just removes color). It could be missed, leading to false feasible. So we must check precolored-precolored same-color edges explicitly. Easy: for each edge (u,v) where both precolored and col[u]==col[v], return False. We can check via bitmask: for each color c, mask of precolored vertices with color c; if any edge inside mask -> conflict. Or iterate vertices.
+
+Let's add explicit check.
+
+Now, after building allowed, we call DFS. In DFS, when selecting MRV, if an uncolored core vertex has allowed count 1, it will be selected and tried. But we could propagate forced vertices first to reduce branching. DFS's propagate when assigning will handle forced neighbors. But if initial allowed has singles, we should assign them before branching. We can do initial propagation loop: while there is uncolored core vertex with allowed single, assign it. Or simply in DFS, MRV will pick it (cnt=1) and branch with one color; propagate will cascade. That's fine but creates a recursion node for each forced assignment. Acceptable.
+
+Now, prefix search uses `is_feasible` for each color. We can optimize by maintaining current prefix and updating, but fine.
+
+Potential issue: Peeling may remove vertices that are precolored? We said precolored remain but can be removed from present for degree calculation. Actually if a precolored vertex has degree <=2, we could peel it (remove from present) because it's already colored and doesn't need to be in core. This can reduce core further. But we must still consider its color in allowed of core neighbors. Since it's precolored, we can remove it from present and treat it as peeled precolored. Its color still constrains neighbors via initial allowed. So in peeling, we can also remove precolored vertices of degree <=2? But precolored vertices are already "colored", they don't need solving. Removing them from present reduces degrees of uncolored neighbors, enabling more peeling. This is beneficial. However if a precolored vertex has degree >2, it stays in core (or we can keep it in present). Since it's precolored, it doesn't add branching but must be in core_mask for propagation? Actually we don't need to include it in core_mask if we already accounted its color in allowed of neighbors. But for propagation during DFS, when assigning a neighbor, we don't need to update the precolored vertex. So we can exclude all precolored vertices from core_mask, treating them as removed after setting allowed. That simplifies: core only needs to include uncolored vertices with degree >2 (in remaining graph after removing all colored vertices and low-degree uncolored). Wait precolored vertices are colored, so they can be removed from the graph for solving; their constraints are static. Then peeling degree of uncolored vertices is computed in graph induced by uncolored vertices (not including precolored). Is that still valid? If we remove precolored vertices, a peeled uncolored vertex has <=2 uncolored neighbors (core or peeled uncolored). It may have many precolored neighbors. In reverse order, it will be colored after core and after peeled uncolored vertices? Peeled uncolored vertices colored in reverse peel order, so earlier-peeled vertices are colored later. A vertex's uncolored neighbors that were peeled after it remain uncolored at its coloring time? Let's reason.
+
+Standard peeling for k-coloring: In graph G, if vertex v has degree <= k-1, it can be removed because after coloring G-v, v has at most k-1 colored neighbors, so a color remains. This holds even with precolored vertices? If some neighbors are precolored, they are already colored; v sees them. Removing v is valid because after coloring the rest (including other uncolored neighbors), v has at most deg(v) colored neighbors (some precolored, some colored). If deg(v) <= k-1 in the graph including precolored neighbors, then a color remains. So degree should be counted including precolored neighbors. If we remove precolored vertices from graph, we might peel a vertex with many precolored neighbors (>2) and few uncolored neighbors, which would be invalid because at coloring time it could have >2 colored neighbors (the precolored ones). Example: vertex connected to 3 precolored vertices colors 0,1,2 and no uncolored neighbors. Degree in full graph =3, cannot peel. If we remove precolored, degree=0, peel incorrectly. So we must include precolored vertices in degree count.
+
+But we can still remove precolored vertices from core_mask for solving, as long as degree count includes them. After peeling, core includes uncolored vertices with degree (including precolored and other core/peeled uncolored) >2. Peeled uncolored vertices have degree <=2 in the graph at peel time (including precolored and remaining vertices). This ensures valid greedy coloring.
+
+Thus present_mask includes all vertices initially. Peeling removes uncolored vertices with degree <=2. Precolored vertices are never removed (they stay present). However we don't need to include precolored vertices in core_mask for DFS; we can set core_mask = present_mask & ~colored_mask (uncolored core). But degree counts included precolored. After peeling stops, all remaining uncolored vertices have degree >=3 (including precolored neighbors). The remaining precolored vertices may have any degree. For solving, we only need to color uncolored core vertices, with constraints from precolored neighbors (any). So core_mask = uncolored remaining vertices.
+
+But wait: When we peel an uncolored vertex, its removal reduces degree of uncolored neighbors. Precolored vertices remain, so degree of uncolored neighbor includes precolored edges. Good.
+
+So algorithm:
+- colored_mask = vertices with col!=-1.
+- present = all vertices.
+- degree[v] = popcount(adj[v] & present).
+- queue uncolored v with degree[v]<=2.
+- Peel uncolored only.
+- core_mask = present & ~colored_mask (uncolored remaining).
+- Build allowed for core uncolored: start 7, remove colors of precolored neighbors (colored_mask). Check mask nonzero.
+- Check precolored-precolored conflicts.
+- DFS on core_mask.
+
+This is correct and simpler.
+
+Now, can we also peel precolored vertices? Not needed; they don't branch. But they occupy present and prevent uncolored peeling? Actually they increase degree of uncolored vertices, which is correct. Removing them would over-peel. So keep.
+
+Now, DFS on core only (uncolored). Propagation within core_mask. Precolored neighbors constraints already in allowed. Good.
+
+Now, prefix search: At step i, col has precolored 0..i. We test color c for i. `is_feasible` peels and solves core. If feasible, set col[i]=c. Continue.
+
+Potential optimization: Since we call is_feasible many times with similar prefixes, we could maintain the peeled order and core? Not necessary.
+
+Now, lex smallest: prefix search ensures.
+
+Let's test on examples with peeling.
+
+Example1: n=4. No vertex degree <=2? Degrees: 1:3,2:3,3:2,4:2. Peel vertex3 (deg2), then vertex4 deg? after removing 3, vertex4 neighbors 1,2 deg2 -> peel. Core = vertices1,2 (uncolored) with edge between them. Precolored none. Solve core: assign 1=0,2=1. Then peeled reverse: vertex3 neighbors 1,2 colors0,1 -> color2. vertex4 neighbors1,2 colors0,1 -> color2. Feasible. Prefix search: i0 c0 feasible. etc.
+
+Example2 K4: degrees all 3, no peel. Core all 4. Prefix: i0 c0, i1 c1, i2 c2, i3 no color -> infeasible -> NO. Good.
+
+Now, complexity of prefix search with peeling: For each i, we solve core. In worst-case min degree >=3, core ~n. But then graph is dense-ish, branching maybe limited. For sparse graphs, core small.
+
+Let's think about a hard case: random 3-colorable graph with average degree ~10 (dense between parts). Min degree likely >2, so no peeling. Core n=40. Feasibility solver with MRV+propagation. Is it fast? For dense graphs, each vertex has many neighbors, available colors few, propagation strong. Should be fast.
+
+Hard unsatisfiable 4-chromatic graph with n=40 min degree >=3. Feasibility may explore many. But prefix search may prune early. Still could be tough.
+
+Maybe we can add another reduction: If core contains a K4, infeasible. We can check quickly. But MRV will find it fast.
+
+Could add component decomposition in core solver: split core into connected components (uncolored core plus precolored? Edges to precolored connect components). Solve each component independently; if any infeasible -> false. This can reduce branching. But components include precolored vertices; we can compute connected components of the subgraph induced by core uncolored plus edges to precolored? Actually constraints only between core uncolored and precolored; components of core uncolored graph (ignoring precolored) can be solved independently because no edges between them. Precolored vertices may connect multiple components? A precolored vertex can be adjacent to multiple core uncolored vertices in different components; but those components still don't interact except through the precolored vertex's fixed color. Since precolored color is fixed, components independent. So we can split core uncolored graph into connected components and solve each separately. This helps if core disconnected.
+
+Implementation: For core_mask uncolored, find connected components via BFS on adjacency restricted to core_mask. For each component, run DFS with allowed initialized from precolored neighbors. If any component infeasible -> false. This is easy and beneficial.
+
+But our global DFS on core already handles disconnected; MRV picks a vertex in some component, solves it, then next. Splitting may reduce state copying overhead and allow early fail. Good.
+
+Let's incorporate component solving.
+
+Component DFS:
+- Compute comp_mask list from core_mask.
+- For each comp:
+    - Build col_comp = col (global) but only comp vertices uncolored.
+    - allowed as before.
+    - Run can_color on comp_mask.
+    - If false return false.
+- Return true.
+
+Since components independent, no need to combine.
+
+Now, propagation within comp_mask only.
+
+Now, prefix search: We can also use component decomposition for whole graph? Since precolored vertices connect components. But we process per prefix; components of uncolored graph can be solved independently. Our `is_feasible` can solve each component separately. Good.
+
+Let's design `is_feasible(col)` function:
+
+def is_feasible(col):
+    # col is list length n, values -1/0/1/2
+    # quick check precolored conflicts
+    colored_mask = 0
+    for v in range(n):
+        if col[v]!=-1:
+            colored_mask |= 1<<v
+    # check same-color edges among colored
+    cm = colored_mask
+    while cm:
+        lsb=cm&-cm; v=bit-1; cm^=lsb
+        # neighbors of v with same color and index>v? We can check all colored neighbors same color.
+        nb = adj[v] & colored_mask
+        # need detect if any neighbor u with col[u]==col[v]
+        # iterate neighbors
+        nbm=nb
+        while nbm:
+            lsb2=nbm&-nbm; u=bit-1; nbm^=lsb2
+            if u>v and col[u]==col[v]:
+                return False
+    # peel
+    present = all_mask
+    degree = [popcount(adj[v] & present) for v in range(n)]
+    from collections import deque
+    q = deque([v for v in range(n) if col[v]==-1 and degree[v]<=2])
+    peeled = 0
+    while q:
+        v=q.popleft()
+        if not (present>>v)&1: continue
+        if col[v]!=-1: continue
+        present ^= 1<<v
+        peeled |= 1<<v
+        nb = adj[v] & present
+        while nb:
+            lsb=nb&-nb; u=bit-1; nb^=lsb
+            if col[u]!=-1: continue
+            degree[u]-=1
+            if degree[u]<=2:
+                q.append(u)
+    core = present & ~colored_mask  # uncolored not peeled
+    if core==0:
+        return True
+    # build allowed for core
+    allowed = [0]*n
+    cm=core
+    while cm:
+        lsb=cm&-cm; v=bit-1; cm^=lsb
+        mask=7
+        # remove colors of precolored neighbors
+        nb = adj[v] & colored_mask
+        while nb:
+            lsb2=nb&-nb; u=bit-1; nb^=lsb2
+            mask &= ~(1<<col[u])
+        if mask==0:
+            return False
+        allowed[v]=mask
+    # solve components
+    remaining = core
+    while remaining:
+        lsb=remaining&-remaining; v=bit-1; remaining^=lsb
+        # BFS component
+        comp=0
+        stack=[v]
+        while stack:
+            u=stack.pop()
+            if not (remaining>>u)&1 and u!=v: continue? Better use queue and visited.
+        ...
+
+Simpler component extraction with stack and mask.
+
+    visited=0
+    comp_vertices=[]
+    stack=[v]
+    while stack:
+        u=stack.pop()
+        if (visited>>u)&1: continue
+        visited|=1<<u
+        comp_vertices.append(u)
+        # neighbors in core
+        nb = adj[u] & core
+        while nb:
+            lsb2=nb&-nb; w=bit-1; nb^=lsb2
+            if not (visited>>w)&1:
+                stack.append(w)
+    comp_mask = visited
+    remaining ^= comp_mask
+
+Then solve component with DFS.
+
+DFS for component:
+
+def can_color_component(col, allowed, comp_mask):
+    # col global list (will be copied per recursion)
+    # allowed list for comp vertices
+    # find MRV uncolored in comp
+    v=-1; best=4
+    cm=comp_mask
+    while cm:
+        lsb=cm&-cm; u=bit-1; cm^=lsb
+        if col[u]==-1:
+            cnt=allowed[u].bit_count()
+            if cnt<best:
+                best=cnt; v=u
+    if v==-1: return True
+    if best==0: return False
+    mask=allowed[v]
+    while mask:
+        lsb=mask&-mask; c=bit-1; mask^=lsb
+        col2=col[:]; allowed2=allowed[:]
+        if propagate(col2, allowed2, v, c, comp_mask):
+            if can_color_component(col2, allowed2, comp_mask):
+                return True
+    return False
+
+Propagation within comp_mask as before.
+
+Now, `is_feasible` returns bool. It doesn't produce a coloring; but for prefix search we don't need full coloring. However after final vertex, we need actual assignment. Prefix search records colors. Good.
+
+But wait: When we peel vertices, we don't record their colors. Prefix search will later assign them in order. At final, all vertices have colors from prefix decisions. Peeling only used for feasibility. Good.
+
+Now, is prefix search with `is_feasible` efficient enough? Let's consider worst-case where graph is 3-colorable and core always large. For each i, we solve core. Could be 40*3=120 solves. Each solve maybe explores search tree. For n=40 dense, search tree small. For n=40 sparse but min degree >=3 (e.g., cubic graphs), 3-coloring of cubic graphs can be hard? Actually 3-coloring of cubic graphs is NP-complete, but n=40 manageable. MRV+propagation on 40 vertices should be okay.
+
+Could there be a cubic graph on 40 vertices that is 3-colorable but our solver takes long? Maybe, but with component splitting and propagation, likely okay.
+
+Let's think about a 4-chromatic cubic graph (snark) on 40 vertices. Prefix search: vertex1 try color1; feasibility may explore many before concluding infeasible, then try color2, etc. For unsatisfiable, search can be large. But n=40, cubic, search space 3^40 but pruning strong. MRV with propagation may explore many branches. However 4-chromatic snarks have structure; backtracking may be moderate. Time limit 2s Python maybe okay.
+
+We can add a quick check: if graph contains K4, infeasible. But snarks are triangle-free (some). Not helpful.
+
+Another optimization: In prefix search, when testing color c for vertex i, if c is not allowed by already colored neighbors (conflict), skip without feasibility call. We already check via propagation? In test, we call assign_and_propagate(i,c) which checks conflicts. But we can pre-check: if any neighbor j<i has col[j]==c, then infeasible. This avoids call. We'll include.
+
+Also, if vertex i has a neighbor j<i with col[j]==c, skip.
+
+Now, building `is_feasible` from scratch each call includes peeling O(n+m) and DFS. Good.
+
+Potential issue: Python recursion in `can_color_component` may be deep up to component size 40; set recursionlimit 10000.
+
+Now, let's think about correctness of lex smallest with prefix search and `is_feasible` that ignores actual peeled colors. Since we only use boolean, fine.
+
+Now, can we further speed by caching `is_feasible` results for prefixes? Since prefix is determined by colors of first i vertices, there are up to 3^i states, not helpful.
+
+Alternative: Instead of prefix search, we can do recursive lex search with `is_feasible` as lookahead but reuse state. But prefix search is simpler.
+
+Let's consider memory and copying. In DFS, we copy `col` and `allowed` lists of length n for each branch. n=40, list copy O(40). Branching maybe thousands, fine.
+
+But `col` list includes all vertices; we could pass global and use trail to avoid copies. However copies simpler.
+
+Now, let's think about possible bug: In `is_feasible`, after peeling, we build allowed for core uncolored using precolored neighbors. But we also need to consider that two core uncolored vertices may be adjacent; DFS propagation handles. Good.
+
+Precolored-precolored conflict check: We iterate each colored vertex v and its colored neighbors u>v same color. This is O(m) per call. 120 calls -> 120*780 ~ 94k, fine.
+
+Peeling degree computation: O(n^2) bit_count per call, fine.
+
+Now, let's think about a graph with no edges and n=40. Prefix search: i=0 c=0. `is_feasible`: colored_mask={0}. degree all 0. Peel all uncolored vertices (degree<=2). core=0 -> True. So each call O(n). Fast.
+
+Graph with one edge (1,2). i=0 c=0 feasible (peel rest). i=1: try c=0 conflict with neighbor0 -> skip. c=1 feasible. etc.
+
+Now, what about a graph where vertex 1 has high degree and cannot be color1; testing c=0 may take time exploring before failing. But MRV core solver will detect quickly if no coloring with vertex1=0. Could be large but okay.
+
+Now, let's consider implementing `assign_and_propagate` for prefix test. Actually `is_feasible` itself does propagation only within core, not for the newly assigned vertex i if i gets peeled? Wait `is_feasible` includes vertex i in col as precolored. It computes allowed for core neighbors of i. If i is peeled (degree<=2), it's not in core; its color is accounted in allowed of core neighbors. Then core solved. If core solvable, then peeled vertices (including i) can be colored greedily. So `is_feasible` handles it. We don't need a separate `assign_and_propagate` before calling `is_feasible`. We can just set col[i]=c and call `is_feasible(col)`. It will check precolored conflicts (including neighbors of i) and peel/solve. Good.
+
+Thus prefix loop:
+
+colors=[-1]*n
+for i in range(n):
+    for c in (0,1,2):
+        # quick conflict with colored neighbors
+        conflict=False
+        nb=adj[i]
+        while nb:
+            lsb=nb&-nb; j=bit-1; nb^=lsb
+            if j<i and colors[j]==c:
+                conflict=True; break
+        if conflict: continue
+        colors[i]=c
+        if is_feasible(colors):
+            break
+        colors[i]=-1
+    else:
+        print("NO"); return
+
+This avoids copying. `is_feasible` checks all precolored conflicts anyway, but quick check speeds.
+
+At the end, output colors+1.
+
+Now, `is_feasible` will be called with col list that has prefix colored. It will copy/modify? It reads col; doesn't modify (we pass list, but DFS copies). Good.
+
+Let's implement `is_feasible` carefully.
+
+Potential performance issue: In prefix loop, for each i and c, we call is_feasible which recomputes peeling and components. Could be okay.
+
+Let's code.
+
+But before finalizing, let's consider if there is a simpler solution expected: Since n<=40, maybe meet-in-the-middle with 20/20 and using independent set bipartite check. But our backtracking is simpler to implement correctly.
+
+Let's test mentally on random cases.
+
+Case n=40, m=0: prefix loop: each is_feasible peels all -> True. Output all 1s. Fast.
+
+Case n=40, complete graph K40 (not 3-colorable). i=0 c=0 feasible (core includes rest? degrees 39, no peel). i=1 c=1 feasible. i=2 c=2 feasible. i=3: try c=0 conflict with 0, c=1 conflict with1, c=2 conflict with2 -> no color, print NO. We never call is_feasible for i=3 because quick conflict. Fast.
+
+Case n=40, K4 on vertices 1-4 plus isolated rest. i=0 c0, i1 c1, i2 c2, i3: conflicts with 0,1,2 -> no color -> NO. Fast.
+
+Case n=40, graph 4-chromatic with no K4. i0 c0. is_feasible may explore. Let's see if peeling helps. If min degree >=3, core all. Solver MRV. For unsatisfiable, search may explore many. But n=40 small.
+
+Let's think about worst-case unsatisfiable 3-coloring instances: random graphs G(n,p) near threshold. For n=40, p around 0.5? Chromatic number ~? Actually G(40,0.5) chromatic number ~6-7, unsatisfiable for 3 colors. Backtracking will prune quickly due to many conflicts. Satisfiable instances near threshold (random 3-colorable with p~0.5 between parts) may be harder. But MRV+propagation should handle.
+
+Now, one more optimization: In `can_color_component`, color try order can be arbitrary. But for faster finding a solution (feasibility), we might try colors in order of availability? Since we just need any, order doesn't matter much. But maybe trying color 0 first tends to find solution quickly? Not necessarily. We can try colors in order 0,1,2. Fine.
+
+Now, let's think about correctness of peeling with precolored vertices and components. Suppose core has uncolored vertices, and precolored vertices outside core. We build allowed for core from all precolored neighbors. We solve components of core. If solvable, then we can color peeled vertices in reverse peel order. Since each peeled vertex had degree <=2 at peel time (including precolored and remaining vertices), when coloring it, at most 2 neighbors already colored, so at least one color available. This holds regardless of component coloring. Good.
+
+Now, what about a peeled vertex whose neighbors include precolored vertices with colors that, together with uncolored neighbors' colors, may leave no color? At peel time, it had at most 2 neighbors in present set. Those neighbors are either precolored (fixed) or core/earlier-peeled uncolored (colored before it). So at most 2 colored neighbors. Since 3 colors, one available. Good.
+
+Now, implement bit iteration helper to avoid repeated bit_length. We can define:
+
+def iter_bits(mask):
+    while mask:
+        lsb = mask & -mask
+        yield (lsb.bit_length() - 1)
+        mask ^= lsb
+
+But function call overhead maybe okay. We can inline loops.
+
+Now, code structure:
+
+import sys
+
+def solve():
+    data=sys.stdin.read().strip().split()
+    if not data: return
+    it=iter(data)
+    n=int(next(it)); m=int(next(it))
+    adj=[0]*n
+    for _ in range(m):
+        u=int(next(it))-1; v=int(next(it))-1
+        adj[u] |= 1<<v
+        adj[v] |= 1<<u
+    all_mask = (1<<n)-1
+    sys.setrecursionlimit(10000)
+
+    def is_feasible(col):
+        # precolored conflict check
+        colored_mask=0
+        for v in range(n):
+            if col[v]!=-1:
+                colored_mask |= 1<<v
+        cm=colored_mask
+        while cm:
+            lsb=cm & -cm
+            v = lsb.bit_length()-1
+            cm ^= lsb
+            # check neighbors with same color and index > v
+            nb = adj[v] & colored_mask
+            # iterate
+            nbm=nb
+            while nbm:
+                lsb2=nbm & -nbm
+                u = lsb2.bit_length()-1
+                nbm ^= lsb2
+                if u>v and col[u]==col[v]:
+                    return False
+        # peel uncolored vertices of degree <=2
+        present = all_mask
+        degree = [0]*n
+        for v in range(n):
+            degree[v] = (adj[v] & present).bit_count()
+        from collections import deque
+        q = deque()
+        for v in range(n):
+            if col[v]==-1 and degree[v]<=2:
+                q.append(v)
+        peeled=0
+        while q:
+            v=q.popleft()
+            if not ((present>>v)&1): continue
+            if col[v]!=-1: continue
+            present ^= 1<<v
+            peeled |= 1<<v
+            nb = adj[v] & present
+            while nb:
+                lsb2=nb & -nb
+                u = lsb2.bit_length()-1
+                nb ^= lsb2
+                if col[u]!=-1: continue
+                degree[u]-=1
+                if degree[u]<=2:
+                    q.append(u)
+        core = present & ~colored_mask
+        if core==0:
+            return True
+        # allowed
+        allowed=[0]*n
+        cm=core
+        while cm:
+            lsb=cm & -cm
+            v = lsb.bit_length()-1
+            cm ^= lsb
+            mask=7
+            nb = adj[v] & colored_mask
+            while nb:
+                lsb2=nb & -nb
+                u = lsb2.bit_length()-1
+                nb ^= lsb2
+                mask &= ~(1<<col[u])
+            if mask==0:
+                return False
+            allowed[v]=mask
+        # components
+        remaining=core
+        col_copy=col[:]  # we will pass copies in DFS
+        while remaining:
+            lsb=remaining & -remaining
+            v = lsb.bit_length()-1
+            remaining ^= lsb
+            # BFS component
+            comp=0
+            stack=[v]
+            visited=0
+            while stack:
+                u=stack.pop()
+                if (visited>>u)&1: continue
+                visited |= 1<<u
+                comp |= 1<<u
+                nb = adj[u] & core
+                while nb:
+                    lsb2=nb & -nb
+                    w = lsb2.bit_length()-1
+                    nb ^= lsb2
+                    if not (visited>>w)&1:
+                        stack.append(w)
+            comp_mask=comp
+            remaining ^= comp_mask  # remove component vertices
+            if not can_color(col_copy, allowed, comp_mask):
+                return False
+        return True
+
+    def can_color(col, allowed, comp_mask):
+        # find MRV
+        v=-1; best=4
+        cm=comp_mask
+        while cm:
+            lsb=cm & -cm
+            u = lsb.bit_length()-1
+            cm ^= lsb
+            if col[u]==-1:
+                cnt = allowed[u].bit_count()
+                if cnt < best:
+                    best=cnt
+                    v=u
+                    if cnt==2:
+                        pass
+        if v==-1:
+            return True
+        if best<=0:
+            return False
+        mask=allowed[v]
+        while mask:
+            lsb=mask & -mask
+            c = lsb.bit_length()-1
+            mask ^= lsb
+            col2=col[:]
+            allowed2=allowed[:]
+            if propagate(col2, allowed2, v, c, comp_mask):
+                if can_color(col2, allowed2, comp_mask):
+                    return True
+        return False
+
+    def propagate(col, allowed, v, c, mask):
+        stack=[(v,c)]
+        while stack:
+            v,c=stack.pop()
+            if col[v]!=-1:
+                if col[v]!=c:
+                    return False
+                continue
+            col[v]=c
+            allowed[v]=1<<c
+            nb=adj[v] & mask
+            while nb:
+                lsb=nb & -nb
+                u = lsb.bit_length()-1
+                nb ^= lsb
+                if col[u]!=-1:
+                    if col[u]==c:
+                        return False
+                else:
+                    if allowed[u] & (1<<c):
+                        allowed[u] &= ~(1<<c)
+                        if allowed[u]==0:
+                            return False
+                        # if single bit
+                        if allowed[u] & (allowed[u]-1) == 0:
+                            cu = allowed[u].bit_length()-1
+                            stack.append((u,cu))
+        return True
+
+    colors=[-1]*n
+    for i in range(n):
+        found=False
+        for c in (0,1,2):
+            # conflict with earlier colored neighbors
+            conflict=False
+            nb=adj[i]
+            while nb:
+                lsb=nb & -nb
+                j = lsb.bit_length()-1
+                nb ^= lsb
+                if j<i and colors[j]==c:
+                    conflict=True
+                    break
+            if conflict:
+                continue
+            colors[i]=c
+            if is_feasible(colors):
+                found=True
+                break
+            colors[i]=-1
+        if not found:
+            print("NO")
+            return
+    print("YES")
+    print(' '.join(str(c+1) for c in colors))
+
+if __name__=='__main__':
+    solve()
+
+Need check bug in component extraction: `remaining` initially core. We pop v, then BFS visits component. At end `remaining ^= comp_mask` removes all component vertices. But we already removed v from remaining at start. So `remaining ^= comp_mask` also removes v again (since v in comp_mask) -> adds it back! Because remaining had v removed, XOR comp_mask toggles v back on. Bug. We should not remove v before BFS; instead find component from v without modifying remaining, then remove comp_mask. Or use a separate `unvisited` mask.
+
+Fix:
+
+unvisited = core
+while unvisited:
+    lsb=unvisited & -unvisited; v=...; unvisited ^= lsb
+    # BFS component from v within core
+    comp=0; stack=[v]; visited=0
+    while stack: ...
+    comp_mask=comp
+    unvisited &= ~comp_mask
+    if not can_color(...): return False
+
+This is cleaner.
+
+Also in `is_feasible`, `col_copy=col[:]` created once and reused across components. But `can_color` may modify its copy; we pass `col_copy` and it copies further. So okay. However allowed list is shared; can_color copies allowed when branching, but initial allowed is not modified? Actually propagate modifies allowed2 copy, not original. can_color receives allowed and copies at each branch. It doesn't modify allowed except in propagate on copy. So original allowed unchanged. Good.
+
+But `col_copy` is a copy of col; can_color copies it at each branch. It doesn't modify col_copy except in propagate on copy. Good.
+
+Now, precolored conflict check: We iterate colored vertices and neighbors u>v same color. This detects edge between precolored same color. Good. But we also need to detect if a precolored vertex has a self-loop? Not.
+
+Now, `is_feasible` uses `colored_mask` built from col. For prefix search, col has first i colored. Good.
+
+Potential issue: In peeling, we compute degree for all vertices including precolored. We only peel uncolored. When we remove an uncolored vertex, we decrement degree of uncolored neighbors only (precolored degrees not needed). Good.
+
+Potential issue: `degree` list initially counts all present neighbors. After peeling, degree of precolored not updated but irrelevant.
+
+Now, can we optimize precolored conflict check by using colored_mask per color? Not needed.
+
+Now, let's test on small cases manually.
+
+Case n=1,m=0:
+colors[0]: c=0, is_feasible: colored_mask=1, no conflicts. present=all, degree[0]=0, peel v0 (uncolored deg<=2). core=0 -> True. found. Output YES 1.
+
+Case n=2, edge 1-2:
+i=0 c=0: is_feasible: colored_mask=1. present all, degrees both1. peel v1? col[1]==-1 deg1<=2 -> peel. present= {0}. core=0 -> True. colors[0]=0.
+i=1 c=0: conflict neighbor j=0 colors0 -> skip. c=1: is_feasible colored_mask=3, conflict check none. peel: degrees? present all, deg both1. peel uncolored? none (both colored). core=0 -> True. Output 1 2.
+
+Case triangle n=3:
+i0 c0 feasible. i1 c0 conflict -> c1 feasible. i2: c0 conflict with0, c1 conflict with1, c2 feasible? is_feasible colored all, core0 -> True. Output 1 2 3.
+
+Case square cycle C4 (1-2-3-4-1). 3-colorable. Lex smallest? i0=1. i1=2 (adjacent to1). i2 adjacent to2, can be1 (since vertex4 not colored yet). i3 adjacent to1 and2? Actually vertex4 adjacent to1 and3; if vertex3=1, vertex4 cannot1, can be2 or3; lex choose2. Output 1 2 1 2. Is that valid? Edges:1-2 diff,2-3 diff,3-4 diff (1 vs2),4-1 diff (2 vs1). Good.
+
+Our algorithm: i0 c0 feasible. i1 c0 conflict -> c1 feasible. i2 c0: prefix 1,2,1. is_feasible: colored 0,1,2. Peel? degrees: 0 deg2 (neighbors1,3),1 deg2,2 deg2,3 deg2. All uncolored deg<=2, peel all? Wait vertex3 uncolored deg2 -> peel. Then present {0,1,2}. Vertex0 deg1 now? neighbor3 removed, neighbor1 remains -> deg1 <=2, peel. Similarly peel all. core0 -> True. So c0 chosen. i3 c0 conflict with vertex0 -> c1 conflict with vertex1? vertex3 adjacent to vertex2 (color0) and vertex0 (color0), so c0 conflict, c1 not adjacent to vertex1? vertex3 not adjacent to1, allowed. c1 feasible. Output 1 2 1 2. Good.
+
+Now, consider graph where vertex2 is adjacent to vertex1 and vertex3 etc. Works.
+
+Now, potential issue: `is_feasible` returns True for core0 even if peeled vertices cannot be colored due to precolored neighbors? Peeling guarantees. Let's test: n=3 path 1-2-3, precolored vertex1=0, vertex3=1. Vertex2 degree2 (neighbors precolored). Peel vertex2. core0 -> True. Vertex2 can be colored 2. Good.
+
+If precolored vertex1=0, vertex3=0, vertex2 degree2, peel, core0 -> True. Vertex2 can be 1 or2. Good.
+
+If precolored vertex1=0, vertex2=1? Then vertex3 degree1, peel, core0 -> True. Good.
+
+If precolored vertex1=0, vertex2=0 adjacent -> conflict check catches. Good.
+
+Now, consider a peeled vertex with two precolored neighbors same color: allowed has two colors, fine.
+
+Now, consider core solving with precolored constraints. Example: n=4, edges 1-3,2-3,1-4,2-4 (a C4? Actually vertices1,2 both adjacent to3,4; no edge1-2,3-4). Precolored 1=0,2=0. Core includes 3,4 (deg2 each including precolored). Wait deg of 3: neighbors1,2 ->2, so peel. core0 -> True. Color3,4 can be1 or2. Good.
+
+If precolored 1=0,2=1, vertex3 deg2, peel, core0 -> True. Vertex3 neighbors colors0,1 -> color2. Vertex4 same. Good.
+
+Now, a case where core solving needed: triangle with one precolored vertex. n=3 triangle, precolored 1=0. Degrees: v0 colored, v1 deg2 (neighbors0,2), v2 deg2. Peel v1 and v2? v1 uncolored deg2 -> peel. Then v2 deg1 -> peel. core0 -> True. Good. So triangle core empty. Nice.
+
+Graph with two triangles sharing a vertex? n=5. Degrees: shared vertex deg4, others deg2. Peel leaves, core shared vertex only (colored? no). If no precolor, core one vertex -> trivial. Good.
+
+Thus peeling reduces many small structures.
+
+Now, let's think about a graph that is a 5-cycle (C5). Degrees all2, peel all -> core0 -> True. Indeed C5 is 3-colorable. Lex smallest? Our prefix search: i0=1, i1=2, i2 adjacent to2? C5 1-2-3-4-5-1. i2 (vertex3) adjacent to vertex2 only (color2), can be1. i3 (vertex4) adjacent to vertex3 (color1), can be1? But also adjacent to vertex5 uncolored. Try c0 (color1): prefix 1,2,1,1. is_feasible: vertex4 adjacent to vertex3 color1 -> conflict! Wait quick conflict check: vertex4 adjacent to vertex3 (j=2) colors[2]=1, c=1 -> conflict, skip. So try c1 (color2): vertex4 adjacent to vertex3 color1, allowed2. prefix 1,2,1,2. is_feasible: vertex5 adjacent to vertex4 color2 and vertex1 color0 -> allowed color1? Actually colors 0,1,2. Vertex5 can be color1 (since not adjacent to vertex3). Feasible. Output 1,2,1,2,1? Wait vertex5 color1. Is C5 coloring 1,2,1,2,1 valid? Edges: 4-5:2 vs1 ok, 5-1:1 vs1 conflict! Oh vertex5 adjacent to vertex1 color1. So c1 for vertex4 leads to vertex5 cannot color1 (neighbor1), cannot color2 (neighbor4), so must color3. But our prefix search at i3 tries c1 and is_feasible should be True because vertex5 can be color3. So colors: 1,2,1,2,3. Is there lex smaller? At i2 we chose c0 (color1). Could we choose color3 at i3? No, c0 conflict, c1 feasible. So output 1 2 1 2 3. Valid. Lex smallest? Let's enumerate: vertex1=1, vertex2=2 forced, vertex3=1, vertex4 cannot1 (adjacent3), try2, vertex5 then 3. Yes.
+
+Good.
+
+Now, consider C5 but vertex numbering different? Works.
+
+Now, potential issue: `is_feasible` with core0 returns True even if there are precolored conflicts? We check conflicts first. Good.
+
+Now, let's think about performance of `is_feasible` for many calls. The precolored conflict check is O(m) each. We can skip it because propagation in core would catch conflicts involving at least one uncolored vertex, but conflicts between two precolored vertices might be missed. However we can integrate conflict check faster: For each color c, compute mask of precolored vertices with that color; if any edge inside mask -> conflict. We can check by iterating edges? Simpler O(m). Fine.
+
+Now, can we avoid copying `col` in `can_color` by using a trail? Maybe not needed.
+
+Let's consider worst-case branching in `can_color`. For a component of size k, MRV picks vertex with fewest allowed colors. In 3-coloring, min count >=2 (unless forced). Branching factor <=2 on average. Search tree maybe O(2^k). For k=40, 1e12 worst. But constraints reduce. With propagation, hard instances maybe k=40 and 3-colorable near threshold. Could be large. But n=40 contest likely okay.
+
+Maybe we can add a heuristic: order colors by least constraining? For feasibility, we want find solution quickly. Trying color with highest availability among neighbors? Not easy. But we can try colors in order 0,1,2. Since prefix search tries lex, but feasibility internal order can be any. Maybe trying color that is not forbidden by many uncolored neighbors? We can compute for each candidate color, the number of uncolored neighbors that would lose that color; choose color that affects fewest? This is least-constraining value heuristic, can speed. But adds overhead.
+
+Alternatively, we can use DSATUR: select vertex with highest saturation degree (number of forbidden colors) among uncolored, tie-break degree. But we use MRV (lowest available) which is similar. Good.
+
+Now, one more idea: Since we only need boolean, we can use randomization/restarts? Not deterministic.
+
+Let's think if there is a polynomial algorithm for n=40 using maximum matching for 3-coloring? 3-coloring can be reduced to checking if graph is bipartite after removing an independent set. We could enumerate independent sets in one color class? For lex smallest, color class 1 is an independent set containing vertex1 if possible. We could search for independent set S such that G-S is bipartite. This is equivalent. But no easier.
+
+Maybe use iterative compression? Not.
+
+I think our solution is solid.
+
+Now, let's consider memory and recursion. `can_color` recursion depth up to component size. Set recursionlimit high.
+
+Potential bug: In `propagate`, when neighbor u uncolored and allowed[u] has single bit after removal, we push (u,cu). But what if allowed[u] was already single before and not assigned? Invariant says we assign immediately when becomes single, so no. But initial allowed may have singles; `can_color` MRV will select them and assign. When it assigns, propagate will handle. Good.
+
+Potential bug: In `propagate`, when col[v]!=-1 and col[v]==c, we continue. But if col[v]==c and allowed[v] maybe not single? It should be single. Fine.
+
+Now, let's think about `can_color` with `col` containing precolored vertices outside comp. It only iterates comp_mask for uncolored. Precolored outside comp are ignored. Precolored inside comp? There shouldn't be any because comp is subset of core which is uncolored. Good.
+
+Now, `allowed` list has values for comp vertices; for others 0. propagate uses mask to restrict neighbors. Good.
+
+Now, initial allowed for core vertices computed from precolored neighbors. But what about precolored vertices inside core? None. Good.
+
+Now, let's test on a case where core has a component with a precolored neighbor that is peeled? Already accounted.
+
+Now, let's think about lex smallest with prefix search and `is_feasible` returning True for core solvable but maybe the chosen color for vertex i leads to a unique extension where some future vertex forced to a larger color, while another color for i would allow smaller future colors. Lex smallest only cares about earliest difference; since we minimize vertex i first, choosing smallest feasible i is correct regardless of future. Good.
+
+Now, let's consider if there are multiple components and prefix search processes vertices in order. At vertex i, if it's in a component, we choose smallest color for it. This is component-wise lex smallest with global order. Since components independent, fixing vertex i smallest feasible yields global lex smallest. Good.
+
+Now, let's think about possible issue with `is_feasible` and precolored vertices that are peeled? We don't peel precolored. But a precolored vertex with degree <=2 remains in present and may be part of `present & ~colored_mask`? No, core excludes colored. So it doesn't affect core. Its degree contributed to peeling of uncolored vertices, which is correct.
+
+Now, let's think about a graph where a precolored vertex has degree <=2 and its two neighbors are uncolored and both get peeled; after peeling them, the precolored vertex remains but no issue. The peeled uncolored vertices had degree including precolored <=2, so valid.
+
+Now, let's consider if we can speed up prefix search by not recomputing peeling order each time. Not needed.
+
+Now, let's think about input reading. Use sys.stdin.buffer.
+
+Now, let's consider edge duplicates. adj bitmask handles duplicates.
+
+Now, let's consider self-loops. If u==v, adj[u]|=1<<u. Then precolored conflict check: vertex v adjacent to itself same color -> conflict. Good. But problem likely no self-loops.
+
+Now, let's think about n=40, m up to 780. all_mask fits in Python int.
+
+Now, let's consider if `is_feasible` could be slow due to list copying in `can_color` for many branches. We can micro-opt.
+
+Micro-optimizations:
+- Use local variables for adj, n.
+- In `can_color`, avoid copying entire `col` and `allowed` if we use trail. But maybe okay.
+- Use `bit_count()` (Python 3.8+? Actually 3.10+). Fine.
+- Use while loops for bits.
+
+Let's estimate branch count for k=40 hard 3-colorable. Suppose average branching 1.5, depth 40 -> 1.5^40 ~ 10^7 nodes. Each node copies two lists of 40 -> 800 operations -> 8e9 too much. But constraints reduce branching and depth; also MRV picks forced vertices. Hard 3-colorable graphs often have many constraints, branching maybe <1.2. 1.2^40 ~ 1470 nodes. Fine.
+
+But worst-case could be a graph with no edges but core empty, so no branching. The dangerous case is a graph that is 3-colorable but with low density and min degree >=3, e.g., cubic 3-colorable graphs. For cubic graphs, MRV may branch. Let's consider random cubic graph on 40 vertices. It is likely 3-colorable? Random cubic graphs are 3-colorable with probability? Actually random cubic graphs are 3-colorable with probability about? Not all; but many. Branching factor: each vertex degree 3, available colors often 2 or 3. MRV picks vertex with 2 colors. Propagation may force. Search maybe moderate.
+
+Could there be a 40-vertex cubic graph that is a "hard" instance for backtracking? Possibly, but n small.
+
+Let's also add a symmetry-breaking heuristic in `can_color`: try colors in order of fewest occurrences? Not.
+
+Another optimization: In `can_color`, after selecting v, we can check if any uncolored neighbor has allowed mask that becomes empty after choosing c? Propagation handles. Good.
+
+Now, let's think about using `lru_cache` for `can_color` states? The state is col/allowed for component; too large.
+
+Maybe we can use memoization on subsets for small components? Not needed.
+
+Now, let's consider if we should use iterative deepening on colors for lex smallest instead of prefix search. Not.
+
+Now, let's think about correctness proof for peeling with precolored vertices. We'll include in explanation? The final answer only code. But we should be confident.
+
+Potential bug: In `is_feasible`, after peeling, we compute `core = present & ~colored_mask`. But `present` excludes peeled uncolored vertices; precolored vertices remain. core is uncolored remaining. Good.
+
+Now, what about a vertex that is precolored and has degree <=2; it remains in present. It may be adjacent to core uncolored vertices. We account its color in allowed. Good.
+
+Now, what about a peeled uncolored vertex that is adjacent to another peeled uncolored vertex; in reverse peel order, the later-peeled one is colored first. Since each had degree <=2 at peel time, but after one is colored, the other may have two colored neighbors (one precolored/core and one peeled) plus maybe precolored? At most degree <=2 at peel time, which counts neighbors that remain at that time. The neighbor peeled later is not present when the earlier one was peeled, so not counted. When coloring the earlier-peeled one, its colored neighbors are those present at peel time (core + precolored + earlier-peeled? Wait reverse order: peel order is removal order. The first peeled is removed first; in reverse, it is colored last. The last peeled is removed last; in reverse, colored first among peeled. For any peeled vertex v, at the time it was removed, the remaining set included core + precolored + vertices peeled after v. Those are exactly the vertices colored before v in reverse order. Its degree in that remaining set <=2. So it has at most 2 colored neighbors when colored. Good.
+
+Thus peeling valid.
+
+Now, let's think about component extraction: We use `core` mask. BFS within core. Good.
+
+Now, let's think about `can_color` recursion and `col_copy`. We create `col_copy=col[:]` once. For each component, we call `can_color(col_copy, allowed, comp_mask)`. `can_color` copies col_copy at each branch. It doesn't modify col_copy. So col_copy remains prefix for all components. Good.
+
+But `allowed` list is also not modified. Good.
+
+Now, one subtle bug: In `can_color`, when we select MRV v, we use `allowed[u].bit_count()`. For uncolored vertices, allowed nonzero. For precolored vertices in comp? None. Good.
+
+Now, after propagation, some uncolored vertices may have allowed single; MRV will pick them (cnt=1). When we try the single color, propagate. This is okay. But we could also do a pure propagation loop before MRV to reduce recursion overhead. Not necessary.
+
+Now, let's think about `propagate` stack: It pushes forced assignments. But when it assigns v=c, it doesn't check if v is in mask (comp). It should be, because we only propagate within comp. The initial v is in comp. Forced neighbors are in comp because we restrict nb=adj[v]&mask. Good.
+
+Now, what if `allowed[u]` single and we push (u,cu), but later before popping, another neighbor removes a different color from allowed[u]? Actually if allowed[u] single, removing any color makes it zero -> conflict caught. If another neighbor tries to remove the same color, allowed[u] & (1<<c) is false, no change. So single remains. Good.
+
+Now, let's think about `can_color` returning False for infeasible component. Prefix search then tries next color.
+
+Now, let's consider if the graph has multiple edges/duplicates. adj bitmask handles.
+
+Now, let's think about output format: If NO, single line. If YES, first line YES, second line n integers separated by spaces. We do that.
+
+Now, let's consider if there is a solution but our prefix search picks a color for vertex i that is feasible but later at vertex j no color feasible. Is that possible? If `is_feasible` is correct, after choosing color for i, the remaining graph is feasible, so there exists an extension. At j, we test colors and at least one feasible. So no backtracking beyond i. Prefix search never needs to revise earlier choices because each step ensures feasibility. Good.
+
+Thus algorithm finds lex smallest in O(n * 3 * feasibility). Correct.
+
+Now, let's think about potential TLE. We can add a small optimization: In prefix loop, before calling is_feasible, we can check if any uncolored vertex has three precolored neighbors with all three colors (i.e., a K4 with three precolored vertices). But is_feasible will catch via allowed mask zero for that vertex (if it's in core) or peeling? If vertex has degree 3 with three precolored neighbors all different colors, degree>2 so not peeled; allowed mask zero -> is_feasible returns False quickly. Good.
+
+Now, maybe we can add a check for K4 to fail fast. Not necessary.
+
+Now, let's think about using `sys.setrecursionlimit(1000000)`.
+
+Now, let's write final code. But before final, let's consider if there is a simpler alternative that is more efficient: Use python `itertools.product` with pruning? No.
+
+Let's also consider if we can solve via 3-SAT using brute force with bit operations. Not.
+
+Now, let's test code mentally on a random small graph. Hard to simulate.
+
+Potential bug: In `is_feasible`, after peeling, we compute allowed for core. But we don't propagate initial forced single allowed vertices before component solving. `can_color` will handle. However if an uncolored core vertex has allowed=0 due to precolored neighbors, we return False before DFS. Good.
+
+Potential bug: `is_feasible` returns True if core0 even if there are precolored conflicts? We check conflicts. Good.
+
+Potential bug: In precolored conflict check, we only check u>v to avoid duplicate. Good.
+
+Potential bug: In prefix loop, we check conflict with earlier colored neighbors. But `is_feasible` also checks all precolored conflicts. So quick check optional. We keep it.
+
+Now, let's think about memory: allowed list length n, col list length n. Fine.
+
+Now, let's consider if n=0? Not allowed (n>=1).
+
+Now, let's think about reading input with possible extra whitespace. `sys.stdin.buffer.read().split()` handles.
+
+Now, let's consider if m lines may have u>v or not; we handle.
+
+Now, let's think about using `deque` import inside function; okay.
+
+Now, let's think about potential recursion in `can_color` causing maximum recursion depth if component size 40. Set limit 10000.
+
+Now, let's think about Python version: `int.bit_count()` available in Python 3.8+? Actually introduced in 3.8 or 3.10? PEP 604? Wait `int.bit_count()` introduced in Python 3.8? I think Python 3.8 introduced `int.to_bytes`? `int.bit_count` introduced in Python 3.8 or 3.10? It was introduced in Python 3.8? Actually `int.bit_count()` added in Python 3.8? Let me recall: `int.bit_count()` was introduced in Python 3.8 or 3.10? I think Python 3.10 introduced `int.bit_count()`. Wait, `int.bit_count()` was added in Python 3.8? Let's check memory: Python 3.8 added `math.comb`, `math.perm`, `statistics.fmean`. `int.bit_count()` maybe Python 3.8 or 3.10. Actually I recall `int.bit_count()` is Python 3.8? Hmm. The problem says Python 3; typical online judges use 3.10+. To be safe, we can implement popcount via `bin(x).count('1')` or use builtin if available. But `bit_count` is widely available in Python 3.8+? Let's verify: I think `int.bit_count()` was introduced in Python 3.8? Wait, no, `int.bit_count()` was added in Python 3.8 as part of "PEP 604"? No. I recall using `bit_count()` in Codeforces with Python 3.10. It might be 3.8. Actually Python 3.8 release included `int.to_bytes`? No. Let's be safe and define a popcount function:
+
+def popcount(x): return x.bit_count() if hasattr(int, "bit_count") else bin(x).count("1")
+
+But using `hasattr` each time slow. We can assign at start:
+
+popcount = int.bit_count
+
+If not available, fallback. But likely available. We can just use `.bit_count()`. The prompt says Python 3, modern. I'll use `.bit_count()`.
+
+Now, let's think about optimizing `is_feasible` by avoiding building `degree` list for all vertices if not needed. Fine.
+
+Now, let's consider if we can use `functools.lru_cache` on `can_color` with tuple of allowed and col for component? State space too big.
+
+Now, let's think about a possible bug with component BFS: We use `stack=[v]` and visited. We restrict neighbors to `core`. Good. We compute `comp_mask=visited`. Then `unvisited &= ~comp_mask`. Good.
+
+Now, let's think about `can_color` copying `allowed` and `col`. Since `allowed` is a list, `allowed2=allowed[:]` copies. In propagate, we modify allowed2. Good.
+
+Now, let's think about `col_copy=col[:]` in `is_feasible`. Since `col` is the prefix list from outer scope, we don't want `can_color` to modify it. We pass `col_copy`. Good.
+
+Now, let's think about whether `is_feasible` modifies `col`? It doesn't. Good.
+
+Now, let's think about the outer `colors` list. In prefix loop, we set `colors[i]=c`, call `is_feasible(colors)`. `is_feasible` reads it. If feasible, keep. If not, reset. Good.
+
+Now, let's think about if `is_feasible` uses `colored_mask` built from `col`. For prefix, colored_mask includes first i+1 vertices. Good.
+
+Now, let's think about if we can skip `is_feasible` when vertex i has no uncolored neighbors? No, still need global feasibility. But if no constraints, always feasible.
+
+Now, let's think about if we can use the previous full coloring to answer feasibility for next prefix. Not implemented.
+
+Now, let's consider if the problem expects lexicographically smallest among all valid distributions. Our prefix search does that.
+
+Now, let's think about if colors are 1,2,3 and lex compare as integers. Yes.
+
+Now, let's write final code. But before final, let's consider potential improvements to avoid TLE on adversarial cases.
+
+One improvement: In `can_color`, after selecting v and before branching, we can check if choosing a color creates a forced empty allowed for any neighbor? Propagation handles. Fine.
+
+Another improvement: Use a more efficient data structure for allowed and col? Lists fine.
+
+Another improvement: Add a time check? Not.
+
+Another improvement: Use random restarts with a cutoff? Not deterministic.
+
+Maybe we can implement a more powerful feasibility solver using inclusion-exclusion for components of size up to 40? Not.
+
+Let's think about worst-case for our solver: A graph that is 3-colorable but has many symmetries and no small-degree vertices, e.g., a 40-vertex cubic graph that is 3-colorable. How many 3-colorings does a random cubic graph have? Usually many? Actually random cubic graphs are mostly 3-colorable and have many 3-colorings? The number of proper 3-colorings of a random cubic graph might be exponential. Backtracking MRV should find one quickly. The hard case is graphs with very few colorings (uniquely colorable) and no propagation. But min degree 3 with unique 3-coloring may still be solved.
+
+For unsatisfiable graphs, the hardest are those that are "almost" 3-colorable. MRV may explore many near-solutions. But n=40 small.
+
+I think it will pass.
+
+Let's also consider using `pypy`? The judge may use CPython. Our code uses recursion and list copies; CPython okay.
+
+Now, let's think about if we can reduce the number of `is_feasible` calls by doing a single DFS that respects lex order but uses MRV within lookahead. Actually prefix search is fine.
+
+Potential bug: In `is_feasible`, the precolored conflict check iterates over all colored vertices and their colored neighbors. For n=40 and prefix length i, O(i^2) but m edges. Fine.
+
+Now, let's write the final code cleanly.
+
+One more thought: The `is_feasible` function recomputes peeling from scratch. But in prefix search, after assigning vertex i, the degree of its uncolored neighbors decreases by 1 (since i now precolored? Actually i is colored, but present still includes i; degree of uncolored neighbors includes i. Peeling degree counts precolored neighbors, so adding a precolored vertex can increase degree of neighbors, potentially making them no longer peelable. This is correct: a vertex with many precolored neighbors may need core solving. So recomputing is necessary.
+
+Now, let's think about an example where peeling with precolored is crucial: A vertex v has three precolored neighbors with colors 0,1,2. Degree 3, not peeled. Core includes v, allowed=0 -> infeasible. Good.
+
+Now, let's think about if a vertex has degree <=2 but its neighbors are precolored with two different colors; it is peeled. At coloring time, it has two colored neighbors, one color available. Good.
+
+Now, let's think about if a vertex has degree <=2 but one neighbor is precolored and the other is core. It is peeled. At coloring time, core neighbor colored first, plus precolored -> at most2. Good.
+
+Now, let's think about if a vertex has degree <=2 but both neighbors are core. It is peeled. At coloring time, both core neighbors colored -> at most2. Good.
+
+Now, let's think about if a vertex has degree 3 but one neighbor is peeled uncolored and two are precolored. At peel time, the peeled neighbor is still present, so degree 3, not peeled. It stays in core. Correct because it has two precolored neighbors plus one uncolored neighbor that will be colored before it? Wait if neighbor is peeled uncolored, in reverse order it is colored after v? Actually if neighbor u is peeled after v (i.e., removed later), then in reverse order u is colored before v. So v would have three colored neighbors (two precolored + u) -> no color. Thus v must not be peeled. Good.
+
+Thus degree counts all present vertices, including uncolored peeled-later ones. Correct.
+
+Now, let's think about if we can improve component solving by ordering components by size ascending to fail early. We can collect components and sort by size. But BFS order likely fine. Sorting adds overhead but may help. We can collect comp_masks in list and sort by popcount. Since n small, fine. Let's do that to potentially fail small hard components first? Actually small components solve fast; large components determine feasibility. Sorting not necessary.
+
+Now, let's think about if we should use `list.append` for peel queue. `deque` is fine.
+
+Now, let's write final code.
+
+Wait, there is a subtle issue: In `is_feasible`, after peeling, we compute allowed for core uncolored vertices using precolored neighbors. But we also need to consider edges among core uncolored vertices. DFS handles. However, what about a core uncolored vertex that has a precolored neighbor with same color as another core uncolored neighbor? DFS will enforce difference. Good.
+
+Now, let's think about if `can_color` could be called with a component where an uncolored vertex has allowed count 0 due to precolored neighbors. We check mask==0 before DFS. Good.
+
+Now, let's think about if `can_color` could be called with a component where all vertices are forced (allowed single). MRV picks one, propagate, success. Good.
+
+Now, let's think about if `can_color` could be called with a component of size 1 (a single uncolored vertex with no edges to other uncolored core). It will have allowed >=1, choose color, success. Good.
+
+Now, let's think about if `can_color` could be called with a component that is just a precolored vertex? No, comp is subset of core uncolored.
+
+Now, let's think about if `is_feasible` returns True for core0 but there are peeled uncolored vertices that may have no color due to interactions with each other. Peeling guarantees. Good.
+
+Now, let's think about if `is_feasible` should also check that the graph is 3-colorable considering precolored vertices and peeled vertices. Yes.
+
+Now, let's think about if we can produce the actual lex smallest assignment more directly without prefix search by using `can_color` with lex constraints. Not needed.
+
+Now, let's consider the possibility that the graph is not connected. Prefix search processes vertices in order; components interleaved. Since we test feasibility each step, it handles.
+
+Now, let's think about if there is a solution where vertex1 color2 but no solution with color1. Prefix search tries color1, is_feasible returns False (maybe after long search), then color2. Output starts with2. Correct.
+
+Now, let's think about if `is_feasible` for color1 might take very long before failing. Could be problematic. But no way around; need prove infeasibility.
+
+Now, let's think about adding a heuristic: If the graph has a vertex of degree >=3? Not.
+
+Now, let's think about using `pypy` specifics: `int.bit_count` works. Recursion okay.
+
+Now, let's write final code with comments? The instruction says output only a single Python 3 code block and nothing else. Comments inside code are okay. We should not include explanation outside. We'll output just code block.
+
+Let's produce final code.
+
+But before final, let's consider if there is a bug in `can_color` due to `col` containing -1 for uncolored and colors for precolored (none in comp). It uses `col[u]==-1` to select. Good.
+
+Now, let's think about if `propagate` modifies `col` and `allowed` for vertices outside comp? It only iterates mask. Good.
+
+Now, let's think about if `can_color` should pass `comp_mask` to propagate. Yes.
+
+Now, let's think about if `allowed` list has zeros for vertices not in comp; propagate won't visit them because mask restricts. Good.
+
+Now, let's think about if `can_color` recursion returns True and we don't store coloring. For feasibility, fine.
+
+Now, let's think about if `is_feasible` should also consider that peeled precolored vertices? Not peeled. Good.
+
+Now, let's think about if we can avoid the precolored conflict check by including precolored vertices in core and letting propagation detect. But precolored vertices are not in core (core excludes colored). So conflict check needed. Good.
+
+Now, let's think about if there is a bug with `colored_mask` and `core = present & ~colored_mask`. Since present excludes peeled uncolored, includes precolored. ~colored_mask has infinite bits; but we mask with present, so core = present & ~colored_mask = present \ colored. Good.
+
+Now, let's think about if `present` initially all_mask. Good.
+
+Now, let's think about if `degree` list uses `adj[v] & present`. For v, self-loop would include itself if adj has self bit. Then degree includes self. If v uncolored and self-loop, degree>=1. But self-loop means v adjacent to itself; impossible to color. Our conflict check for precolored self-loop: if v precolored, adj[v]&colored_mask includes v, u>v condition false (u==v not >). So conflict not detected! We need handle self-loops. Problem likely no self-loops. But to be robust, we can check if any vertex has self-loop: if adj[v] & (1<<v): infeasible. But not needed.
+
+Now, let's think about duplicate edges: no issue.
+
+Now, let's think about if m=0 and n=40, output all 1. Good.
+
+Now, let's think about if graph is 3-colorable but our `can_color` color order leads to deep search before finding solution. We can improve by trying colors in order of availability? For each candidate color c, we can compute a heuristic: number of uncolored neighbors that currently allow c. Choose color that affects fewest? Let's implement least-constraining: For each color in allowed[v], count `popcount(adj[v] & uncolored_mask & allowed_color_mask?)` Actually neighbors that have c in allowed. The more neighbors allow c, the more constraining if we choose c. Choose color with smallest count. This can reduce branching. But overhead per node. n small. Could help.
+
+Alternatively, we can try color 0 first because prefix search prefers lex, but internal feasibility any. Not important.
+
+Let's keep simple.
+
+Now, let's think about if we should use `sys.stdout.write` for output. Fine.
+
+Now, let's write final code.
+
+Wait, one more thought: The prefix search calls `is_feasible` up to 120 times. Each call peels and solves core. For a graph with no core (all vertices degree <=2), each call O(n+m). Very fast. For a graph with core of size k, each call solves k. If k=40, 120 solves of 40-vertex 3-coloring. Could be heavy but maybe okay.
+
+Can we reduce calls by doing a single recursive search that uses the same solver but reuses prefix? For lex smallest, we can do:
+
+def dfs_lex(i, col):
+    if i==n: found solution, output.
+    for c in 0..2:
+        if conflict with neighbors <i: continue
+        col[i]=c
+        if is_feasible(col):
+            dfs_lex(i+1, col)
+            return
+    # no color
+
+This is exactly prefix search but recursive. It stops at first solution. Same number of calls. Good.
+
+Now, can we memoize `is_feasible` for prefixes? The state is the coloring of first i vertices. Up to 3^i. Not.
+
+But we can note that once `is_feasible(col)` returns True for prefix, we proceed to i+1. We never need to test other colors for i. So total calls is at most 3n (each vertex up to 3 colors). Good.
+
+Now, maybe we can improve by after `is_feasible` returns True, we could also get a full coloring from the solver and use it to set colors of future vertices that are forced? But not needed.
+
+Now, let's think about if we can use the solver to also produce a full extension and then for next vertices, if the extension's color matches the smallest feasible, we can skip solver. But implementing extension retrieval from `can_color` is possible: store coloring when success. Then in prefix search, after choosing color for i, we have a full coloring `sol`. For i+1, we can test c = sol[i+1] first; since sol is a valid extension, `is_feasible` with col[i+1]=sol[i+1] is True. But we need lex smallest, so we test colors 0,1,2 in order. If sol[i+1] is not the smallest feasible, we need find new extension. We could use sol to quickly accept the smallest feasible if it equals sol. But not necessary.
+
+Actually we can use sol to avoid solver call for colors smaller than sol[i+1]? No, we need know if smaller colors feasible. We can test them; if not feasible, then sol[i+1] is feasible. But we still call solver for smaller colors. Could be expensive if many infeasible. But maybe okay.
+
+Alternatively, we can find lex smallest directly by solving a CSP with objective minimize vector. But prefix search is standard.
+
+Now, let's think about if we can use iterative deepening on prefix with a single solver call per vertex: For vertex i, we can ask solver to find a coloring with col[i] minimized. This is what we do.
+
+Now, let's consider implementing `is_feasible` with a time budget? Not.
+
+Now, let's think about if the graph is 3-colorable and we test color0 for vertex0; `is_feasible` returns True quickly. Good.
+
+Now, let's think about if the graph is not 3-colorable. Prefix search: vertex0 color0 feasible? If graph not 3-colorable, no full coloring, so `is_feasible` returns False for all colors at some vertex. It may explore a lot for color0 at vertex0. But if graph has a K4 including vertex0, quick. If not, may explore. However n=40, unsatisfiable 3-coloring search can be large. But maybe time okay.
+
+Let's consider a known hard unsatisfiable graph for 3-coloring: random 4-regular graphs? Actually random 4-regular on 40 vertices is likely not 3-colorable. Backtracking may explore many. But MRV+propagation and peeling (min degree 4, no peel) on 40 vertices. Could be hard. Let's estimate: 4-regular graph, each vertex has 4 neighbors. Available colors often 2-3. MRV picks 2. Branching ~1.5-2. Search tree maybe millions. Each node copies lists. Could be slow. But unsatisfiable means must explore entire tree for color0 at vertex0. If tree size millions, maybe 1-2 seconds in Python? Possibly.
+
+Can we strengthen pruning? Yes: compute a lower bound on chromatic number via max clique or odd cycle. For 4-regular graphs, max clique small. But we can check for K4 quickly. If no K4, not helpful.
+
+Another pruning: If the graph has a vertex with degree >=3, we already have core. For 3-coloring, if graph has a subgraph with minimum degree 3, it may be 4-chromatic? Not necessarily.
+
+We can add a check: if the number of edges > 3 * (n choose 2)/? Not.
+
+Maybe we can use a more advanced exact algorithm: branch on edges (deletion-contraction) with memoization? Not.
+
+Alternatively, we can use a SAT solver style with watched literals and unit propagation, plus conflict-driven clause learning? Too complex.
+
+But n=40 is small; maybe even 4-regular unsatisfiable is manageable.
+
+Let's try to estimate more concretely. For a 4-regular graph on 40 vertices, after assigning vertex0=0, its neighbors cannot be 0. MRV will pick a neighbor with 2 colors. Branching. The search tree for 3-coloring 4-regular graphs might be around 10^5-10^6 nodes. Each node O(n) operations. 10^6 * 40 = 40e6, okay in 2s maybe borderline in Python. But prefix search calls it up to 3 times for vertex0 if unsatisfiable. Could be 3*10^6 nodes. Plus other vertices. Might be okay.
+
+But worst-case could be larger. Let's see if we can optimize `can_color` to be faster.
+
+Optimization ideas:
+- Use arrays (lists) but avoid copying `col` and `allowed` by using a trail stack. This can speed up significantly.
+- Use bitsets for colors? Maybe.
+
+Implementing trail-based backtracking:
+Maintain global `col` and `allowed` arrays. In `can_color`, select v, for each color c, call `propagate(v,c)` which records all changes (assignments and allowed reductions) in a trail list. After recursion, undo trail to previous length. This avoids copying lists.
+
+But `can_color` is called for each component; we can have local arrays for component and pass by reference with trail. Since n=40, copying lists may be okay. But for millions of nodes, copying 40-element lists twice per node = 80 assignments, plus propagation. Trail might be faster but more complex.
+
+Given time, maybe list copying is acceptable. But let's consider worst-case 10^7 nodes -> 10^7 * 80 = 8e8 list element copies, maybe too slow. So trail optimization may be needed.
+
+Let's implement trail-based `can_color` to be safe.
+
+Trail-based design:
+We have `col` list (length n) and `allowed` list (length n). `propagate(v,c,mask)` assigns and propagates, appending changes to `trail`. Each change: for assignment, record (v, old_allowed) maybe and old_col. For allowed reduction, record (u, old_allowed). At the end, undo by popping trail until length start.
+
+But we also need to record assignment of v: col[v] changes from -1 to c, allowed[v] changes to 1<<c. We can record (v, old_col, old_allowed). Simpler: record (v, old_allowed, old_col). Undo: col[v]=old_col; allowed[v]=old_allowed.
+
+Propagation:
+def propagate(v, c, mask):
+    stack=[(v,c)]
+    while stack:
+        v,c=stack.pop()
+        if col[v] != -1:
+            if col[v] != c: return False
+            continue
+        trail.append((v, col[v], allowed[v]))
+        col[v]=c
+        allowed[v]=1<<c
+        nb = adj[v] & mask
+        while nb:
+            lsb=nb&-nb; u=bit-1; nb^=lsb
+            if col[u]!=-1:
+                if col[u]==c: return False
+            else:
+                if allowed[u] & (1<<c):
+                    trail.append((u, col[u], allowed[u]))
+                    allowed[u] &= ~(1<<c)
+                    if allowed[u]==0: return False
+                    if allowed[u] & (allowed[u]-1)==0:
+                        cu = allowed[u].bit_length()-1
+                        stack.append((u,cu))
+    return True
+
+Undo:
+def undo(trail, length):
+    while len(trail)>length:
+        v, old_col, old_allowed = trail.pop()
+        col[v]=old_col
+        allowed[v]=old_allowed
+
+In `can_color(comp_mask)`:
+    # find MRV among uncolored in comp
+    v=-1; best=4
+    cm=comp_mask
+    while cm: ...
+    if v==-1: return True
+    mask=allowed[v]
+    while mask:
+        lsb=mask&-mask; c=...; mask^=lsb
+        start=len(trail)
+        if propagate(v,c,comp_mask):
+            if can_color(comp_mask):
+                return True
+        undo(trail,start)
+    return False
+
+But note: `propagate` records assignment of v and reductions. If propagate returns False, we undo to start. Good.
+
+However, `can_color` modifies global `col` and `allowed`. Since `is_feasible` calls `can_color` for each component sequentially, after solving one component, col/allowed contain that component's coloring. For next component, col has previous component colored, allowed has their final values. But we only care about comp_mask for next component; previous colored vertices are outside comp_mask and ignored. However allowed values for next component vertices are already initialized. The `allowed` list for vertices in next component hasn't been modified by previous component solving because propagate restricted to comp_mask. But `col` for previous component vertices is set; that's fine. `allowed` for previous component vertices is single color; not used. So we can reuse.
+
+But we need to ensure that after returning from `is_feasible`, the outer `colors` list is not modified by `can_color`. We pass `col_copy=col[:]` and use that as the global col in `can_color`. Wait if we use global `col` list inside `can_color`, we need to pass the prefix list. We can set a nonlocal `col` variable in `is_feasible` to `col_copy` and have `can_color` use it. Since `is_feasible` doesn't modify the outer `colors` list, we can work on a copy.
+
+But with trail, `can_color` modifies the copy. After `is_feasible` returns, the copy is discarded. Good.
+
+We need to define `col` and `allowed` as lists in `is_feasible` and have nested functions capture them. Or pass as parameters. Simpler: define `can_color` and `propagate` inside `is_feasible` with closure over `col`, `allowed`, `trail`, `adj`, `n`.
+
+Let's restructure `is_feasible` to use trail.
+
+Pseudo:
+
+def is_feasible(col_prefix):
+    # conflict check
+    # peel -> core
+    # allowed init
+    col = col_prefix[:]  # working copy
+    allowed = [0]*n
+    # init allowed for core
+    ...
+    trail = []
+    def propagate(v, c, mask):
+        stack=[(v,c)]
+        while stack:
+            v,c=stack.pop()
+            if col[v] != -1:
+                if col[v] != c:
+                    return False
+                continue
+            trail.append((v, col[v], allowed[v]))
+            col[v]=c
+            allowed[v]=1<<c
+            nb = adj[v] & mask
+            while nb:
+                lsb=nb & -nb
+                u = lsb.bit_length()-1
+                nb ^= lsb
+                if col[u] != -1:
+                    if col[u]==c:
+                        return False
+                else:
+                    if allowed[u] & (1<<c):
+                        trail.append((u, col[u], allowed[u]))
+                        allowed[u] &= ~(1<<c)
+                        if allowed[u]==0:
+                            return False
+                        if allowed[u] & (allowed[u]-1) == 0:
+                            cu = allowed[u].bit_length()-1
+                            stack.append((u,cu))
+        return True
+
+    def can_color(comp_mask):
+        # find MRV
+        v=-1; best=4
+        cm=comp_mask
+        while cm:
+            lsb=cm & -cm
+            u = lsb.bit_length()-1
+            cm ^= lsb
+            if col[u]==-1:
+                cnt = allowed[u].bit_count()
+                if cnt < best:
+                    best=cnt
+                    v=u
+        if v==-1:
+            return True
+        if best==0:
+            return False
+        mask=allowed[v]
+        while mask:
+            lsb=mask & -mask
+            c = lsb.bit_length()-1
+            mask ^= lsb
+            start=len(trail)
+            if propagate(v,c,comp_mask):
+                if can_color(comp_mask):
+                    return True
+            # undo
+            while len(trail) > start:
+                x, oc, oa = trail.pop()
+                col[x]=oc
+                allowed[x]=oa
+        return False
+
+    # solve components
+    unvisited=core
+    while unvisited:
+        ...
+        if not can_color(comp_mask): return False
+    return True
+
+This avoids list copies. Good.
+
+But note: `propagate` uses closure `col` and `allowed`. It records old values. When undo, we restore. Good.
+
+Potential issue: `propagate` may push forced assignments; when undo, we restore all. Good.
+
+Potential issue: `can_color` recursion uses closure; comp_mask same for recursive calls. Good.
+
+Potential issue: When `can_color` returns True, trail may contain assignments for that component. We don't undo because we are returning success. But after solving one component, we move to next component. The trail still contains changes from previous component. That's okay; we don't need to undo between components because components are independent and we don't backtrack across components. However `can_color` for next component will use `col` and `allowed` with previous component colored. It will make new trail entries. If next component fails, undo will revert only its own changes (back to length at its start). The previous component's assignments remain. Good.
+
+But wait: In `is_feasible`, after solving all components, we return True. The outer `colors` list is unaffected because `col` is a copy. Good.
+
+Now, what about `allowed` for previous component vertices being single; if next component's propagate restricts to comp_mask, it won't touch them. Good.
+
+Now, we need to ensure that `col` copy initially has precolored vertices and -1 for uncolored. We set allowed for core uncolored. For peeled uncolored and precolored outside core, allowed remains 0. Good.
+
+Now, `can_color` MRV only considers vertices in comp_mask with col==-1. allowed for them set. Good.
+
+Now, `propagate` within comp_mask will not touch vertices outside comp_mask. Good.
+
+Now, initial allowed for core uncolored: we set mask=7 and remove colors of precolored neighbors. But we also need to handle that a core uncolored vertex may have a precolored neighbor that is in core? No, core excludes colored. So precolored neighbors are outside core. Good.
+
+Now, precolored conflict check: We can keep as before.
+
+Now, let's think about if `propagate` should also handle initial forced single allowed vertices. `can_color` MRV will pick them. Good.
+
+Now, let's think about recursion depth and trail length. Trail can grow up to n per branch. Fine.
+
+Now, let's think about performance improvement: Trail avoids copying. Good.
+
+Now, let's think about if we need to copy `col_prefix` to `col`. Yes, because `can_color` modifies it. We can avoid copying if we pass a copy and restore after? We need not affect outer. Copy O(n) per `is_feasible` call, fine.
+
+Now, let's think about if we can avoid conflict check by using `colored_mask` and edges. Keep.
+
+Now, let's think about if we can avoid building `degree` list for all vertices; we can compute on the fly. But list fine.
+
+Now, let's write final code with trail.
+
+One more optimization: In `is_feasible`, precolored conflict check can be done by iterating edges and checking if both endpoints precolored same color. Since we have adjacency bitmasks, we can for each colored vertex v, check `adj[v] & colored_mask` and same color. We already do.
+
+Alternatively, we can skip conflict check and let propagation handle? If two precolored adjacent same color, no uncolored vertex may have allowed zero. Example: two precolored adjacent same color, rest uncolored no edges. Core empty, is_feasible would return True incorrectly. So conflict check necessary. Good.
+
+Now, let's think about if we can integrate conflict check into peeling: If a precolored vertex v has a precolored neighbor u same color, degree counts include each other. But no uncolored vertex affected. So need explicit. Good.
+
+Now, let's think about if there is a bug with `colored_mask` and `core = present & ~colored_mask`. Since `present` excludes peeled uncolored, includes precolored. core excludes precolored. Good.
+
+Now, let's think about if a precolored vertex is adjacent only to peeled uncolored vertices. It stays in present, core excludes it. Its color constrains allowed of core neighbors? It has no core neighbors. Fine.
+
+Now, let's think about if a peeled uncolored vertex has a core neighbor; allowed of core neighbor is reduced by its color later via propagation. Good.
+
+Now, let's think about if a core uncolored vertex has allowed mask computed from precolored neighbors, but its core neighbors' colors unknown. DFS handles.
+
+Now, let's think about if `can_color` for a component could be called with `allowed[v]` having bits not in {0,1,2}? No, mask=7.
+
+Now, let's think about if `propagate` assigns a vertex that is not in comp_mask due to forced chain? It only pushes neighbors within mask, so no.
+
+Now, let's think about if `can_color` MRV could select a vertex with allowed count 1 that is in comp_mask but col not -1? We check col[u]==-1. Good.
+
+Now, let's think about if `can_color` returns True for a component but leaves some uncolored vertices with allowed count 0? It would have selected them with count 0 and returned False. So no.
+
+Now, let's think about if `can_color` could get stuck in recursion due to no MRV but uncolored vertices exist with allowed count >0. It selects v. Good.
+
+Now, let's think about if `can_color` should order colors to find solution faster. We can try colors in order 0,1,2. Since prefix search wants lex, but internal any. Maybe trying color 0 first often finds solution quickly because many vertices can be 0. But for feasibility, any. Let's keep 0,1,2.
+
+Now, let's think about if we should add a heuristic to choose color with maximum "freedom" for neighbors. Not needed.
+
+Now, let's write final code.
+
+Wait, one more thought: The prefix search uses `is_feasible` which copies `col_prefix` and builds allowed/trail. For each call, it also peels. Could we reuse the peeled order from previous call? Not easily.
+
+Now, let's consider if we can reduce calls by not calling `is_feasible` when vertex i has a forced color due to a neighbor with same color? We already skip conflicts.
+
+Now, let's think about if we can add a quick check: If the graph's chromatic number lower bound >3 (e.g., contains K4), output NO immediately. We can find a K4 quickly? For n=40, we can check all 4-sets

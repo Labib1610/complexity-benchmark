@@ -1,0 +1,345 @@
+We need solve problem. Need lexicographically smallest 2-coloring of graph if bipartite. Lexicographically smallest sequence over {1,2} with constraint adjacent vertices must differ. Equivalent to assign each vertex 1 or 2. Lexicographically smallest valid assignment. n,m up to 2e5.
+
+We need output YES and assignment or NO.
+
+Observation: For each connected component, if bipartite, there are exactly two possible colorings (swap colors). To get lexicographically smallest global assignment, for each component independently choose the coloring that yields smaller sequence when restricted to sorted vertex indices? But lexicographic over all n positions; components' vertices interleave in index order. Since components are independent, we can decide per component which flip minimizes lexicographic globally. Need compute lexicographically smallest assignment across all components.
+
+Simpler: Process vertices in order 1..n. For each unvisited vertex, start BFS/DFS to component. Determine bipartition. We want to assign this component's colors such that at the first vertex in this component (smallest index), it gets color 1 if possible. Since earlier indices dominate lexicographic, and components are independent, for each component we can choose the coloring that makes its smallest-index vertex color 1 (if component nontrivial? If isolated vertex, color 1). Is that globally optimal? Need verify.
+
+Lexicographic order: For each component, its vertices occupy various positions. The first position where two global assignments differ is some vertex i. Suppose we process components independently. For a component, the two possible colorings are complements. The choice affects only vertices in component. To minimize lexicographically, we should choose for each component the coloring that is lexicographically smaller when considering the subsequence of vertex indices in that component, with values 1/2. Since components don't interact, choosing per component the smaller subsequence yields global lexicographically smallest. Is the smaller subsequence always the one where the smallest-index vertex in component gets 1? Yes, because compare two binary strings (1<2) over the sorted indices of component. At the first index (smallest index), one has 1, other has 2. The one with 1 is lexicographically smaller regardless of later. So choose coloring with smallest-index vertex = 1. That yields lexicographically smallest component-wise, and global concatenation in index order? Wait global lexicographic is over positions 1..n in natural order, not component subsequence order. But for each component, its positions are fixed. The global comparison of two assignments that differ only in component C: they are equal on all positions not in C. The first differing position is the smallest index in C where the two colorings differ. Since the two colorings differ at every vertex of C (complement), the first differing position is the smallest index vertex in C. At that vertex, one assignment has 1, other 2. So choose 1 at that vertex. Thus per component choose smallest-index vertex color 1. This is globally optimal and independent.
+
+So algorithm: Build adjacency. color array 0/1 maybe. For each uncolored vertex, BFS/DFS assign bipartite colors 0/1. Check conflict. After BFS, find smallest index in component (the start vertex if we start from smallest uncolored in order). But note component may contain vertices with smaller index than start? We iterate i from 1..n; when we encounter uncolored vertex i, it's the smallest uncolored, but component may contain vertices < i that are already colored? No, all vertices < i are colored. So i is the smallest index in its component. Good. Then we can decide final color: if color[i] == 0 -> map 0->1, 1->2; if color[i] == 1 -> map 0->2,1->1 to make vertex i = 1. But careful: if component is isolated (no edges), color[i] maybe 0; map to 1. Works.
+
+But is there any issue with component not connected? No.
+
+Need efficient BFS for 2e5 edges. Use deque or iterative stack. Recursion depth may be issue; use iterative stack.
+
+Edge cases: self-loop? Input pair could be u==v? If a sensor close to itself? Not specified but possible. If u==v, then they cannot be assigned different channels, impossible -> NO. Our BFS: edge u-v same; when processing, neighbor same, color same -> conflict. Good.
+
+Multiple edges? possible. BFS handles.
+
+Memory: adjacency list with 2*m entries up to 4e5, fine.
+
+Need output format: If YES, print "YES" then line with n integers separated by spaces. If NO, print "NO". Example uses newline after. We'll write sys.stdout.
+
+Potential nuance: Lexicographically smallest over {1,2}. Channel 1 < 2. Good.
+
+Let's test with examples.
+
+Example1: edges 1-2,2-3,3-4,1-4. Graph is cycle length 4, bipartite. Start vertex1 color0. BFS: 1=0,2=1,4=1,3=0. Smallest index 1 color0 -> map 0->1,1->2 => 1,2,1,2. Output matches.
+
+Example2: triangle -> conflict -> NO.
+
+Now consider graph with two components: n=3, edges 1-2. Component {1,2}: smallest 1 color0 -> 1,2. Vertex3 isolated ->1. Output 1 2 1. Lexicographically smallest? Yes.
+
+What about component where BFS assigns start color 1 due to discovered from earlier neighbor? Since we start from smallest index i and assign it color 0 initially, it will be 0. So map to 1. Good.
+
+But wait, if we start BFS from i, we set color[i]=0. Then propagate. So final mapping based on color[i]==0 -> 0->1. If color[i] is 0 always. So simply output color[j]+1. But if we process component not from smallest? We process from smallest uncolored, so yes. However, if there is an edge between i and some vertex k < i? impossible because k would be uncolored? Actually if k < i and uncolored, we would have started component at k. If k < i and colored, then edge connects components? Not possible because then k in same component as i and would be uncolored when we start at i? Let's reason: We iterate i=1..n. When we reach i, if it's uncolored, we start BFS. Any neighbor k < i is already colored (since processed). But if k is in same component and colored, then when we colored k's component, we would have visited i (because connected), so i would be colored. Contradiction. So no neighbor < i. Thus i is isolated from earlier vertices. So i is smallest in component. Good.
+
+Thus algorithm straightforward.
+
+But need ensure BFS uses 0-index or 1-index. Use 0-index internal arrays for speed. Input u,v convert to 0-index.
+
+Potential recursion: use deque.
+
+Pseudo:
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1_000_000)
+    data = sys.stdin.buffer.read().split()
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        adj[u].append(v); adj[v].append(u)
+    color = [-1]*n
+    from collections import deque
+    for i in range(n):
+        if color[i] != -1: continue
+        # BFS component
+        dq = deque([i])
+        color[i] = 0
+        while dq:
+            u = dq.popleft()
+            cu = color[u]
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = cu ^ 1
+                    dq.append(v)
+                elif color[v] == cu:
+                    print("NO")
+                    return
+    # all bipartite; produce lexicographically smallest
+    # Since each component started at smallest index with color 0 -> 1, just output color+1.
+    out = ["YES", " ".join(str(c+1) for c in color)]
+    sys.stdout.write("\n".join(out))
+
+Wait: Is it always lexicographically smallest to output color+1? We argued yes because start vertex of each component is smallest index and assigned 0. But what about isolated vertices: color 0 -> 1. Good.
+
+But hold on: Lexicographic smallest among all valid assignments might not be achieved by per-component choosing smallest-index vertex=1 if components' choices interact through positions? We argued no interaction. Let's formalize: For any component C, two assignments A and B differ exactly on C (complement). The first index where they differ is min(C). At min(C), one has 1, other 2. To be lexicographically smaller, need min(C) assigned 1. Since components independent, we can satisfy all simultaneously. So output color+1 is correct.
+
+But is there any possibility of non-bipartite component but still a valid 2-coloring with channels 1/2? No, because constraint is adjacent must differ; graph must be bipartite. Self-loop makes non-bipartite.
+
+Time O(n+m). Memory O(n+m).
+
+Need output only one Python 3 code block. The final answer should be just code block. No explanation. Ensure code includes if __name__ == "__main__": solve().
+
+Potential issue: Using deque for each component; total operations fine. But building many deques? We create new deque for each component. Fine.
+
+Alternative DFS recursion with stack to avoid collections overhead. deque is fine.
+
+But there is a subtlety: The lexicographically smallest sequence might require choosing color for a component such that the smallest-index vertex gets 1, but if the component has multiple smallest-index vertices? Only one smallest. Good.
+
+Let's think about constraints: n up to 2e5, m up to 2e5. Input reading with sys.stdin.buffer.read().split() uses memory maybe ~ a few MB, fine.
+
+Edge cases:
+- m=0: all isolated, output all 1s. YES.
+- n=1,m=0: YES 1.
+- n=2,m=1 edge 1 2: color[0]=0,color[1]=1 -> output 1 2. Lexicographically smallest? Alternative 2 1 is larger. Good.
+- Multiple components with edges: output per component start 1.
+
+Now, is there any scenario where graph is bipartite but BFS from smallest vertex with color 0 yields component's smallest vertex color 0; output 1. Good.
+
+Let's consider if there is an edge connecting vertices within same component where one endpoint is start and color 0; neighbor color 1. Fine.
+
+Now, the problem statement says "If a close pair transmits on the exact same channel, their signals will interfere". So they must be different. That's 2-coloring.
+
+Need ensure output format exactly: "YES" line then second line with n integers. If NO, just "NO". No extra spaces? join with spaces. Could have trailing space? Avoid.
+
+Now, the user asked "Solve the following problem in Python 3." We need output only a single Python 3 code block and nothing else. So final response should be just code block.
+
+But before final, let's consider if there is any alternative interpretation: Lexicographically smallest sequence of channel assignments. Since channels are 1 and 2. We want smallest. Our approach correct.
+
+Let's think about proof more deeply: Suppose graph bipartite. For each connected component, there are exactly two valid 2-colorings (swap). The lexicographically smallest global assignment is obtained by, for each component, picking the coloring where the lowest-numbered vertex in that component is colored 1. Because any valid assignment differs from this choice on some components; consider the leftmost index where it differs globally. That index belongs to some component C, and within C the chosen coloring has 1 at min(C) while the other has 2. Since the assignment matches chosen on all earlier indices (including all vertices < min(C) not in C, and vertices in C before min(C) none), the chosen is lexicographically smaller. So yes.
+
+Implementation details: We don't even need to store components; BFS from each unvisited vertex with color 0 ensures min vertex color 0. Then output +1.
+
+Potential issue: If graph has multiple edges, BFS may process same neighbor multiple times; color check works.
+
+Potential issue: If self-loop, adj[u] contains u. When processing u, v=u, color[v]==cu (0==0) -> conflict -> NO. Good.
+
+Now, performance: BFS with deque and adjacency. For n=2e5, m=2e5, fine within 1 sec in Python? Should be okay if optimized. Use sys.stdin.buffer.read, list of lists. Use local variables in loop. Maybe use array of ints. Should pass.
+
+Could also use iterative stack list as stack to avoid deque overhead. But deque is fine. However, 1 second might be tight in Python for 2e5 edges. BFS with deque and Python loops is okay. Use adjacency as list of lists. Use color list. Use deque from collections.
+
+Let's micro-opt: In BFS loop, assign adj_local = adj[u], col_u = color[u]; for v in adj_local: cv = color[v]; if cv == -1: color[v] = col_u ^ 1; dq.append(v); elif cv == col_u: print NO; return. This avoids repeated indexing. Good.
+
+But we need to be careful: color[v] == -1 check. Fine.
+
+Alternative: Use stack DFS with list append/pop may be faster. But deque popleft is okay. For unweighted graph, any order works. Use stack list: pop() LIFO. That may be faster. Let's use list as stack to avoid collections import. But deque also fine. In CP, list stack is often faster. We'll implement with list.
+
+Pseudo:
+
+for i in range(n):
+    if color[i] != -1: continue
+    stack = [i]
+    color[i] = 0
+    while stack:
+        u = stack.pop()
+        cu = color[u]
+        for v in adj[u]:
+            cv = color[v]
+            if cv == -1:
+                color[v] = cu ^ 1
+                stack.append(v)
+            elif cv == cu:
+                print("NO")
+                return
+
+This DFS may produce deep recursion? No recursion, stack list. Depth up to n=2e5, list can handle. But Python list append/pop is fast.
+
+However, DFS with stack may not be as memory? fine.
+
+Now output: "YES\n" + assignment. Use sys.stdout.write.
+
+Potential issue: print("NO") then return; but we need no extra output. Fine.
+
+Let's produce final code.
+
+But wait, the problem says "Output only a single Python 3 code block and nothing else — no explanation before or after." So final answer must be exactly code block. We should not include any text. Good.
+
+Let's also consider if there is any requirement to handle multiple test cases? No.
+
+Now, let's think about possible pitfalls with lexicographic smallest when graph has component with smallest vertex not assigned color 0 due to BFS starting from it? We assign 0. Good.
+
+Let's test manually with random small graphs and brute force to ensure correctness. We can simulate mentally or write a small script, but here we can reason.
+
+Case n=4, edges: 2-3, 3-4. Components: {1}, {2,3,4} path. BFS from 1 -> color 0 -> output 1. Component {2,3,4}: start 2 color0, 3 color1, 4 color0. Output 1,2,1. Sequence 1 1 2 1. Is this valid? Edges 2-3 (1 vs2), 3-4 (2 vs1). Lexicographically smallest? Let's enumerate: vertex1 fixed 1. Component path choices: either 2=1,3=2,4=1 or 2=2,3=1,4=2. Compare sequences: positions 2..4: [1,2,1] vs [2,1,2]; first differs at pos2: 1<2, so choose first. Global sequence 1 1 2 1. Good.
+
+Case n=5, edges: 1-5, 2-4. Components: {1,5}, {2,4}, {3}. Start 1 color0 -> 1,5=2. Start2 color0 ->2=1,4=2. Vertex3=1. Sequence: 1,1,1,2,2. Valid. Lexicographically smallest? Vertex1=1. Component {2,4}: at pos2 choose 1. Vertex3=1. Yes.
+
+Case where component's smallest vertex is not first in BFS order? Already addressed.
+
+Now, consider graph with edge 1-3, 2-3. Component all. BFS from 1 color0: 1=0,3=1,2=0. Output 1,1,2. Valid. Lexicographically smallest? Vertex1=1. Then vertex2 can be 1 (since not adjacent to 1), vertex3=2. Yes.
+
+Now, consider triangle with extra vertex: n=4, edges 1-2,2-3,3-1 (triangle), and 1-4. Non-bipartite -> NO. Correct.
+
+Now, consider graph with parallel edges and self-loop. Good.
+
+Now, think about memory of adjacency: For m=2e5, adjacency list with 4e5 ints ~ 3.2 MB plus list overhead. Fine.
+
+Now, code style. We'll include function solve() and call it.
+
+Potential issue: Using `print("NO")` may add newline; fine. But to be consistent, use sys.stdout.write.
+
+Let's write final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    color = [-1] * n
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        # start new component; assign smallest index color 0 -> output 1
+        stack = [i]
+        color[i] = 0
+        while stack:
+            u = stack.pop()
+            cu = color[u]
+            for v in adj[u]:
+                cv = color[v]
+                if cv == -1:
+                    color[v] = cu ^ 1
+                    stack.append(v)
+                elif cv == cu:
+                    sys.stdout.write("NO")
+                    return
+    out = ["YES", " ".join(str(c + 1) for c in color)]
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()
+```
+
+This uses list stack, no deque import needed. Remove collections import.
+
+Check output for NO: `sys.stdout.write("NO")` no newline. Problem says print single line containing NO; newline optional? Usually accepted. But to be safe, add newline: `sys.stdout.write("NO\n")`. Similarly YES line with newline and second line. Use `"\n".join(out)` gives YES\nassignments. That lacks trailing newline, fine. For NO, include newline.
+
+Let's adjust: `sys.stdout.write("NO\n")`.
+
+Now, is there any scenario where BFS from i with color 0 and then output color+1 yields lexicographically smallest but if component is not connected? Already.
+
+Now, let's think about correctness proof for lexicographic: We might want to include comments in code? Not necessary but okay. The final answer only code block. Comments allowed. But maybe avoid too many.
+
+Now, consider if the graph is huge and DFS stack list may cause recursion? No.
+
+Potential issue: The DFS order may assign colors; if conflict found later, we return. Good.
+
+Now, let's think about time limit 1s. Python with 2e5 edges and BFS should pass. But reading input with `.split()` and building adjacency may be okay. Use `sys.setrecursionlimit` not needed.
+
+Could there be issue with using `iter(data)` and `next(it)`; if input malformed, StopIteration. Fine.
+
+Now, let's consider if m lines may have duplicate edges causing adjacency large but still <=2e5? Actually duplicates count in m, so adjacency 2*m <=4e5. Fine.
+
+Now, think about lexicographic with channels 1 and 2. We output 1 and 2. Good.
+
+Now, is there any possibility of graph being bipartite but with component having a vertex of smaller index than start? No.
+
+Let's test with a more complex example to be sure: n=6, edges: 1-2, 2-3, 4-5,5-6,6-4 (cycle length 3? 4-5-6-4 triangle). Triangle component {4,5,6} -> NO. Output NO. Correct.
+
+Another: n=6, edges: 1-2,2-3,3-4 (path), 5-6 (edge). Components {1,2,3,4}: start1=0 -> 1,2,1,2. Component {5,6}: start5=0 -> 1,2. Sequence 1 2 1 2 1 2. Lexicographically smallest? Vertex1=1. Within path, vertex3 must be 1 (same parity as 1), vertex2,4=2. Component {5,6}: vertex5=1,6=2. Yes.
+
+Now, consider component where start vertex color 0 but due to odd cycle conflict we return NO. Good.
+
+Now, think about if graph has multiple components and one is non-bipartite; output NO. Correct.
+
+Now, potential issue: The BFS/DFS assigns colors; if conflict, we output NO immediately. Good.
+
+Now, final code. Ensure no extra prints.
+
+Wait, the instruction says "Output only a single Python 3 code block and nothing else — no explanation before or after." So final answer must be just code block. We'll produce that.
+
+But before final, let's consider if there is any hidden nuance: "Because there may be multiple ways to configure the network without interference, the engineering team requires the lexicographically smallest sequence of channel assignments." We solved. Good.
+
+Now, maybe there is a subtlety: Lexicographically smallest among all valid assignments, but we restrict each component's smallest vertex to 1. Is it always possible to have all components' smallest vertices =1 simultaneously? Yes, because independent. So global lexicographically smallest is the combination.
+
+Now, let's think about an alternative approach: process vertices sequentially and greedily assign channel 1 if no conflict with already assigned neighbors, else 2, else NO. Does greedy work? For bipartite graph, greedy from left to right may fail? Let's examine. Suppose edges: 1-3, 2-3. Process 1->1, 2->1 (no edge), 3 must be 2 (adjacent to 1). Works. Suppose edges: 1-4,2-4,3-4. Process 1=1,2=1,3=1,4=2. Works. In general, when processing vertex i, all neighbors with smaller index are already assigned. If any neighbor has 1, we must assign 2; if any neighbor has 2, assign 1; if both present, conflict (odd cycle through smaller vertices). But what if neighbor with larger index later forces something? Since graph bipartite, if all smaller neighbors have same color, assign opposite. If no smaller neighbors, assign 1. This greedy would also produce lexicographically smallest? Let's test. For each component, the smallest vertex gets 1. For a later vertex i, if it has a smaller neighbor, its color is forced opposite to that neighbor's final color. If multiple smaller neighbors, they must all have same color in any valid assignment (else odd cycle). So greedy works and is equivalent. Actually this greedy is simpler and avoids BFS? But we need to detect conflicts with future edges? The greedy only checks smaller neighbors; if conflict among smaller neighbors (both colors present), impossible. But could there be a conflict only involving larger neighbors that greedy misses? Example: graph is bipartite but greedy assigns based on smaller neighbors; later a vertex may have edge to an already assigned vertex causing conflict? When processing vertex i, we check all neighbors j < i. If any neighbor has color 1, we set 2; if any has 2, set 1. If both, immediate NO. If we set opposite to smaller neighbors, then for any future edge (i,k) with k>i, it will constrain k. Since graph is bipartite, there exists a 2-coloring consistent with greedy? Need prove. Actually greedy is exactly constructing a 2-coloring in order of vertices, choosing smallest possible color consistent with earlier vertices. For a bipartite graph, this yields a valid coloring because when processing i, all its neighbors in the same connected component that have been processed must have the same color (since otherwise there is an odd cycle using only vertices <= i? Not necessarily; there could be a path between two processed neighbors through vertices > i, but those are unprocessed. Hmm). Let's examine if greedy could make a choice that later becomes impossible even though graph bipartite.
+
+Consider graph: vertices 1,2,3,4 with edges 1-3, 2-4, 3-4. Process: 1=1, 2=1, 3 has neighbor 1=1 -> 3=2, 4 has neighbors 2=1 and 3=2 -> conflict (both colors) -> greedy says NO. But graph is bipartite? Edges: 1-3,2-4,3-4. This is a path 1-3-4-2, bipartite. Valid coloring: 1=1,3=2,4=1,2=2. Greedy failed because it assigned 2=1 (greedy) but should be 2. However, lexicographically smallest valid assignment? Let's see: vertex1=1 forced (no smaller neighbors). Vertex2 has no smaller neighbors, greedy assigns 1. But is there a valid assignment with vertex2=1? Edge 2-4, so 4=2. Vertex3 adjacent to 1 and 4: 1=1,4=2 -> 3 can be? 3 adjacent to 1 (color1) and 4 (color2). It cannot be either 1 or 2; conflict. So no valid assignment with vertex2=1. Thus greedy correctly says NO? Wait graph is bipartite, so there exists some 2-coloring, but all such colorings have vertex2=2? Let's check: component {1,2,3,4} path 1-3-4-2. The two colorings: 1=1,3=2,4=1,2=2 OR 1=2,3=1,4=2,2=1. Lexicographically smallest over natural order? Vertex1=1 in first, vertex2=2. In second, vertex1=2. So first is lexicographically smaller. So vertex2=2. Greedy assigning 2=1 fails, but it can backtrack? Greedy without backtracking would need to detect that assigning 1 to vertex2 leads to future conflict. Our BFS approach handles this by component-level choice: smallest vertex 1=1, then the coloring is forced by parity: 1=1,3=2,4=1,2=2. So vertex2=2. Good.
+
+Thus simple left-to-right greedy with no backtracking fails. BFS per component is correct.
+
+But could we process vertices in order and do union-find parity? That would also work: maintain parity to smallest vertex. For each edge, union with parity constraint. If conflict, NO. Then assign each component's smallest vertex 1, compute others by parity. This is O(alpha) and perhaps simpler/faster. Let's consider implementing DSU with parity. That might be even faster and avoids BFS recursion/stack. But BFS is fine.
+
+However, DSU with parity can process edges online and detect bipartiteness. Then to produce lexicographically smallest, for each vertex compute parity relative to component root, and root's smallest index. Then output parity ^ (root_smallest_color? we want smallest index in component =1). If we root each component at its smallest index vertex, and parity is distance parity to root, then output parity+1 (if root color 1). But DSU root may not be smallest index. We can track min index per set. After processing all edges, for each vertex i, find root r, get min_idx[r]. We want color[min_idx[r]]=1. Parity[i] = parity from i to root r. We need color[i] = parity[i] XOR color[root]. But color[root] relative to min_idx? If root != min_idx, we need to know parity between root and min_idx. Since min_idx is in same set, we can query parity(min_idx, root). Or we can store color relative to min_idx directly by union operations? Simpler: after DSU, for each component, find min vertex. Then for each vertex, color = parity_to_min XOR 0? But DSU parity is to root, not min. We can compute parity between any two vertices by find with parity. So for each vertex i, color[i] = parity(i, min_idx[root]) + 1. But we want min_idx color =1, so parity(min_idx, min_idx)=0 -> 1. Good. So output parity(i, min_idx[root]) + 1. This requires find for each vertex and maybe find for min_idx to root. Complexity O((n+m) alpha). This is efficient and avoids adjacency BFS. But BFS is also O(n+m). DSU might be simpler and less memory (no adjacency). But we need to output lexicographically smallest; DSU approach also works.
+
+Let's compare: BFS uses adjacency and stack; DSU uses parent/parity arrays and edge list. Both fine. BFS is perhaps more intuitive. But DSU with parity can be implemented robustly.
+
+However, BFS from each unvisited vertex with color 0 and output color+1 is straightforward and correct. Let's stick with BFS.
+
+But wait, BFS assigns colors based on traversal; if graph is a tree, BFS from smallest vertex gives a valid coloring. If graph has multiple components, each start vertex color 0. Output color+1. Good.
+
+Now, let's think about memory and speed. BFS with adjacency list and stack list. For 2e5 edges, fine.
+
+Potential issue: In BFS, we start from i and color it 0. But what if component has an edge between i and some vertex j > i, and later there is an edge from j to k < i? Impossible because k < i would be in same component and already colored; but if k colored, BFS from i would reach k via j? Actually BFS from i explores all reachable vertices, so it would color k. Since i is first uncolored in component, all vertices < i are not in component. So no edge to k < i. Good.
+
+Now, let's think about lexicographic proof in code comments maybe.
+
+Now, final code. Ensure no extra output.
+
+Wait, the user says "Output only a single Python 3 code block and nothing else — no explanation before or after." So final answer must be exactly:
+
+```python
+...
+```
+
+No text. Good.
+
+Now, let's consider if there is any issue with using `sys.stdout.write("NO\n")` vs `print("NO")`. Both okay.
+
+Now, let's think about possible integer overflow? Not in Python.
+
+Now, let's think about if m=0 and n large; BFS loops each isolated vertex, stack operations n times. Fine.
+
+Now, let's think about if graph is a long path of 2e5 vertices; stack DFS depth 2e5, list stack size 2e5, fine. Popping from end yields depth-first; may produce long path but no recursion. Memory fine.
+
+Now, let's think about if graph is a star with center 1 and many leaves. BFS from 1 colors leaves 1. Output center 1, leaves 2? Wait edge center-leaf must differ. Start 1 color0 -> output 1. Leaves color1 -> output 2. Lexicographically smallest? Vertex1=1 forced. Leaves all must be 2. Yes.
+
+Now, consider graph with center not smallest: edges 2-3,2-4,... component {2,...}. Start vertex2 color0 -> output 1 at vertex2. Good.
+
+Now, consider graph where component smallest vertex has degree 0? If isolated, output 1. If component smallest vertex has edges only to larger vertices, color them 2. Good.
+
+Now, let's think about if there is any requirement to output lexicographically smallest among all valid assignments, but maybe they consider channels as 1 and 2 and lexicographic with 1<2. Yes.
+
+Now, let's think about if graph is not connected and some component is a single vertex with no edges; output 1. Good.
+
+Now, let's think about if there is an edge list with u>v; we convert to 0-index; order irrelevant.
+
+Now, let's think about if input has trailing whitespace; `.split()` handles.
+
+Now, final code. We'll include a small comment header? The instruction says output only code block; comments inside code are fine. But maybe avoid any extraneous. We'll include minimal.
+
+Let's produce final answer.
+
+But before final, let's consider if there is any possibility that the lexicographically smallest assignment is not obtained by setting each component's smallest vertex to 1 because of the way lexicographic compares full sequences, not component subsequences. We already reasoned: For any component C, in the global sequence, the positions of C are fixed. The two possible colorings of C are complements. The earliest position where they differ is the smallest index in C. So to minimize globally, set that index to 1. Since components are independent, all can be set simultaneously. So yes.
+
+Now, let's think about if there are more than two colorings per component? For a connected bipartite graph, exactly two. For disconnected, independent choices. So global assignments count = 2^{#components}. Our choice per component is optimal.
+
+Now, final code.
+
+Potential micro-optimizations: Use `range_n = range(n)`. Not needed.
+
+Let's write final code with DSU? Hmm, BFS is fine. But maybe DSU is more robust for 1 sec? BFS adjacency building plus traversal is O(n+m). DSU also O(n+m) but less overhead maybe. However, BFS is standard. Let's evaluate time: 2e5 edges, adjacency building loops 2e5 appends. BFS processes 4e5 neighbor checks. Should be <0.1s in CP? Python maybe 0.2-0.3s. Fine.
+
+Let's produce final code.
+
+Wait, one more nuance: The BFS/DFS stack approach may assign colors in a way that the smallest vertex of component is color 0, but if component has an odd cycle, conflict detection may happen after assigning many vertices. We return NO. Good.
+
+Now, final answer.

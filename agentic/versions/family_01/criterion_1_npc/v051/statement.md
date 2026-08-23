@@ -1,21 +1,20 @@
-# Facility Operations Workflow: Operational Slot Allocation
+# Diplomatic Protocol
 
 Time limit: 2 s   Memory limit: 256 MB
 
-In the facility's quarterly planning pipeline, the automated scheduler processes operational data across three sequential stages: audit, allocation, and dispatch. The preliminary audit stage has generated a database of $n$ active personnel (indexed from $1$ to $n$) along with $m$ identified pairwise incompatibility restrictions between certain workers.
+You are organizing an international summit attended by $n$ delegates, numbered 1 through $n$. The event relies on three concurrent discussion chambers, designated as Chamber 1, Chamber 2, and Chamber 3. Every delegate must be assigned to exactly one of these chambers.
 
-In the current allocation stage, every individual worker must be assigned to exactly one of three active work shifts, designated as $1$, $2$, and $3$. To prevent operational disruption, any two personnel who share an incompatibility restriction cannot be assigned to the same shift.
+Due to complex geopolitical tensions, there are $m$ documented historical grievances between specific pairs of delegates. Protocol dictates that two delegates who share a grievance cannot be placed in the same discussion chamber, as their presence together would derail the talks. A schedule is considered viable if absolutely no chamber contains a pair of delegates with a mutual grievance.
 
-To ensure consistency before passing the layout to the final dispatch stage, if multiple valid shift assignments exist for the workforce, the system must select the configuration that is lexicographically smallest when represented as a sequence of assigned shift labels $(s_1, s_2, \dots, s_n)$. If no assignment exists that respects all incompatibility restrictions, the process halts.
+Your task is to determine whether a viable schedule exists. Because the organizers prefer to fill the chambers in order of their prestige (with Chamber 1 being the most prestigious), if there are multiple viable schedules, you must provide the one whose sequence of assignments is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of personnel and the number of pairwise incompatibility restrictions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that worker $u$ and worker $v$ are incompatible.
+The first line contains two integers $n$ and $m$ — the number of delegates and the number of historical grievances ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating a mutual grievance between delegate $u$ and delegate $v$.
 
 ## Output
-If no valid assignment satisfying all incompatibility constraints exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1\ s_2\ \dots\ s_n$ where $s_i \in \{1, 2, 3\}$ denotes the shift assigned to worker $i$. If multiple valid sequences exist, output the lexicographically smallest sequence (comparing $s_1$ first, then $s_2$, and so on).
+If there is no viable schedule that satisfies all protocol constraints, output `NO` on a single line.
+If a viable schedule exists, output `YES` on the first line. On the second line, output $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$), representing the chamber assignment for each delegate from 1 to $n$. If there are multiple viable schedules, output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

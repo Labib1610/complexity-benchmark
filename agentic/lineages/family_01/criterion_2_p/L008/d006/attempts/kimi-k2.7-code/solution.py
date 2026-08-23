@@ -1,0 +1,40 @@
+import sys
+from collections import deque
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    p = 0
+    n = data[p]; p += 1
+    m = data[p]; p += 1
+
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = data[p] - 1; p += 1
+        v = data[p] - 1; p += 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        color[i] = 0
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            for w in adj[u]:
+                if color[w] == -1:
+                    color[w] = cu ^ 1
+                    q.append(w)
+                elif color[w] == cu:
+                    sys.stdout.write("NO\n")
+                    return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(str(c + 1) for c in color))
+
+if __name__ == "__main__":
+    solve()

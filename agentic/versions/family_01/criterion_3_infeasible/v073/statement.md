@@ -1,21 +1,21 @@
-# Protocol Compliance Check
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A facility manages $n$ operating modules, indexed from $1$ to $n$. Due to power constraints, certain pairs of modules share a bidirectional mutual interference link.
+The manufacturing plant is attempting to divide its workforce into two non-overlapping operating shifts. This division is currently blocked by a set of restriction protocols. Each restriction protocol is tied to a specific pair of employees, indicating they cannot function on the same shift.
 
-An audit flag is raised if there exists a set of three distinct modules $a$, $b$, and $c$ such that a mutual interference link exists between every pair among them: between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$.
+Your task is to provide the formal documentation proving that a valid two-shift arrangement is unattainable. It is a known fact that the personnel records contain a specific localized failure: there exists at least one group of exactly three employees configured such that, if you select any two individuals from this group, you will find a restriction protocol linking them. Because no two individuals in this group can share a shift, assigning all three to only two shifts is impossible.
 
-It is guaranteed that at least one such group of three modules exists. Output the triple of indices $a$, $b$, and $c$ satisfying $1 \le a < b < c \le n$ that is lexicographically smallest. That is, choose the valid triple that minimizes $a$; if there is a tie, minimize $b$; if still tied, minimize $c$.
+You must identify and output the members of one such group.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of operating modules and the number of mutual interference links.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a mutual interference link between module $u$ and module $v$. No unordered pair of modules is listed more than once.
-
-It is guaranteed that at least one valid triple exists.
+The first line provides the employee headcount $n$ and the number of restriction protocols $m$. The headcount $n$ ranges from 3 up to the facility capacity of 2000. The number of protocols $m$ is at least 3 and never exceeds the lesser of the total number of possible unique pairs among the $n$ employees and the database limit of 200000.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a restriction protocol between employee $u$ and employee $v$.
+It is guaranteed that at least one group of three employees satisfying the failure condition exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ ($1 \le a < b < c \le n$) representing the lexicographically smallest triple of mutually interfering modules.
+Output a single line containing three integers $a$, $b$, and $c$ with $a < b < c$, such that restriction protocols exist between $a$ and $b$, $a$ and $c$, and $b$ and $c$. You must output the group that comes first numerically (the smallest value for $a$; in case of a tie, the smallest value for $b$; and if still tied, the smallest value for $c$).
 
 ## Example 1
 Input:

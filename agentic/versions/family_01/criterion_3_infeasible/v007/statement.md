@@ -1,20 +1,16 @@
-# Problem C — Frequency Audit
+# Problem C — Shift Roster Audit
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A telecommunication agency is auditing a network of $n$ broadcast stations, numbered $1$ through $n$. Due to signal overlap, certain pairs of stations interfere with one another and cannot operate on the same frequency channel.
-
-The network operator claims that the entire network can operate using only two frequency channels without any interference. To disprove this claim, auditors need to locate three distinct stations that mutually interfere with each other—meaning every pair among the three has signal interference.
-
-It is guaranteed that at least one such group of three mutually interfering stations exists in the network. Find the lexicographically smallest triple of station identifiers $(a, b, c)$ with $a < b < c$ such that $a$ interferes with $b$, $a$ interferes with $c$, and $b$ interferes with $c$.
+An auditor is reviewing a factory's shift schedule. The factory operates with exactly two shifts, but the proposed roster is known to be unworkable due to interpersonal conflicts. Your task is to provide the auditor with a concrete certificate of this impossibility. It is guaranteed that the provided list of incompatible worker pairs contains at least one group of three workers where every worker in the group conflicts with the other two. Any such group proves that two shifts are insufficient to separate all conflicting workers. Output one such group.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n - 1) / 2, 2 \cdot 10^5)$) — the number of stations and the number of interfering pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that station $u$ and station $v$ interfere with each other. No interfering pair is listed more than once.
-It is guaranteed that at least one mutually interfering triple exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of workers and the number of incompatible pairs.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers who cannot be on the same shift.
+It is guaranteed that at least one group of three mutually incompatible workers exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$ representing the lexicographically smallest triple of mutually interfering stations (minimizing $a$; then $b$; then $c$).
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are incompatible. Output the lexicographically smallest such group (smallest $a$; ties by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

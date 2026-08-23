@@ -1,0 +1,62 @@
+import sys
+
+def solve() -> None:
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [set() for _ in range(n + 1)]
+    degrees = [0] * (n + 1)
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+        degrees[u] += 1
+        degrees[v] += 1
+
+    # Sort vertices by degree to check lower-degree vertices first
+    # This helps find the lexicographically smallest triangle faster
+    vertices = list(range(1, n + 1))
+    vertices.sort(key=lambda x: degrees[x])
+
+    for u in vertices:
+        neighbors_u = adj[u]
+        # We only care about neighbors v such that v > u to ensure a < b < c
+        # and to avoid re-checking permutations.
+        # To find the lexicographically smallest, we iterate neighbors in sorted order.
+        sorted_neighbors = sorted(neighbors_u)
+        
+        for v in sorted_neighbors:
+            if v < u:
+                continue
+            
+            # Check for common neighbor w
+            # Iterate the vertex with smaller degree for efficiency
+            # We need w > u and w > v (since w > v > u)
+            # Actually, just w > v is sufficient because v > u.
+            
+            # Optimization: Iterate the smaller adjacency list
+            if len(adj[u]) < len(adj[v]):
+                list1 = neighbors_u
+                list2 = adj[v]
+            else:
+                list1 = adj[v]
+                list2 = neighbors_u
+            
+            for w in list1:
+                if w > v and w in list2:
+                    # Found the lexicographically smallest triangle
+                    # because we iterate u in degree order (which correlates with value somewhat)
+                    # and neighbors v in sorted order.
+                    # The first found w > v will be the smallest valid w for this (u, v).
+                    # Since we check (u, v) pairs in sorted order of v, this yields the lex smallest triplet.
+                    print(u, v, w)
+                    return
+
+if __name__ == '__main__':
+    solve()

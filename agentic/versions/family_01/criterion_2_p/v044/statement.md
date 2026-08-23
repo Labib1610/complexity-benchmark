@@ -1,20 +1,20 @@
-# Wireless Frequency Allocation
+# Optimal Workforce Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A telecommunications provider is deploying $n$ signal relay stations, numbered $1$ through $n$, across a regional network. Each station must be configured to broadcast on one of two operational frequency channels, denoted as Channel 1 and Channel 2.
+A manufacturing facility must select an optimal workforce configuration from the space of possible daily schedules. The facility employs $n$ technicians, numbered 1 to $n$. A complete schedule assigns every single technician to a shift. The facility operates with exactly two shifts, labeled 1 and 2, meaning there are $2^n$ total configurations to consider.
 
-Due to geographical proximity, certain pairs of stations experience severe signal degradation if assigned to the same operational frequency channel. You are given a list of $m$ such conflicting pairs.
+A schedule is considered viable only if it satisfies a strict set of $m$ mutual exclusion constraints. Specifically, because of a shared specialized tool, certain pairs of technicians will cause a critical resource collision if assigned to the identical shift. A valid configuration must avoid all such collisions.
 
-The engineering team needs to determine whether every station can be assigned a channel (either 1 or 2) such that no conflicting pair shares the same channel. If such an allocation exists, print `YES` on the first line, followed by the lexicographically smallest sequence $s_1, s_2, \dots, s_n$ on the second line, where $s_i \in \{1, 2\}$ represents the channel assigned to station $i$. If no valid allocation can prevent interference, print `NO`.
+Your task is to evaluate the configuration space to find a viable schedule. In the event that multiple viable schedules exist, you must resolve the ambiguity by finding the one that minimizes the assignment sequence lexicographically (i.e., assigning lower-numbered technicians to shift 1 whenever possible). If the constraint system is over-constrained and no valid schedule exists in the entire space of $2^n$ possibilities, you must detect this and report impossibility.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the total number of relay stations and the number of conflicting station pairs.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that station $u$ and station $v$ cannot operate on the same channel.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of technicians who are subject to a mutual exclusion constraint and thus cannot be assigned to the same shift.
 
 ## Output
-If no valid channel allocation exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
+If the search space contains no viable configuration, print a single line NO.
+Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (where each $s_i \in \{1,2\}$), representing the lexicographically smallest viable schedule.
 
 ## Example 1
 Input:

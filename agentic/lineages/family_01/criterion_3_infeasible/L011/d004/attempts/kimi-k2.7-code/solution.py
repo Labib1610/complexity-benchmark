@@ -1,0 +1,30 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * (n + 1)
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    edges.sort()
+    ans = None
+    for u, v in edges:
+        common = adj[u] & adj[v]
+        if common:
+            mask = common & ~((1 << (v + 1)) - 1)
+            if mask:
+                c = (mask & -mask).bit_length() - 1
+                ans = (u, v, c)
+                break
+    sys.stdout.write(f"{ans[0]} {ans[1]} {ans[2]}")
+
+solve()

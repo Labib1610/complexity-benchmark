@@ -2,17 +2,18 @@
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A factory operates with a collection of workers numbered from $1$ to $n$ and a list of $m$ pairwise worker conflicts. When two workers conflict, they cannot be assigned to the same shift. It is guaranteed that there exists at least one group of three distinct workers where every pair among the three conflicts with each other.
-
-Your task is to identify such a triple of workers to serve as evidence that assigning all workers using at most two shifts is impossible. Among all such valid triples, output the lexicographically smallest one.
+The factory has a roster of workers with known conflicting pairs. It is guaranteed that the conflict graph contains at least one set of three workers who pairwise conflict. Any such set proves that two shifts (1 and 2) cannot suffice. Because the assignment is therefore known to be hopeless, your job is not to schedule — it is to certify the impossibility. Output one such set.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ $v$ — a conflicting pair of workers.
-It is guaranteed that at least one such triple of mutual conflicts exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000,
+3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a conflicting pair.
+It is guaranteed that at least one such triple exists.
 
 ## Output
-Print three integers $a$ $b$ $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, $b$–$c$ are conflicts. Output the lexicographically smallest such triple (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print three integers a b c on one line with a < b < c such that all three pairs
+a–b, a–c, b–c are conflicts. Output the lexicographically smallest such triple
+(smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

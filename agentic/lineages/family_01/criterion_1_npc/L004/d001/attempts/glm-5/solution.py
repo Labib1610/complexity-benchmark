@@ -1,0 +1,54 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We need to find the lexicographically smallest valid assignment.
+    # We use backtracking with pruning.
+    # Since n <= 40, and colors = 3, we can use a recursive approach.
+    # To optimize, we can use bitmask DP or iterative deepening.
+    # Let's use a recursive function with forward checking.
+    
+    assignment = [0] * n
+    
+    # Precompute neighbors for faster access
+    # We can use a simple recursive function
+    
+    def is_safe(node, color):
+        for neighbor in adj[node]:
+            if assignment[neighbor] == color:
+                return False
+        return True
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        
+        for color in [1, 2, 3]:
+            if is_safe(idx, color):
+                assignment[idx] = color
+                if backtrack(idx + 1):
+                    return True
+                assignment[idx] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

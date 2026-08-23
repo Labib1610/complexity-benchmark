@@ -1,20 +1,24 @@
-# Radio Spectrum Allocation Protocol
+# Problem A — Orbital Zones
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A central telecommunication hub manages $n$ broadcast units, indexed from $1$ to $n$. System diagnostics have identified $m$ distinct pairs of units whose transmissions interfere if they operate on identical channels.
+The Global Aerospace Consortium executes its deployment protocol in three strict phases:
 
-To eliminate interference, each unit must be configured to use one of three distinct baseline operational frequencies, designated by the integers $1$, $2$, and $3$. No two interfering units may share the same frequency setting.
+**Phase 1: Payload Integration.** Engineers finalize the structural chassis for $n$ satellites. Based on the operational frequencies of their transponders, they compile a registry of $m$ incompatible satellite pairs that would cause signal collisions if placed near each other.
 
-If a valid configuration exists, the hub must apply the configuration sequence $s_1, s_2, \dots, s_n$ that appears first in lexicographical order (comparing $s_1$ first, then $s_2$, and so on) to ensure predictable downstream initialization. If no configuration satisfies all interference constraints, the protocol must report failure.
+**Phase 2: Altitude Stratification.** This is the computational step you are responsible for. The consortium maintains exactly three designated altitude bands, labeled 1, 2, and 3. Your module must allocate each of the $n$ satellites to exactly one of these three bands. To guarantee data integrity, no two satellites flagged as incompatible during Phase 1 can be placed in the same band. If no such allocation exists, the mission must be flagged for abort.
+
+**Phase 3: Automated Bootstrapping.** Once deployed, ground control powers on the satellites sequentially from satellite 1 up to $n$. To ensure the initialization sequence is deterministic, the system requires the altitude allocation sequence $z_1, z_2, \ldots, z_n$ to be the lexicographically smallest valid sequence.
+
+You are given the registry from Phase 1. Your task is to perform Phase 2 and output the exact configuration required for Phase 3.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, where $n$ is bounded above by the 40-slot limit of the hub's backplane, and $0 \le m \le \frac{n(n-1)}{2}$) — representing the number of broadcast units and the number of interfering pairs.
-Each of the following $m$ lines contains two distinct integers $u$ and $v$ ($1 \le u, v \le n$), indicating an interference conflict between unit $u$ and unit $v$.
+The first line contains two integers $n$ and $m$ — the number of satellites and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of incompatible satellites.
 
 ## Output
-If no valid assignment exists, output a single line containing `NO`.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ ($s_i \in \{1, 2, 3\}$), denoting the frequency assigned to unit $i$. If multiple valid configurations exist, output the one that is lexicographically smallest.
+If the mission must be aborted because no valid allocation exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $z_1, z_2, \ldots, z_n$ (where each $z_i \in \{1, 2, 3\}$), representing the altitude band assigned to satellite $i$. Among all valid allocations, output the lexicographically smallest sequence (comparing $z_1$ first, then $z_2$, and so on).
 
 ## Example 1
 Input:

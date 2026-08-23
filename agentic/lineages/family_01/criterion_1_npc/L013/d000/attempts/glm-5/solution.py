@@ -1,0 +1,111 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0]); m = int(data[1])
+    adj = [0]*n
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        u -= 1; v -= 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Precompute for each subset whether it is an independent set
+    size = 1 << n
+    is_indep = [False]*size
+    is_indep[0] = True
+    for s in range(1, size):
+        low = s & (-s)
+        v = low.bit_length() - 1
+        prev = s ^ low
+        if is_indep[prev] and (adj[v] & prev) == 0:
+            is_indep[s] = True
+
+    # Find all maximal independent sets (MIS)
+    mis_list = []
+    mis_mask = [False]*size
+    for s in range(size):
+        if is_indep[s]:
+            can_extend = False
+            for v in range(n):
+                if (s >> v) & 1:
+                    continue
+                if (adj[v] & s) == 0:
+                    can_extend = True
+                    break
+            if not can_extend:
+                mis_list.append(s)
+                mis_mask[s] = True
+
+    # DP over subsets: can the remaining set be covered by exactly 3 independent sets?
+    # dp[r] = True if r can be covered by at most 3 independent sets
+    dp = [False]*size
+    dp[0] = True
+    for r in range(1, size):
+        if is_indep[r]:
+            dp[r] = True
+            continue
+        # iterate over maximal independent sets contained in r
+        sub = r
+        while True:
+            if mis_mask[sub]:
+                rest = r ^ sub
+                if dp[rest]:
+                    dp[r] = True
+                    break
+            if sub == 0:
+                break
+            sub = (sub - 1) & r
+
+    if not dp[size-1]:
+        print("NO")
+        return
+
+    # Reconstruct lexicographically smallest assignment
+    # Assign workers 0..n-1 in order, choosing smallest shift 1,2,3 that keeps remaining coverable by remaining shifts.
+    assignment = [0]*n
+    remaining = size - 1
+    used = [0]*3  # bitmask of workers assigned to each shift
+
+    for i in range(n):
+        bit = 1 << i
+        for shift in range(3):
+            if (remaining >> i) & 1 == 0:
+                # already assigned (shouldn't happen in this loop logic, but safe)
+                break
+            if (used[shift] & adj[i]) != 0:
+                continue
+            new_used = used[shift] | bit
+            new_remaining = remaining ^ bit
+            # Check if new_remaining can be covered by the other two shifts
+            coverable = False
+            if new_remaining == 0:
+                coverable = True
+            else:
+                # We need to check if new_remaining can be partitioned into two independent sets
+                # One of them must be a subset of new_remaining that is independent and whose complement is also independent.
+                # Equivalently, find an independent set S subset of new_remaining such that new_remaining \ S is also independent.
+                # We can iterate over maximal independent sets contained in new_remaining.
+                sub = new_remaining
+                while True:
+                    if is_indep[sub]:
+                        rest = new_remaining ^ sub
+                        if is_indep[rest]:
+                            coverable = True
+                            break
+                    if sub == 0:
+                        break
+                    sub = (sub - 1) & new_remaining
+            if coverable:
+                assignment[i] = shift + 1
+                used[shift] = new_used
+                remaining = new_remaining
+                break
+
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+solve()

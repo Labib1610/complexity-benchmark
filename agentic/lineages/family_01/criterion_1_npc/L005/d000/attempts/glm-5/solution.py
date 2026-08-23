@@ -1,0 +1,62 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We need to find lexicographically smallest valid assignment
+    # Use backtracking with constraint propagation
+    
+    assignment = [0] * n  # 0 = unassigned, 1,2,3 = assigned
+    
+    # For each node, track which values are forbidden by assigned neighbors
+    # forbidden[i] will be a set of values (1,2,3) that node i cannot take
+    
+    # We'll use a simple backtracking with forward checking
+    
+    def get_candidates(v):
+        """Get valid candidates for vertex v based on current assignment"""
+        forbidden = set()
+        for nb in adj[v]:
+            if assignment[nb] != 0:
+                forbidden.add(assignment[nb])
+        return [val for val in (1, 2, 3) if val not in forbidden]
+    
+    def backtrack(idx):
+        """Try to assign vertices starting from idx"""
+        if idx == n:
+            return True
+        
+        # Find next unassigned vertex (should be idx since we assign in order)
+        # But let's be safe
+        if assignment[idx] != 0:
+            return backtrack(idx + 1)
+        
+        candidates = get_candidates(idx)
+        for val in candidates:
+            assignment[idx] = val
+            if backtrack(idx + 1):
+                return True
+            assignment[idx] = 0
+        
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()

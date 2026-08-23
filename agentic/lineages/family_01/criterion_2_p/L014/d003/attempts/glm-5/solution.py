@@ -1,0 +1,44 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for i in range(n):
+        if color[i] == -1:
+            stack = [(i, 0)]
+            while stack:
+                u, c = stack.pop()
+                if color[u] != -1:
+                    continue
+                color[u] = c
+                for v in adj[u]:
+                    if color[v] == -1:
+                        stack.append((v, c ^ 1))
+                    elif color[v] == c:
+                        print("NO")
+                        return
+    
+    result = [1] * n
+    for i in range(n):
+        if color[i] == 1:
+            result[i] = 2
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

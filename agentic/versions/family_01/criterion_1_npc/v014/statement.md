@@ -1,25 +1,21 @@
-# Shift Assignment Compatibility
+# Problem A — Tri-Phase Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial plant operates across three non-overlapping shifts, designated as 1, 2, and 3. The plant employs $n$ workers, identified by labels from 1 to $n$. Certain pairs of workers are mutually incompatible and cannot be scheduled on the same shift.
+A manufacturing plant runs its daily operations in three consecutive phases, designated as 1, 2, and 3. The plant employs a roster of staff members. Due to interpersonal disputes, certain pairs of staff members are deemed incompatible and are strictly prohibited from working during the same operational phase.
 
-Your task is to place every worker into exactly one shift such that no incompatible pair works during the same shift, or to report that no valid schedule can be formed.
+Your task is to allocate each staff member to exactly one of the three phases in a way that respects all incompatibility rules. If no such allocation can be made, you must report that it is impossible.
 
 ## Input
+The first line contains two integers $n$ and $m$ — the number of staff members and the number of incompatible pairs. The facility has exactly 40 safety badges available, meaning the staff size $n$ is at least one but can never exceed the total badge count. The number of incompatible pairs $m$ is non-negative and is bounded above by the total number of distinct two-person combinations possible among the $n$ staff members.
 
-The first line contains two integers $n$ and $m$, representing the total number of workers and the count of conflict pairs. The headcount $n$ reflects the facility's capacity limits ($1 \le n \le 40$). The number of recorded conflicts $m$ ranges from 0 up to the maximum number of unique pairs among all workers ($0 \le m \le n(n-1)/2$).
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that worker $u$ and worker $v$ cannot share a shift. Each unordered pair of workers appears at most once.
+The following $m$ lines each contain two integers $u$ and $v$ — a pair of staff members who are incompatible.
 
 ## Output
-
-If no valid assignment of workers to shifts exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$, where $s_i \in \{1, 2, 3\}$ specifies the shift assigned to worker $i$. If there are multiple valid schedule configurations, output the one that is lexicographically smallest (that is, minimizing $s_1$, then $s_2$, and so on).
+If there is no valid allocation, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2, 3\}$), representing the phase assigned to staff member $i$. If multiple valid allocations exist, output the one that is lexicographically smallest (comparing the phase of staff member 1 first, then staff member 2, and so forth).
 
 ## Example 1
-
 Input:
 ```
 4 5
@@ -29,7 +25,6 @@ Input:
 1 4
 2 4
 ```
-
 Output:
 ```
 YES
@@ -37,7 +32,6 @@ YES
 ```
 
 ## Example 2
-
 Input:
 ```
 4 6
@@ -48,7 +42,6 @@ Input:
 2 4
 3 4
 ```
-
 Output:
 ```
 NO

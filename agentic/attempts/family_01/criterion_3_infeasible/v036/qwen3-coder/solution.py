@@ -1,0 +1,44 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    edge_set = set()
+    adj = defaultdict(set)
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        edge_set.add((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort edges to help with finding lexicographically smallest triangle
+    edges.sort()
+    
+    # For each edge (u,v), look for a common neighbor w such that (u,w) and (v,w) are also edges
+    for u, v in edges:
+        if u >= v:
+            continue
+        # Check common neighbors
+        for w in adj[u]:
+            if w <= v:
+                continue
+            if (v, w) in edge_set or (w, v) in edge_set:
+                print(u, v, w)
+                return
+
+if __name__ == "__main__":
+    main()

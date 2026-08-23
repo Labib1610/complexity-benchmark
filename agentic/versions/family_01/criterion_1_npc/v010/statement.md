@@ -1,24 +1,23 @@
-# Channel Partitioning Problem
+# Problem A — Operational Blocks
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility manages $n$ technicians, indexed $1$ through $n$. Each technician must be assigned to work on exactly one of three available communication channels, identified by the numbers $1$, $2$, and $3$.
+A factory employs $n$ workers. The daily schedule consists of multiple operational blocks. Every worker must be assigned to exactly one operational block, which is designated by an integer from 1 to 3.
 
-Due to physical proximity, certain pairs of technicians create mutual signal interference if placed on the same channel. Therefore, any two technicians who interfere with each other must be assigned to different channels.
+Certain workers have documented grievances with one another. To prevent workplace disruptions, management requires that if two workers have a documented grievance, they must not be assigned to the same operational block.
 
-Your task is to determine whether it is possible to assign every technician to a channel without any interference, and if so, to find the assignment vector $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$) that is lexicographically as small as possible.
+Determine if there is a valid schedule for all $n$ workers. If a valid schedule exists, find the one that produces the lexicographically smallest sequence of block assignments (comparing worker 1's assignment first, then worker 2's, and so forth).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of technicians and the number of interfering pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a pair of technicians who interfere with each other. No pair is listed more than once.
+The first line contains two integers $n$ and $m$ — the number of workers and the total number of documented grievances ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing a pair of workers who have a grievance.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \dots s_n$, where $s_i$ denotes the channel assigned to technician $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
+If no valid schedule can be formed, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each an integer from 1 to 3), where $s_i$ is the operational block assigned to worker $i$. Among all valid schedules, output the lexicographically smallest sequence.
 
 ## Example 1
-Input:
+**Input:**
 ```
 4 5
 1 2
@@ -27,14 +26,14 @@ Input:
 1 4
 2 4
 ```
-Output:
+**Output:**
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-Input:
+**Input:**
 ```
 4 6
 1 2
@@ -44,7 +43,7 @@ Input:
 2 4
 3 4
 ```
-Output:
+**Output:**
 ```
 NO
 ```

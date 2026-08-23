@@ -1,19 +1,20 @@
-# Problem A — Schedule Slot Allocation
+# Problem A — System Stabilization
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility manages $n$ personnel, numbered 1 through $n$. Every individual must be assigned to work during exactly one of three available daily time slots, denoted 1, 2, and 3.
+A diagnostic system consists of $n$ processing modules. Each module must be programmed with a state value chosen from $\{1, 2, 3\}$.
 
-Certain pairs of individuals have mutual exclusion restrictions that forbid them from being scheduled in the same time slot. Your task is to compute a slot assignment for all personnel such that no restriction is violated, or determine that no such schedule is possible. If multiple valid assignments exist, you must choose the one that forms the lexicographically smallest sequence of slot numbers when ordered from person 1 to person $n$.
+The system contains $m$ bidirectional monitoring links, each connecting a specific pair of modules. A monitoring link actively transmits an error flag if and only if the two modules it connects are programmed with the exact same state value. To achieve system stability, every module must be assigned a state value such that absolutely no error flags are transmitted across any link.
+
+Determine whether a stable configuration exists. If it does, find the valid assignment of state values that is lexicographically smallest when listed from module 1 to module $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of personnel and the number of mutual exclusion restrictions, respectively.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that person $u$ and person $v$ cannot share the same time slot.
+The first line provides two integers $n$ and $m$ — the number of modules and the number of monitoring links ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, specifying a monitoring link between module $u$ and module $v$.
 
 ## Output
-If it is impossible to assign every person to a time slot without violating any restriction, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$, where $s_i \in \{1, 2, 3\}$ denotes the time slot assigned to person $i$. If there are multiple valid sequences, print the lexicographically smallest one (that is, compare $s_1$ first, then $s_2$, and so on).
+If no stable configuration is possible, print a single line containing `NO`.
+If a stable configuration exists, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each $s_i \in \{1, 2, 3\}$), representing the state value of each module $i$. If there are multiple stable configurations, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

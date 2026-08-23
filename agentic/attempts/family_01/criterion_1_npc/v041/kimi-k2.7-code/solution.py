@@ -1,0 +1,87 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u != v:
+            adj[u].add(v)
+            adj[v].add(u)
+    adj = [list(s) for s in adj]
+
+    avail = [7] * (n + 1)          # bit masks: 1->color1, 2->color2, 4->color3
+    history = []
+    col_of_bit = [0, 0, 1, 0, 2, 0, 0, 0]
+    bits = (1, 2, 4)
+
+    sys.setrecursionlimit(10000)
+
+    def propagate(v, bit):
+        if (avail[v] & bit) == 0:
+            return False
+        if avail[v] != bit:
+            history.append((v, avail[v]))
+            avail[v] = bit
+        stack = [v]
+        while stack:
+            x = stack.pop()
+            cbit = 1 << col_of_bit[avail[x]]
+            for y in adj[x]:
+                if avail[y] & cbit:
+                    old = avail[y]
+                    new = old & ~cbit
+                    if new == 0:
+                        return False
+                    history.append((y, old))
+                    avail[y] = new
+                    if new & (new - 1) == 0:
+                        stack.append(y)
+        return True
+
+    def dfs(pos):
+        while pos <= n:
+            mask = avail[pos]
+            if mask == 0:
+                return False
+            if mask & (mask - 1):
+                break
+            pos += 1
+        else:
+            return True
+
+        mask = avail[pos]
+        for bit in bits:
+            if mask & bit:
+                marker = len(history)
+                if propagate(pos, bit) and dfs(pos + 1):
+                    return True
+                while len(history) > marker:
+                    v, old = history.pop()
+                    avail[v] = old
+        return False
+
+    if dfs(1):
+        out = []
+        for i in range(1, n + 1):
+            b = avail[i]
+            if b == 1:
+                out.append('1')
+            elif b == 2:
+                out.append('2')
+            else:
+                out.append('3')
+        print("YES")
+        print(' '.join(out))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

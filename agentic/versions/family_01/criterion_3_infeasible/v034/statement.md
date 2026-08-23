@@ -1,16 +1,19 @@
-# Problem C — Incompatibility Certificate
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A chemical repository has only two climate-controlled vaults, but allocating reagents to these vaults is known to be impossible. Your task is not to find a valid allocation, but to produce a certificate proving why two vaults are insufficient. It is guaranteed that there exists at least one group of three reagents where every pair within the group reacts dangerously when stored together. Any such group proves that two vaults cannot accommodate the inventory. Identify one such group.
+The warehouse still has only two zones, 1 and 2, but the storage plan is known to be hopeless. Your job is not to assign locations — it is to certify the impossibility. It is guaranteed that the incompatibility list contains at least one set of three chemicals which pairwise react. Any such set proves two zones cannot suffice. Output one such set.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n - 1) / 2, 2 \cdot 10^5)$), representing the number of reagents and the number of reactive pairs, respectively.
-Each of the next $m$ lines contains two integers $u$ $v$ — indicating that reagent $u$ and reagent $v$ are reactive with each other.
-It is guaranteed that at least one such mutually reactive triple exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000,
+3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a reactive pair.
+It is guaranteed that at least one such triple exists.
 
 ## Output
-Print three integers $a\ b\ c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are reactive pairs. Output the lexicographically smallest such triple (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print three integers a b c on one line with a < b < c such that all three pairs
+a–b, a–c, b–c are reactive. Output the lexicographically smallest such triple
+(smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

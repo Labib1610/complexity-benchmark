@@ -1,22 +1,16 @@
-# Mutual Interference Triples
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial facility monitors a collection of $n$ registered electronic devices, indexed $1$ through $n$. Certain pairs of devices experience mutual interference, meaning they cannot safely transmit signals at the same time.
-
-A safety audit requires identifying three distinct devices where every pair among the three experiences mutual interference. It is guaranteed that at least one such group of three devices exists in the facility network.
-
-Your task is to find three device indices $a$, $b$, $c$ satisfying $a < b < c$ such that all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ interfere with each other. If there are multiple valid choices, output the lexicographically smallest triple — that is, the one that minimizes $a$, then minimizes $b$, and finally minimizes $c$.
+The manufacturing plant relies on two operating teams, but the current personnel roster is fundamentally flawed. Your task is not to assign employees to teams, but to provide the formal documentation proving that a valid arrangement is unattainable. It is a known fact that the personnel records contain at least one group of three employees where every individual in the group has a mutual incompatibility with both of the other two. Any such trio guarantees that two teams are inadequate. You must identify and output the members of one such trio.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$) — the number of devices and the number of interference pairs, respectively.
-
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that device $u$ and device $v$ interfere with each other. Each undirected pair of devices appears at most once in the input.
-
-It is guaranteed that at least one triple of mutually interfering devices exists.
+The first line provides the employee headcount $n$ and the number of incompatibility records $m$. The headcount $n$ starts at a minimum of 3 and reaches up to the facility capacity of 2000. The number of records $m$ is at least 3 and never exceeds the lesser of the total number of possible unique pairs among the $n$ employees and the database limit of 200000.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ representing an incompatible employee pair.
+It is guaranteed that at least one group of three mutually incompatible employees exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ ($1 \le a < b < c \le n$) on a single line representing the lexicographically smallest triple of mutually interfering devices.
+Output a single line containing three integers $a$, $b$, and $c$ with $a < b < c$, such that the pairs $a$ and $b$, $a$ and $c$, and $b$ and $c$ are all present in the incompatibility records. You must output the trio that comes first numerically (the smallest value for $a$; in case of a tie, the smallest value for $b$; and if still tied, the smallest value for $c$).
 
 ## Example 1
 Input:

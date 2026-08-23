@@ -1,20 +1,25 @@
-# Industrial Shift Allocation Diagnostic
+# Phase 2: Audit Contradiction Extraction
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial facility manages $n$ employees, assigned IDs from $1$ to $n$. A roster of pairwise conflicts prevents certain pairs of workers from sharing the same work shift.
+Our automated workforce compliance pipeline assigns staff to exactly two operational shifts. Phase 1 parses regulations to identify pairs of staff members who cannot work the same shift. 
 
-The plant management wants to diagnose scheduling bottlenecks by finding a mutually conflicting trio: a set of three distinct employees where a direct conflict rule exists between every pair among them.
+Phase 1 has flagged that the current regulations make a two-shift assignment impossible. Your module (Phase 2) must extract a concrete contradiction to send to the Phase 3 reporting engine. To prove that two shifts are not enough, you must find a group of three distinct employees where each employee in the group is restricted from working with both of the other two.
 
-Given the list of pairwise conflict rules, find the triplet of IDs $(a, b, c)$ with $1 \le a < b < c \le n$ such that all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are recorded conflicts, and $(a, b, c)$ is lexicographically smallest (minimizing $a$, breaking ties by minimizing $b$, and then $c$).
+The Phase 3 engine requires deterministic input. If multiple such groups of three exist, you must supply the one that is first when sorted by employee ID (i.e., minimizing the smallest ID, then the middle ID, then the largest ID).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of workers and the number of recorded conflict rules, respectively.
-The next $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a mutual conflict between worker $u$ and worker $v$.
-It is guaranteed that at least one such triplet of mutually conflicting workers exists in the input.
+The first line provides two integers $n$ and $m$, representing the total number of employees and the total number of logged restrictions, respectively. 
+The facility requires at least $3$ employees to operate. The building is divided into $40$ identical zones, each with a strict safety limit of $50$ personnel, meaning the total workforce $n$ cannot exceed their combined maximum capacity. 
+The number of restrictions $m$ is at least $3$. The auditing system limits the restriction log to exactly $2,000$ pages, where each page holds a maximum of $100$ records. Thus, $m$ is bounded by this total capacity or the maximum possible number of unique employee pairs, whichever is smaller.
+
+Following this are $m$ lines, each containing two integers $u$ and $v$ representing a pair of employees who cannot share a shift.
+It is guaranteed that at least one group of three mutually incompatible employees exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line ($1 \le a < b < c \le n$) identifying the lexicographically smallest triplet where every pair among $a$, $b$, and $c$ has an explicit conflict restriction.
+Print three integers $a$, $b$, and $c$ on a single line, representing the IDs of the three employees.
+Output them in ascending order ($a < b < c$).
+If there is a tie, output the group that minimizes $a$. If still tied, minimize $b$, and finally $c$.
 
 ## Example 1
 Input:

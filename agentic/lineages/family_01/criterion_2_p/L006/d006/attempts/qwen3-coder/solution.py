@@ -1,0 +1,119 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Color graph with BFS/DFS - each component is bipartite or not
+    color = [-1] * n  # -1: unvisited, 0: color 1, 1: color 2
+    result = [1] * n  # Default to 1
+    
+    for start in range(n):
+        if color[start] == -1:
+            # BFS to check if bipartite and assign colors
+            queue = deque([start])
+            color[start] = 0
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
+            
+            # Assign actual values (1 or 2) based on color
+            # We want lexicographically smallest, so we prefer 1 whenever possible
+            # Since we started with color 0 for 'start', we can choose what 0 maps to
+            # To get lex smallest, we want nodes with smaller indices to be 1 when possible
+            # But since we're doing connected components, we just need a consistent mapping
+            # Let's say color 0 -> 1, color 1 -> 2
+            
+    # Now verify all edges satisfy XOR = 3 condition
+    for u, v in edges:
+        val_u = 1 if color[u] == 0 else 2
+        val_v = 1 if color[v] == 0 else 2
+        if val_u ^ val_v != 3:  # XOR should be 3
+            print("NO")
+            return
+    
+    # Construct result with lexicographically smallest assignment
+    # For each component, we can choose whether color 0 maps to 1 or 2
+    # To get lex smallest, we want earlier nodes to be 1 if possible
+    
+    # For each component, determine optimal mapping
+    visited_component = [False] * n
+    final_result = [0] * n
+    
+    for i in range(n):
+        if not visited_component[i] and color[i] != -1:
+            # Find all nodes in this component
+            component_nodes = []
+            queue = deque([i])
+            visited_component[i] = True
+            component_nodes.append(i)
+            
+            while queue:
+                node = queue.popleft()
+                for neighbor in adj[node]:
+                    if not visited_component[neighbor]:
+                        visited_component[neighbor] = True
+                        component_nodes.append(neighbor)
+                        queue.append(neighbor)
+            
+            # For this component, decide whether to map color 0 -> 1 or 2
+            # Try both options and see which gives lexicographically smaller result
+            
+            # Option 1: color 0 -> 1, color 1 -> 2
+            option1 = {}
+            for node in component_nodes:
+                option1[node] = 1 if color[node] == 0 else 2
+                
+            # Option 2: color 0 -> 2, color 1 -> 1  
+            option2 = {}
+            for node in component_nodes:
+                option2[node] = 2 if color[node] == 0 else 1
+            
+            # Compare lexicographically
+            use_option1 = True
+            for node in sorted(component_nodes):
+                if option1[node] < option2[node]:
+                    use_option1 = True
+                    break
+                elif option1[node] > option2[node]:
+                    use_option1 = False
+                    break
+            
+            if use_option1:
+                for node in component_nodes:
+                    final_result[node] = option1[node]
+            else:
+                for node in component_nodes:
+                    final_result[node] = option2[node]
+        elif color[i] == -1:  # Isolated node
+            final_result[i] = 1  # Prefer 1 for lexicographically smallest
+    
+    print("YES")
+    print(" ".join(map(str, final_result)))
+
+solve()

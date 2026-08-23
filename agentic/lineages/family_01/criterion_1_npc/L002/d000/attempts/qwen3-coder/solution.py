@@ -1,0 +1,72 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # We need to color the graph with 3 colors such that no adjacent nodes have the same color.
+    # This is equivalent to checking if the graph is 3-colorable.
+    # Since we want the lexicographically smallest assignment, we can use backtracking with early pruning.
+    
+    # However, since n <= 40, a naive backtracking might be too slow.
+    # But given the constraints and that we only need 3 colors, let's try a greedy approach with backtracking,
+    # prioritizing small colors and trying them in order.
+    
+    # Let's model this as a graph coloring problem.
+    # For each connected component, we need to 3-color it.
+    # If any component is not 3-colorable, return "NO".
+    # Otherwise, among all valid colorings, pick the lexicographically smallest one.
+    
+    # Since we want the globally lexicographically smallest solution, we should process nodes in order 1 to n,
+    # and for each node, try colors 1, 2, 3 in that order.
+    
+    color = [0] * (n + 1)  # 0 means uncolored
+    
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+        
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
+    
+    # Check if a valid coloring exists
+    if backtrack(1):
+        print("YES")
+        print(" ".join(map(str, color[1:])))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

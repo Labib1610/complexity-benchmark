@@ -1,0 +1,1280 @@
+We need solve problem: graph with n up to 40, 3-coloring, lexicographically smallest valid coloring if exists. Need output YES and assignment or NO. Time limit 2s. n=40, m up to 780. 3-coloring NP-complete but n=40 allows exponential algorithms. Need lexicographically smallest. We need design algorithm.
+
+We need produce Python solution. Let's think.
+
+We have graph G with up to 40 vertices. Determine 3-colorability and lexicographically smallest coloring. Lexicographically smallest means for vertices 1..n, assign smallest possible color at each index while maintaining extendability.
+
+Approach: Backtracking with pruning, branch on vertices, choose colors in increasing order, maintain available colors. n=40 worst-case (no edges) has 3^40 huge, but lexicographically smallest is all 1s, and simple greedy would assign all 1. Need algorithm efficient for all graphs. Could use DSATUR or branch and bound. But need guarantee within 2s for n=40. There may be hard instances. Need robust algorithm.
+
+Alternative: Use meet-in-the-middle / inclusion-exclusion? 3-coloring of 40 vertices can be solved via splitting into two halves of 20 each. Enumerate all 3^20 ~ 3.5 billion too many. But can use independent set partition: 3-coloring equivalent to partition vertices into 3 independent sets. For n=40, number of independent sets can be enumerated? Could use maximum bipartite? Hmm.
+
+Since 3-coloring NP-hard, worst-case n=40 may be challenging but time limit 2s. However contest problem likely expects backtracking with heuristics for n<=40. Need lexicographically smallest. We can adapt known exact graph coloring algorithm.
+
+Observation: Lexicographically smallest 3-coloring can be found by trying to fix colors sequentially: For i from 1..n, try color 1,2,3 and check if graph remains 3-colorable with partial assignment. This requires a 3-colorability subroutine many times (up to 3n). If subroutine is fast enough, okay.
+
+Subroutine: Given a partial assignment of some vertices to colors, determine if graph can be completed to proper 3-coloring. n<=40. We can implement exact 3-coloring via recursive backtracking with propagation (if a vertex has no available color -> fail; if only one color -> assign; choose vertex with fewest available colors branch). With partial assignments, this can be fast.
+
+But calling it up to 120 times might be heavy if each call explores many branches. However partial assignments become more constrained, and early decisions reduce search. Could be okay with good implementation and bitsets.
+
+Alternative: Directly search for lexicographically smallest coloring using recursion that assigns vertices in order 1..n, trying colors 1..3, with pruning via can-complete check. Actually that's same as above.
+
+Need implement 3-colorability efficiently in Python for n=40. Use bitsets as Python ints (up to 40 bits). Represent adjacency bitmask per vertex. Also assigned color sets: mask1, mask2, mask3 of vertices assigned to each color. A coloring is proper if no edge within same color: for each color mask, (mask & adjacency_of_mask) == 0? More precisely for a set S, internal edges count = sum over v in S of popcount(adj[v] & S) /2. We can maintain invariant.
+
+For partial assignment, we can check feasibility: Is graph 3-colorable extending partial? We can use recursive search with bitsets. There are known algorithms for graph coloring using branch and bound (e.g., Tomita). But for 3 colors specifically, maybe simpler.
+
+Idea: Since only 3 colors, we can reduce to 2-SAT? No, 3-coloring not 2-SAT.
+
+Could use BFS for connected components. For each connected component, solve independently. If component is bipartite? Actually 3-coloring of component can be done by trying assignments to a few vertices then 2-color rest? For 3-coloring, if we pick a vertex color, the rest is not necessarily 2-color. But for small n=40, backtracking per component.
+
+Need lexicographically smallest global assignment. Lexicographic order across all vertices; components interleave by vertex indices. We cannot simply solve components independently and combine lexicographically because colors are global and lexicographic order depends on assignment to each vertex. But if we fix colors sequentially, component independence can be exploited: when considering vertex i, only its component matters. However simpler to just run sequential fixing with feasibility check on whole graph.
+
+Feasibility check algorithm:
+
+We maintain for each uncolored vertex a bitmask of allowed colors (1..3). Initially all 7? Actually colors 1,2,3 bits. When a neighbor gets color c, remove c from allowed. If allowed becomes 0 -> infeasible. If allowed has single color, force assign (propagation). This is like list coloring with lists size up to 3. Choose uncolored vertex with smallest list size >1, branch on its allowed colors. This is exact for 3-coloring (since forcing singletons is necessary). Use recursion.
+
+Data structures: arrays color[n] = 0 unassigned, 1..3. allowed[n] bitmask. When assign v color c, update neighbors. Need undo changes for backtracking. We can implement recursive function that copies state? n=40, copying arrays maybe okay but many calls. Better use in-place with stack of changed neighbor allowed masks.
+
+Pseudo:
+
+def can_color():
+    # global n, adj list, color, allowed
+    # propagate singletons using stack
+    if conflict: return False
+    # choose vertex with allowed count 2 or 3? Actually if 3 no constraints; choose min >1.
+    # branch colors in allowed mask.
+    for each color in allowed[v]:
+        assign and recurse
+    return False
+
+But this explores all colorings; for no edges, allowed all 3 for all vertices, choose vertex 1 branch 3, then all others can be 1 due no constraints -> first branch succeeds. So fast. For hard graphs, may be exponential.
+
+Need lexicographically smallest: We can use can_color as feasibility oracle. For i in 1..n:
+  if color[i] already assigned due propagation? In sequential fixing, we maintain current partial assignment. At step i, if not assigned, try c=1..3: tentatively assign i to c and check can complete. Choose first feasible. Then permanently assign. Continue. This yields lexicographically smallest because each decision is minimal possible.
+
+But careful: When we tentatively assign and call can_color, it may propagate and assign other vertices. That's fine. We keep those assignments? If we choose c feasible, we should keep the assignment of i (and maybe propagate to maintain consistency). But propagation may assign future vertices forced colors. However those forced assignments are necessary for any completion with i=c? Not necessarily: propagation assigns vertices whose allowed set becomes singleton; any valid completion must assign that color. So safe to keep. But if we later backtrack? We don't backtrack after choosing minimal feasible at each step (greedy with oracle). Since we know there is a valid completion, and we choose minimal feasible, final assignment valid. Propagation may force some vertices to non-minimal colors? Wait forced singletons are forced by current partial assignment; any extension must use that color, so lexicographically smallest extension will also use them. So keeping is fine.
+
+But there is subtlety: The greedy with feasibility oracle yields lexicographically smallest full assignment if at each step we choose smallest color that allows any completion. This is correct.
+
+Complexity: Up to n*3 calls to can_color. Each call may explore many branches. Need optimize.
+
+Alternative: Instead of separate oracle, we can do recursive search directly for lexicographically smallest: assign vertices in order, branch colors 1..3, prune. The first complete coloring found is lexicographically smallest. This avoids repeated oracles. But worst-case may explore many partial branches before finding lexicographically smallest valid. However with good pruning maybe okay. The greedy oracle approach may prune more because after tentative assign, oracle explores all possibilities; but if infeasible, it explores entire search space for that prefix, which can be large. Direct DFS with lexicographic order also explores infeasible prefixes similarly. Maybe similar.
+
+Could combine: Direct DFS with forward checking and heuristic ordering? But lexicographic order requires assign by vertex index. We can still use propagation and choose next unassigned vertex in index order. Branch colors 1..3. First found is answer. This is essentially same as greedy oracle but without restarting; it may be more efficient because state is reused. However if first branch (color 1) infeasible, we explore its entire search tree before trying color 2. Greedy oracle would do same for that prefix. So direct DFS is fine and simpler to implement with single search.
+
+But we need answer only if exists. Direct DFS returns first lexicographically smallest coloring. Use recursion with propagation and backtracking. n=40.
+
+Potential worst-case: Graph that is 3-colorable but first many prefixes infeasible. Could be exponential. But n=40 maybe manageable with bitset propagation and component decomposition.
+
+Let's think of hard 3-colorable graphs for backtracking with index order. For random 3-colorable graphs near threshold, backtracking can be hard. But n=40 small. However 2 seconds Python.
+
+Maybe there is a polynomial algorithm? 3-coloring is NP-complete, but n=40 small. Could use inclusion-exclusion / dynamic programming over subsets? 3-coloring can be solved in O(2^n * poly(n)) using subset expansion: number of proper 3-colorings = sum_{X subset V} (-1)^{|X|} * something? Actually chromatic polynomial via inclusion-exclusion over edges? For k-colorings count: P_G(k) = sum_{A subseteq E} (-1)^{|A|} k^{c(A)} where c(A) is number of connected components in spanning subgraph (V,A). For n=40, 2^m not possible. But there is O(2^n n^2) algorithm using subset convolution for chromatic polynomial. Could compute if P_G(3)>0 and maybe reconstruct lexicographically smallest. n=40 -> 2^40 ~ 1 trillion impossible.
+
+Another DP: For 3-coloring, we can use iterative compression or split. Since k=3 fixed, maybe O(1.817^n) algorithms exist. But implementing complex.
+
+Given contest problem, likely backtracking with propagation and component splitting is enough. Let's design robust solver.
+
+We can decompose graph into connected components. For each component, solve 3-coloring. But lexicographic smallest across whole graph: Since colors are just labels 1,2,3 and all components share same palette, the lexicographically smallest global assignment is not simply component-wise lexicographically smallest with independent permutations? Wait colors are global; we cannot permute colors per component independently because lexicographic order compares same vertex positions. However if we process vertices in order, when we encounter vertex i, its component may have some earlier vertices already assigned. The component's feasible colorings are constrained by those earlier assignments. So we need solve globally or at least per component with prefix constraints.
+
+But we can process vertices sequentially; component decomposition doesn't help much unless we precompute all valid colorings of a component and then choose lexicographically smallest consistent with earlier vertices. For component size up to 40. Not helpful.
+
+Maybe we can use 2-SAT after fixing high-degree vertices? Since 3 colors, each vertex variable domain {1,2,3}. For a vertex of degree d, if d >= 4? Not necessarily.
+
+Could use branch on a vertex and reduce rest to 2-SAT? If we assign one vertex per triangle? Hmm.
+
+Alternative exact algorithm: Use BFS over color classes. 3-coloring = partition into 3 independent sets. We can choose one independent set S (color 1), then remaining graph must be bipartite (2-colorable). So we can enumerate independent sets S such that G \ S is bipartite. Lexicographically smallest coloring tends to use color 1 for many early vertices. We could search for S as the set of vertices colored 1. Then remaining graph bipartite; choose bipartition (colors 2/3) to minimize lexicographic sequence. This might be more efficient? Number of independent sets can be up to ~1.5^n for n=40? Actually Moon-Moser max independent sets ~3^{n/3} ~ 3^13 ~ 1.6 million for n=40. That's manageable. But enumerating all independent sets and checking bipartiteness might be okay. However we need lexicographically smallest coloring, not just existence. We can iterate candidate color-1 sets in lexicographic order? Maybe.
+
+But enumerating all independent sets of a graph with n=40 can be done via branching (choose vertex include/exclude) with pruning using adjacency. Max independent sets count maybe large but okay. However in dense graphs independent sets fewer. In sparse graphs many independent sets; but sparse graphs are easy to color (often bipartite). Could combine: if graph is bipartite, answer all 1? Wait if graph bipartite, we can color with 1 and 2, leaving 3 unused; lexicographically smallest would assign color 1 to all vertices in one part, color 2 to other part, but which part gets 1 at each vertex? To minimize lexicographically, for each vertex we want 1 if possible. Since bipartite graph has two color classes; we can choose assignment of 1/2 to the two parts. Lexicographically smallest: process vertices; the first vertex gets 1 (assign its part to color 1), then all vertices in same part get 1, opposite part get 2. So easy. If graph not bipartite, need 3 colors.
+
+General approach: Since only 3 colors, color class 1 is an independent set; removing it leaves bipartite graph. So we can search for independent set S (vertices colored 1) such that G-S is bipartite. Lexicographically smallest coloring: we want c_i as small as possible. So we can decide for each vertex whether it can be color 1 in some valid coloring. The lexicographically smallest assignment will color vertex i with 1 if there exists any valid 3-coloring with vertex i=1 consistent with previous assignments. So sequential fixing still natural.
+
+Maybe we can implement can_color using independent-set removal + bipartite check. For a partial assignment, vertices assigned color 1 must form independent set, vertices assigned 2/3 must be in bipartite subgraph induced by unassigned+color2/3 with appropriate part constraints. This is a 2-SAT-like condition. Could solve via checking if there exists independent set S containing all color-1 assigned vertices, disjoint from color-2/3 assigned vertices, such that G-S is bipartite and the bipartition respects color-2/3 assignments. This is NP-complete (3-coloring), but n=40.
+
+Maybe meet-in-the-middle on independent set? Not necessary.
+
+Let's evaluate backtracking with propagation for n=40. We can implement in Python with recursion and bitsets. Need ensure worst-case within 2s. Let's test mentally on hard graphs. The classic hard case for 3-coloring backtracking is random graph G(n, p) near threshold p ~ 2.5/n? For n=40, m ~ 50. Backtracking may explore many branches. But with propagation and choosing vertex with min domain, it might be okay.
+
+However there are graphs specifically designed to be hard, like Mycielski graphs (triangle-free, high chromatic). Mycielski of order 4 has 22 vertices, not 3-colorable? Mycielski-4 (Grötzsch?) has chromatic 4, not 3-colorable. For 3-colorable hard instances, maybe odd cycles with constraints. n=40 small.
+
+Could use algorithm by Lawler for 3-coloring O(1.44225^n) using maximal independent sets. But implementing from scratch maybe heavy.
+
+Given problem statement n<=40, likely intended solution is backtracking with bitmasks. Need produce final code. Let's design robust and efficient.
+
+Potential improvements:
+- Use bitset representation for adjacency and color sets.
+- Preprocess: if graph has a vertex of degree <=2? In list coloring with 3 colors, a vertex of degree <=2 always has an available color after neighbors (since 3 colors). But not directly helpful for search.
+- Component decomposition: solve each connected component separately and combine. For lexicographic smallest, we can process vertices in order; components are independent. If we maintain global state, component decomposition can speed up by caching? Not needed.
+- Ordering: For lexicographic, we must assign in index order. But within the feasibility search (after some prefix fixed), we can choose branching vertex heuristically (fewest colors) to find any completion. That's fine.
+
+Implementation details for can_color with partial assignment:
+
+We maintain:
+- color: list of int length n, 0 unassigned.
+- allowed: list of int length n, bitmask of allowed colors (bits 1,2,4 for colors 1,2,3 maybe). For assigned vertices, allowed maybe 0 or single bit? We can keep allowed only for unassigned.
+- We need function propagate(v, c): assign color c to v, remove c from allowed of uncolored neighbors, if any neighbor allowed becomes 0 -> conflict; if becomes single color -> push to stack for propagation.
+
+We need ability to undo changes for backtracking. We'll implement recursive DFS that returns bool and fills color array if found. Use a stack list to record modifications: each entry (v, old_allowed_mask) for neighbor allowed changes, and assigned vertices maybe. Simpler: at each recursion, copy allowed list? n=40, recursion depth <=40, copying list of 40 ints cheap. But search may have many nodes; copying may add overhead but manageable. However we can do in-place with undo for speed.
+
+Let's design in-place with undo:
+
+Global arrays color, allowed. Function dfs():
+    # find uncolored vertex with min allowed count >0. If none, success.
+    v = choose
+    mask = allowed[v]
+    # branch colors in mask (1,2,3 order)
+    for c in bits of mask:
+        # assign v color c
+        saved = [] list of (neighbor, old_allowed)
+        color[v] = c
+        # remove c from neighbors
+        conflict=False
+        for u in adj[v]:
+            if color[u]==0:
+                old = allowed[u]
+                new = old & ~(1<<(c-1))
+                if new != old:
+                    allowed[u] = new
+                    saved.append((u, old))
+                if new == 0:
+                    conflict=True
+                    break
+        if not conflict:
+            # propagate singletons
+            # We can use a stack of vertices whose allowed became singleton and not assigned.
+            # But after removing c from neighbors, some may become singleton. Need process.
+            # We'll implement a helper assign_forced that uses a list of forced vertices.
+            # However assigning forced vertices can create more forced. Need undo all.
+            # Let's create a list forced initially containing neighbors whose allowed count ==1 and color==0.
+            # Process; if conflict, undo.
+        # undo saved and color[v]=0; continue
+
+But propagation of singletons can be integrated: when a neighbor's allowed becomes singleton, we can recursively assign it. That is similar to assign function. Need careful undo.
+
+Simpler: Use recursion without explicit singleton propagation as separate step: choose vertex with min allowed count. If count==1, only one branch. The removal of color from neighbors happens at assignment; then recursion will pick next min. This naturally handles forced assignments: if a neighbor becomes singleton, next chosen vertex has count 1 and assigned. But if a neighbor becomes empty, we detect conflict before recursing. This is enough. However we might want immediate propagation to fail early; but recursion will detect at next step when choosing vertex with allowed count 0. We can detect after each assignment by scanning for zero allowed. That's okay.
+
+But choosing vertex each recursion by scanning all n (40) is cheap.
+
+So algorithm:
+
+def dfs():
+    # find uncolored vertex with smallest allowed count >0
+    v = -1; best = 4
+    for i in range(n):
+        if color[i]==0:
+            cnt = bitcount(allowed[i])
+            if cnt < best:
+                best = cnt
+                v = i
+                if cnt == 1: break
+    if v == -1:
+        return True
+    if best == 0:
+        return False
+    mask = allowed[v]
+    # iterate colors in increasing order (bits 1,2,3)
+    # For lexicographic smallest full coloring, if we are doing direct DFS with vertex order? Wait we choose min domain vertex, not index order. To get lexicographically smallest, we cannot choose arbitrary vertex first; we need assign vertices in index order. But for feasibility search only (oracle), we just need any completion; choosing min domain is fine. For direct DFS to find lexicographically smallest, we must assign in index order, so cannot use min domain globally. But we can still use propagation.
+    # So separate oracle approach: assign fixed prefix in index order, then use min-domain heuristic to find any completion. That seems better for feasibility. Then sequential fixing with oracle.
+    # Direct DFS with index order and branch colors 1..3 also works but may be slower.
+
+Let's settle on sequential fixing with feasibility oracle using min-domain heuristic. At each step i (0-index), if color[i] already assigned (by previous propagation), skip. Else try c=1,2,3:
+   if c not allowed[i] (i.e., neighbor has color c) -> skip.
+   Tentatively assign i=c, run dfs_oracle to see if completion exists.
+   If yes, keep assignment (and propagate? The oracle may have found a completion and assigned colors; we can keep those assignments as final? Wait oracle returns a complete coloring if feasible. Then we have full coloring already! But we need lexicographically smallest. If we just take the completion returned by oracle for the first feasible c at each step, is it guaranteed lexicographically smallest? Not necessarily, because the completion may not be lexicographically smallest among all completions with prefix. However if we process sequentially and at step i choose smallest c that allows any completion, and then continue to next step, we don't need the oracle to return the lexicographically smallest completion; we only need yes/no. But if oracle returns a completion, we could use it as current state for subsequent steps? The completion may assign later vertices colors that are not lexicographically smallest. If we keep it, later steps are already assigned and we cannot change them to smaller colors. So we should not keep the full completion from oracle; we should only keep the decision at vertex i (and any forced assignments that are necessary). But determining forced assignments is tricky. Simpler: after confirming feasibility, permanently assign i=c (just color[i]=c, update allowed of neighbors), and continue. Do not keep oracle's assignments. Then at later steps, we again try minimal colors. This yields lexicographically smallest. The oracle must be called on current partial assignment (which includes all previous permanent decisions and their propagated allowed reductions). Good.
+
+But note: after permanently assigning i=c and updating neighbor allowed, some neighbors may have allowed singleton; we do not force them now. At next step j>i, if color[j] still unassigned, we try colors from allowed[j]. Since allowed[j] already excludes colors used by neighbors, fine. This greedy works.
+
+However there is a subtle issue: When we permanently assign i=c, we don't propagate singletons. Could this cause a situation where later a vertex j has allowed {2,3}, but the lexicographically smallest valid coloring actually requires j=2, while our greedy at j picks 2 if feasible. So okay. Not forcing singletons may make oracle search harder but okay.
+
+But is greedy with oracle guaranteed to produce valid coloring? At each step, we choose smallest feasible color. Since the original graph is 3-colorable (or after previous choices still colorable by induction), there exists at least one feasible color for vertex i among allowed. We choose smallest. The resulting partial remains extendable. At end, all vertices assigned, valid. Yes.
+
+Thus we need an oracle that given partial assignment (some vertices assigned colors, no conflicts), returns bool extendable. We can implement with min-domain DFS. It will be called up to 3n times. Each call starts from current state and explores. Since partial assignment grows, search space shrinks. Should be okay.
+
+But we need to be careful: The oracle uses current color/allowed arrays. We must not modify permanent state if oracle fails. So we need to save and restore changes. Since n small, we can copy arrays for each oracle call. Simpler: pass a copy of color and allowed to recursive oracle. For each call, copy lists (size 40) -> overhead 120 copies, fine. But recursion inside oracle also copies? We can use in-place with undo to avoid copying at each recursion node. At top-level, copy state to local arrays, run in-place DFS, discard. That's good.
+
+Implementation of oracle:
+
+def can_complete(color, allowed):
+    # color list copy, allowed list copy
+    # returns bool
+    def dfs():
+        # choose uncolored vertex with min allowed count
+        v=-1; best=4
+        for i in range(n):
+            if color[i]==0:
+                cnt = popcount(allowed[i])
+                if cnt < best:
+                    best=cnt; v=i
+                    if cnt==1: break
+        if v==-1: return True
+        if best==0: return False
+        mask = allowed[v]
+        # branch colors in increasing order
+        # For bool, order doesn't matter, but maybe prefer smaller? Not needed.
+        for c in (1,2,3):
+            if mask & (1<<(c-1)):
+                # assign v=c
+                old_allowed_v = allowed[v]  # not needed
+                color[v]=c
+                saved = []  # (u, old_allowed)
+                conflict=False
+                for u in adj[v]:
+                    if color[u]==0:
+                        old = allowed[u]
+                        new = old & ~(1<<(c-1))
+                        if new != old:
+                            allowed[u]=new
+                            saved.append((u, old))
+                        if new==0:
+                            conflict=True
+                            break
+                if not conflict:
+                    if dfs(): return True
+                # undo
+                for u, old in saved:
+                    allowed[u]=old
+                color[v]=0
+        return False
+    return dfs()
+
+But this recursion may be deep up to n=40. Python recursion limit default 1000, fine.
+
+However, choosing min domain and branching all colors may still explore huge space. We can add heuristic: if a vertex has allowed count 2, branch; if 3, branch. For 3-coloring, we can also check if graph of uncolored vertices with allowed colors is 3-colorable using lower bound: if a vertex has degree >=3 in uncolored graph, it may still be colorable. Not much.
+
+Potential issue: The oracle may be called many times; each call copies color and allowed lists and then runs DFS. If DFS explores many branches, total time may blow. Need further optimizations.
+
+Alternative direct DFS for lexicographically smallest with index order and propagation might be faster because it doesn't restart. But if first branch infeasible, it explores entire infeasible subtree. The oracle approach also explores entire infeasible subtree for each failed color at each step. Could be similar but with restarts overhead.
+
+Maybe we can improve by using memoization / caching of state? State space huge.
+
+Another idea: Since n<=40, we can use exact algorithm for 3-coloring via recursive removal of independent sets (Lawler). Complexity O(1.4423^n). We can adapt to lexicographically smallest. Let's explore.
+
+Lawler's 3-coloring algorithm: For each maximal independent set S of G, check if G-S is bipartite. If yes, 3-coloring exists. To find lexicographically smallest, we can iterate independent sets S in some order? Not straightforward.
+
+But we can use branching on vertex v: either v in color 1 (independent set) or v in color 2/3. If we assign v to color 1, then we cannot assign its neighbors to color 1. The rest must be 2-colorable. This is like recursive algorithm: choose a vertex v. Branch 1: put v in S (color1), remove v and its neighbors from consideration for S, and require remaining graph bipartite? Not exactly; we don't decide S fully. Branch 2: put v not in S (i.e., color2/3), remove v from graph but keep it in G-S; then G-S must be 2-colorable eventually. This branching has recurrence T(n) = T(n-1) + T(n-1-d) maybe. For min degree d, good. But implementing lexicographic smallest with this branching is complex.
+
+Maybe simpler: Use BFS/branch and bound with bitsets and connected components. For n=40, likely okay.
+
+Let's test with worst-case random 3-colorable n=40. Suppose graph is complete 3-partite with parts sizes ~13,14,13. 3-coloring unique up to permutation. Backtracking with min domain: many vertices have all 3 colors initially. Choose vertex v, branch 3. In branch color1, neighbors lose color1. After assigning a few vertices from different parts, constraints force. Search may explore some but likely small. Oracle calls with partial prefix fixed may be harder? At step 1, try color1; oracle must determine if graph 3-colorable with v1=1. Since graph is complete 3-partite, yes. So choose 1. Step2, if v2 in same part as v1, color1 feasible; choose 1. If v2 in different part, color1 infeasible (edge), oracle explores maybe many branches before concluding. But complete multipartite graph is dense; search space small. Good.
+
+Hard cases are sparse graphs with many colorings but constraints. For lexicographically smallest, greedy will often choose 1 for many vertices. Oracle must check feasibility of assigning early vertices 1. For sparse graph, many colorings exist, so feasible, oracle quickly finds one. The expensive case is when prefix choices make infeasible; then oracle explores many branches. But if graph is 3-colorable, infeasible prefixes may be limited.
+
+Consider graph that is 3-colorable but vertex 1 and 2 are adjacent, so c1=1, c2 cannot be 1, try c2=2 feasible. Fine.
+
+What about graph that requires vertex 1 color 3? Then oracle for c=1 explores entire search space (infeasible), c=2 explores entire search space, c=3 feasible. If graph has many branches, this could be 2x full search. But n=40, full search maybe manageable? If graph is 3-colorable with unique coloring requiring v1=3, then search for c=1/2 may explore huge. But such graph likely dense? Unique 3-coloring graphs can be hard.
+
+We can add a quick check: For each vertex, compute set of colors it can take in some 3-coloring? That's NP-hard. But we can use necessary condition: if vertex v has a neighbor colored c, cannot use c. For v1, if graph not 3-colorable with v=1? Hard.
+
+Maybe we can improve oracle by using connected component decomposition and caching? Not enough.
+
+Let's consider implementing a more powerful exact coloring algorithm: DSATUR branch and bound for k=3, but with lexicographic prefix constraints. DSATUR chooses vertex with highest saturation degree, branch colors. It can solve n=40 easily. But for lexicographic smallest, we need to enforce prefix decisions. We can incorporate prefix by fixing first unassigned vertex in order and trying colors. Actually DSATUR with vertex ordering dynamic but respecting prefix: at each step, if there are unassigned prefix vertices, choose the smallest index among them (to ensure lexicographic). Otherwise choose DSATUR heuristic. Branch colors 1..3. First complete coloring found is lexicographically smallest. This combines direct search with good heuristic, avoiding restarts. This may be best.
+
+Let's design direct recursive search:
+
+State: color array, allowed bitmask per vertex, saturation maybe.
+
+We need choose next vertex:
+- Let p = smallest index with color=0. We must assign it next to respect lexicographic order. (Because any valid coloring's lexicographic comparison depends on first differing index; to find smallest, we assign vertices in index order.)
+- However we can improve by choosing among unassigned vertices with smallest allowed count, but must maintain lexicographic minimality? If we branch on a non-prefix vertex before fixing prefix, the first solution found may not be lexicographically smallest because a different choice at prefix could yield smaller. To guarantee lexicographically smallest, we must branch on the smallest index unassigned vertex at each step. Because the sequence of decisions is exactly the assignment in index order. So we cannot use DSATUR globally. But we can still use propagation and pruning.
+
+But we can add heuristic within prefix: at step p, allowed[p] may have up to 3 colors. Try colors 1,2,3. For each, propagate (remove from neighbors), then recurse on next prefix. This is direct DFS. Pruning: after assigning p=c, we can check if any connected component of uncolored vertices has no valid coloring? Hard.
+
+But we can use min-domain heuristic inside the feasibility test for the remaining graph after prefix? Wait direct DFS with prefix order is exactly the sequential fixing with oracle, except we don't restart; we continue recursively. The difference: in sequential fixing, at each prefix we call oracle to test feasibility; oracle uses min-domain heuristic. In direct DFS, after assigning prefix, we also continue with prefix order. The search tree is the same set of prefixes; the order of exploring branches is lexicographic. The pruning in direct DFS can be weaker because we don't use min-domain to fail early? Actually we can still use propagation and detect conflicts. But min-domain heuristic for choosing next variable is not applicable because order fixed. However we can add forward checking: after assigning p=c, if any uncolored vertex has empty allowed, prune. Also if any uncolored vertex has allowed singleton, we could force it (still respecting index order? Forcing singletons is safe and can be done in any order; it doesn't affect lexicographic order because forced values are necessary). We can propagate singletons after each assignment. This improves pruning.
+
+So direct DFS with index order + singleton propagation may be efficient enough and simpler than oracle restarts. The first complete assignment found is lexicographically smallest.
+
+Let's design direct DFS:
+
+global color, allowed, found flag, result.
+
+def dfs(pos?):
+    # propagate singletons
+    # find first uncolored vertex i; if none, success.
+    # try colors in allowed[i] (1,2,3)
+    # assign and recurse.
+
+Propagation of singletons: We can use a queue. After assigning a vertex color c, scan neighbors and update allowed; if any allowed becomes 0 -> conflict; if becomes 1 -> push to queue. Process queue. Need undo all changes on backtrack.
+
+Because we assign in index order, when we force a singleton at vertex j, we are effectively assigning it out of order. That's okay; it just reduces domains. But we must ensure that when we later reach index j in the main order, it's already assigned and we skip. The lexicographic order of decisions still corresponds to first unassigned index at each recursion? If we force vertex j > current i, then at next recursion call, first unassigned may be some k <= j. The sequence of branching decisions is still in increasing index order because we always branch on smallest unassigned. Forced assignments don't create branches. So first solution found is lexicographically smallest.
+
+Implementation with in-place state and undo:
+
+We maintain color list and allowed list. Function try_assign(v, c, changes) assigns color c to v and updates neighbors, recording changes. It also processes forced singletons recursively. To simplify undo, we can implement a recursive propagation that records every allowed change and every color assignment. On conflict, undo all changes made in this branch.
+
+Pseudo:
+
+def assign_and_propagate(v, c):
+    # returns (success, list_of_changes)
+    # changes: list of (vertex, old_allowed) for allowed updates, and (vertex, old_color) for color assignments? We can set color[v]=c and record old_color=0.
+    stack = [(v, c)]
+    changes = []  # (u, old_allowed) for allowed changes; color assignments can be inferred: any vertex whose allowed becomes 0? No.
+    # Better record color assignments separately: color_changes list of vertices assigned in this propagation.
+    while stack:
+        u, col = stack.pop()
+        if color[u] != 0:
+            if color[u] != col: return False, changes, assigned_vertices
+            else: continue
+        # assign
+        color[u] = col
+        assigned_vertices.append(u)
+        # remove col from uncolored neighbors
+        for w in adj[u]:
+            if color[w] == 0:
+                old = allowed[w]
+                new = old & ~(1 << (col-1))
+                if new != old:
+                    allowed[w] = new
+                    changes.append((w, old))
+                    # if new has single bit, push
+                    if new & (new - 1) == 0 and new != 0:
+                        # determine color bit
+                        colw = (new & -new).bit_length()  # bit_length of lowbit gives color index? lowbit = 1<<(col-1), bit_length = col.
+                        stack.append((w, colw))
+                if new == 0:
+                    return False, changes, assigned_vertices
+    return True, changes, assigned_vertices
+
+But note: If a neighbor w already has allowed singleton for a different color than col, removing col may keep singleton; we don't push. If removing col makes it singleton, push. If neighbor already assigned color col, conflict? We check color[w]==0; if color[w]==col, then edge within same color -> conflict should be caught earlier when assigning w. But if color[w]==col and w is neighbor, then current assignment u=col conflicts with existing color. We need detect before assigning u. In our DFS, we only try colors in allowed[v], which already excludes colors of assigned neighbors. So when assigning v, neighbors colored with col won't happen. However during propagation, when we push forced singleton w with color colw, we should ensure no assigned neighbor has colw. Since allowed[w] became singleton colw, it means colw not used by assigned neighbors; but there could be an assigned neighbor with colw? That would have removed colw from allowed[w], so impossible. So safe.
+
+But there is subtle bug: When we assign u=col, we remove col from uncolored neighbors. If a neighbor w becomes singleton colw, we push. But what if w was already assigned? We skip. Good.
+
+Undo: after branch, for each (w, old) in changes: allowed[w]=old. For each u in assigned_vertices: color[u]=0. Note that assigned_vertices includes v and all forced. changes includes allowed updates for neighbors; does not include color assignments. We must reset colors.
+
+In DFS:
+
+def dfs():
+    # find first uncolored vertex i
+    i = next index with color==0
+    if i == -1: result = color copy; return True
+    mask = allowed[i]
+    # try colors 1,2,3 in order
+    for c in (1,2,3):
+        if mask & (1<<(c-1)):
+            ok, changes, assigned = assign_and_propagate(i, c)
+            if ok:
+                if dfs(): return True
+            # undo
+            for w, old in changes: allowed[w] = old
+            for u in assigned: color[u] = 0
+    return False
+
+This direct DFS finds lexicographically smallest because it assigns smallest index first and tries colors 1..3. The propagation may assign later vertices forced colors; those are necessary.
+
+Will this be efficient? Let's consider. For each branch, assign_and_propagate may process many forced vertices. In a sparse graph, assigning early vertex color 1 may not force much. DFS depth n, branching factor up to 3. But pruning via allowed empties. For graph with many colorings, it will quickly find all-1? Wait if graph has edges, cannot all 1. It will try c1=1, then c2=1 if no edge 1-2, etc. It essentially builds the lexicographically smallest coloring by greedily trying 1 at each vertex, backtracking when conflict. This is similar to greedy with on-the-fly conflict detection. It may explore some backtracks but likely manageable.
+
+Worst-case: Graph where lexicographically smallest coloring has many vertices color 3, requiring exploring huge infeasible subtrees for colors 1/2 at early vertices. But can that happen with n=40? Possibly if graph is 3-chromatic and vertex 1 belongs to a triangle, then c1 cannot be same as neighbors; but it can be 1,2,3. If graph is uniquely 3-colorable and vertex 1's color in unique coloring is 3, then trying c1=1 and c1=2 each may explore large search space. Unique 3-colorable graphs can be sparse? There are uniquely 3-colorable graphs with no triangles (e.g., Mycielski? Actually Mycielski graphs are uniquely colorable? The Mycielski construction yields uniquely k-colorable triangle-free graphs). For k=3, Mycielski-3 (Grötzsch?) has 11 vertices? Mycielski-4 has 23 vertices and chromatic 4. Uniquely 3-colorable triangle-free graphs exist with arbitrary size? Yes. Such graphs have exactly one 3-coloring up to permutation. If vertex 1's true color is 3, then c1=1/2 infeasible; search may explore many branches. But unique coloring means search tree may prune quickly because constraints propagate strongly? In uniquely colorable graphs, choices propagate; maybe okay.
+
+Let's test mentally with a uniquely 3-colorable graph. After assigning v1=1 (wrong), the graph remains 3-colorable? No, because unique coloring has v1=3, so no extension. The algorithm will try to assign others and eventually fail. The amount of exploration before failure depends on graph. For uniquely colorable, maybe failure occurs after assigning a few vertices due to conflict. Could be manageable.
+
+Another worst-case: Graph that is 3-colorable but has a large subgraph that is not 3-colorable unless a particular vertex gets color 3. The search may explore exponential in that subgraph for wrong colors. n=40 though.
+
+I think direct DFS with propagation is acceptable.
+
+But we can further optimize using bitsets for adjacency and allowed updates. Since n=40, iterating adjacency lists is fine (m<=780). Propagation loops over neighbors each assignment. In dense graphs, m large but search small. In sparse, m small. Fine.
+
+Potential recursion depth: up to n plus propagation pushes; safe.
+
+Need ensure we don't get recursion limit issues; depth <= n=40, fine.
+
+Let's test with examples.
+
+Example1: n=4, edges K_4 minus edge 3-4? Actually edges: 1-2,1-3,2-3,1-4,2-4. Triangle 1,2,3 plus 4 connected to 1,2. Lex smallest: 1,2,3,3. Our DFS: c1=1. c2 allowed {2,3} (neighbor 1=1, also edge 2-3 not assigned). Try c2=2. Propagate? vertex3 neighbors 1,2 -> allowed {3}. force c3=3. vertex4 neighbors 1,2 -> allowed {3}. force c4=3. Done. Output 1 2 3 3. Good.
+
+Example2: K4. c1=1, c2=2, c3 allowed {3}? Actually c3 neighbors 1,2 -> allowed {3}, force c3=3. c4 neighbors 1,2,3 -> allowed {} -> conflict, backtrack. c3 only 3 failed, backtrack c2 try 3? c2 allowed {2,3} after c1=1. Try c2=3. c3 neighbors 1,2 -> allowed {2}, force c2? c3=2. c4 neighbors 1,2,3 -> allowed {} conflict. Backtrack c2 no options, backtrack c1 try 2, etc. All fail -> NO. Good.
+
+Now, is direct DFS with propagation guaranteed to find lexicographically smallest? Yes, because it enumerates assignments in lexicographic order (branch colors ascending, next vertex ascending). The first complete is smallest. Propagation doesn't skip any valid colorings; it only prunes invalid branches early and forces necessary assignments. So correct.
+
+Potential issue: When we force a singleton, we assign it a specific color. Could there be a valid coloring where that vertex has a different color but still allowed? No, because allowed became singleton, meaning only one color remains not used by assigned neighbors. Any proper coloring extending current partial must assign that color. So forced assignment is necessary. Good.
+
+Now, we need to ensure the algorithm terminates quickly. Let's think about possible improvements:
+
+- Pre-check: If graph contains a K4 (clique of size 4), no. Detect quickly? Not necessary but cheap: for each vertex, count common neighbors? Could be O(n^4). Not needed.
+
+- Component decomposition: We can split graph into connected components. For lexicographic order, components are independent. We could solve each component separately with the same algorithm; the combined lexicographically smallest assignment is just the per-component assignments because vertices from different components don't interact. However the lexicographically smallest global assignment may involve choosing color permutations per component? Since colors are global labels, but there is no constraint between components. For each component, the set of valid colorings is closed under global color permutation. The lexicographically smallest global assignment can be obtained by processing vertices in order and for each component choosing the lexicographically smallest coloring consistent with no previous constraints (since no edges to other components). But because colors are global, the lexicographically smallest coloring of component A may affect component B only at the first vertex of B; we can choose the coloring of B independently to minimize its own prefix. Since no constraints, the global lexicographically smallest is the concatenation of each component's lexicographically smallest coloring (with components ordered by their vertex indices). Wait consider component containing vertex 1 and component containing vertex 2. We color component1 lexicographically smallest (with colors 1,2,3). Component2 can be colored independently; its lexicographically smallest coloring also starts with color 1 for its smallest vertex. That's globally lexicographically smallest because choices in component2 don't affect component1. In general, for each component, we can choose its coloring independently to minimize its own assignment sequence (ordered by vertex indices within component). Since components don't share vertices or edges, the global sequence is minimized by minimizing each component's sequence. Is that true? Lexicographic comparison: first differing vertex i. If i in component C, then previous vertices in other components are fixed to their minimal assignments. The assignment in C at i can be minimized independently of other components. So yes, we can solve each connected component independently and combine. This also allows caching/reuse. But does solving component independently produce the same lexicographically smallest assignment as global sequential? Yes, because constraints only within component. The color palette is the same for all components; permutations are allowed per component. The lexicographically smallest for a component is well-defined (process its vertices in order). Combining them yields global lexicographically smallest.
+
+Thus we can decompose into connected components, solve each separately, combine. This can reduce search space because each component smaller. Also if one component not 3-colorable, answer NO. Good.
+
+But careful: The lexicographically smallest coloring of a component might not be the one used in global lexicographically smallest if there are interactions via color labels across components? There are no edges, so any combination of valid component colorings is valid globally. Lexicographic order compares vertex by vertex. For vertex i in component C, its color depends only on C's coloring. To minimize global sequence, for each component we minimize its own sequence. Since components are independent, the product is minimized component-wise. This is true because lexicographic order is a total order on sequences, and the global sequence is formed by interleaving component sequences according to vertex order. Minimizing each component's sequence (as a subsequence) minimizes the global at each position. More formally, suppose we have two global colorings A and B that differ first at vertex i. Let C be component of i. Within C, A and B differ first at i (since earlier vertices in C same? Actually earlier global vertices may include vertices from other components, which are same because those components are colored identically up to that point? Not necessarily; but if A and B differ first globally at i, then for all j<i, A_j=B_j. In particular for vertices of C with index < i, they are equal. So the restriction to C is lexicographically smaller for A at i. Thus to get global smallest, we need C's restriction lexicographically smallest among all valid C colorings. Since independent, choose each component's lexicographically smallest. Good.
+
+So component decomposition is safe and beneficial.
+
+Implementation: Find connected components via DFS/BFS. For each component, get list of vertex indices (0-based). Build induced subgraph. Solve for lexicographically smallest coloring of that component. Combine into answer array.
+
+Solving a component of size k<=40. Direct DFS as above on component. Even if component size 40, okay.
+
+We can also order vertices within component by original index to maintain lexicographic order. In component DFS, "first uncolored vertex" means smallest original index among uncolored in that component. Since we solve component separately, we can map component vertices sorted by original index. The DFS will assign in that sorted order.
+
+This is good.
+
+Now, can we further prune using bipartite check? For a component, if it is bipartite, we can directly compute lexicographically smallest 2-coloring (using colors 1 and 2). Actually if component is bipartite, 3-colorable; lexicographically smallest uses only colors 1 and 2 (color 3 not needed because using 3 would be larger at first vertex where it appears). For bipartite component, the lexicographically smallest coloring is: process vertices in order; assign each vertex the smallest color not conflicting with already assigned neighbors. Since graph bipartite, this greedy works? Let's check: In a bipartite graph, if we process vertices in order and assign smallest available color (1 or 2), is it always valid? At each step, vertex may have neighbors assigned both 1 and 2? In bipartite graph, if we process in arbitrary order, a vertex could have neighbors in both partitions already assigned, possibly colors 1 and 2, leaving no color. Example: path 2-1-3, process vertices 1,2,3. Vertex1 assign 1. Vertex2 neighbor 1 -> assign 2. Vertex3 neighbor 1 -> assign 2. OK. But consider cycle of length 4: vertices 1,2,3,4 with edges 1-2,2-3,3-4,4-1. Process 1:1, 2:2, 3: neighbor2=2 -> assign 1, 4: neighbors 3=1 and 1=1 -> assign 2. OK. In bipartite graph, when processing vertex v, all assigned neighbors are in opposite partition. They could have been assigned different colors if the bipartition's coloring is not consistent with greedy. Example: complete bipartite K_{2,2} with parts {1,3} and {2,4}, edges all cross. Process 1:1, 2:2, 3: neighbor 2=2 -> assign 1, 4: neighbors 1=1,3=1 -> assign 2. OK. In general, greedy smallest available color in bipartite graph may fail? Let's try to construct: vertex v has two assigned neighbors, one colored 1 and one colored 2. Then no color. For that to happen, the two neighbors must be in same partition as v? Wait v's neighbors are opposite partition. If two neighbors in opposite partition have different colors, that means the opposite partition contains both colors among assigned vertices. Is that possible in a connected bipartite component? Yes, if we process vertices out of order, we might assign opposite partition vertices different colors. Example: path 3-1-2. Vertices order 1,2,3. 1:1, 2:2, 3 neighbor 1 -> 2. OK. Need v with neighbors colored 1 and 2. Let v=1, neighbors 2 and 3. Edge 2-3? If 2 and 3 are not adjacent (bipartite). Process 2:1, 3:2, then 1 neighbors 1 and 2 -> fail. But graph is just V-shaped, bipartite. Greedy by index order (1,2,3) would assign 1:1, 2:2, 3: neighbor1=1 -> 2, works. But if we process in order 2,3,1, greedy fails. Since we process by original index order, maybe greedy works for bipartite graphs? Not necessarily. Consider graph: vertices 1,2,3,4. Edges: 1-3,1-4,2-3,2-4 (complete bipartite K_{2,2} with parts {1,2},{3,4}). Process 1:1, 2: neighbor? no edge between 1,2 -> assign 1. Then 3: neighbors 1=1,2=1 -> assign 2. 4: neighbors 1=1,2=1 -> assign 2. Works. Try to make greedy fail with index order: Need at vertex i, assigned neighbors use both colors. Since earlier vertices are <i. Those earlier neighbors could be in same or opposite partition. If two earlier neighbors of i have different colors, they are opposite partition to i. They are not adjacent to each other? They could be adjacent if they are in same partition? Wait neighbors of i are opposite partition. Two neighbors of i are in same partition (opposite to i), so they may be adjacent to each other. If they are adjacent, they cannot same color. To have colors 1 and 2, they must be adjacent (or assigned via other constraints). Can we have earlier neighbors a,b < i, both adjacent to i, and a,b adjacent (so different colors), and a colored 1, b colored 2. Example triangle? Triangle not bipartite. So a,b cannot be adjacent if graph bipartite. Thus in bipartite graph, all neighbors of i are in same partition and are pairwise non-adjacent. They could still have different colors due to other constraints. Example: a and b both adjacent to i, a adjacent to c (colored 2), b adjacent to d (colored 1), with c,d earlier? Let's construct small bipartite graph where greedy by index fails. Vertices: 1,2,3,4,5. Partitions: {1,2,3}? Actually i=5. Neighbors a=1,b=2. Need a and b different colors. Since a,b nonadjacent, their colors determined by their neighbors. Let a=1 neighbor c=3 colored 2, so a=1. b=2 neighbor d=4 colored 1, so b=2. Both c,d <5? yes. Edges: 1-3,2-4,1-5,2-5. Also need ensure 3 and 4 not adjacent to 5? no. Graph bipartite? Parts: {1,2,5}? But 1 and 2 both adjacent to 5, so 1 and 2 same partition as each other and opposite to 5. 3 adjacent to 1 -> opposite to 1, same as 5. 4 adjacent to 2 -> same as 5. No edges between 3,4,5. So bipartite. Process index order: 1:1 (smallest). 2: no edge to 1 -> 1. 3: neighbor 1=1 -> 2. 4: neighbor 2=1 -> 2. 5: neighbors 1=1,2=1 -> 2. Works, not fail. Because a,b got same color 1. To make a,b different, need a forced to 2 by earlier neighbor. But a's earlier neighbor must be <a < i. Could be. Let a=2, neighbor c=1 colored 1 -> a=2. b=3, neighbor d? Need b=1. But b adjacent to a? no. Let b=3 neighbor 4 colored 2 -> b=1. i=5 adjacent to 2 and 3. Edges: 1-2, 4-3, 2-5,3-5. Graph bipartite? Parts: {1,3,5}? 3 and 5 same? 3 adjacent to 5? yes, so 3 and 5 opposite? Wait edge 3-5 means opposite partitions. Let's compute: edge 1-2: parts {1},{2}. edge 4-3: {4},{3}. edge 2-5: 2 opposite 5, so 5 in {1}. edge 3-5: 3 opposite 5, so 3 in {2,4}. But 3 adjacent to 4 (same partition?) conflict? Let's set 3 in {2,4} and 4 in {1,5}. Edge 3-4 connects opposite, okay. So partitions {1,5} and {2,3,4}. Edges: 1-2 ok, 4-3 ok (both second part? wait 4 and 3 both second part -> edge within part, not bipartite). So cannot have edge 3-4 if both second part. Need b's earlier neighbor in opposite partition. Let's systematically construct.
+
+Goal: bipartite graph, process by index, greedy smallest available fails at vertex i. That means i has neighbors colored 1 and 2. Since neighbors of i are opposite partition, all in same part. They are pairwise nonadjacent. Their colors are determined by their neighbors in i's partition. For two neighbors a,b to have colors 1 and 2, there must be constraints. If a has neighbor x in i's partition colored 2, then a cannot be 2 -> if a's only available is 1, fine. To force a=2, need neighbor colored 1. Similarly b=1 needs neighbor colored 2. These x,y are in i's partition, so not adjacent to i? They are same partition as i, so not adjacent to i. They can be earlier. So possible.
+
+Example: partitions P={i, x, y}, Q={a,b}. Edges: a-x (x colored 1 => a=2), b-y (y colored 2 => b=1), a-i, b-i. Also x,y earlier than i? We can set indices: x=1, y=2, a=3, b=4, i=5. Edges: 1-3, 2-4, 3-5,4-5. Is this bipartite? P={1,2,5}, Q={3,4}. Edges: 1-3 (P-Q), 2-4 (P-Q), 3-5 (Q-P), 4-5 (Q-P). No edges within P or Q. Good. Process: 1:1, 2:1 (no edge to 1), 3: neighbor 1=1 -> 2, 4: neighbor 2=1 -> 2, 5: neighbors 3=2,4=2 -> 1. Works! Because y=2 got color 1, not 2. We wanted y colored 2 to force b=1, but greedy gave y=1. To force y=2, need y have earlier neighbor colored 1 in Q. But y in P, neighbor in Q must be earlier and colored 1. That neighbor could be a? But a adjacent to i and x, not y (same Q as a? y in P, a in Q, could be adjacent). If a adjacent to y, then a and y opposite, okay. But a already adjacent to x and i. a in Q can be adjacent to multiple P vertices. Let's add edge a-y. Then a's neighbors include x (P colored 1) and y (P uncolored) and i. Process order: x=1:1. y=2: neighbor a? a not assigned yet; no other -> assign 1. Still y=1. To force y=2, need y have an earlier neighbor in Q colored 1. But Q vertices earlier than y? y index 2, only vertex 1 in P. So impossible. In general, greedy by increasing index on a bipartite graph may never fail? Let's prove: At step i, all earlier vertices j<i. Suppose i has neighbors colored both 1 and 2. Let a be neighbor colored 1, b neighbor colored 2. Since a,b < i. Consider the subgraph induced by vertices <=i. It is bipartite. In any 2-coloring of this subgraph, a and b are in same partition (both opposite to i), so they must have the same color in a proper 2-coloring. But greedy may produce a coloring not corresponding to a consistent bipartition because it processes in arbitrary order. However if the subgraph is connected, the 2-coloring is unique up to swap. Greedy by index might produce a coloring that is not a proper 2-coloring if it fails. But can it fail? Let's try to construct failure with connected bipartite subgraph on vertices <=i.
+
+We need a,b neighbors of i, same side, different colors. In a connected bipartite graph, all vertices on same side must have same color in a proper 2-coloring. Greedy's colors may not respect bipartition if it assigns same side different colors. For that, there must be an edge between two vertices on same side? No, that would make odd cycle. Wait if a and b are same side, they are not adjacent. Greedy assigns a color based on its earlier neighbors. If a has earlier neighbor colored 2, a gets 1; b has earlier neighbor colored 1, b gets 2. Those earlier neighbors are on opposite side (same side as i). They could be different vertices x,y. x and y are same side as i, so not adjacent to each other. They are earlier. x colored 2 means x had earlier neighbor colored 1, etc. This can cascade. Could produce inconsistency.
+
+Let's search for smallest example. Use brute mental or maybe known: Greedy coloring with smallest available color on bipartite graphs in arbitrary order can use more than 2 colors? Actually the Grundy number of bipartite graphs can be unbounded. Yes, the First-Fit coloring number (Grundy number) of bipartite graphs can be large. For order by vertex index, we can construct bipartite graphs where First-Fit uses many colors. But here only 2 colors available? Wait we have 3 colors, but we want lexicographically smallest, which uses colors 1,2 maybe 3. First-Fit with colors 1,2,3 on bipartite graph may use 3 if forced. But can it fail to 2-color? Since graph bipartite, there exists 2-coloring; First-Fit might need to use color 3 at some vertex if both 1 and 2 appear in neighbors. Example: star with center processed last: leaves colored 1 and 2? But leaves are independent, greedy would color leaves all 1 if no edges among them. To get leaves different colors, need constraints among leaves? They are independent (same side), cannot be adjacent. So leaves colors determined by their own neighbors (which are center only, not earlier if center last). So all leaves would be 1. Thus center sees only 1, gets 2. So no failure.
+
+To get two leaves different colors, each leaf must have earlier neighbor colored differently. Leaves only neighbor center (later). So impossible. More generally, vertices on same side as i (opposite partition) have neighbors only in i's side. Those neighbors are earlier? They could be earlier and colored. To force a leaf in Q to color 2, it needs an earlier neighbor in P colored 1. That earlier P vertex is not i. So leaf a adjacent to some x in P (x<i) colored 1, and not adjacent to i? It could be adjacent to i too. Similarly leaf b adjacent to y in P colored 2. x,y same side as i, not adjacent. This seems possible. Let's try construct with P vertices x,y forcing Q leaves a,b, and i adjacent to a,b.
+
+Set indices: x=1, y=2, a=3, b=4, i=5. Edges: x-a (1-3), y-b (2-4), i-a (5-3), i-b (5-4). Also need a not adjacent to y, b not adjacent to x to allow colors. Graph bipartite P={1,2,5}, Q={3,4}. Process: 1:1, 2:1, 3: neighbor1=1 ->2, 4: neighbor2=1 ->2, 5: neighbors 3=2,4=2 ->1. No failure because y got 1. To make y=2, need y have earlier neighbor in Q colored 1. Add edge y-a? But a in Q, y in P, okay. If a adjacent to y, then a's neighbors are x and y and i. Process: 1:1, 2:1, 3: neighbors 1=1,2=1 ->2 (still). y=2 got no constraint from a because a later. To have y colored 2 before a, need y's color decided at its step (index 2). It only has neighbors earlier (index<2), none. So y=1. Thus cannot force y=2 at index 2. In general, a vertex's color is decided when processed; to be 2, it needs an earlier neighbor colored 1. That earlier neighbor is in opposite partition. For a P vertex y to be 2, need earlier Q neighbor colored 1. But Q neighbors of y are later? Not necessarily; we can give y an earlier Q neighbor z < y. z is in Q, adjacent to y. z's color decided earlier; to be 1, z needs earlier P neighbor colored 2 or no earlier neighbors. This can cascade, but indices must increase. The earliest vertex in each connected component has no earlier neighbors, gets color 1. Then its neighbors get 2, etc. So greedy by index on a bipartite graph actually produces a proper 2-coloring? Let's test with a path of length 2: vertices 2-1-3. Process 1:1, 2:2, 3:2. Proper. Path 3-1-2-4? Edges 1-3,1-2,2-4. Process 1:1, 2: neighbor1=1 ->2, 3: neighbor1=1 ->2, 4: neighbor2=2 ->1. Proper. It seems First-Fit by index on bipartite graph might always be proper with 2 colors because at each step, all earlier neighbors are in opposite partition; if they have both colors 1 and 2, then there exist two earlier neighbors in opposite partition with different colors. Those two neighbors are not adjacent (same partition), but they have different colors due to their own earlier neighbors. This implies an odd cycle? Let's attempt proof by induction: The graph induced by processed vertices is bipartite. Greedy assigns each vertex the smallest color not used by earlier neighbors. Since induced subgraph is bipartite, its vertices can be 2-colored. But greedy might not follow that. However if a vertex v has earlier neighbors colored 1 and 2, then in the induced subgraph, v's partition has neighbors with both colors. Consider the subgraph formed by v and its earlier neighbors; it is bipartite. In any 2-coloring, all neighbors of v same color. Greedy's coloring restricted to earlier vertices is a proper coloring (by induction). Since induced subgraph is bipartite, any proper 2-coloring has neighbors of v monochromatic. But greedy may have used both colors on neighbors; that means the greedy coloring of earlier vertices is not a 2-coloring respecting the bipartition? But it's still proper. Could a proper coloring of a bipartite graph assign two vertices in same partition different colors? Yes, if graph disconnected: different components can swap. If those two neighbors are in different connected components of the earlier induced subgraph, they could be colored differently. Then v connects them, making component connected and forcing them to same color, but greedy already colored them differently. This can cause failure! Example: two components: component A: vertices 1-3 (edge), component B: vertices 2-4 (edge). Process 1:1, 2:1, 3:2, 4:2. Then vertex 5 adjacent to 3 and 4 (both color 2) -> gets 1. Not failure. Need neighbors colored 1 and 2. So v adjacent to one vertex color 1 and one color 2 in different components. Example: component A: 1-3, colors 1,2. component B: 2-4, colors 2,1 (swapped). Then v=5 adjacent to 3 (color2) and 4 (color1). Is graph bipartite? Partitions: component A: {1,3}? Edge 1-3, parts {1},{3}. Component B: edge 2-4, parts {2},{4}. v=5 adjacent to 3 and 4. Then 5 must be opposite to both 3 and 4. But 3 and 4 are in different components and could be same partition? In global bipartition, we can choose component B swapped so that 4 is opposite to 5 and 3 opposite to 5 => 3 and 4 same partition. But greedy colored 3=2,4=1. If we set global bipartition: P={1,4,5?}, Q={2,3}? Let's see edges: 1-3 (P-Q), 2-4 (P-Q if 2P,4Q), 5-3 (P-Q if 5P,3Q), 5-4 (Q-P if 5P,4Q). So P={1,2,5}, Q={3,4}. Greedy: 1P=1,2P=1,3Q neighbor1=1 ->2,4Q neighbor2=1 ->2. Both neighbors of 5 (3,4) are Q color2 -> 5 gets1. To get 3 and 4 different, need component B swapped relative to A. But greedy processes components in index order; the first vertex of each component gets color 1. So if component A first vertex 1 in P gets 1, component B first vertex 2 in P gets 1. Then Q vertices 3,4 both get 2. So they are same. Thus greedy by index seems to align bipartitions by making first vertex of each component color 1. This may always yield a proper 2-coloring if graph bipartite. Because we can define bipartition by BFS from each component's first vertex; greedy's colors correspond to parity of distance from first vertex? Let's test: In a tree/BFS, first vertex color 1, its neighbors 2, etc. Greedy by index may not process vertices in BFS order, but the color assignment is forced by parity of earliest path? Actually if graph is connected bipartite, the 2-coloring is unique up to swap. Greedy assigns first vertex 1, so the rest are forced. As long as when processing a vertex, all its earlier neighbors have the color corresponding to the opposite parity. Could an earlier neighbor have wrong parity color? That would mean there is an odd cycle? In connected bipartite graph, all paths from first vertex to a given vertex have same parity. A vertex's neighbors are opposite parity. If an earlier neighbor is opposite parity, its color should be 2 (if parity odd) or 1 (if even). Since first vertex is even=1. By induction, all processed even parity vertices are 1, odd parity vertices are 2. When processing vertex v, its earlier neighbors are odd parity (if v even) and should all be 2; if any earlier neighbor even parity, that neighbor would be same parity as v and adjacent, creating odd cycle. So impossible. Thus greedy works for connected bipartite graphs. For disconnected, each component first vertex gets 1, and within component colors follow parity. So no failure. Therefore for bipartite components, greedy by index with smallest available color yields a valid 2-coloring. Great. So we can handle bipartite components in O(n+m) without search.
+
+But our general DFS will also handle them quickly. The bipartite shortcut may speed up but not necessary. However we can use it to quickly assign large bipartite components.
+
+But careful: Lexicographically smallest coloring of a bipartite component may use color 3? Since 2-coloring exists, using 3 would be lexicographically larger at first vertex where 3 appears (unless swapping colors reduces earlier). The greedy 2-coloring (first vertex 1, then smallest available) yields lexicographically smallest among 2-colorings? Is it globally lexicographically smallest among all 3-colorings? Could a 3-coloring be lexicographically smaller than the greedy 2-coloring? At first vertex, greedy assigns 1 (minimum possible). So no. Thus greedy 2-coloring is lexicographically smallest overall. Good.
+
+So we can handle bipartite components greedily. For non-bipartite components, use DFS.
+
+But detecting bipartite component and greedy assignment: We can BFS/DFS to find component and bipartition. Then assign color 1 to vertices in part containing smallest index vertex? Wait greedy by index: process vertices in index order; assign smallest available. For connected bipartite graph, this corresponds to: start with smallest vertex in component gets 1. Then BFS parity determines colors: even distance from start -> 1, odd -> 2. But is this equal to greedy by index? Let's verify with previous path 2-1-3: component vertices {1,2,3}, smallest=1. BFS from 1: 1 even=1, neighbors 2,3 odd=2. Greedy by index: 1:1,2:2,3:2. Same. For component where smallest vertex not necessarily the one that yields lexicographically smallest? Since first vertex must be 1 in any lexicographically smallest (color 1 is feasible because no constraints). BFS parity from that vertex yields unique proper 2-coloring with that vertex 1. Greedy by index will produce same. Good.
+
+Thus for bipartite component, assignment = parity from smallest vertex: 1 for even, 2 for odd.
+
+Now for non-bipartite components, use DFS. Since component non-bipartite, it needs 3 colors. DFS with index order and propagation.
+
+Potential further optimization: In DFS, we can also use a heuristic to choose next vertex: smallest index uncolored. But we can also propagate singletons. Good.
+
+Let's think about correctness of DFS for lexicographically smallest on component. Since components independent, we solve each. Within component, vertices sorted by original index. DFS assigns smallest index uncolored next. Branch colors ascending. First complete coloring is lexicographically smallest for that component. Good.
+
+Now, can we improve DFS by using a more clever branching for non-bipartite components? Maybe choose a vertex involved in an odd cycle. But index order is required. However we can still use propagation.
+
+Let's consider worst-case runtime for DFS on non-bipartite n=40. Suppose graph is a cycle of odd length (e.g., 41? n=40 even cycle bipartite). Odd cycle C_39 plus isolated vertex. Non-bipartite component C_39. Lexicographically smallest 3-coloring: try 1,1,... until conflict. DFS will backtrack minimally. For odd cycle, number of 3-colorings = 3*2^39 - 6? Actually for odd cycle, chromatic polynomial. Search easy.
+
+What about a graph consisting of many overlapping odd cycles? Hard to tell.
+
+Maybe we can add a bound: If at any point the subgraph induced by uncolored vertices is not 3-colorable? That's the problem. But we can check for K4 quickly? Not enough.
+
+Another optimization: Use bitsets to find first uncolored and min allowed quickly. n=40, scanning each recursion is fine.
+
+Let's implement with adjacency lists and arrays.
+
+Potential issue: Python recursion overhead and copying changes. We can implement DFS with explicit stack of changes. Since n small, we can use recursion with undo lists.
+
+Let's design assign_and_propagate carefully and efficiently.
+
+Represent colors as 0,1,2 maybe (0=unassigned, 1..3). allowed bitmask bits: bit 0 for color1, bit1 for color2, bit2 for color3. Initially allowed[i]=7.
+
+adj: list of neighbor indices.
+
+Function propagate_from(v, c, assigned_list, changed_list):
+    # assign v color c, propagate forced singletons
+    # use a list stack = [(v,c)]
+    # assigned_list initially empty; changed_list initially empty
+    while stack:
+        u, col = stack.pop()
+        if color[u] != 0:
+            if color[u] != col:
+                return False
+            continue
+        color[u] = col
+        assigned_list.append(u)
+        # remove col from uncolored neighbors
+        bit = 1 << (col-1)
+        for w in adj[u]:
+            if color[w] == 0:
+                if allowed[w] & bit:
+                    # record old if first change in this branch
+                    # To avoid recording multiple times for same vertex, we can check if allowed[w] was changed before. Simpler: always record old before change if not already recorded. Use a local set? Overhead.
+                    # Since n small, we can record every change; undo sets back. If same vertex changed multiple times (by different propagations), undo to old from first change is correct if we restore in reverse order? Let's think: If vertex w allowed changes from 7 to 6 (record 7), then later from 6 to 4 (record 6). Undo in reverse: set to 6, then set to 7. Correct. So record every change.
+                    changed_list.append((w, allowed[w]))
+                    new = allowed[w] & ~bit
+                    allowed[w] = new
+                    if new == 0:
+                        return False
+                    # if singleton, push
+                    if new & (new - 1) == 0:
+                        # color is bit_length of lowbit
+                        cw = (new & -new).bit_length()
+                        stack.append((w, cw))
+    return True
+
+But there is a subtle bug: Suppose during propagation, we push w with color cw because allowed[w] singleton. But before we process w, another assignment of a neighbor removes cw? That would make allowed[w] empty, conflict caught. Or if w's allowed changed to another singleton? allowed is a single bit; removing cw would make 0. So fine.
+
+Also, when we assign u=col, we should ensure no assigned neighbor has col. Since we only call propagate_from on vertices whose allowed includes col, and assigned neighbors with col would have removed col from allowed. So okay.
+
+But what about a forced singleton w: allowed[w] has single bit cw. It might have an assigned neighbor with color cw? No, because that neighbor would have removed cw. Good.
+
+Now DFS:
+
+def dfs():
+    # find first uncolored vertex in comp_order
+    v = -1
+    for idx in comp_order:
+        if color[idx] == 0:
+            v = idx
+            break
+    if v == -1:
+        return True
+    mask = allowed[v]
+    # iterate colors 1..3
+    # We can precompute bits.
+    for c in (1,2,3):
+        if mask & (1 << (c-1)):
+            assigned = []
+            changed = []
+            if propagate_from(v, c, assigned, changed):
+                if dfs():
+                    return True
+            # undo
+            for u, old in changed:
+                allowed[u] = old
+            for u in assigned:
+                color[u] = 0
+    return False
+
+But comp_order is list of vertex indices sorted by original index. We can store global arrays color, allowed for the component. The first uncolored scan loops over comp_order each time. comp size k. Fine.
+
+Potential issue: The DFS may find a coloring but we need to store result. Since color array will hold final assignment when success, we can return. But because we solve component separately, we can have a result array for component. When dfs returns True, color array contains valid assignment. We copy to answer.
+
+But recursion returns True and unwinds; we must not undo after success. In code above, after recursive dfs returns True, we return True without undo. Good.
+
+Now, what about components that are bipartite? We can handle separately. But we can also just run DFS; it will be fast. However bipartite shortcut avoids any exponential. Let's implement both: For each component, check bipartiteness. If bipartite, assign via BFS parity from smallest vertex. Else run DFS.
+
+But careful: A component could be bipartite but the lexicographically smallest 3-coloring might use color 3 to allow earlier vertices color 1 where greedy 2-coloring would assign color 2? Wait greedy 2-coloring assigns first vertex 1. Could there be a 3-coloring where first vertex also 1, second vertex (if not adjacent to first) gets 1 (same as greedy), etc. Greedy 2-coloring always assigns smallest available color from {1,2}. A 3-coloring could assign color 1 to a vertex that greedy assigns 2? If greedy assigns 2, it has a neighbor colored 1. Any proper coloring must assign a color different from that neighbor; could be 2 or 3. To be lexicographically smaller, would need assign 1, impossible because neighbor 1. So greedy 2-coloring is lexicographically smallest among all proper colorings. Good.
+
+Thus bipartite shortcut correct.
+
+Now, for non-bipartite component, DFS may still be okay. But we can also incorporate bipartite check during DFS: if after assigning some prefix, the remaining uncolored subgraph is bipartite, we can complete greedily (with color 3 available for vertices that have both 1 and 2 neighbors? Actually if remaining graph is bipartite and allowed lists are full except removed colors from assigned neighbors, we can solve as list coloring: each uncolored vertex has a list of allowed colors (subset of {1,2,3}). The remaining graph must be list-colored. This is not necessarily greedy solvable. But we can check if the remaining graph with lists is 2-colorable after choosing which vertices get color 3? That's again 3-coloring. Not simple.
+
+Maybe we can use a more powerful exact algorithm for the non-bipartite component: Since component is small (<=40), we can use branch and bound with DSATUR but respecting index order for lexicographic. However index order may be okay.
+
+Let's test DFS on some random graphs mentally. For a graph with no edges (bipartite), handled. For a graph with one triangle, component size 3, DFS: c1=1, c2=2, c3=3. Fine.
+
+For a graph that is a 5-cycle (odd cycle), n=5. Lex smallest coloring? c1=1, c2=1 (no edge 1-2? depends edges). Suppose cycle 1-2-3-4-5-1. c1=1, c2=2 (edge), c3=1 (edge 2-3), c4=2 (edge 3-4), c5 neighbors 4=2 and 1=1 -> must 3. DFS finds. Good.
+
+For a graph that is 5-cycle with chord? Fine.
+
+Potential issue: The DFS with propagation may assign forced singletons out of index order, which can cause the "first uncolored vertex" scan to skip forced vertices. That's fine.
+
+Now, let's think about time for a graph that is 3-colorable but DFS explores many branches. We can add a simple pruning: If the subgraph induced by vertices with allowed size 1? Already forced. If allowed size 0, prune.
+
+Another pruning: If a vertex has degree (within uncolored) >= 3 and allowed size 3, still okay. Not helpful.
+
+Maybe we can add a check for a vertex with allowed size 2 but both colors appear in its neighborhood? Not possible because colors used by neighbors are removed.
+
+Could use "if two adjacent vertices have same singleton allowed color" -> conflict. But propagation will catch when assigning.
+
+Could use connected component of uncolored graph: If a component has no vertex assigned a color? Not helpful.
+
+Given n=40, I think DFS is enough. But to be safe, we can implement a more efficient coloring algorithm for the feasibility/complete search: Use bitset-based recursive algorithm for 3-coloring with vertex ordering by degree? But lexicographic order restricts. However we can use a different strategy: Instead of index-order DFS, we can use the sequential fixing with a powerful feasibility oracle that uses a good heuristic (min-domain) and maybe memoization. That might be faster for hard instances because oracle can choose best variable. But direct index-order DFS may be slower if many wrong prefixes. Which is better? Hard to know.
+
+Let's consider a hard instance: a uniquely 3-colorable graph where the lexicographically smallest coloring has c1=3. Direct index-order DFS: at root, branch c1=1, explore huge infeasible subtree, backtrack, branch c1=2, explore huge, branch c1=3, find solution. Total ~2*infeasible search + solution. Oracle approach: at step1, call oracle for c1=1 (explores huge), c1=2 (explores huge), c1=3 (finds yes). Same. But oracle restarts each time, so overhead 3 copies. Direct DFS reuses state, so maybe faster. But direct DFS also explores c1=1 subtree fully before c1=2. So similar.
+
+If lexicographically smallest has c1=1, c2=3, etc., direct DFS explores c1=1 (good), then c2=1/2 infeasible subtrees, etc. Oracle same.
+
+Thus direct DFS is fine.
+
+But we can improve by using a feasibility oracle with min-domain for the *remaining* graph after prefix, which can detect infeasibility faster than index-order DFS? Actually index-order DFS also detects infeasibility via propagation; but min-domain can choose a vertex with only 2 colors to branch, potentially smaller tree. However the size of the search tree for satisfiability is independent of variable ordering (worst-case), but ordering affects constant. For proving infeasibility, min-domain may be better.
+
+We could combine: In direct DFS, after assigning prefix in index order, we could call a min-domain feasibility check before branching further to prune infeasible prefixes early. But that's similar to oracle.
+
+Maybe implement direct DFS with a "lookahead": after tentatively assigning the next vertex a color, run a quick propagation and check for any empty allowed. Already done. Could also check if the remaining graph (uncolored) is bipartite after ignoring colors? Not sufficient.
+
+Another idea: Use recursive splitting: choose a vertex v with smallest allowed count. If count 1, force. If count 2, branch. If count 3, branch. This is min-domain. To get lexicographically smallest, we can still enforce that the first uncolored vertex in index order must be assigned before any vertex with smaller index? No, if we branch on a non-prefix vertex, the first solution may not be lexicographically smallest. However we can use min-domain if we explore all solutions and track lexicographically smallest. But that could be exponential. Not good.
+
+Alternatively, we can use min-domain to find *a* completion after prefix decisions, but for lexicographic we need prefix order. So direct index-order DFS is natural.
+
+Let's think about using iterative deepening / branch and bound to find lexicographically smallest. We can treat assignment as base-3 number and do binary search on prefix? For each prefix, test feasibility. That's oracle approach. If oracle is fast, it's good. We can implement oracle with min-domain and memoization. Maybe easier to guarantee speed? Let's explore implementing a strong feasibility oracle.
+
+Feasibility oracle: Given partial assignment, determine if extendable. Use recursive search with min-domain and propagation. This is standard 3-coloring. For n=40, a good implementation can solve in milliseconds. Called up to 120 times. Could be okay.
+
+But direct DFS avoids restarts. I think direct DFS with propagation is simpler and likely fast enough. Let's maybe implement direct DFS but with a small optimization: use min-domain for the *next* vertex only if it is the first uncolored? No.
+
+Actually, we can assign in index order but propagate singletons; this is equivalent to maintaining arc consistency. For many graphs, this is fast.
+
+Let's consider implementing both: For each component, if size small or sparse, direct DFS. If DFS takes too long? We can't measure time. But n=40 small.
+
+Potential recursion explosion due to many valid colorings? No, DFS stops at first solution. For graphs with many colorings, it finds lexicographically smallest quickly (greedy). For graphs with no coloring, it explores all; but then answer NO. For n=40, exhaustive search for NO may be large. But if graph not 3-colorable, maybe it contains a small obstruction (K4 or odd cycle) and fails early. Worst-case non-3-colorable graphs could be hard (e.g., random 4-chromatic near threshold). n=40 maybe manageable.
+
+Let's test with random graphs? We can't run code here, but we can reason. A random graph G(40, 0.5) is far from 3-colorable (chromatic number ~? expected ~8). DFS will quickly find K4? Actually with propagation, assigning a vertex color may lead to conflict quickly. Search may explore many branches but n small.
+
+I think solution acceptable.
+
+Now, let's think about input reading and output.
+
+Implementation steps:
+
+1. Read n,m.
+2. Build adjacency list (0-indexed). Maybe also adjacency bitmasks for fast? For propagation, adjacency list is fine. But for bipartite check, adjacency list.
+3. Find connected components via DFS/BFS.
+4. For each component:
+   a. Check bipartite. If yes, assign colors via BFS parity from smallest vertex: color=1 for even, 2 for odd. Need to handle multiple components; answer array.
+   b. If not bipartite, run exact DFS to find lexicographically smallest 3-coloring. If none, output NO and exit.
+5. Combine assignments, output YES and colors.
+
+Wait: If a component is bipartite, we assign colors 1/2. But what if the component has only one vertex? Bipartite, assign 1. Good.
+
+But is it possible that a bipartite component's lexicographically smallest coloring uses color 3 because using 1/2 in some pattern? No, as argued.
+
+Now, exact DFS for non-bipartite component. We need to handle component size up to 40. Let's implement robustly.
+
+Potential issue: The component may be disconnected within? No, component is connected.
+
+Let's write DFS with global arrays for the component. Since components solved one by one, we can reuse arrays.
+
+Data structures for component:
+- comp_vertices: sorted list of original indices.
+- k = len(comp_vertices).
+- local adjacency list: for each local index, list of local neighbor indices. Or use original adjacency and comp_order scan. For propagation, using original indices is fine; adj[orig] contains neighbors only within component (since component). We can use global color/allowed arrays and only consider vertices in component. The first uncolored scan over comp_order.
+
+Let's use global arrays color[n], allowed[n] but only vertices in current component are touched. Initialize color[v]=0, allowed[v]=7 for v in component. Then run dfs. After success, copy color[v] to answer[v]. After failure, no need to reset others.
+
+DFS function uses closure over comp_order, adj, n? It scans comp_order.
+
+Implementation of propagate:
+
+def propagate(v, c):
+    stack = [v]
+    # we need to know color to assign for each stack entry; maybe stack entries are vertices to be assigned color c? But c may differ per forced vertex. Use tuple.
+    # We'll use a list `to_assign = [(v,c)]`.
+    to_assign = [(v,c)]
+    while to_assign:
+        u, col = to_assign.pop()
+        if color[u] != 0:
+            if color[u] != col:
+                return False
+            continue
+        color[u] = col
+        assigned.append(u)
+        bit = 1 << (col-1)
+        for w in adj[u]:
+            if color[w] == 0:
+                if allowed[w] & bit:
+                    changed.append((w, allowed[w]))
+                    new = allowed[w] & ~bit
+                    allowed[w] = new
+                    if new == 0:
+                        return False
+                    # singleton?
+                    if new & (new - 1) == 0:
+                        cw = (new & -new).bit_length()
+                        to_assign.append((w, cw))
+    return True
+
+But note: If w's allowed becomes singleton cw, we push. However, w may have already been assigned a different color? We check color[w]==0 before updating. If later we pop (w,cw) and color[w] is now 0, assign. Good.
+
+But there is a subtle case: Suppose w's allowed was already singleton cw before this branch, but color[w]==0. We didn't force it earlier? In our DFS, after each assignment we propagate only immediate singletons via stack. But what if at the start of a branch, some uncolored vertex already has singleton allowed due to previous assignments? Our propagate function when assigning v will process neighbors; it won't process pre-existing singletons. However in DFS, after we assign v and propagate, we recurse. At the start of recursion, we choose first uncolored vertex. If that vertex has allowed singleton, we will branch on its only color. That's fine. But we could also force it before branching. Not necessary.
+
+But what about pre-existing singletons created not adjacent to v? They are created as neighbors of v and pushed. So all singletons are processed. Good.
+
+Wait, after backtracking and undoing, allowed masks restored, so no stale singletons.
+
+Now, in DFS, after choosing v and before branching, if allowed[v] is singleton, we branch only that color. Good.
+
+Potential optimization: Instead of scanning comp_order to find first uncolored each recursion, maintain a pointer? But forced assignments can fill vertices before pointer. We can just scan from beginning; k<=40, recursion nodes maybe many but okay.
+
+Now, let's think about correctness of propagation with allowed singletons: When we push w with cw, we assume w must be color cw. But is it possible that w could be left uncolored and later assigned a different color after more neighbors are colored? No, because its allowed set is exactly {cw}; any assigned neighbor in the future can only remove colors, not add. So if we don't assign cw now, later it would still be forced. Assigning now is safe and necessary. Good.
+
+Now, consider the case where a vertex has allowed mask with two colors, but one color is not feasible due to global constraints. Branching will explore.
+
+Now, let's think about using bit_count for allowed count. Python 3.8+ has int.bit_count(). Use it.
+
+Now, let's consider component bipartite check. We can find components and bipartiteness simultaneously. Use BFS/DFS over graph. For each component, record vertices and whether bipartite. If bipartite, assign colors via parity. If not, store component for exact DFS.
+
+But careful: A component may be bipartite but the lexicographically smallest 3-coloring of the whole graph might involve using color 3 in that component to allow a smaller lexicographic sequence in another component? No, components independent; lexicographic order interleaves vertices. The first vertex of a bipartite component can be 1. Using 3 anywhere in that component would make it lexicographically larger at the first such vertex compared to using 1/2. Since no constraints between components, we can minimize each component independently. So bipartite assignment is fine.
+
+Now, what about a component that is a single vertex with a self-loop? Input says u != v, no self-loops. Good.
+
+What about multiple edges? Input likely no duplicates, but we can handle duplicates in adjacency list (propagation may remove same color twice; changed records duplicate; undo okay but slightly more work). We can ignore duplicates or use set. Since m up to 780, duplicates not issue. But for bipartite check, duplicate edges okay.
+
+Now, let's think about edge cases:
+- n=1, m=0: component bipartite, assign 1. Output YES 1.
+- n=2, edge: bipartite, component {1,2}, assign 1,2.
+- n=3 triangle: non-bipartite component. DFS: c1=1,c2=2,c3=3. Output YES 1 2 3.
+- n=4 K4: non-bipartite, no 3-coloring -> NO.
+
+Now, let's consider performance of DFS on K4: c1=1, c2=2, c3=3, c4 empty -> backtrack. c3 only 3. c2 try 3, c3=2, c4 empty. c1 try2, etc. Small.
+
+Now, let's think about a graph that is a complete 4-partite? Not 3-colorable if 4 clique? Complete 4-partite has clique number 4? Actually complete 4-partite graph contains K4 (one vertex from each part), so not 3-colorable. DFS will fail quickly.
+
+Now, what about a graph that is 3-colorable but has high chromatic number subgraphs? Fine.
+
+Potential issue: The DFS may find a coloring for a non-bipartite component, but the lexicographically smallest coloring might use only 2 colors on a subgraph? That's allowed.
+
+Now, let's think about implementing the exact DFS with recursion and undo. We need to be careful to avoid excessive object allocation (lists assigned/changed) per branch. Since n small, okay. But for many branches, creating two lists per branch may be heavy. We can use a single list for changes and a single list for assigned, passed and extended. But we need to truncate on backtrack. We can maintain global lists and append, then pop to original length. This avoids new lists. Let's implement:
+
+changes = []  # global for current component search
+assigned = []  # global
+
+def propagate(v, c):
+    stack = [(v,c)]
+    while stack:
+        u,col = stack.pop()
+        if color[u] != 0:
+            if color[u] != col: return False
+            continue
+        color[u] = col
+        assigned.append(u)
+        bit = 1 << (col-1)
+        for w in adj[u]:
+            if color[w] == 0:
+                if allowed[w] & bit:
+                    changes.append((w, allowed[w]))
+                    new = allowed[w] & ~bit
+                    allowed[w] = new
+                    if new == 0:
+                        return False
+                    if new & (new-1) == 0:
+                        cw = (new & -new).bit_length()
+                        stack.append((w, cw))
+    return True
+
+def dfs():
+    # find first uncolored in comp_order
+    v = -1
+    for idx in comp_order:
+        if color[idx] == 0:
+            v = idx
+            break
+    if v == -1:
+        return True
+    mask = allowed[v]
+    # branch colors
+    for c in (1,2,3):
+        if mask & (1 << (c-1)):
+            start_assigned = len(assigned)
+            start_changes = len(changes)
+            if propagate(v, c):
+                if dfs():
+                    return True
+            # undo to lengths
+            for i in range(len(changes)-1, start_changes-1, -1):
+                w, old = changes[i]
+                allowed[w] = old
+            del changes[start_changes:]
+            for i in range(len(assigned)-1, start_assigned-1, -1):
+                u = assigned[i]
+                color[u] = 0
+            del assigned[start_assigned:]
+    return False
+
+But using del on lists inside recursion may be okay. Alternatively, pop in loop.
+
+Potential bug: In propagate, when we encounter color[u]!=0 and color[u]==col, we continue. But if color[u]!=0 and color[u]==col, it means u already assigned same color (maybe forced earlier). That's fine. If color[u]!=0 and color[u]!=col, conflict. This can happen if we push a forced singleton for a vertex that was already assigned a different color via another path? But we only push singleton when vertex uncolored. Could it be assigned different color before we process? Suppose vertex w allowed singleton cw, pushed. Before processing, another propagation path also tries to assign w a different color? It would only push if w's allowed becomes a different singleton, but allowed is a single bit; removing cw would make 0 (conflict). So no. But the check is safe.
+
+Now, after propagate returns False due to conflict, we need to undo all changes made during that failed propagation. We undo based on lengths recorded before propagate. Good.
+
+Now, what about the `changes` list containing entries for vertices whose allowed changed multiple times? Undo in reverse restores correctly.
+
+Now, after DFS success, `assigned` and `changes` may contain entries from the path. We don't need to clean them; we just copy color to answer. But if we want to reuse arrays for next component, we reset color/allowed for those vertices.
+
+Now, bipartite component assignment: We can BFS from smallest vertex. Use colors 1/2 based on parity. For lexicographic smallest, we need to ensure that within component, assignment is greedy by index. BFS from smallest vertex gives a proper 2-coloring. But is it the same as greedy by index? Let's prove more rigorously.
+
+Consider connected bipartite graph G. Let s be smallest index vertex. Define parity distance from s: even -> color 1, odd -> color 2. This is a proper 2-coloring. Now process vertices in increasing index. We claim greedy assigns each vertex v the color equal to parity(s,v). Induction on index. Base s gets 1 (even). For v != s, all earlier neighbors have index < v. Since graph bipartite, any neighbor u of v has parity opposite to v. By induction, u got color based on parity(s,u) = opposite of parity(s,v). Thus all earlier neighbors have the same color (the opposite of v's parity). So greedy assigns v the color of its parity. Good. This holds because all earlier neighbors are opposite parity and thus all got the same color. There is no earlier neighbor same parity (would create odd cycle). So BFS parity works.
+
+But what if component is disconnected? We handle each component separately; smallest vertex of component is s. Same argument within component. Good.
+
+Thus bipartite assignment = BFS parity from smallest vertex.
+
+Now, for non-bipartite component, we cannot use BFS parity. Use DFS.
+
+Potential issue: The component may be non-bipartite but still have a vertex that can be color 1. DFS will try.
+
+Now, let's think about whether we should handle isolated vertices (component size 1) as bipartite yes, color 1.
+
+Now, let's consider memory and recursion. Fine.
+
+Now, let's think about possible improvements for non-bipartite DFS if it's too slow. We can add a preprocessing step: find a vertex cover or use branching on high-degree vertices. But maybe not needed.
+
+Let's try to estimate worst-case nodes for n=40 non-bipartite. Suppose graph is a disjoint union of many triangles? But component connected. A graph made of many triangles sharing edges? Could be a series of triangles (triangulated path). Lex smallest coloring may be forced. DFS small.
+
+What about a graph that is 3-colorable but has many vertices with no constraints except a few edges making it non-bipartite? E.g., a large bipartite graph plus one extra edge creating an odd cycle. Lex smallest coloring: mostly 1/2, but the odd cycle forces a 3 somewhere. DFS will try all 1s/2s, hit conflict, backtrack minimally. Should be okay.
+
+What about a graph that is a 5-cycle with many pendant vertices? DFS small.
+
+I think fine.
+
+Now, let's think about using Python's recursion and list operations. For n=40, even millions of nodes might be okay in 2s? Python can do maybe 10^7 simple operations per second. If search explores hundreds of thousands, fine. If tens of millions, maybe borderline. But n=40 likely okay.
+
+Let's consider a deliberately hard graph for 3-coloring with n=40. There are known hard instances for exact coloring algorithms, like random graphs with edge probability around 0.5? But those are not 3-colorable. For 3-colorable, random G(n, p=4/n?) near threshold. Backtracking may explore many. n=40, p~0.1, m~80. Number of 3-colorings huge. Lex smallest greedy will find quickly. For unsatisfiable (chromatic number 4), random G(40,0.5) has high chromatic number, easy to refute. Hard unsatisfiable 3-coloring instances are 4-chromatic graphs with no small obstruction, like Grötzsch? Mycielski graphs are 4-chromatic triangle-free. For n=40, Mycielski-4 has 23 vertices, not 40. Mycielski-5 has 47 vertices (chromatic 5). We could have a 4-chromatic graph on 40 vertices. DFS may explore many. But 4-chromatic graphs often have odd cycles or high-degree; propagation may fail. Mycielski graphs are known to be hard for coloring algorithms? They are triangle-free and have high girth? Actually Mycielski graphs have odd cycles but no small cliques. Backtracking may need to explore many. For n=40, a 4-chromatic Mycielski-like graph could be challenging.
+
+But the problem expects a solution; maybe test data not adversarial. We can add some heuristics to handle hard cases.
+
+Potential improvement: Use a more sophisticated exact coloring algorithm for non-bipartite components, such as branch on a vertex and reduce to 2-SAT? Or use the fact that 3-coloring can be solved in O(1.817^n) by branching on a vertex and either assigning it a color or merging it? Hmm.
+
+Alternatively, we can use the "branch and bound" algorithm for graph coloring (Tomita) to find a 3-coloring. But we need lexicographically smallest. We can use it as oracle after fixing prefix. But direct lexicographic DFS may be okay.
+
+Let's think about implementing a stronger pruning in direct DFS: After each assignment/propagation, check if the remaining uncolored subgraph is bipartite *after removing vertices that have only one allowed color?* Not straightforward.
+
+Another pruning: If there is a vertex v with allowed colors {a,b}, and two neighbors u,w that are adjacent and each forced to a and b respectively? Then v cannot be a (because neighbor u=a) and cannot be b (because neighbor w=b) -> conflict. But our allowed mask would already exclude a and b if neighbors assigned. If neighbors not assigned but forced? Propagation would force them. So okay.
+
+What about a triangle where two vertices uncolored with allowed {1,2} and {1,2}, and third uncolored with allowed {1,2}? That's a 3-vertex graph requiring 3 colors but only 2 available -> infeasible. Our DFS will branch and detect. Could add clique detection: if a clique of size k has only k-1 colors available among them, infeasible. For 3 colors, cliques of size 4 impossible (detect via max clique? hard). But K4 detection can be done by checking for each edge common neighbors. O(n*m) maybe. Not necessary.
+
+Maybe we can add a quick check: if any vertex has degree >= 3 and all neighbors are pairwise adjacent? Not needed.
+
+Let's consider implementing the exact DFS with a vertex ordering that respects index but also chooses among tied first uncolored? The first uncolored is unique (smallest index). So no.
+
+Now, let's think about the possibility that the graph has a component of size 40 that is non-bipartite and DFS too slow. Could we use an alternative algorithm for that case? Maybe we can use a SAT solver? No.
+
+We can implement a fallback: If DFS explores too many nodes, switch to a different algorithm? Hard to measure.
+
+Maybe we can use the "branch on a vertex, try colors, and for each color, check if the remaining graph is bipartite after removing that color class"? Wait 3-coloring can be decided by: choose a vertex v, for each color c, check if G - N_c? Not.
+
+Actually, 3-coloring can be solved by trying all assignments to a small set of vertices that intersect all odd cycles (a feedback vertex set into bipartite). If we find a set S such that G-S is bipartite, then we can enumerate all 3^{|S|} assignments to S and check if G can be completed (the remaining bipartite graph with list coloring). For graphs with small odd cycle transversal, this is fast. In worst case, |S| could be large. But for n=40, maybe okay? Not guaranteed.
+
+Alternatively, we can use the algorithm: Since graph is non-bipartite, pick an odd cycle. One vertex on the odd cycle must be color 3 (because odd cycle not 2-colorable). Branch on which vertex gets color 3; then remaining graph becomes bipartite? Not exactly; removing one vertex from an odd cycle makes it even, but other odd cycles may remain. But we can recursively handle.
+
+This is similar to "3-coloring by deleting to bipartite". Could be efficient if odd cycle transversal number small. But worst-case graphs may have large OCT.
+
+Given contest constraints, I think DFS is expected.
+
+Let's also consider using `sys.setrecursionlimit(1000000)`.
+
+Now, let's think about the output format. If NO, print "NO". If YES, print "YES" then line with n integers separated by spaces.
+
+Now, let's write the code.
+
+But before finalizing, let's test algorithm on some cases mentally and maybe design a small brute force to verify? We can't run code, but we can reason.
+
+Potential bug in propagate: `cw = (new & -new).bit_length()`. For new = 1 (bit0), lowbit=1, bit_length=1 -> color1. new=2 -> lowbit=2, bit_length=2 -> color2. new=4 -> bit_length=3 -> color3. Good.
+
+Potential bug: When we push forced singleton, we don't check if that color is still allowed after we process other stack entries. But allowed is updated; if later removed, conflict. Good.
+
+Potential bug: Duplicate changes for same vertex may cause undo to set intermediate values; reverse order correct.
+
+Potential bug: In DFS, after propagate returns False, we undo changes and assigned. But propagate may have returned False after making changes; we still undo. Good.
+
+Potential bug: `changes` and `assigned` are global lists; after DFS success, they contain entries. We don't need to clean for copying answer. But if we run DFS for next component, we will reinitialize color/allowed and `changes`/`assigned` should be empty. They will be empty because after success, the recursion unwinds without undoing, leaving lists with the path's entries. We can simply reset `changes.clear(); assigned.clear()` before next component. Or create new lists per component. Simpler: create new lists inside solve_component. But propagate and dfs closures capture them. We can define solve_component as nested function with local lists. That avoids global state. Let's do that.
+
+Implementation structure:
+
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        adj[u].append(v); adj[v].append(u)
+    ans = [0]*n
+    visited = [False]*n
+    for s in range(n):
+        if not visited[s]:
+            # BFS component
+            comp = []
+            stack = [s]
+            visited[s] = True
+            while stack:
+                v = stack.pop()
+                comp.append(v)
+                for w in adj[v]:
+                    if not visited[w]:
+                        visited[w] = True
+                        stack.append(w)
+            comp.sort()
+            # check bipartite
+            color_bip = {}
+            # BFS from comp[0]
+            from collections import deque
+            q = deque([comp[0]])
+            color_bip[comp[0]] = 0
+            is_bip = True
+            while q and is_bip:
+                v = q.popleft()
+                for w in adj[v]:
+                    if w not in color_bip:
+                        color_bip[w] = 1 - color_bip[v]
+                        q.append(w)
+                    elif color_bip[w] == color_bip[v]:
+                        is_bip = False
+                        break
+            if is_bip:
+                for v in comp:
+                    ans[v] = 1 if color_bip[v] == 0 else 2
+            else:
+                # exact DFS
+                k = len(comp)
+                comp_order = comp  # sorted
+                color = [0]*n
+                allowed = [7]*n
+                # only vertices in comp matter
+                assigned = []
+                changes = []
+                sys.setrecursionlimit(10000)
+                # define propagate and dfs as nested functions capturing comp_order, adj, color, allowed, assigned, changes
+                def propagate(v, c):
+                    to_assign = [(v,c)]
+                    while to_assign:
+                        u, col = to_assign.pop()
+                        if color[u] != 0:
+                            if color[u] != col:
+                                return False
+                            continue
+                        color[u] = col
+                        assigned.append(u)
+                        bit = 1 << (col-1)
+                        for w in adj[u]:
+                            if color[w] == 0:
+                                if allowed[w] & bit:
+                                    changes.append((w, allowed[w]))
+                                    new = allowed[w] & ~bit
+                                    allowed[w] = new
+                                    if new == 0:
+                                        return False
+                                    if new & (new - 1) == 0:
+                                        cw = (new & -new).bit_length()
+                                        to_assign.append((w, cw))
+                    return True
+
+                def dfs():
+                    # find first uncolored
+                    v = -1
+                    for idx in comp_order:
+                        if color[idx] == 0:
+                            v = idx
+                            break
+                    if v == -1:
+                        return True
+                    mask = allowed[v]
+                    for c in (1,2,3):
+                        if mask & (1 << (c-1)):
+                            start_a = len(assigned)
+                            start_c = len(changes)
+                            if propagate(v, c):
+                                if dfs():
+                                    return True
+                            # undo
+                            while len(changes) > start_c:
+                                w, old = changes.pop()
+                                allowed[w] = old
+                            while len(assigned) > start_a:
+                                u = assigned.pop()
+                                color[u] = 0
+                    return False
+
+                if not dfs():
+                    print("NO")
+                    return
+                for v in comp:
+                    ans[v] = color[v]
+    print("YES")
+    print(' '.join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()
+
+Potential issue: In BFS bipartite check, using dict `color_bip` and `w not in color_bip` is O(1) but overhead. Since n small, okay. But we can use an array `side` of -1 initialized for component. Simpler: use a dict or list. Let's use a list `side = [-1]*n` and set side[v]=0/1. But we need to reset only for component; we can just set side for vertices in comp. Or use a local dict. For speed, use list.
+
+Also, BFS from comp[0] but graph is connected; all comp vertices reachable. Good.
+
+But note: The component detection DFS uses adjacency; if graph has isolated vertex, comp=[s], BFS bipartite yes, assign 1.
+
+Now, is the bipartite assignment using side from BFS from comp[0] equivalent to greedy by index? Yes. We assign ans[v] = 1 if side[v]==0 else 2. Since comp[0] is smallest index, side 0 -> 1. Good.
+
+But what if component is bipartite and BFS from comp[0] yields side 0 for some vertices; greedy by index would assign same. Good.
+
+Now, for non-bipartite component, we run DFS. But the component may contain a bipartite subgraph plus an extra edge. The DFS will find lexicographically smallest.
+
+Potential issue: The DFS `propagate` uses `color` and `allowed` arrays of length n, but only comp vertices are initialized. Since we never access other vertices (adj only within comp), fine.
+
+Now, let's think about the `propagate` function: It pushes forced singletons. But it doesn't process pre-existing singletons at the start. In DFS, when we choose first uncolored v, if allowed[v] is singleton, we branch only that color. So pre-existing singletons are handled when chosen. But what if a pre-existing singleton is not the first uncolored? It will be chosen later and forced. Fine.
+
+However, there is a subtle issue: Suppose after assigning v=c, a neighbor w becomes singleton cw. We push w. But w may have a smaller original index than v? Since v is first uncolored, all vertices with smaller index are already colored. So w > v. Thus propagation only assigns later vertices. Good. In subsequent recursion, first uncolored may be some vertex before w; we branch there. w remains forced and will be assigned when reached or by further propagation. This is okay.
+
+But could there be a forced singleton at a vertex with smaller index than the next branching vertex that we haven't assigned? The next branching vertex is the smallest uncolored. So any uncolored vertex has index >= next. The forced singleton has index >= next. So no pre-existing singleton with smaller index. Good.
+
+Now, is it possible that branching on the first uncolored vertex with allowed size 2 leads to a forced chain that assigns many vertices, but a different choice at first vertex could allow smaller colors at later vertices? Since we try colors 1,2,3, we find lexicographically smallest. Good.
+
+Now, let's consider correctness of component independence for lexicographic minimality more formally to ensure no bug. Suppose component A has vertices {1,4}, component B {2,3}. Lex smallest global: vertex1 in A minimal 1. Vertex2 in B minimal 1 (no edge to 1). Vertex3 in B minimal maybe 1 if no edge to 2, else 2. Vertex4 in A minimal based on edges to 1. Solving components separately yields same. Good.
+
+Now, what about using BFS parity for bipartite component: If component has vertices {2,3} (edge 2-3), smallest=2, BFS: 2 side0 color1, 3 side1 color2. Global sequence at positions 2,3 is 1,2. Lex smallest for that component indeed. Good.
+
+Now, let's think about possible issue with multiple components and color permutation. Since each component solved independently, colors are global. For bipartite component, we fixed smallest vertex to color 1. Could there be a global lexicographically smaller coloring where that smallest vertex is color 1 anyway (minimum), so fine. For non-bipartite component, DFS also fixes smallest vertex to smallest feasible color. So fine.
+
+Now, let's consider if a component is non-bipartite but has a cut vertex whose assignment affects two subgraphs. DFS handles.
+
+Now, let's think about performance of BFS bipartite check with dict. We'll use list for speed.
+
+Revised component processing:
+
+visited = [False]*n
+side = [-1]*n
+for s in range(n):
+    if not visited[s]:
+        comp = []
+        stack = [s]
+        visited[s] = True
+        while stack:
+            v = stack.pop()
+            comp.append(v)
+            for w in adj[v]:
+                if not visited[w]:
+                    visited[w] = True
+                    stack.append(w)
+        comp.sort()
+        # bipartite BFS
+        is_bip = True
+        from collections import deque
+        q = deque()
+        q.append(comp[0])
+        side[comp[0]] = 0
+        while q and is_bip:
+            v = q.popleft()
+            for w in adj[v]:
+                if side[w] == -1:
+                    side[w] = 1 - side[v]
+                    q.append(w)
+                elif side[w] == side[v]:
+                    is_bip = False
+                    break
+        if is_bip:
+            for v in comp:
+                ans[v] = 1 if side[v] == 0 else 2
+                side[v] = -1  # reset? Not needed if not reused? side values for other components need reset for next BFS. We set side for all vertices in comp; after processing component, we can reset side[v]=-1 for v in comp. Or maintain a version array. Simpler: reset after use.
+        else:
+            # reset side for comp
+            for v in comp: side[v] = -1
+            # exact DFS
+            ...
+
+But note: side array is used for bipartite check; if component is non-bipartite, side values may be partially set. We reset.
+
+Alternatively, we can combine component detection and bipartite check in one DFS, storing side and detecting conflict. That might be simpler. Let's do a single stack DFS that also assigns side and detects bipartiteness. But we need component list. We can do:
+
+comp = []
+stack = [(s,0)]
+visited[s]=True
+side[s]=0
+is_bip=True
+while stack:
+    v, parity = stack.pop()
+    comp.append(v)
+    for w in adj[v]:
+        if not visited[w]:
+            visited[w]=True
+            side[w]=1-parity
+            stack.append((w,1-parity))
+        elif side[w] == parity:
+            is_bip=False
+
+But this detects conflict but continues; at the end is_bip false. However side assignments may be inconsistent; but we only use them if is_bip true. If is_bip false, we run exact DFS. Good. This is efficient.
+
+But careful: The DFS detection may mark is_bip false but still continue; side values may be wrong. We reset.
+
+Let's implement combined component detection:
+
+visited = [False]*n
+side = [0]*n
+ans = [0]*n
+for s in range(n):
+    if not visited[s]:
+        comp = []
+        stack = [s]
+        visited[s] = True
+        side[s] = 0
+        is_bip = True
+        while stack:
+            v = stack.pop()
+            comp.append(v)
+            for w in adj[v]:
+                if not visited[w]:
+                    visited[w] = True
+                    side[w] = 1 - side[v]
+                    stack.append(w)
+                elif side[w] == side[v]:
+                    is_bip = False
+        comp.sort()
+        if is_bip:
+            for v in comp:
+                ans[v] = 1 if side[v] == 0 else 2
+        else:
+            # exact DFS on comp
+            ...
+
+But note: `side[w] == side[v]` check only valid if visited[w] is true and side[w] set. Since we set side when visiting, okay. However if w was visited earlier in this DFS, side[w] set. If w not visited, we set. Good.
+
+Potential issue: The graph may have multiple edges; if u-v appears twice, first time sets side[v], second time sees visited and side[v]!=side[u] (if bipartite), no conflict. Good.
+
+Now, for non-bipartite component, we run exact DFS. We need to initialize color and allowed for vertices in comp. We can have global arrays `color = [0]*n`, `allowed = [7]*n` and reset for comp. Or create local arrays of size n for each component. Since n<=40, local arrays fine. But for speed, global arrays reused: set color[v]=0, allowed[v]=7 for v in comp before DFS. Since after previous component, color values for other vertices irrelevant; we only access comp vertices. But allowed for comp vertices must be 7. We'll set.
+
+Now, exact DFS nested functions capture `comp_order`, `adj`, `color`, `allowed`, `assigned`, `changes`. Good.
+
+Potential recursion depth: n=40, safe.
+
+Now, let's think about whether we need to sort adjacency lists? Not necessary.
+
+Now, let's consider if the graph has a component that is bipartite but with an edge causing side conflict detection false? No.
+
+Now, let's think about the case where the graph is 3-colorable but a component is non-bipartite and DFS finds a coloring. The coloring may use colors 1,2,3. Good.
+
+Now, let's think about possible bug: In exact DFS, we use `comp_order` sorted by original index. But the component's smallest vertex may not be the one that yields lexicographically smallest coloring if we could permute colors globally? Wait colors are fixed labels. The lexicographically smallest coloring of the component must assign the smallest possible color to the smallest index vertex. That color is 1 unless there is a self-loop (none) or constraints? A vertex with no self-loop can always be color 1 in some 3-coloring if component is 3-colorable? Not necessarily: If vertex v is adjacent to all three colors? It has only neighbors, not colors. It can be color 1 unless an adjacent vertex is forced to 1. But we can choose coloring. In a 3-colorable graph, any single vertex can be assigned color 1 in some 3-coloring? Yes, because we can take a valid 3-coloring and permute colors to put color of v to 1. So smallest vertex can be 1. Thus DFS trying 1 first is correct.
+
+Similarly, after fixing prefix, the next vertex can be assigned the smallest feasible color. DFS tries colors in order. Good.
+
+Now, let's think about whether the exact DFS might get stuck in infinite recursion due to propagation loops? Propagation assigns vertices and removes colors; no cycles that reassign. Since color only changes from 0 to non-zero, and we undo on backtrack, no infinite loop. Good.
+
+Now, let's consider memory: changes list may grow large; but each branch undoes. Max size O(k^2) maybe. Fine.
+
+Now, let's think about using `sys.setrecursionlimit`. We'll set to 10000.
+
+Now, let's think about reading input. Use sys.stdin.buffer.read() for speed.
+
+Now, let's think about output. Use sys.stdout.write.
+
+Now, let's consider testing with examples.
+
+Example1:
+n=4,m=5. Components: all connected. BFS: triangle 1-2-3 causes conflict -> non-bipartite. DFS comp_order [0,1,2,3]. color all 0 allowed 7.
+dfs: v=0, mask=7. c=1: propagate(0,1): neighbor 1 allowed 6, neighbor2 allowed 6, neighbor3 allowed 6. assigned [0]. dfs: v=1, mask=6 (bits 2,3). c=2: propagate(1,2): neighbor0 assigned 1 ok; neighbor2 allowed 6&~2=4 (singleton 3) push (2,3); neighbor3 allowed 6&~2=4 push? Actually neighbor3 allowed becomes 4 (singleton). Process (2,3): assign 2=3; neighbors 0 (1 ok),1 (2 ok),3 allowed 4&~4=0 conflict? Wait edge 2-3 exists. When assigning 2=3, neighbor3 allowed 4 (color3) removed -> 0 conflict. So propagate returns False. Undo. c=3 for v=1: propagate(1,3): neighbor2 allowed 6&~4=2 (singleton 2) push; neighbor3 allowed 6&~4=2 push. Process 2=2: neighbor3 allowed 2&~2=0 conflict (edge 2-3). Fail. So c=1 at v=0 fails? Wait after c=1 at v=0, v=1 has mask {2,3}, both fail due edge 2-3. So backtrack to v=0, try c=2. But actual lex smallest is 1 2 3 3. Why did c=1 at v=0 fail? Because we forced v=1 to be 2 or 3, but then v=2 and v=3 both need the remaining colors and are adjacent, causing conflict. However actual solution has v=0=1, v=1=2, v=2=3, v=3=3. Wait v=2=3 and v=3=3 are not adjacent (no edge 2-3). In our propagation, when v=1=2, we forced v=2=3 and v=3=3? Let's recalc: v=0=1. v=1=2. allowed[2] initially {2,3} (because neighbor0=1 removed 1). After v1=2, remove color2 from neighbor2 -> allowed[2]={3} (singleton 3). Remove color2 from neighbor3 -> allowed[3]={3} (singleton 3). Then propagate assigns v2=3. Then when assigning v2=3, neighbor3 allowed {3} becomes empty -> conflict because edge 2-3. But in actual solution, v3=3 and v2=3 are not adjacent, so why did propagation force v3=3? Because v3's allowed after v1=2 is {3} (neighbors: v0=1, v1=2, no v2 yet). Since allowed singleton, forced 3. Then v2=3 adjacent to v3 -> conflict. So with v0=1, v1=2, there is no valid coloring? But example says 1 2 3 3 is valid. Wait v2=3, v3=3. In that assignment, v3's color is 3 because neighbors v0=1, v1=2. v2's color is 3 because neighbors v0=1, v1=2. They are not adjacent. But our propagation forced v3=3 before considering v2. Then v2=3 conflict. However if we had not forced v3=3, we could assign v2=3 and v3=3, valid. The issue: v3's allowed set became {3} after v0=1 and v1=2. Since v3 is not adjacent to v2 (which will be 3), it's fine. But propagation forcing v3=3 is correct because any valid extension must assign v3=3 (only allowed color). Then v2 cannot be 3 because adjacent to v3. But in the example, v2=3 and v3=3, but they are not adjacent. Wait edge list: 1-2,1-3,2-3,1-4,2-4. So vertices 3 and 4 (v2 and v3) are NOT adjacent. In our indexing, v0=1, v1=2, v2=3, v3=4. Edge 2-3 is between v1 and v2 (vertices 2 and 3). Edge 2-4 between v1 and v3. No edge v2-v3. So when v1=2, v2 allowed {3} (neighbors v0=1, v1=2). v3 allowed {3} (neighbors v0=1, v1=2). Propagation forced v2=3 then v3=3. Since no edge v2-v3, no conflict. Wait earlier I said edge 2-3 exists between v2 and v3; that was wrong. Let's recalc: v2=3 assigned; neighbors v0=1, v1=2. No conflict. Then v3 forced 3; neighbors v0=1, v1=2, v2=3? Is there edge v2-v3? No. So allowed remains {3}, no conflict. So c=1,2 succeeds. Good.
+
+So algorithm works.
+
+Now, after success, color array: [1,2,3,3]. Output matches.
+
+Example2 K4: non-bipartite. DFS will fail. Output NO.
+
+Good.
+
+Now, let's think about a case where propagation forcing singletons leads to a conflict that would not occur if we left the vertex unassigned and assigned a different color later? Since forced singleton means only one color available; any extension must use it. So conflict means no extension. Good.
+
+Now, let's think about a subtle bug: When we force a singleton w with color cw, we don't check that w is not adjacent to an already assigned vertex of color cw. But allowed[w] became singleton cw, meaning cw was not removed by assigned neighbors. However, could there be an assigned neighbor of color cw that was assigned after allowed[w] became singleton? No, assigned neighbors are already assigned; we remove their color when they were assigned. If a neighbor gets color cw later, it would remove cw from allowed[w], causing conflict. So no issue.
+
+Now, let's think about the `propagate` function's stack: It may push the same vertex multiple times if its allowed becomes singleton, then before processing, another path also makes it singleton same color. But once color[u] set, subsequent pop sees color[u]!=0 and same color, continue. If different color, conflict (shouldn't happen). Fine.
+
+Now, let's think about performance of `propagate` using Python list as stack with tuples. Could be okay. We can optimize by using two separate lists for stack vertices and colors, or using a list of ints encoded (v<<2)|c. But not necessary.
+
+Now, let's think about using `bit_length` for singleton color. Could precompute mapping: singleton_to_color = {1:1,2:2,4:3}. Use dict or if-else. `bit_length` is fast.
+
+Now, let's think about whether we should sort component vertices before DFS. We sort comp. Good.
+
+Now, let's think about whether we should remove duplicate neighbors to reduce work. Not necessary.
+
+Now, let's think about whether we should handle the case where a component is non-bipartite but exact DFS might be too slow. Could we add a simple heuristic: if component size > some threshold, use a more advanced algorithm? Not needed.
+
+Now, let's think about possible TLE due to Python recursion overhead. For n=40, recursion depth 40, nodes maybe thousands. Fine.
+
+Now, let's think about whether we can improve by ordering colors in DFS based on allowed mask. We already try 1,2,3. Good.
+
+Now, let's think about whether we need to handle the case where the graph is not connected and some components are bipartite, some not. We do.
+
+Now, let's think about whether the BFS component detection with side check correctly identifies bipartiteness even if we start at a vertex and DFS traverses all edges. Yes.
+
+Now, let's think about whether `side[w] == side[v]` check can false-positive due to side[w] not set for visited vertices? We set side when marking visited. So all visited have side. Good.
+
+Now, let's think about whether we need to reset `side` for non-bipartite components before exact DFS. We don't use side in exact DFS. But side values remain; if later components processed, we set side for their vertices. Since we only check side for visited vertices within current component, leftover side values for unvisited vertices don't matter. For visited vertices, we set side when marking visited. So no need reset. But for bipartite components, we use side to assign answer; after that, side values remain but irrelevant. Good.
+
+Now, let's think about whether we need to reset `visited`? No.
+
+Now, let's think about input with n=40,m=0. All components size1, bipartite, ans all 1. Output YES 1 1 ... Good.
+
+Now, n=40, complete graph K40 (m=780). Not 3-colorable. Component non-bipartite. DFS: c1=1, c2=2, c3=3, c4 allowed empty -> backtrack. c3 only 3. c2 try 3, c3=2, c4 empty. c1 try2,... many branches but small because clique size 4 causes early fail. Actually after assigning 3 vertices distinct colors, fourth fails. Branching 3*2*1 = 6 attempts. Fast.
+
+Now, n=40, graph is cycle C39 plus isolated. Component C39 non-bipartite. DFS: try c1=1, c2=2, c3=1, ... alternating. At last vertex, conflict because odd cycle; backtrack. The search may explore many colorings? For odd cycle, number of 3-colorings is 3*2^39 - 6? Actually for odd cycle, P(C_n,3) = 2^n - 2 for odd? Let's compute: P(C_n,k) = (k-1)^n + (-1)^n (k-1). For k=3, n odd: 2^n - 2. Huge. But DFS will find lexicographically smallest quickly? Let's simulate: c1=1, then for each subsequent vertex, try smallest not conflicting with previous. For path, this gives alternating 1,2,1,2,... At the last vertex (adjacent to first and previous), if n odd, previous is 2, first is 1, so last must be 3. So solution found with no backtracking! Because we never had a choice that led to dead end except forced. Wait at each step i>1, allowed colors exclude previous color. If previous is 2, allowed {1,3}; greedy tries 1. This works until last. So DFS linear. Good.
+
+What about a graph where greedy choices lead to dead end requiring backtracking? E.g., even cycle with a chord making odd cycle? Could cause backtrack at last. But still small.
+
+Hard cases for lexicographic greedy are those where early vertices can be 1 but that forces later vertex to 3 at a position where choosing 2 earlier could allow 1 later? Lexicographic comparison: At first vertex where solution differs from greedy, greedy has smaller color. So greedy is optimal; if greedy prefix leads to dead end, we backtrack at the point of choice. The amount of backtracking depends on structure.
+
+I think solution is solid.
+
+Now, let's consider if there is any issue with recursion and global variables in nested functions causing slowdown. Fine.
+
+Now, let's think about whether we can avoid sorting component vertices and just use the order they were discovered. For lexicographic, we need original index order. Sorting is fine (k<=40).
+
+Now, let's think about whether we should use `sys.stdout.write` with f-string. Fine.
+
+Now, let's think about potential bug: In exact DFS, `comp_order` sorted ascending. The first uncolored scan loops over comp_order. Since comp_order size k, O(k) per node. If many nodes, O(k^2) total. k=40, fine.
+
+Now, let's think about whether we should implement iterative DFS to avoid recursion overhead. Not needed.
+
+Now, let's think about whether we should add a check for `m == 0` to output all 1s quickly. Not necessary but could be a shortcut. We can add: if m==0: print YES and '1 '*n. But not needed; components handle.
+
+Now, let's think about whether we should handle self-loops or duplicate edges. Input says u != v. Duplicates maybe not. We'll ignore.
+
+Now, let's think about whether the graph can have n up to 40 and m up to n(n-1)/2. Yes.
+
+Now, let's think about whether the problem expects lexicographically smallest among all valid assignments, including those that use color 3 in bipartite components. As argued, bipartite greedy gives smallest. Good.
+
+Now, let's think about whether there is any scenario where a non-bipartite component's lexicographically smallest coloring uses color 1 for all but one vertex, and the vertex requiring color 3 is not the smallest possible. DFS will find.
+
+Now, let's think about whether we can improve DFS by trying to assign color 1 to as many early vertices as possible. It already does.
+
+Now, let's think about whether we need to output `YES` and assignment on one line? Problem says YES on first line, second line n integers. We'll follow.
+
+Now, let's think about whether there is any issue with trailing space. We'll use join.
+
+Now, let's think about whether we should flush output. Not needed.
+
+Now, let's think about whether we should set recursionlimit at top of solve. Yes.
+
+Now, let's write final code cleanly.
+
+But before final, let's consider an alternative exact algorithm that might be more robust: Use BFS to find connected components, and for non-bipartite components, use a SAT-like backtracking but with a better variable ordering that still yields lexicographically smallest. Actually, we can use the following: To find lexicographically smallest coloring, we can process vertices in index order. At each vertex, we try colors 1,2,3. To test feasibility, we can use a subroutine that solves 3-coloring with min-domain. This subroutine can be implemented recursively and may be faster than index-order DFS because it can branch on constrained vertices. The overhead of restarting for each vertex may be acceptable. Let's compare.
+
+Direct index-order DFS explores infeasible subtrees for wrong color choices. The subroutine approach does the same but with better branching. However direct DFS also has propagation. The subroutine can choose min-domain, which may reduce infeasible subtree size. For hard instances, this could matter.
+
+Maybe we can implement the sequential fixing with a strong feasibility oracle. Let's design that.
+
+Sequential fixing:
+- Maintain global color array (final), allowed array.
+- For i from 0 to n-1 (or comp_order):
+   - If color[i] already assigned (by previous propagation? In sequential fixing we don't propagate globally; we just assign i), skip? Actually we assign only i at each step. We can maintain allowed.
+   - For c in 1,2,3:
+       - If c not allowed by current assigned neighbors, skip.
+       - Temporarily assign i=c (update allowed for neighbors) and call can_complete() to see if any extension.
+       - If yes, keep assignment (update allowed permanently) and break.
+       - Else undo neighbor allowed changes.
+   - If no color works, NO.
+
+can_complete(): given current color/allowed, determine extendability. Use min-domain DFS with propagation. It copies state.
+
+This approach has up to 3n oracle calls. Each oracle call copies color and allowed lists (size n) and runs DFS. The DFS can use min-domain heuristic, which may be faster. But the restarts may be slower.
+
+Could we avoid copying by running oracle in-place and undoing? Yes, but sequential fixing also modifies state. We can implement a function `can_complete(color, allowed)` that takes copies and runs DFS, returning bool. At top of each oracle, copy lists. That's 120*80 ints copy = small. The DFS inside uses in-place with undo.
+
+Let's estimate: For each step, we may call oracle 1-3 times. The first feasible call may find a completion quickly. The infeasible calls may explore many branches. In direct DFS, infeasible subtrees are explored once. In oracle approach, infeasible subtrees for prefixes that share a common prefix are explored multiple times? Actually if c=1 infeasible, oracle explores all completions with i=1. Then we try c=2, oracle explores all with i=2. These are disjoint search spaces. Direct DFS also explores them sequentially. So total search similar. But oracle restarts from scratch each time, losing propagation state? It starts from current partial and explores. Same.
+
+The advantage of min-domain in oracle may reduce nodes. But direct DFS with propagation and singleton forcing also prunes. Which is faster? Hard to say.
+
+Given time, maybe implement direct DFS; it's simpler and no copying. I think it's fine.
+
+But let's consider a worst-case for direct DFS: Suppose graph is a long path plus an extra edge making odd cycle at the far end. Direct DFS will greedily assign alternating 1,2 along path; at the far end, the odd cycle forces a 3. No backtracking. Good.
+
+Suppose graph is a path plus a constraint that the last vertex cannot be 2 if first is 1, etc. Could cause backtracking near end. Small.
+
+Suppose graph is 3-colorable but has a vertex v1 that can be 1, but doing so forces a vertex v20 to be 3, whereas choosing v1=2 allows v20=1 and overall lexicographically smaller? Lexicographic comparison: At index 1, 1 < 2, so any coloring with v1=1 is lexicographically smaller than any with v1=2, regardless of v20. So if v1=1 feasible, we keep it. So no issue.
+
+Thus direct DFS aligns with lexicographic.
+
+Now, let's think about whether we can add a "minimum remaining values" heuristic within direct DFS by allowing branching on a vertex with allowed size 1 (forced) before the first uncolored. We already process singletons when chosen. But we could force all singletons at the start of dfs() before choosing first uncolored. However propagate after each branch already forces. At the start of a recursive call, there may be singletons created by previous branch that haven't been forced because they are not the first uncolored. We could force them all in a loop before choosing first uncolored. This is equivalent to propagation and may prune earlier. Let's add: At start of dfs(), while there exists an uncolored vertex with singleton allowed, force it. But our propagate function assigns a vertex and pushes singletons; we can call a function `force_singletons()` that scans comp_order for singletons and propagates them. This adds O(k) per recursion but may reduce depth. However the first uncolored scan already will pick a singleton if it's the first uncolored. But singletons later remain unforced until chosen, potentially missing conflicts. For example, after assigning v=c, a later vertex w becomes singleton. We don't force w until we reach it. But conflicts involving w may only be detected later. Forcing w earlier could detect conflict earlier and prune. But the search would still explore the same branch until it reaches w. Forcing earlier doesn't reduce nodes much, but may cause earlier backtrack in some cases. It also may assign many vertices, reducing branching. We can integrate forcing all singletons at start of dfs().
+
+Implementation:
+
+def dfs():
+    # force any singletons
+    while True:
+        v = -1
+        for idx in comp_order:
+            if color[idx]==0:
+                mask = allowed[idx]
+                if mask & (mask-1) == 0 and mask != 0:
+                    v = idx
+                    c = mask.bit_length()
+                    break
+        if v == -1:
+            break
+        if not propagate(v, c):
+            # undo changes made by this failed propagation? But propagate may have made changes before failing.
+            # We need to undo only the changes from this force attempt. However propagate is called within dfs; if it fails, we need to undo all changes it made before returning False. But dfs may have been called with some state from parent branch; we must undo all changes made in this call before returning.
+            # This complicates because propagate may make changes and then fail; we need to undo them.
+            # We can handle by recording start lengths before forcing loop and undo on failure.
+            ...
+
+This adds complexity. Since n small, maybe not needed. But we can implement a simpler version: In propagate, when we assign v=c, we already push forced singletons. So after assigning the branching vertex, all reachable forced singletons are assigned. Thus no unforced singletons adjacent to assigned vertices. The only unforced singletons would be those created by... actually propagate pushes all singletons created, and assigning them may create more, so all singletons are forced. Therefore at the start of next dfs(), there are no singletons. Wait is that true? Let's see: After propagate(v,c), it processes a stack. It pushes any neighbor whose allowed becomes singleton. It assigns them, and for each, pushes their neighbors that become singleton, etc. So all vertices whose allowed becomes singleton due to the new assignment are forced. There cannot be any uncolored vertex with singleton allowed after propagate returns True. Because if any uncolored vertex had singleton allowed, it would have been forced. Unless a vertex had singleton allowed before propagate was called and wasn't forced? But before calling propagate(v,c), we are at a state where previous propagate also forced all singletons. At the very start, allowed all 7. So no singletons. Thus after each successful propagate, no singletons remain. Good. So no need for extra forcing.
+
+Wait, what about a vertex whose allowed becomes singleton not due to the new assignment but due to a previous assignment that didn't push it? Propagate always pushes when a neighbor's allowed becomes singleton. So no.
+
+Thus invariant: after each successful propagate, all uncolored vertices have allowed size 2 or 3. At start of dfs, we choose first uncolored; its allowed size is >=2 (unless all assigned). Good.
+
+But what if allowed size is 1 for a vertex that is not first uncolored? It would have been forced. So no.
+
+Thus DFS invariant holds.
+
+Now, consider the root call: before any propagate, all allowed 7. dfs chooses first uncolored, branches. After propagate, no singletons. Good.
+
+Now, what about after undoing a failed branch? The state restored to parent, which had no singletons. Good.
+
+Thus no extra forcing needed.
+
+Now, let's think about whether propagate can create a situation where a vertex has allowed size 0 but is not a neighbor of current assignment? It must be a neighbor of an assigned vertex (because only assigned vertices remove colors). So conflict detected when

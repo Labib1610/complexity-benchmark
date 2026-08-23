@@ -1,0 +1,38 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    best_a, best_b, best_c = n + 1, n + 1, n + 1
+    
+    # Iterate over edges (u, v) where u < v
+    for u, v in edges:
+        # Find common neighbors w such that w > v to ensure u < v < w
+        # This guarantees unique ordered triplets
+        common = adj[u] & adj[v]
+        for w in common:
+            if w > v:
+                if u < best_a or (u == best_a and v < best_b) or (u == best_a and v == best_b and w < best_c):
+                    best_a, best_b, best_c = u, v, w
+    
+    print(best_a, best_b, best_c)
+
+if __name__ == "__main__":
+    solve()

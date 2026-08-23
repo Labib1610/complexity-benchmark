@@ -1,0 +1,45 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    color = [0] * n
+    used = [0] * n
+    
+    def backtrack(pos):
+        if pos == n:
+            return True
+        for c in (1, 2, 3):
+            if (used[pos] >> c) & 1:
+                continue
+            color[pos] = c
+            new_changed = []
+            for nb in range(pos + 1, n):
+                if (adj[pos] >> nb) & 1 and not ((used[nb] >> c) & 1):
+                    used[nb] |= (1 << c)
+                    new_changed.append(nb)
+            if backtrack(pos + 1):
+                return True
+            for nb in new_changed:
+                used[nb] ^= (1 << c)
+        color[pos] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(' '.join(str(c) for c in color))
+    else:
+        print("NO")
+
+solve()

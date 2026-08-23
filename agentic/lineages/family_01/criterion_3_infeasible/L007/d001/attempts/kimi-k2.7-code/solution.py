@@ -1,0 +1,34 @@
+import sys
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = data[idx]
+        v = data[idx + 1]
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    suffix = [0] * (n + 2)
+    for i in range(n, 0, -1):
+        suffix[i] = suffix[i + 1] | (1 << i)
+
+    for a in range(1, n - 1):
+        nb = adj[a] & suffix[a + 1]
+        while nb:
+            lsb = nb & -nb
+            b = lsb.bit_length() - 1
+            common = adj[b] & nb & suffix[b + 1]
+            if common:
+                c = (common & -common).bit_length() - 1
+                sys.stdout.write(f"{a} {b} {c}\n")
+                return
+            nb ^= lsb
+
+if __name__ == "__main__":
+    solve()

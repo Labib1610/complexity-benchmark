@@ -1,18 +1,20 @@
-# Shift Partitioning
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A facility operates under a two-team system. There are $n$ personnel, labeled $1$ through $n$, each of whom must be placed into either Team 1 or Team 2. Certain pairs of personnel cannot be placed into the same team due to operational constraints.
+A manufacturing plant is organizing its $n$ staff members into two operational teams, identified as team 1 and team 2. 
 
-Determine whether it is possible to assign every person to Team 1 or Team 2 such that no constrained pair shares the same team. If it is possible, output the assignment sequence that is lexicographically smallest.
+There are $m$ pairs of staff members who share a specialized tool. Because a tool cannot be used by two people on the same team, the two members of any such pair must be assigned to different teams. 
+
+You must determine an assignment of each staff member to either team 1 or team 2 that satisfies all tool-sharing constraints, or report that no such arrangement is possible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of personnel and the number of operational constraints, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that person $u$ and person $v$ cannot belong to the same team.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of staff members who share a tool.
 
 ## Output
-If no valid team assignment exists, print `NO` on a single line.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the team assigned to person $i$ in the lexicographically smallest valid assignment.
+If no valid team arrangement exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $s_1, \dots, s_n$ (each $s_i \in \{1, 2\}$), where $s_i$ is the team assigned to staff member $i$. If there are multiple valid arrangements, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

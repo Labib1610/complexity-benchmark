@@ -1,0 +1,67 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # For each edge (u,v), we need pressure[u] & pressure[v] = 0
+    # Since pressures can only be 1 or 2:
+    # 1 in binary is 01
+    # 2 in binary is 10
+    # So 1&1 = 1 (not 0), 1&2 = 0, 2&2 = 0
+    # This means adjacent nodes must have different values (1 and 2)
+    # This is a bipartite graph check!
+    
+    color = [-1] * n  # -1: unvisited, 0: color 1, 1: color 2
+    
+    # Check if graph is bipartite
+    for start in range(n):
+        if color[start] == -1:
+            queue = deque([start])
+            color[start] = 0
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    elif color[neighbor] == color[node]:
+                        print("NO")
+                        return
+    
+    # Graph is bipartite, construct solution
+    # We want lexicographically smallest assignment
+    # So we prefer to assign 1 to nodes with smaller indices when possible
+    
+    result = []
+    for i in range(n):
+        if color[i] == -1:  # Isolated vertex, assign 1
+            result.append("1")
+        elif color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
+    print(" ".join(result))
+
+solve()

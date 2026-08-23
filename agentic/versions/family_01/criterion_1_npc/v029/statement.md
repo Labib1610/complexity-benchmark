@@ -1,19 +1,16 @@
-# Problem A — Schedule Partitioning
+# Problem A — Tier Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An organization manages $n$ personnel, indexed from 1 to $n$. Every person must be assigned to exactly one of three available operational windows, labeled 1, 2, and 3. Certain pairs of personnel are incompatible and cannot be assigned to the same operational window.
-
-Your task is to assign every person to an operational window such that no incompatible pair shares the same window, or report that no valid assignment is possible.
+A facility employs $n$ workers. Each worker must be allocated a work tier, represented by an integer from 1 to 3 inclusive. Certain pairs of workers have incompatible roles and must not be allocated the same work tier. Allocate every worker to exactly one work tier so that no incompatible pair shares a tier, or report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of personnel and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing an incompatible pair of personnel.
+The first line contains two integers $n$ and $m$ — the number of workers and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — an incompatible pair.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the assigned operational window for person $i$. If there are multiple valid assignments, output the one that is lexicographically smallest (comparing $s_1$ first, then $s_2$, and so on).
+If no valid allocation exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print $n$ integers $t_1, t_2, \dots, t_n$ (each in $\{1,2,3\}$), where $t_i$ is the tier of worker $i$. Among all valid allocations output the lexicographically smallest sequence (compare $t_1$ first, then $t_2$, and so on).
 
 ## Example 1
 Input:

@@ -1,0 +1,94 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # Precompute valid masks for each shift
+    # valid_masks[shift] = list of masks that are valid for that shift
+    # A mask is valid for a shift if no two workers in the mask are adjacent
+    valid_masks = [[], [], [], []]
+    for mask in range(1 << n):
+        # Check if mask is independent set
+        ok = True
+        m_temp = mask
+        while m_temp:
+            v = (m_temp & -m_temp).bit_length() - 1
+            if adj[v] & mask:
+                ok = False
+                break
+            m_temp &= m_temp - 1
+        if ok:
+            valid_masks[1].append(mask)
+            valid_masks[2].append(mask)
+            valid_masks[3].append(mask)
+    
+    # DP: dp[mask] = True if mask can be covered by some shifts
+    dp = [False] * (1 << n)
+    dp[0] = True
+    for mask in range(1, 1 << n):
+        for s in range(1, 4):
+            # Check if mask is valid for shift s
+            # and mask ^ submask is covered
+            # We need to find if there exists a submask of mask that is valid
+            # and dp[mask ^ submask] is True
+            # Optimization: iterate over valid masks that are submasks of mask
+            submask = mask
+            while submask:
+                if submask in valid_masks[s] and dp[mask ^ submask]:
+                    dp[mask] = True
+                    break
+                submask = (submask - 1) & mask
+            if dp[mask]:
+                break
+    
+    if not dp[(1 << n) - 1]:
+        print("NO")
+        return
+    
+    print("YES")
+    
+    # Reconstruct lexicographically smallest assignment
+    assignment = [0] * n
+    remaining = (1 << n) - 1
+    
+    for i in range(n):
+        for s in range(1, 4):
+            if assignment[i] != 0:
+                continue
+            # Try to assign worker i to shift s
+            # Check if we can find a valid configuration
+            # We need to find a valid mask for shift s that includes i
+            # and the rest can be covered
+            # Try all valid masks for shift s that include i and are subset of remaining
+            found = False
+            for mask in valid_masks[s]:
+                if (mask >> i) & 1 and (mask & remaining) == mask:
+                    if dp[remaining ^ mask]:
+                        # Assign all workers in mask to shift s
+                        m_temp = mask
+                        while m_temp:
+                            v = (m_temp & -m_temp).bit_length() - 1
+                            assignment[v] = s
+                            m_temp &= m_temp - 1
+                        remaining ^= mask
+                        found = True
+                        break
+            if found:
+                break
+    
+    print(' '.join(map(str, assignment)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,36 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj_bits = [0] * (n + 1)
+    adj = [[] for _ in range(n + 1)]
+    p = 2
+    for _ in range(m):
+        u = int(data[p])
+        v = int(data[p + 1])
+        p += 2
+        adj[u].append(v)
+        adj[v].append(u)
+        adj_bits[u] |= 1 << (v - 1)
+        adj_bits[v] |= 1 << (u - 1)
+    for i in range(1, n + 1):
+        adj[i].sort()
+    for a in range(1, n + 1):
+        A = adj_bits[a]
+        for b in adj[a]:
+            if b <= a:
+                continue
+            common = A & adj_bits[b]
+            shifted = common >> b
+            if shifted:
+                c0 = (shifted & -shifted).bit_length() - 1 + b
+                c = c0 + 1
+                sys.stdout.write(f"{a} {b} {c}\n")
+                return
+
+if __name__ == "__main__":
+    solve()

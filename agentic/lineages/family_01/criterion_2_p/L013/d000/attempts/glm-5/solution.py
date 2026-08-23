@@ -1,0 +1,50 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        try:
+            u = int(next(iterator))
+            v = int(next(iterator))
+            adj[u].append(v)
+            adj[v].append(u)
+        except StopIteration:
+            break
+
+    color = [0] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # BFS starting from node i
+            # To get lexicographically smallest configuration, we prefer color 1 for the smallest uncolored node.
+            # Since we iterate i from 1 to n, and color[i] is 0, i is the smallest uncolored node in this component.
+            # Setting color[i] = 1 is optimal.
+            color[i] = 1
+            queue = deque([i])
+            
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+
+    print("YES")
+    print(*(color[1:]))
+
+if __name__ == '__main__':
+    solve()

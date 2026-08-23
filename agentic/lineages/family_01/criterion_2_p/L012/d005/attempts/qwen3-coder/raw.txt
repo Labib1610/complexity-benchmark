@@ -1,0 +1,191 @@
+```python
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list for the graph
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color array: 0 means unvisited, 1 and 2 are the two colors (threads)
+    color = [0] * (n + 1)
+    
+    # Check if the graph is bipartite
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1  # Assign color 1 to the starting node
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            opposite_color = 3 - current_color  # Flips 1->2 and 2->1
+            
+            for neighbor in adj[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = opposite_color
+                    queue.append(neighbor)
+                elif color[neighbor] != opposite_color:
+                    return False  # Not bipartite
+        return True
+    
+    # Process each connected component
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    # If bipartite, construct the assignment that minimizes hash
+    # We want the lexicographically smallest sequence when treated as binary (0 for thread 1, 1 for thread 2)
+    # Since we compute H = 2*H + (t_i - 1), we want t_i - 1 to be as small as possible early on.
+    # So we prefer t_i = 1 over t_i = 2 whenever possible.
+    # This means we should try to assign color 1 to nodes whenever possible.
+    # Our BFS already ensures a valid 2-coloring. 
+    # To get the minimal hash, we need the lexicographically smallest bit string.
+    # That corresponds to making earlier bits 0 (i.e., assigning thread 1) when possible.
+    # But our coloring might have used arbitrary labels 1 and 2.
+    # We can normalize: for each component, ensure the node with the smallest index gets color 1.
+    
+    # Actually, let's reframe: we've colored the graph such that adjacent nodes have different colors.
+    # Now, to minimize the hash H_n = sum_{i=1}^n (t_i - 1) * 2^{n-i}, 
+    # we want the binary string (t_1-1)(t_2-1)...(t_n-1) to be lexicographically smallest.
+    # This means we prefer t_1=1 over t_1=2, then t_2=1 over t_2=2, etc.
+    # In terms of our coloring, if in a component, both color 1 and 2 are possible,
+    # we should assign color 1 to the node with the smallest index in that component.
+    
+    # Let's redo the coloring with this normalization.
+    color = [0] * (n + 1)
+    visited = [False] * (n + 1)
+    
+    def bfs_normalize(start):
+        queue = deque()
+        queue.append(start)
+        # Decide the color of 'start' based on minimizing lex order
+        # We'll just stick with color[1] = 1 for the first node encountered
+        if color[start] == 0:
+            color[start] = 1
+        queue.append(start)
+        # Actually, simpler approach: run BFS but ensure the first node in each component gets color 1
+        # Since we iterate from 1 to n, the 'start' will be the smallest index in its component.
+        # So we can always set color[start] = 1.
+        color[start] = 1
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            opposite_color = 3 - current_color
+            
+            for neighbor in adj[node]:
+                if color[neighbor] == 0:
+                    color[neighbor] = opposite_color
+                    visited[neighbor] = True
+                    queue.append(neighbor)
+                elif color[neighbor] != opposite_color:
+                    return False
+        return True
+    
+    # Reset and do proper BFS with normalization
+    color = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Start BFS from node i, assign it color 1
+            queue = deque([i])
+            color[i] = 1
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                opposite_color = 3 - current_color
+                for neighbor in adj[node]:
+                    if color[neighbor] == 0:
+                        color[neighbor] = opposite_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != opposite_color:
+                        print("NO")
+                        return
+    
+    # Now, color array holds a valid 2-coloring. 
+    # The assignment is simply color[1], color[2], ..., color[n]
+    # But we need to make sure it's the one that minimizes the hash.
+    # The hash is minimized by the lexicographically smallest binary string (t_i - 1)
+    # which means we prefer t_i = 1 over t_i = 2 at early positions.
+    # Our current coloring might not achieve that directly because we started BFS from arbitrary components.
+    # However, within each connected component, once we fix the color of the smallest-indexed node,
+    # the rest are determined. So to get the globally minimal hash, 
+    # for each component, we should ensure that the smallest-indexed node gets color 1.
+    
+    # Let's process components again, ensuring the root (smallest index) gets color 1.
+    color = [0] * (n + 1)
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            # Find all nodes in this component
+            component_nodes = []
+            queue = deque([i])
+            color_temp = {i: 1}
+            component_nodes.append(i)
+            
+            is_bipartite = True
+            while queue:
+                node = queue.popleft()
+                current_color = color_temp[node]
+                opposite_color = 3 - current_color
+                for neighbor in adj[node]:
+                    if neighbor not in color_temp:
+                        color_temp[neighbor] = opposite_color
+                        component_nodes.append(neighbor)
+                        queue.append(neighbor)
+                    elif color_temp[neighbor] != opposite_color:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+            
+            if not is_bipartite:
+                print("NO")
+                return
+            
+            # Assign colors to global array
+            for node in component_nodes:
+                color[node] = color_temp[node]
+    
+    # The above still doesn't guarantee minimal hash across components.
+    # A better way: treat the entire graph and find a valid 2-coloring that is lexicographically minimal.
+    # This is exactly what's needed for minimal hash.
+    # We can do BFS/DFS starting from node 1, assigning colors greedily to minimize lex order.
+    
+    color = [0] * (n + 1)
+    queue = deque()
+    
+    # Initialize all nodes as unvisited for this new traversal
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            color[start] = 1
+            queue.append(start)
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                opposite_color = 3 - current_color
+                # To maintain lex order, we can sort neighbors, but not necessary for correctness
+                for neighbor in adj[node]:
+                    if color[neighbor] == 0:
+                        color[neighbor] = opposite_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != opposite_color:
+                        print("NO")
+                        return
+    
+    # Output the result
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```

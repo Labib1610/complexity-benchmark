@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    bits = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        bits[u] |= 1 << v
+        bits[v] |= 1 << u
+
+    # suffix[k] has all bits >= k set to 1
+    suffix = [0] * (n + 2)
+    for k in range(n + 2):
+        suffix[k] = -1 << k
+
+    for a in range(1, n + 1):
+        ba = bits[a]
+        sub = ba & suffix[a + 1]  # neighbors of a greater than a
+        while sub:
+            lsb = sub & -sub
+            b = lsb.bit_length() - 1
+            common = ba & bits[b]
+            mask = common & suffix[b + 1]  # common neighbors greater than b
+            if mask:
+                c = (mask & -mask).bit_length() - 1
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+            sub ^= lsb
+
+solve()

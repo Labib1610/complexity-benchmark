@@ -1,0 +1,800 @@
+<think>
+Let me analyze this problem step by step.
+
+We have n organisms and m channels connecting pairs of organisms. Each organism must be in state 1 or state 2.
+
+The key constraint is:
+- If organism u is in state 1, it secretes nutrients that require the receiver to be in state 2
+- If organism u is in state 2, it secretes nutrients that require the receiver to be in state 1
+
+So for a channel between u and v:
+- If u is in state 1, v must be in state 2 to receive from u
+- If u is in state 2, v must be in state 1 to receive from u
+- If v is in state 1, u must be in state 2 to receive from v
+- If v is in state 2, u must be in state 1 to receive from v
+
+This means for any connected pair (u, v), they must be in different states!
+
+So this is essentially a graph bipartition problem - we need to check if the graph is bipartite and find a valid 2-coloring.
+
+For the lexicographically smallest assignment, we want to minimize s_1 first, then s_2, etc. Since state 1 < state 2, we want to assign state 1 to as many early organisms as possible.
+
+Let me think about this more carefully. The graph is bipartite if and only if it has no odd cycles. If the graph is bipartite, we can 2-color it.
+
+For the lexicographically smallest assignment:
+- We want s_1 to be as small as possible (preferably 1)
+- Then s_2 to be as small as possible given s_1
+- And so on...
+
+One approach: 
+1. First check if the graph is bipartite
+2. If it is, find the lexicographically smallest valid coloring
+
+For finding the lexicographically smallest bipartition:
+- We can use BFS/DFS starting from each unvisited node
+- For each connected component, we have two choices: either the starting node is in state 1 or state 2
+- To get the lexicographically smallest, we should assign state 1 to the smallest-indexed node in each component
+
+Wait, but we need to be more careful. Let me think again.
+
+If we have a connected component, and we fix the state of one node, all other nodes' states are determined (since neighbors must have different states).
+
+So for each connected component, we have exactly 2 valid colorings (if the graph is bipartite).
+
+To get the lexicographically smallest overall assignment:
+- For each connected component, we should choose the coloring where the smallest-indexed node in that component has state 1.
+
+Let me verify with Example 1:
+- 4 organisms, 4 channels: 1-2, 2-3, 3-4, 1-4
+- This forms a cycle: 1-2-3-4-1 (length 4, even, so bipartite)
+- If organism 1 is in state 1, then:
+  - Organism 2 must be in state 2 (connected to 1)
+  - Organism 4 must be in state 2 (connected to 1)
+  - Organism 3 must be in state 1 (connected to 2 and 4)
+- So the assignment is: 1, 2, 1, 2
+- This matches the expected output!
+
+Example 2:
+- 3 organisms, 3 channels: 1-2, 1-3, 2-3
+- This forms a triangle (cycle of length 3, odd)
+- Not bipartite, so output "NO"
+- This matches!
+
+Algorithm:
+1. Build the graph
+2. For each connected component, do BFS/DFS to check bipartiteness and find the two possible colorings
+3. For each component, choose the coloring where the smallest-indexed node has state 1
+4. Output the result
+
+Let me code this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n, m = int(input[ptr]), int(input[ptr+1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u, v = int(input[ptr]), int(input[ptr+1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)  # 0 = unvisited, 1 or 2 = state
+    
+    for start in range(1, n+1):
+        if state[start] != 0:
+            continue
+        
+        # BFS from start
+        queue = deque([start])
+        state[start] = 1  # Tentatively assign state 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]  # If u is 1, v is 2; if u is 2, v is 1
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+Wait, but this doesn't guarantee the lexicographically smallest assignment. Let me think again.
+
+The issue is that when we start BFS from node 1, we assign it state 1. But what if there's a conflict later that forces node 1 to be state 2?
+
+Actually, if the graph is bipartite, there's no conflict. The BFS will correctly find a valid 2-coloring.
+
+But the question is: is this the lexicographically smallest?
+
+Let me think about this more carefully. When we process nodes in order from 1 to n:
+- Node 1 gets state 1 (if it's in a component)
+- All nodes in the same component as node 1 get their states determined
+- Then we move to the next unvisited node, say node k
+- Node k gets state 1
+- And so on...
+
+This should give the lexicographically smallest assignment because:
+1. We process nodes in increasing order
+2. For each new component, we assign state 1 to the smallest-indexed node in that component
+3. This propagates through the component
+
+Actually, I think my algorithm is correct. Let me trace through Example 1 again:
+- Start with node 1, assign state 1
+- Node 2 is connected to 1, so state 2
+- Node 4 is connected to 1, so state 2
+- Node 3 is connected to 2 and 4, so state 1
+- Result: 1, 2, 1, 2 ✓
+
+Let me think about a potential issue. What if we have:
+- Nodes 1 and 3 connected
+- Nodes 2 and 3 connected
+
+If we process in order:
+- Node 1 gets state 1
+- Node 3 gets state 2 (connected to 1)
+- Node 2 gets state 1 (connected to 3)
+- Result: 1, 1, 2
+
+But what if we had:
+- Node 1 gets state 2
+- Node 3 gets state 1
+- Node 2 gets state 2
+- Result: 2, 2, 1
+
+The first result (1, 1, 2) is lexicographically smaller than (2, 2, 1). So my algorithm gives the correct answer.
+
+Actually wait, I need to reconsider. The BFS processes nodes in BFS order, not in numerical order. Let me trace through more carefully.
+
+For the graph:
+- 1-3, 2-3
+
+BFS from node 1:
+- Queue: [1]
+- Pop 1, assign state 1
+- Neighbors of 1: [3]
+- Assign state 2 to 3, add to queue
+- Queue: [3]
+- Pop 3
+- Neighbors of 3: [1, 2]
+- 1 already visited with state 1, 3 has state 2, OK
+- 2 unvisited, assign state 1, add to queue
+- Queue: [2]
+- Pop 2
+- Neighbors of 2: [3]
+- 3 already visited with state 2, 2 has state 1, OK
+- Queue empty
+
+Result: state[1] = 1, state[2] = 1, state[3] = 2
+Output: 1 1 2
+
+This is correct and lexicographically smallest!
+
+Now let me think about another case. What if we have disconnected components?
+
+Example:
+- Component 1: nodes 1, 3 connected
+- Component 2: nodes 2, 4 connected
+
+BFS:
+- Start with node 1, assign state 1
+- Node 3 gets state 2
+- Move to next unvisited: node 2, assign state 1
+- Node 4 gets state 2
+
+Result: 1, 1, 2, 2
+
+Is this lexicographically smallest? Let's see:
+- For component 1: either (1, 2) for (1, 3) or (2, 1)
+- For component 2: either (1, 2) for (2, 4) or (2, 1)
+
+To minimize lexicographically:
+- We want state[1] = 1 (smallest possible)
+- Given state[1] = 1, state[3] = 2 is forced
+- We want state[2] = 1 (smallest possible)
+- Given state[2] = 1, state[4] = 2 is forced
+
+So the result 1, 1, 2, 2 is correct!
+
+I think my algorithm is correct. Let me refine the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n, m = int(input_data[ptr]), int(input_data[ptr+1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u, v = int(input_data[ptr]), int(input_data[ptr+1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)  # 0 = unvisited, 1 or 2 = state
+    
+    for start in range(1, n+1):
+        if state[start] != 0:
+            continue
+        
+        # BFS from start
+        queue = deque([start])
+        state[start] = 1  # Assign state 1 to the smallest node in this component
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]  # Opposite state
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+Actually, I realize there might be an issue. When we do BFS, we might not visit nodes in the order we want. Let me think again...
+
+Actually, the key insight is:
+1. We iterate through nodes 1 to n
+2. For each unvisited node, we start a BFS and assign it state 1
+3. This ensures that the smallest-indexed node in each component gets state 1
+
+This is correct for finding the lexicographically smallest assignment.
+
+But wait, there's a subtle issue. When we do BFS, we might visit nodes in a different order than numerical order. But that's fine because:
+- The state of each node is determined by the state of its neighbors
+- Once we fix the state of the starting node (smallest in component), all other states are determined
+- The BFS will correctly propagate the states
+
+Let me verify with a more complex example:
+- Graph: 1-4, 2-4, 3-4 (star graph with center 4)
+
+BFS from node 1:
+- state[1] = 1
+- state[4] = 2 (neighbor of 1)
+- state[2] = 1 (neighbor of 4)
+- state[3] = 1 (neighbor of 4)
+
+Result: 1, 1, 1, 2
+
+Is this lexicographically smallest?
+- If state[1] = 1, then state[4] = 2, then state[2] = 1, state[3] = 1
+- If state[1] = 2, then state[4] = 1, then state[2] = 2, state[3] = 2
+
+Comparing (1, 1, 1, 2) vs (2, 2, 2, 1):
+- At position 1: 1 < 2, so (1, 1, 1, 2) is smaller
+
+Correct!
+
+Let me also verify the bipartiteness check:
+- Graph: 1-2, 2-3, 3-1 (triangle)
+
+BFS from node 1:
+- state[1] = 1
+- state[2] = 2 (neighbor of 1)
+- state[3] = 1 (neighbor of 2)
+- Check: 3 is neighbor of 1, state[3] = 1, state[1] = 1, conflict!
+
+Output: NO
+
+Correct!
+
+I think the algorithm is correct. Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    m = int(input_data[ptr+1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)
+    
+    for start in range(1, n+1):
+        if state[start] != 0:
+            continue
+        
+        queue = deque([start])
+        state[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+Actually, I should double-check the time complexity:
+- Building the graph: O(n + m)
+- BFS: Each node and edge is visited once, so O(n + m)
+- Total: O(n + m)
+
+This should be efficient enough for n, m ≤ 2 * 10^5.
+
+Space complexity:
+- Adjacency list: O(n + m)
+- State array: O(n)
+- Queue: O(n) in worst case
+- Total: O(n + m)
+
+This should fit within 256 MB.
+
+Let me also handle edge cases:
+- n = 1, m = 0: Single node, no constraints, state = 1 (lexicographically smallest)
+- n = 2, m = 0: Two isolated nodes, both state 1
+- n = 2, m = 1, edge 1-2: state = 1, 2
+
+Let me trace through n = 1, m = 0:
+- state[1] = 0, start BFS from 1
+- state[1] = 1
+- No neighbors, queue empty
+- Output: YES, 1
+
+Correct!
+
+n = 2, m = 0:
+- state[1] = 0, start BFS from 1
+- state[1] = 1
+- No neighbors, queue empty
+- state[2] = 0, start BFS from 2
+- state[2] = 1
+- No neighbors, queue empty
+- Output: YES, 1 1
+
+Correct!
+
+n = 2, m = 1, edge 1-2:
+- state[1] = 0, start BFS from 1
+- state[1] = 1
+- Neighbor 2, state[2] = 2
+- Queue: [2]
+- Pop 2, neighbor 1, state[1] = 1, state[2] = 2, OK
+- Output: YES, 1 2
+
+Correct!
+
+I think the solution is complete. Let me write the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    m = int(input_data[ptr+1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)
+    
+    for start in range(1, n+1):
+        if state[start] != 0:
+            continue
+        
+        queue = deque([start])
+        state[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+Wait, I should also consider if there are no edges at all. In that case, all nodes can be in state 1, which is the lexicographically smallest.
+
+Let me trace through:
+- n = 3, m = 0
+- state[1] = 0, start BFS from 1
+- state[1] = 1
+- No neighbors, queue empty
+- state[2] = 0, start BFS from 2
+- state[2] = 1
+- No neighbors, queue empty
+- state[3] = 0, start BFS from 3
+- state[3] = 1
+- No neighbors, queue empty
+- Output: YES, 1 1 1
+
+Correct!
+
+I think the solution is complete and handles all edge cases correctly.
+
+Actually, let me reconsider the problem statement once more to make sure I understand it correctly.
+
+"nutrients secreted by an organism in state 1 undergo a chemical shift in the channel and arrive requiring the receiver to be in state 2 to absorb them"
+
+So if organism u is in state 1 and sends nutrients to organism v, then v must be in state 2 to receive.
+
+"nutrients secreted by an organism in state 2 undergo a shift and arrive requiring the receiver to be in state 1"
+
+So if organism u is in state 2 and sends nutrients to organism v, then v must be in state 1 to receive.
+
+For a channel between u and v:
+- u sends to v: if state[u] = 1, then state[v] = 2; if state[u] = 2, then state[v] = 1
+- v sends to u: if state[v] = 1, then state[u] = 2; if state[v] = 2, then state[u] = 1
+
+So for both directions to work:
+- If state[u] = 1, then state[v] = 2 (for u to send to v)
+- If state[v] = 1, then state[u] = 2 (for v to send to u)
+
+This means state[u] ≠ state[v], which confirms that this is a bipartite graph problem.
+
+My solution is correct!
+
+Let me also make sure the output format is correct:
+- First line: "YES" or "NO"
+- If YES, second line: n integers separated by spaces
+
+The code outputs:
+- "YES" followed by newline
+- n integers separated by spaces followed by newline
+
+This matches the expected format.
+
+One more thing: I should make sure the code handles large inputs efficiently. Using sys.stdin.read() and splitting should be efficient enough.
+
+Final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    m = int(input_data[ptr+1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)
+    
+    for start in range(1, n+1):
+        if state[start] != 0:
+            continue
+        
+        queue = deque([start])
+        state[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+This should be the correct and efficient solution.
+
+Hmm, let me reconsider once more. The problem says "lexicographically smallest sequence". I want to make sure my approach gives the correct answer.
+
+For each connected component, there are exactly 2 valid colorings (if bipartite). Let's call them coloring A and coloring B, where coloring A has the smallest-indexed node in state 1.
+
+For the lexicographically smallest overall sequence:
+- We want to minimize s_1 first
+- Then minimize s_2 given s_1
+- And so on...
+
+My approach:
+1. Process nodes in order from 1 to n
+2. For each unvisited node (which is the smallest-indexed node in its component), assign state 1
+3. Propagate through BFS
+
+This ensures:
+- s_1 is minimized (state 1 if node 1 is in a component)
+- s_2 is minimized (state 1 if node 2 is in a different component, or state determined by s_1 if in the same component)
+- And so on...
+
+This is correct because:
+- If node i is the smallest in its component, we can freely choose its state, and we choose 1
+- If node i is not the smallest in its component, its state is already determined by the smallest node in that component
+
+So the algorithm is correct!
+
+Actually, let me think about this more carefully with an example.
+
+Example: Graph with edges 1-3, 2-3
+
+Nodes: 1, 2, 3
+Edges: 1-3, 2-3
+
+This is a "V" shape graph. Let's check if it's bipartite:
+- If 1 is state 1, then 3 is state 2, then 2 is state 1
+- Coloring: 1, 1, 2
+
+Alternative:
+- If 1 is state 2, then 3 is state 1, then 2 is state 2
+- Coloring: 2, 2, 1
+
+Comparing (1, 1, 2) vs (2, 2, 1):
+- At position 1: 1 < 2, so (1, 1, 2) is smaller
+
+My algorithm:
+- Start with node 1, state[1] = 1
+- BFS: neighbors of 1 are [3], state[3] = 2
+- BFS: neighbors of 3 are [1, 2], state[2] = 1
+- Result: 1, 1, 2
+
+Correct!
+
+Another example: Graph with edges 1-2, 3-4 (two separate edges)
+
+Nodes: 1, 2, 3, 4
+Edges: 1-2, 3-4
+
+Two connected components: {1, 2} and {3, 4}
+
+For component {1, 2}:
+- If 1 is state 1, then 2 is state 2
+- Coloring: 1, 2
+
+For component {3, 4}:
+- If 3 is state 1, then 4 is state 2
+- Coloring: 1, 2
+
+Overall: 1, 2, 1, 2
+
+My algorithm:
+- Start with node 1, state[1] = 1
+- BFS: neighbors of 1 are [2], state[2] = 2
+- BFS: neighbors of 2 are [1], already visited
+- Move to node 3, state[3] = 1
+- BFS: neighbors of 3 are [4], state[4] = 2
+- BFS: neighbors of 4 are [3], already visited
+- Result: 1, 2, 1, 2
+
+Correct!
+
+I'm confident the algorithm is correct. Let me finalize the code.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    m = int(input_data[ptr+1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n+1)]
+    for _ in range(m):
+        u = int(input_data[ptr])
+        v = int(input_data[ptr+1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)
+    
+    for start in range(1, n+1):
+        if state[start] != 0:
+            continue
+        
+        queue = deque([start])
+        state[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+This should be the final solution.
+
+Wait, I just realized I should double-check the recursion limit. Since I'm using BFS (not DFS), there's no recursion, so this shouldn't be an issue.
+
+Also, I should make sure the deque operations are efficient. Using deque for BFS is standard and efficient.
+
+I think the solution is complete and correct. Let me write the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr])
+    m = int(data[ptr + 1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr])
+        v = int(data[ptr + 1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if state[start] != 0:
+            continue
+        
+        queue = deque([start])
+        state[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```
+
+This is the final solution.
+</think>
+Looking at this problem, I need to understand the constraints:
+- If organism u is in state 1, nutrients it sends require the receiver to be in state 2
+- If organism u is in state 2, nutrients it sends require the receiver to be in state 1
+
+For a channel between u and v to work bidirectionally:
+- If u sends to v: state[u]=1 → state[v]=2, or state[u]=2 → state[v]=1
+- If v sends to u: state[v]=1 → state[u]=2, or state[v]=2 → state[u]=1
+
+This means connected organisms must have **different states** - this is a **bipartite graph** problem!
+
+**Algorithm:**
+1. Check if the graph is bipartite using BFS
+2. For lexicographically smallest assignment: process nodes 1 to n, and for each unvisited node (smallest in its component), assign state 1, then propagate through BFS
+
+**Why this gives lexicographically smallest:**
+- For each connected component, there are exactly 2 valid colorings
+- By assigning state 1 to the smallest-indexed node in each component, we minimize the sequence element by element
+
+Let me trace through Example 1:
+- Graph: 1-2-3-4-1 (cycle of length 4)
+- Start at node 1, state[1]=1
+- Node 2 connected to 1 → state[2]=2
+- Node 4 connected to 1 → state[4]=2  
+- Node 3 connected to 2 and 4 → state[3]=1
+- Result: 1 2 1 2 ✓
+
+Example 2:
+- Graph: 1-2-3-1 (triangle, odd cycle)
+- Start at node 1, state[1]=1
+- Node 2 → state[2]=2
+- Node 3 → state[3]=1
+- But 3 is connected to 1, both have state 1 → conflict!
+- Output: NO ✓
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr])
+    m = int(data[ptr + 1])
+    ptr += 2
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr])
+        v = int(data[ptr + 1])
+        ptr += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    state = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if state[start] != 0:
+            continue
+        
+        queue = deque([start])
+        state[start] = 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if state[v] == 0:
+                    state[v] = 3 - state[u]
+                    queue.append(v)
+                elif state[v] == state[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, state[1:])))
+
+solve()
+```

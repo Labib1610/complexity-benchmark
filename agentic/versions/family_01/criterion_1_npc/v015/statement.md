@@ -1,28 +1,20 @@
-# Operational Shift Coordination
+# Problem A — Shift Allocation Protocol
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-A industrial facility operates continuously using three distinct work windows labeled 1, 2, and 3. There are $n$ technicians, numbered 1 through $n$, who must each be assigned to perform their duties in exactly one of these three windows.
+A manufacturing facility operates continuously across three sequential time periods, designated as period 1, period 2, and period 3. The facility employs $n$ machinists, and management must allocate each machinist to exactly one of these periods. Safety incident logs indicate that certain pairs of machinists have interpersonal disputes. To prevent workplace disruptions, no two machinists with a documented dispute can be allocated to the same time period.
 
-Due to safety regulations and spatial restrictions, certain pairs of technicians cannot be present during the same work window. You are given a list of all $m$ incompatible technician pairs.
-
-Determine whether it is possible to assign every technician to a work window such that no two incompatible technicians work during the same window. If a valid assignment exists, find the one that minimizes the resulting sequence of assignments $s_1, s_2, \dots, s_n$ lexicographically (that is, preferring smaller window numbers for technician 1, then technician 2, and so on).
+Management needs to determine if a completely safe allocation is possible. Furthermore, the payroll system requires the final schedule to be submitted as a sequence of $n$ period numbers, corresponding to machinists 1 through $n$. To ensure standardized reporting when multiple safe allocations are possible, the system mandates selecting the sequence that is lexicographically smallest (comparing the first machinist's period first, then the second's, and so on).
 
 ## Input
-
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the total number of technicians and the number of incompatible pairs.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that technician $u$ and technician $v$ cannot be assigned to the same work window.
+The first line provides two integers $n$ and $m$ — the total number of machinists and the number of documented disputes ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$, representing a pair of machinists who have a dispute.
 
 ## Output
-
-If no valid assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the work window assigned to technician $i$, such that the sequence $s_1, s_2, \dots, s_n$ is lexicographically as small as possible.
+If there is no way to allocate the machinists safely, output a single line containing `NO`.
+If a safe allocation is possible, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (which must be 1, 2, or 3) represents the time period assigned to machinist $i$. This sequence must be the lexicographically smallest among all valid allocations.
 
 ## Example 1
-
 Input:
 ```
 4 5
@@ -32,7 +24,6 @@ Input:
 1 4
 2 4
 ```
-
 Output:
 ```
 YES
@@ -40,7 +31,6 @@ YES
 ```
 
 ## Example 2
-
 Input:
 ```
 4 6
@@ -51,7 +41,6 @@ Input:
 2 4
 3 4
 ```
-
 Output:
 ```
 NO

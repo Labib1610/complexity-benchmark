@@ -1,0 +1,32 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Iterate through all possible triplets in lexicographical order
+    # a < b < c
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            # Check if a and b are incompatible
+            if b in adj[a]:
+                for c in range(b + 1, n + 1):
+                    # Check if a-c and b-c are incompatible
+                    if c in adj[a] and c in adj[b]:
+                        print(a, b, c)
+                        return
+
+if __name__ == '__main__':
+    solve()

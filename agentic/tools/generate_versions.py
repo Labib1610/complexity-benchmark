@@ -138,7 +138,7 @@ def generation_specs(out_base, applicable, max_gen, base_seed):
     for vdir in sorted(out_base.glob("v*")):
         gate = _read_json(vdir / "gate.json")
         edit = _read_json(vdir / "edit.json")
-        if gate.get("result") == "PASS" and edit.get("generation", 0) < max_gen \
+        if gate.get("result") in ("ACCEPT", "PASS") and edit.get("generation", 0) < max_gen \
                 and (vdir / "statement.md").exists():
             parents.append((vdir.name, edit.get("generation", 0),
                             (vdir / "statement.md").read_text()))

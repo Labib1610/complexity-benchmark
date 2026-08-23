@@ -1,24 +1,22 @@
-# Network Frequency Configuration
+# Problem B — Pipeline Segregation Phase
 
 Time limit: 1 s   Memory limit: 256 MB
 
-An array of $n$ broadcast stations, numbered $1$ through $n$, must be configured to operate on one of two available frequency bands, labeled $1$ and $2$.
+The Aegis distributed architecture deployment pipeline processes $n$ independent service modules (indexed 1 to $n$). During the telemetry phase, the system identifies $m$ resource contentions. Each contention record lists two modules that attempt to lock the same hardware component.
 
-To prevent mutual degradation, certain station pairs are identified as mutually exclusive. If two stations in such a pair are set to the same frequency band, signal degradation occurs. Thus, for every specified pair, the two stations must be set to different frequency bands.
+To resolve these contentions, you must configure the execution state of every module. There are exactly two available execution states, represented as state 1 and state 2. A configuration is valid if and only if every pair of modules listed in a contention record are assigned different execution states.
 
-Determine whether a valid frequency selection $s_i \in \{1, 2\}$ exists for every station $i \in \{1, \dots, n\}$ that satisfies all exclusion constraints. If one or more valid configurations exist, output `YES` followed by the configuration $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest. If no valid configuration exists, output `NO`.
+The downstream distribution phase requires strictly deterministic routing. If multiple valid configurations exist, you must provide the one that favors state 1 for the lowest-indexed modules. Formally, when comparing two different valid configurations, the preferred one is the one that has a smaller state value (i.e., 1 rather than 2) at the lowest module index where the two configurations assign different states.
 
-A sequence $(s_1, \dots, s_n)$ is lexicographically smaller than $(t_1, \dots, t_n)$ if at the smallest index $k$ where $s_k \neq t_k$, we have $s_k < t_k$.
+If the contention records form a contradictory set where no valid configuration is possible, your phase must reject the pipeline.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the number of broadcast stations and the number of exclusion constraints.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that station $u$ and station $v$ cannot share the same frequency band.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), the number of modules and the number of contention records.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that module $u$ and module $v$ cannot share the same execution state.
 
 ## Output
-If no valid frequency configuration exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid configuration.
+If no valid configuration can be established, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers (each either 1 or 2) representing the assigned execution state for each module from 1 to $n$, strictly following the tie-breaking rule.
 
 ## Example 1
 Input:

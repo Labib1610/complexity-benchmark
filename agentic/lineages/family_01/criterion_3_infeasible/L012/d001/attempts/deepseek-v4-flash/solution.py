@@ -1,0 +1,9 @@
+<lang=python>
+import sys
+from sys import stdin, stdout
+
+def solve():
+    pass
+
+if __name__ == '__main__':
+    solve()

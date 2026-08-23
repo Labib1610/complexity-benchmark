@@ -1,20 +1,22 @@
-# Problem C — Mutual Interference Certificate
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A high-performance computing facility manages $n$ processing nodes labeled from $1$ to $n$. Due to signal cross-talk, specific pairs of nodes exhibit dual-way interference whenever both are active. You are given a list of $m$ distinct pairs of nodes that suffer from direct interference.
+The factory currently operates using only two shifts, Shift 1 and Shift 2, but the latest HR roster of interpersonal disputes is known to be fundamentally incompatible with a two-shift system. Your job is not to attempt to schedule the workers — it is to extract a definitive proof of this failure.
 
-A stability failure occurs whenever three distinct nodes $a$, $b$, and $c$ are chosen such that every pair among them experiences direct interference. To log the earliest potential stability failure, you must locate the lexicographically smallest triple $(a, b, c)$ satisfying $1 \le a < b < c \le n$ where nodes $a$ and $b$ interfere, nodes $a$ and $c$ interfere, and nodes $b$ and $c$ interfere.
-
-Lexicographical comparison requires minimizing $a$ first; if multiple valid triples share the same $a$, choose the one that minimizes $b$; if ties still remain, choose the one that minimizes $c$. It is guaranteed that at least one such mutually interfering triple exists.
+It is guaranteed that within the workforce, there exists at least one trio of employees where every individual has a logged dispute with both of the other two members of the trio. Any such trio proves that two shifts cannot possibly suffice, as no two members of the trio can share a shift without a dispute. You must identify one such trio.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n - 1) / 2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \ne v$), denoting that nodes $u$ and $v$ directly interfere with each other. No pair of nodes is listed more than once.
-It is guaranteed that at least one triple of mutually interfering nodes exists.
+The first line contains two integers: the workforce size $n$ and the number of logged disputes $m$.
+The workforce size $n$ is bounded below by the exact number of individuals required to form a failing trio, and never exceeds the building's maximum fire-code capacity of 2000 workers.
+The number of disputes $m$ is at least the number of mutual disputes required to form a single such trio. It is capped by the smaller of two limits: the total number of unique pairs that could possibly be formed from the $n$ workers, and the HR administrative system's limit of 200,000.
+
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing a pair of workers who have a dispute. Workers are identified by numbers starting from 1 up to $n$.
+It is guaranteed that at least one such trio of mutually disputing workers exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ ($a < b < c$) representing the lexicographically smallest triple of mutually interfering nodes.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are logged disputes. Output the lexicographically smallest such combination (the one with the smallest $a$; in case of a tie, the smallest $b$; and if still tied, the smallest $c$).
 
 ## Example 1
 Input:

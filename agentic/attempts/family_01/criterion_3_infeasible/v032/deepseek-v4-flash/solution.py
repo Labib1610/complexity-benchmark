@@ -1,0 +1,23 @@
+import sys
+
+def main():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    edges = set()
+    for _ in range(m):
+        u, v = map(int, input().split())
+        if u > v:
+            u, v = v, u
+        edges.add((u, v))
+    
+    for a in range(1, n + 1):
+        for b in range(a + 1, n + 1):
+            if (a, b) not in edges:
+                continue
+            for c in range(b + 1, n + 1):
+                if (a, c) in edges and (b, c) in edges:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    main()

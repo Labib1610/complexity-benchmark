@@ -1,0 +1,45 @@
+# Data Center Synchronization
+
+Time limit: 1 s   Memory limit: 256 MB
+
+You are configuring a network of $n$ servers. Each server must be assigned an operational tier: either tier 1 or tier 2.
+
+The network includes $m$ synchronization links, each connecting a pair of servers. Due to bandwidth allocation protocols, a synchronization link operates correctly only if the product of the operational tiers of the two connected servers is exactly 2. If the product is 1, the link suffers from under-provisioning. If the product is 4, the link suffers from interference.
+
+You must determine if it is possible to assign an operational tier to every server such that all synchronization links operate correctly. If such an assignment exists, you must also provide it. Since the deployment script applies the tiers to the servers in numerical order, you must provide the lexicographically smallest sequence of tiers (from server 1 up to server $n$) if there is more than one valid configuration.
+
+## Input
+The first line provides two integers, $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), which denote the total number of servers and the total number of synchronization links.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, meaning there is a synchronization link connecting server $u$ and server $v$. The servers are numbered using integers from 1 to $n$.
+
+## Output
+If no valid tier assignment can make all links operate correctly, output `NO` on a single line.
+If a valid assignment can be found, output `YES` on the first line. On the second line, output $n$ space-separated integers (all 1s or 2s) indicating the operational tier for each server from 1 to $n$. If there are multiple working assignments, this sequence must be the lexicographically smallest one.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

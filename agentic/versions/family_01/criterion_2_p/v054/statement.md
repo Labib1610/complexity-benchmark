@@ -1,22 +1,21 @@
-# Workforce Group Partitioning
+# Synchronized Transmission
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing facility splits its daily operations into two distinct time slots, designated Slot 1 and Slot 2. A safety audit has compiled a list of operational conflicts between pairs of personnel. Any two personnel subject to a conflict cannot be scheduled in the same time slot.
+You are designing a synchronized transmission with $n$ interlocking gears, labeled 1 to $n$. When the machine is turned on, every gear rotates steadily in one of two states: state 1 (clockwise) or state 2 (counter-clockwise).
 
-There are $n$ personnel, indexed from $1$ to $n$. Your task is to assign each person to either Slot 1 or Slot 2 so that no conflict is violated.
+The transmission framework specifies $m$ contact points between specific gears. Because the teeth of contacting gears mesh, any two gears that share a contact point are physically forced to rotate in opposite states; otherwise, the entire transmission locks up.
 
-The facility's shift management system can handle a workforce of up to two hundred thousand personnel ($1 \le n \le 2 \cdot 10^5$), and can process at most two hundred thousand conflict pairs ($0 \le m \le 2 \cdot 10^5$).
-
-To guarantee deterministic processing for downstream reporting, if there are multiple valid slot assignments, you must pick the one that yields the lexicographically smallest sequence $s_1, s_2, \dots, s_n$, where $s_i \in \{1, 2\}$ is the slot assigned to person $i$. If no valid assignment exists, report that it is impossible.
+Your task is to determine whether it is physically possible to assign an initial rotation state to every gear in the transmission such that no two meshing gears share the same rotation state. If a jam is unavoidable, state so. If a valid configuration exists, you might find several ways to set up the gears. In that case, you must choose the one that yields the lexicographically smallest sequence of states when you list the gears' states in order from gear 1 to gear $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of personnel and the number of conflict pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), stating that person $u$ and person $v$ cannot be assigned to the same time slot.
+The first line contains two integers $n$ and $m$. The number of gears $n$ is at least 1. It is limited by the maximum capacity of the transmission housing, which is constructed from exactly 400 identical modules, each capable of holding exactly 500 gears. The number of contact points $m$ is a non-negative integer that will not exceed the total gear capacity of the housing.
+
+Each of the next $m$ lines contains two integers $u$ and $v$. These mean the gear labeled $u$ and the gear labeled $v$ share a contact point, and are guaranteed to be valid gear labels from 1 to $n$.
 
 ## Output
-If no conflict-free assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid slot assignment.
+If no valid assignment of rotation states exists without causing a lock-up, output a single line with `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers, each being either 1 or 2. These integers must represent the rotation states of gears 1 through $n$, respectively, forming the lexicographically smallest sequence among all valid assignments.
 
 ## Example 1
 Input:

@@ -1,0 +1,57 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list using sets for O(1) lookup
+    adj = defaultdict(set)
+    index = 2
+    edges = []
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort adjacency lists for consistent iteration
+    for u in adj:
+        adj[u] = sorted(adj[u])
+    
+    # Iterate through all combinations (i, j, k) in lexicographical order
+    # Since we want the lexicographically smallest triplet,
+    # we iterate i from 1 to n, j from i+1 to n, k from j+1 to n
+    for i in range(1, n+1):
+        if i not in adj:
+            continue
+        neighbors_i = adj[i]
+        # Create a set of neighbors of i for fast lookup
+        neighbors_i_set = set(neighbors_i)
+        # For each neighbor j of i, where j > i
+        for j_idx in range(len(neighbors_i)):
+            j = neighbors_i[j_idx]
+            if j <= i:
+                continue
+            if j not in adj:
+                continue
+            # Check if j has any neighbors k such that k > j and k is also neighbor of i
+            neighbors_j = adj[j]
+            # We need to find common neighbors of i and j that are > j
+            # Iterate through neighbors of j
+            for k in neighbors_j:
+                if k <= j:
+                    continue
+                if k in neighbors_i_set:
+                    # Found a triangle: i-j, i-k, j-k
+                    print(i, j, k)
+                    return
+
+if __name__ == "__main__":
+    main()

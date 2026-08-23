@@ -1,0 +1,790 @@
+<think>
+Let me analyze this problem step by step.
+
+We have $n$ servers and each needs maintenance for exactly 2 hours. Each server is assigned to either:
+- Window 1: starts at hour 0, ends at hour 2
+- Window 2: starts at hour 1, ends at hour 3
+
+For each pair of servers $(u, v)$ with a handoff protocol, the sync check is active when exactly one of them is under maintenance. The total accumulated time must be exactly 2 hours.
+
+Let's think about when the sync check is active:
+- If both servers are in Window 1: both are in maintenance from hour 0 to 2. Neither is in maintenance from hour 2 onwards. So the sync check is never active (accumulated time = 0).
+- If both servers are in Window 2: both are in maintenance from hour 1 to 3. Neither is in maintenance from hour 0 to 1 or after hour 3. So the sync check is never active (accumulated time = 0).
+- If one is in Window 1 and the other in Window 2:
+  - Server in Window 1: maintenance from hour 0 to 2
+  - Server in Window 2: maintenance from hour 1 to 3
+  - Hour 0 to 1: only Window 1 server is in maintenance → sync check active
+  - Hour 1 to 2: both are in maintenance → sync check NOT active
+  - Hour 2 to 3: only Window 2 server is in maintenance → sync check active
+  - Total accumulated time = 1 + 1 = 2 hours
+
+So for a handoff protocol to be successful (accumulated time = 2 hours), the two servers must be in different windows.
+
+This means the problem reduces to: can we 2-color the graph such that every edge connects vertices of different colors? This is exactly the bipartite graph checking problem!
+
+If the graph is bipartite, we can find a valid assignment. We need to find the lexicographically smallest valid assignment.
+
+For finding the lexicographically smallest bipartite coloring:
+- We process vertices in order from 1 to n
+- For each uncolored vertex, we try to color it with color 1 (the smaller color)
+- Then we do BFS/DFS to color all connected vertices
+
+Wait, but we need to be careful. If we greedily assign color 1 to each uncolored vertex, we might not get the lexicographically smallest solution.
+
+Let me think again. The lexicographically smallest sequence means we want to minimize $p_1$ first, then $p_2$, etc.
+
+For a bipartite graph, once we fix the color of one vertex in a connected component, all other colors in that component are determined.
+
+So the algorithm would be:
+1. Check if the graph is bipartite
+2. For each connected component, we have two choices: either the "first" vertex gets color 1 or color 2
+3. To get the lexicographically smallest, we should process vertices in order and for each uncolored vertex, try to assign it color 1 (and propagate the constraints)
+
+Actually, let me think more carefully. If we process vertices from 1 to n:
+- For vertex 1, if it's uncolored, we should color it with 1 (to minimize $p_1$)
+- Then propagate to all connected vertices
+- For vertex 2, if it's already colored, we're done. If not, color it with 1 and propagate.
+- Continue...
+
+This greedy approach should give the lexicographically smallest solution because:
+- We process vertices in order
+- For each uncolored vertex, we assign the smallest possible color (1)
+- This minimizes $p_i$ at each position $i$ where we have a choice
+
+Let me verify with the first example:
+- Vertices: 1, 2, 3, 4
+- Edges: (1,2), (2,3), (3,4), (1,4)
+- This forms a cycle: 1-2-3-4-1
+
+Processing:
+- Vertex 1: uncolored, assign color 1
+- Propagate: vertex 2 must be color 2, vertex 4 must be color 2
+- Propagate from vertex 2: vertex 3 must be color 1
+- Propagate from vertex 4: vertex 3 must be color 1 (consistent)
+- Result: 1, 2, 1, 2
+
+This matches the expected output!
+
+For the second example:
+- Vertices: 1, 2, 3
+- Edges: (1,2), (1,3), (2,3)
+- This forms a triangle: 1-2-3-1
+
+Processing:
+- Vertex 1: uncolored, assign color 1
+- Propagate: vertex 2 must be color 2, vertex 3 must be color 2
+- Propagate from vertex 2: vertex 3 must be color 1
+- But vertex 3 is already color 2! Conflict!
+
+So the answer is NO, which matches.
+
+Now let me code this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    idx = 0
+    n = int(input[idx]); idx += 1
+    m = int(input[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[idx]); idx += 1
+        v = int(input[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = uncolored, 1 = window 1, 2 = window 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        # BFS from start, assigning color 1 to start
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]  # opposite color
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, color[1:])))
+
+solve()
+```
+
+Wait, I need to double-check the logic. The BFS processes vertices in order of discovery, not in numerical order. But since we start BFS from vertices in numerical order (1, 2, 3, ...), and for each uncolored vertex we assign color 1, this should give the lexicographically smallest solution.
+
+Actually, let me think again. The issue is that when we do BFS, we might color a vertex with a higher number before we get to process it in the main loop. But that's fine because:
+1. If a vertex is already colored when we reach it in the main loop, we skip it
+2. The color was determined by some earlier vertex with a smaller number
+3. We can't change it without violating the bipartite constraint
+
+So the algorithm is correct for finding the lexicographically smallest bipartite coloring.
+
+Let me trace through example 1 again:
+- Start with vertex 1: color[1] = 1
+- BFS from 1:
+  - Process 1: neighbors are 2 and 4
+    - color[2] = 0, so color[2] = 2, add 2 to queue
+    - color[4] = 0, so color[4] = 2, add 4 to queue
+  - Process 2: neighbors are 1 and 3
+    - color[1] = 1 (already colored, different from 2, OK)
+    - color[3] = 0, so color[3] = 1, add 3 to queue
+  - Process 4: neighbors are 3 and 1
+    - color[3] = 1 (already colored, different from 2, OK)
+    - color[1] = 1 (already colored, different from 2, OK)
+  - Process 3: neighbors are 2 and 4
+    - color[2] = 2 (already colored, different from 1, OK)
+    - color[4] = 2 (already colored, different from 1, OK)
+- Continue main loop: vertices 2, 3, 4 are already colored, skip
+- Result: [1, 2, 1, 2]
+
+Great, this matches!
+
+Let me also verify example 2:
+- Start with vertex 1: color[1] = 1
+- BFS from 1:
+  - Process 1: neighbors are 2 and 3
+    - color[2] = 0, so color[2] = 2, add 2 to queue
+    - color[3] = 0, so color[3] = 2, add 3 to queue
+  - Process 2: neighbors are 1 and 3
+    - color[1] = 1 (already colored, different from 2, OK)
+    - color[3] = 2 (already colored, SAME as 2, CONFLICT!)
+- Output: NO
+
+Perfect!
+
+Now let me make sure the code handles edge cases:
+- n = 1, m = 0: Single vertex, no edges. Output: YES, 1
+- n = 2, m = 0: Two isolated vertices. Output: YES, 1 1
+- n = 2, m = 1, edge (1,2): Output: YES, 1 2
+
+The code should handle all these correctly.
+
+One more thing: the problem says the graph might have self-loops (u = v). Let me check:
+- If u = v, then the edge connects a vertex to itself
+- For the sync check to be active for exactly 2 hours, the vertex must be in a different window from itself
+- This is impossible, so any self-loop makes the answer NO
+
+Let me update the code to handle self-loops:
+
+Actually, looking at the constraints again: "1 ≤ u, v ≤ n" doesn't explicitly say u ≠ v. So we should handle self-loops.
+
+If there's a self-loop (u, u), then:
+- If u is in window 1: sync check is never active (both "servers" are in maintenance at the same time)
+- If u is in window 2: sync check is never active
+- Neither gives exactly 2 hours, so it's impossible
+
+In the bipartite graph interpretation, a self-loop means a vertex must have a different color from itself, which is impossible. So the graph is not bipartite.
+
+Let me update the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    idx = 0
+    n = int(input[idx]); idx += 1
+    m = int(input[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[idx]); idx += 1
+        v = int(input[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = uncolored, 1 = window 1, 2 = window 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, color[1:])))
+
+solve()
+```
+
+Actually, I realize there might be multiple edges between the same pair of vertices. Let me check if that's an issue:
+- Multiple edges between the same pair don't change the bipartite property
+- They just add the same constraint multiple times
+- The code should handle this correctly
+
+Let me also think about the time complexity:
+- Building the adjacency list: O(n + m)
+- BFS: Each vertex and edge is processed once, so O(n + m)
+- Total: O(n + m)
+
+This should be efficient enough for n, m ≤ 2 * 10^5.
+
+Space complexity:
+- Adjacency list: O(n + m)
+- Color array: O(n)
+- Queue: O(n) in the worst case
+- Total: O(n + m)
+
+This should fit within the 256 MB memory limit.
+
+Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, color[1:])))
+
+solve()
+```
+
+Hmm, I just realized I should double-check the problem statement again. Let me re-read it.
+
+"The sync check is active during any time when exactly one of the two linked servers is undergoing maintenance (while the other is not)."
+
+So the sync check is active when exactly one server is in maintenance. Let me verify my analysis:
+
+Window 1: maintenance from hour 0 to hour 2
+Window 2: maintenance from hour 1 to hour 3
+
+For two servers u and v:
+- Both in Window 1: 
+  - Hour 0-2: both in maintenance
+  - Hour 2+: neither in maintenance
+  - Sync check active: never (0 hours)
+  
+- Both in Window 2:
+  - Hour 0-1: neither in maintenance
+  - Hour 1-3: both in maintenance
+  - Hour 3+: neither in maintenance
+  - Sync check active: never (0 hours)
+  
+- u in Window 1, v in Window 2:
+  - Hour 0-1: u in maintenance, v not in maintenance → sync check active
+  - Hour 1-2: both in maintenance → sync check not active
+  - Hour 2-3: u not in maintenance, v in maintenance → sync check active
+  - Hour 3+: neither in maintenance
+  - Sync check active: 1 + 1 = 2 hours
+
+- u in Window 2, v in Window 1:
+  - Same as above, just swap u and v
+  - Sync check active: 2 hours
+
+So my analysis is correct. For the sync check to be active for exactly 2 hours, the two servers must be in different windows.
+
+The problem is indeed a bipartite graph checking problem.
+
+Let me also verify the lexicographically smallest requirement. The algorithm I described should give the lexicographically smallest solution because:
+1. We process vertices in order from 1 to n
+2. For each uncolored vertex, we assign color 1 (the smallest possible)
+3. This greedily minimizes each position in the sequence
+
+This is correct because:
+- If vertex i is uncolored when we reach it, it means it's in a different connected component from all vertices 1, 2, ..., i-1
+- We have the freedom to choose its color, and choosing 1 gives the lexicographically smallest sequence
+- If vertex i is already colored, it was determined by some vertex j < i, and we can't change it
+
+So the algorithm is correct.
+
+Actually, wait. I need to reconsider. When we do BFS from a starting vertex, we might color vertices with higher numbers before we process them in the main loop. But that's fine because:
+- The color of a vertex is determined by the first vertex in its connected component that we process
+- We process vertices in order, so the first vertex in a component is the smallest-numbered one
+- We assign color 1 to this smallest-numbered vertex
+- This propagates to all other vertices in the component
+
+So the algorithm is correct for finding the lexicographically smallest bipartite coloring.
+
+Let me also think about whether there could be multiple valid colorings for a connected component. For a bipartite graph, there are exactly 2 valid colorings for each connected component (swap all colors). By always choosing the coloring where the smallest-numbered vertex has color 1, we get the lexicographically smallest overall coloring.
+
+I think the code is correct. Let me just clean it up a bit:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()
+```
+
+Actually, I want to double-check one more time. Let me trace through a more complex example.
+
+Example: n = 5, m = 3, edges: (1, 2), (3, 4), (4, 5)
+
+This has two connected components: {1, 2} and {3, 4, 5}
+
+Processing:
+- Vertex 1: uncolored, color[1] = 1
+- BFS from 1:
+  - Process 1: neighbor 2, color[2] = 2
+  - Process 2: neighbor 1, already colored, OK
+- Vertex 2: already colored, skip
+- Vertex 3: uncolored, color[3] = 1
+- BFS from 3:
+  - Process 3: neighbor 4, color[4] = 2
+  - Process 4: neighbors 3 and 5
+    - color[3] = 1, OK
+    - color[5] = 0, so color[5] = 1
+  - Process 5: neighbor 4, color[4] = 2, OK
+- Vertex 4: already colored, skip
+- Vertex 5: already colored, skip
+- Result: [1, 2, 1, 2, 1]
+
+Is this the lexicographically smallest? Let's see:
+- For component {1, 2}: either (1, 2) or (2, 1). We chose (1, 2), which is lexicographically smaller.
+- For component {3, 4, 5}: either (1, 2, 1) or (2, 1, 2). We chose (1, 2, 1), which is lexicographically smaller.
+- Overall: [1, 2, 1, 2, 1]
+
+Yes, this is the lexicographically smallest.
+
+I'm confident the code is correct. Let me finalize it.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()
+```
+
+Wait, I should also handle the case where m = 0. In this case, there are no constraints, and we can assign any window to any server. The lexicographically smallest would be all 1s.
+
+Let me trace through:
+- n = 3, m = 0
+- adj = [[], [], [], []] (empty adjacency lists)
+- Processing:
+  - Vertex 1: uncolored, color[1] = 1, BFS (no neighbors), done
+  - Vertex 2: uncolored, color[2] = 1, BFS (no neighbors), done
+  - Vertex 3: uncolored, color[3] = 1, BFS (no neighbors), done
+- Result: [1, 1, 1]
+
+Yes, this is correct.
+
+I think the code is complete and correct. Let me just make one small optimization: using sys.stdout.write for faster output.
+
+Actually, for competitive programming, using print() should be fine. Let me keep the code simple.
+
+One more thing: I should make sure the code handles the case where n = 1 and m = 0 correctly.
+- n = 1, m = 0
+- adj = [[], []]
+- Processing:
+  - Vertex 1: uncolored, color[1] = 1, BFS (no neighbors), done
+- Result: [1]
+
+Output: YES, 1
+
+This is correct.
+
+I'm confident the code is correct. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()
+```
+
+Hmm, I realize I should double check the problem statement once more. Let me re-read it.
+
+"Window 1: maintenance starts at hour 0."
+"Window 2: maintenance starts at hour 1."
+"Each server requires a maintenance operation that lasts exactly 2 hours."
+
+So:
+- Window 1: starts at hour 0, ends at hour 2
+- Window 2: starts at hour 1, ends at hour 3
+
+This matches my analysis.
+
+"The sync check is active during any time when exactly one of the two linked servers is undergoing maintenance (while the other is not). The total accumulated time during which the sync check is active for that pair must be exactly 2 hours."
+
+This also matches my analysis.
+
+I'm confident the code is correct.
+
+Actually, let me reconsider the problem once more. The problem says "the sync check is active during any time when exactly one of the two linked servers is undergoing maintenance". This means the sync check is active when one server is in maintenance and the other is not.
+
+Let me re-verify:
+- Both in Window 1 (hours 0-2):
+  - Hour 0-2: both in maintenance → sync check NOT active
+  - Hour 2+: neither in maintenance → sync check NOT active
+  - Total: 0 hours
+
+- Both in Window 2 (hours 1-3):
+  - Hour 0-1: neither in maintenance → sync check NOT active
+  - Hour 1-3: both in maintenance → sync check NOT active
+  - Hour 3+: neither in maintenance → sync check NOT active
+  - Total: 0 hours
+
+- One in Window 1, one in Window 2:
+  - Hour 0-1: Window 1 server in maintenance, Window 2 server not → sync check ACTIVE
+  - Hour 1-2: both in maintenance → sync check NOT active
+  - Hour 2-3: Window 1 server not in maintenance, Window 2 server in maintenance → sync check ACTIVE
+  - Hour 3+: neither in maintenance → sync check NOT active
+  - Total: 1 + 1 = 2 hours
+
+So for the sync check to be active for exactly 2 hours, the two servers must be in different windows. This confirms my analysis.
+
+The problem is indeed a bipartite graph checking problem, and my solution is correct.
+
+Let me also think about potential edge cases:
+1. n = 1, m = 0: Single server, no constraints. Output: YES, 1
+2. n = 2, m = 1, edge (1, 2): Two servers, one edge. Output: YES, 1 2
+3. n = 2, m = 1, edge (1, 1): Self-loop. Output: NO
+4. n = 3, m = 3, edges (1, 2), (2, 3), (3, 1): Triangle (odd cycle). Output: NO
+5. n = 4, m = 4, edges (1, 2), (2, 3), (3, 4), (4, 1): Square (even cycle). Output: YES, 1 2 1 2
+
+Let me trace through case 5:
+- adj = [[], [2, 4], [1, 3], [2, 4], [3, 1]]
+- Processing:
+  - Vertex 1: uncolored, color[1] = 1
+  - BFS from 1:
+    - Process 1: neighbors 2 and 4
+      - color[2] = 2, add 2 to queue
+      - color[4] = 2, add 4 to queue
+    - Process 2: neighbors 1 and 3
+      - color[1] = 1, OK (different from 2)
+      - color[3] = 1, add 3 to queue
+    - Process 4: neighbors 3 and 1
+      - color[3] = 1, OK (different from 2)
+      - color[1] = 1, OK (different from 2)
+    - Process 3: neighbors 2 and 4
+      - color[2] = 2, OK (different from 1)
+      - color[4] = 2, OK (different from 1)
+  - Vertices 2, 3, 4: already colored, skip
+- Result: [1, 2, 1, 2]
+
+Output: YES, 1 2 1 2
+
+This matches the expected output for example 1.
+
+I'm confident the code is correct. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()
+```
+
+Actually, I just realized that I should use `sys.setrecursionlimit` if I were using DFS, but since I'm using BFS with a deque, I don't need it.
+
+Let me also consider if there are any issues with the input parsing. The `sys.stdin.read().split()` approach should handle all whitespace correctly, including newlines and spaces.
+
+I think the code is complete and correct. Let me finalize it.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()
+```
+
+This should be the correct and efficient solution.
+</think>
+Looking at this problem, I need to understand when the sync check is active for exactly 2 hours.
+
+**Analysis:**
+- Window 1: maintenance from hour 0 to hour 2
+- Window 2: maintenance from hour 1 to hour 3
+
+For two servers with a handoff protocol:
+- **Both in Window 1:** Both in maintenance during hours 0-2, sync check never active (0 hours)
+- **Both in Window 2:** Both in maintenance during hours 1-3, sync check never active (0 hours)  
+- **Different windows:** 
+  - Hour 0-1: Only Window 1 server in maintenance → sync check active (1 hour)
+  - Hour 1-2: Both in maintenance → sync check not active
+  - Hour 2-3: Only Window 2 server in maintenance → sync check active (1 hour)
+  - Total: 2 hours ✓
+
+So for each handoff protocol to succeed, the two servers must be in **different windows**. This is exactly the **bipartite graph coloring problem**!
+
+**Algorithm:**
+1. Check if the graph is bipartite (no odd cycles)
+2. For lexicographically smallest coloring: process vertices 1 to n, assign color 1 to each uncolored vertex, then propagate constraints via BFS
+
+**Edge cases:**
+- Self-loops (u = v) make the answer NO (a vertex can't be different from itself)
+- Isolated vertices can be assigned any color (we choose 1 for lexicographic minimality)
+
+Let me verify with the examples:
+- Example 1: Cycle 1-2-3-4-1 (even cycle) → bipartite → assign 1 to vertex 1, propagates to [1,2,1,2] ✓
+- Example 2: Triangle 1-2-3-1 (odd cycle) → not bipartite → NO ✓
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()
+```

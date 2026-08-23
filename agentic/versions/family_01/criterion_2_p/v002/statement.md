@@ -1,20 +1,16 @@
-# Chemical Containment
+# Problem B — Zone Isolation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A research facility needs to store $n$ distinct chemical samples, numbered $1$ through $n$, across two isolated containment chambers, labeled 1 and 2.
-
-Certain pairs of samples are volatile when placed together and must be stored in different chambers. You are given $m$ such incompatible pairs.
-
-Determine whether it is possible to assign every sample to a containment chamber (either 1 or 2) such that no incompatible pair shares a chamber. If a valid assignment exists, output `YES` followed by the lexicographically smallest assignment sequence $s_1, s_2, \dots, s_n$ where $s_i \in \{1, 2\}$ denotes the chamber assigned to sample $i$. If no valid assignment is possible, output `NO`.
+The same data center now maintains only two security zones, labeled 1 and 2. With n servers and m interference pairs, assign each server a zone so that no interfering pair shares a zone, or report impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the number of chemical samples and the number of incompatible pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that sample $u$ and sample $v$ cannot be placed in the same chamber.
+The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).
+Each of the next m lines contains two integers u v — an interfering pair.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid chamber assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with n integers z₁ … zₙ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

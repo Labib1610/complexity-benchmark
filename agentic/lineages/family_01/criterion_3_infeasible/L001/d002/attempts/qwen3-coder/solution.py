@@ -1,0 +1,33 @@
+import sys
+from collections import defaultdict
+
+def find_stable_core():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((min(u, v), max(u, v)))
+    
+    # Sort edges to process in order
+    edges.sort()
+    
+    # For each edge (u,v), look for a third node w such that 
+    # (u,w) and (v,w) are also edges
+    for u, v in edges:
+        # Find common neighbors of u and v
+        common_neighbors = adj[u] & adj[v]
+        if common_neighbors:
+            # Get the smallest neighbor
+            w = min(common_neighbors)
+            # Output in sorted order
+            result = sorted([u, v, w])
+            print(*result)
+            return
+
+find_stable_core()

@@ -1,18 +1,22 @@
-# Problem C — Roster Infeasibility Certification
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility operates across two working shifts, designated 1 and 2, but the roster rules make scheduling impossible. Rather than generating a schedule, your task is to output a proof of impossibility. It is guaranteed that there exists at least one group of three workers who all mutually conflict with one another. Any such group demonstrates that two shifts cannot suffice.
-
-Find and output one such group of three workers. To maintain shift compliance guidelines, the worker identifiers in the chosen triple $(a, b, c)$ with $a < b < c$ must satisfy $c - a \ge 2$ and $a + b + c \ge 6$. You must output the lexicographically smallest such triple (minimizing $a$; then $b$; then $c$).
+The factory still has only two shifts, 1 and 2, but the roster is known to be
+hopeless. Your job is not to schedule — it is to certify the impossibility. It is
+guaranteed that the conflict graph contains at least one set of three workers who
+pairwise conflict. Any such set proves two shifts cannot suffice. Output one such set.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ $v$ — a conflicting pair of workers.
-It is guaranteed that at least one mutually conflicting triple exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000,
+3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a conflicting pair.
+It is guaranteed that no individual worker is involved in 2000 or more conflicts, and the sum of the number of conflicts per worker across all workers is at most 400,000. It is also guaranteed that at least one such triple exists.
 
 ## Output
-Print three integers $a\ b\ c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, $b$–$c$ are conflicts. Output the lexicographically smallest such triple (smallest $a$; ties by smallest $b$; then smallest $c$).
+Print three integers a b c on one line with a < b < c such that all three pairs
+a–b, a–c, b–c are conflicts. Output the lexicographically smallest such triple
+(smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

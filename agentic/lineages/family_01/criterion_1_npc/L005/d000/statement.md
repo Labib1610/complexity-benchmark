@@ -1,24 +1,20 @@
-# Problem A — Spectrum Division Protocol
+# Problem A — The Tri-Position Lock
 
 Time limit: 2 s   Memory limit: 256 MB
 
-As part of an automated signal pipeline, the control system executes three consecutive procedures: Signal Extraction, Spectrum Division, and Packet Encoding.
+You are attempting to open a complex mechanical vault. The locking mechanism consists of $n$ sequential dials, numbered 1 to $n$. Each dial must be rotated to lock into exactly one of three distinct positions, indicated by the numbers 1, 2, and 3.
 
-In the completed Signal Extraction phase, the system registered $n$ active broadcast units, numbered $1$ through $n$, and identified $m$ interfering pairs of units.
+Inside the vault door, there are $m$ rigid crossbars. Each crossbar links a specific pair of dials. Due to the shape of the crossbars, if the two dials linked by a crossbar are rotated into the exact same position, the crossbar will seize and the lock will jam. The vault will only open if every dial is assigned a position such that no crossbar seizes.
 
-In the current **Spectrum Division** phase, every unit must be assigned to exactly one of three available operational frequencies, represented by the integers $1$, $2$, and $3$. If two units form an interfering pair, they cannot be assigned to the same frequency.
-
-Once this phase succeeds, the chosen frequency assignment sequence $s_1, s_2, \dots, s_n$ will be passed directly to the Packet Encoding phase. If multiple valid frequency assignments exist, you must select the one that is lexicographically smallest (comparing $s_1$ first, then $s_2$, and so on) to ensure downstream deterministic initialization. If no valid assignment can satisfy all interference constraints, the processing pipeline aborts.
-
-Determine whether a valid assignment exists, and if so, produce the lexicographically smallest frequency allocation sequence.
+You must determine a combination of positions for all $n$ dials that successfully opens the vault, or report that the mechanism is permanently jammed. 
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of broadcast units and the number of interfering pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that unit $u$ and unit $v$ form an interfering pair.
+The first line contains two integers $n$ and $m$ — the number of dials and the number of crossbars (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the identifiers of two dials linked by a crossbar. Dials are identified by integers from 1 to $n$.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the frequency assigned to unit $i$. Among all valid assignments, output the lexicographically smallest sequence.
+If there is no combination of dial positions that avoids jamming, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each $p_i \in \{1, 2, 3\}$), where $p_i$ is the position of dial $i$. Among all combinations that open the vault, you must output the one that is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first index where their positions differ, sequence $A$ has a smaller position number than sequence $B$).
 
 ## Example 1
 Input:

@@ -1,0 +1,41 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges lexicographically so the first triangle found is lexicographically smallest.
+    edges.sort()
+    
+    for u, v in edges:
+        # Find common neighbors w with w > v to ensure u < v < w.
+        # Iterate over the smaller adjacency list for efficiency.
+        if len(adj[u]) <= len(adj[v]):
+            candidates = adj[u]
+            other = adj[v]
+        else:
+            candidates = adj[v]
+            other = adj[u]
+        
+        for w in candidates:
+            if w > v and w in other:
+                print(u, v, w)
+                return
+
+if __name__ == "__main__":
+    solve()

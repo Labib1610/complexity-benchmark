@@ -1,9 +1,47 @@
-```json
-{
-  "statement": "# Phase Configuration Subsystem\n\nTime limit: 1 s   Memory limit: 256 MB\n\nAn automated grid initialization pipeline operates in three sequential stages: topology analysis, operational phase assignment, and dynamic load dispatch. This task focuses on implementing the execution logic for Stage 2 (operational phase assignment).\n\nDuring Stage 2, a network of $n$ distinct processing hubs, labeled from $1$ through $n$, must each be configured to use one of two available operational phase shifts, represented by integers $1$ and $2$.\n\nThe network topology contains $m$ direct communication lines, each connecting two distinct hubs $u$ and $v$. Due to physical interference constraints, two hubs linked by a direct communication line cannot share the same operational phase shift; one must be set to phase $1$ and the other to phase $2$.\n\nYour program acts as the Stage 2 core engine. It must determine whether a valid phase configuration exists for all $n$ hubs such that every communication line constraint is satisfied. If multiple valid configurations exist, the pipeline requires the one yielding the lexicographically smallest configuration sequence $s_1, s_2, \dots, s_n$, ensuring deterministic handoff to Stage 3. If no configuration can satisfy all constraints simultaneously, Stage 2 fails.\n\nSequence $A = (a_1, a_2, \dots, a_n)$ is lexicographically smaller than $B = (b_1, b_2, \dots, b_n)$ if at the smallest index $i$ where $a_i \\neq b_i$, $a_i < b_i$.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \\le n \\le 2\\cdot 10^5$, $0 \\le m \\le 2\\cdot 10^5$), representing the number of processing hubs and direct communication lines, respectively.\n\nEach of the following $m$ lines contains two integers $u$ and $v$ ($1 \\le u, v \\le n$, $u \\neq v$), representing a direct communication line between hub $u$ and hub $v$.\n\n## Output\nIf no valid phase assignment exists, print a single line containing `NO`.\n\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \\dots, s_n$ (where each $s_i \\in \\{1, 2\\}$), representing the lexicographically smallest valid assignment.\n\n## Example 1\nInput:\n```\n4 4\n1 2\n2 3\n3 4\n1 4\n```\nOutput:\n```\nYES\n1 2 1 2\n```\n\n## Example 2\nInput:\n```\n3 3\n1 2\n1 3\n2 3\n```\nOutput:\n```\nNO\n```",
-  "rationale": "The problem is framed as Stage 2 within a multi-stage deployment pipeline to obscure direct graph-theoretic pattern recognition. The candidate must filter out the surrounding system workflow context and recognize that the core mathematical task is testing graph bipartiteness and producing the lexicographically minimum valid 2-coloring.",
-  "preserved_answer": "The inputs, outputs, numeric limits, tie-breaking rules, and exact logical constraints remain unchanged, ensuring identical outputs for all test cases.",
-  "preserved_class": "The problem remains in class P because checking 2-colorability and constructing the lexicographically smallest assignment via standard graph traversal (BFS/DFS) per connected component takes linear time O(n + m).",
-  "risk": "none"
-}
+# Acoustic Sensor Calibration
+
+Time limit: 1 s   Memory limit: 256 MB
+
+The deployment of an acoustic sensor network occurs in three distinct stages. First, $n$ sensors are scattered across a testing field to collect ambient noise data and establish initial telemetry links. 
+
+In the second stage, the central controller must calibrate the network's power distribution. This is the task you must implement. Each sensor must be assigned a power mode, which is strictly restricted to either mode 1 or mode 2. During the initial boot sequence, the system generates $m$ resonance alerts. Each alert specifies a pair of sensors $(u, v)$ that are placed too close to one another. To safely resolve an alert, the controller must ensure that the sum of the power modes assigned to sensors $u$ and $v$ is exactly 3. 
+
+If no valid power mode assignment exists for all sensors that satisfies every alert simultaneously, the calibration fails. Otherwise, multiple valid assignments might exist. Because the final stage requires a deterministic initialization, your software must select the lexicographically smallest sequence of power modes $(p_1, p_2, \dots, p_n)$ out of all valid configurations.
+
+In the third and final stage, the sensors activate their data processing modules using the assigned power modes and begin transmitting filtered telemetry. You only need to simulate the second stage.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of sensors and the number of resonance alerts from the first stage.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating an alert between sensor $u$ and sensor $v$.
+
+## Output
+If the calibration cannot be completed because no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each either 1 or 2), representing the lexicographically smallest valid power mode sequence.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
 ```

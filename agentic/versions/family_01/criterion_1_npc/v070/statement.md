@@ -1,9 +1,50 @@
-```json
-{
-  "statement": "# Multi-Shift Resource Partitioning\n\nTime limit: 2 s   Memory limit: 256 MB\n\nConsider a facility that processes $n$ items, indexed from $1$ to $n$. Certain pairs of items are incompatible; specifically, $m$ pairwise incompatibility constraints are given, where each constraint identifies two items that cannot be processed during the same operational shift.\n\nThe facility operates across three available shifts, identified by the numerical labels $1$, $2$, and $3$. An assignment assigns a shift $s_i \in \\{1, 2, 3\\}$ to each item $i \\in \\{1, \\dots, n\\}$. A valid assignment must satisfy every incompatibility constraint, ensuring no two incompatible items share the same shift index.\n\nYour task is to determine whether any valid shift assignment exists. If valid assignments exist, you must identify the assignment sequence $(s_1, s_2, \\dots, s_n)$ that is lexicographically smallest.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \\le n \\le 40$, $0 \\le m \\le \\frac{n(n-1)}{2}$), denoting the number of items and the number of pairwise incompatibility constraints, respectively.\nEach of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \\le u, v \\le n$, $u \\neq v$), indicating that item $u$ and item $v$ cannot share the same shift.\n\n## Output\nIf no valid assignment exists, print `NO` on a single line.\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \\dots s_n$ (where each $s_i \\in \\{1, 2, 3\\}$), representing the shift assigned to each item from $1$ to $n$. If multiple valid assignments exist, output the lexicographically smallest sequence.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "I restructured the description to introduce the data entities and conflict restrictions before stating the goal and optimization objective (lexicographically smallest sequence). This forces the reader to parse the relational rules and shift constraints independently rather than immediately matching the prompt to a standard 3-coloring problem pattern.",
-  "preserved_answer": "Every valid shift assignment maps directly to a valid 3-coloring of the corresponding graph, keeping all valid solutions and the lexicographically minimal assignment completely unchanged.",
-  "preserved_class": "The underlying problem remains 3-Colorability on an arbitrary graph with $n \\le 40$, which is NP-complete.",
-  "risk": "none"
-}
+# Problem A — Maintenance Scheduling
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+A transit agency is organizing maintenance for $n$ vehicles. The maintenance process is divided into three distinct phases, denoted by the identifiers 1, 2, and 3. Every vehicle must be assigned to exactly one phase.
+
+Certain pairs of vehicles draw power from the same limited circuit. You are given a list of these shared-circuit pairs. The core operational requirement is that if two vehicles share a circuit, they cannot undergo maintenance in the same phase.
+
+Your task is to find a phase assignment for all vehicles that avoids overloading any circuits. If there are multiple valid ways to schedule the vehicles, you must output the assignment that evaluates to the numerically smallest sequence. This means the schedule must assign the smallest possible phase identifier to vehicle 1; if ties remain, it must minimize the phase identifier for vehicle 2, and so on, continuing sequentially through all $n$ vehicles.
+
+### Input
+The first line contains two integers $n$ and $m$ — the number of vehicles and the number of shared-circuit pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$, indicating that vehicle $u$ and vehicle $v$ share a circuit. Vehicles are identified by integers from 1 to $n$.
+
+### Output
+If a valid schedule cannot be found, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (each being 1, 2, or 3), where $s_i$ represents the phase assigned to vehicle $i$. This sequence must be the valid assignment that is smallest when compared element by element from left to right.
+
+### Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+### Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

@@ -1,0 +1,82 @@
+import sys
+from collections import defaultdict
+import heapq
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    index = 2
+    
+    # Build adjacency list
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges to process in a consistent order
+    edges.sort()
+    
+    # For each edge (u,v), look for a third node w such that (u,w) and (v,w) are also edges
+    found = False
+    result = None
+    
+    # We'll iterate through all edges and for each edge (u,v), we check neighbors of u and see if they connect to v
+    for u, v in edges:
+        if found:
+            break
+        if u > v:
+            u, v = v, u  # Ensure u < v
+        
+        # Get common neighbors of u and v
+        neighbors_u = adj[u]
+        neighbors_v = adj[v]
+        
+        # Iterate through the smaller set for efficiency
+        if len(neighbors_u) > len(neighbors_v):
+            neighbors_u, neighbors_v = neighbors_v, neighbors_u
+            
+        for w in neighbors_u:
+            if w in neighbors_v:
+                # Found a triangle: u-v, u-w, v-w
+                triad = sorted([u, v, w])
+                if not found or triad < result:
+                    result = triad
+                    found = True
+                    break
+    
+    # If not found yet, do a more thorough search
+    if not found:
+        # For each node, check its neighbors for triangles
+        for u in range(1, n+1):
+            if found:
+                break
+            neighbors = list(adj[u])
+            # Check all pairs of neighbors of u
+            for i in range(len(neighbors)):
+                if found:
+                    break
+                v = neighbors[i]
+                for j in range(i+1, len(neighbors)):
+                    w = neighbors[j]
+                    if w in adj[v]:
+                        # Triangle found: u-v, u-w, v-w
+                        triad = sorted([u, v, w])
+                        if not found or triad < result:
+                            result = triad
+                            found = True
+                            break
+    
+    print(' '.join(map(str, result)))
+
+if __name__ == "__main__":
+    main()

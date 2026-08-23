@@ -1,0 +1,67 @@
+import sys
+from collections import deque
+
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 0
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = color[u] ^ 1
+                q.append(v)
+            elif color[v] == color[u]:
+                print("NO")
+                sys.exit()
+
+# Now we have a valid bipartite coloring (0/1).
+# To get lexicographically smallest, we try to flip components if it makes earlier nodes 1.
+# We'll do BFS/DFS again, but try to assign 1 to nodes when possible.
+
+visited = [False] * n
+color_final = [0] * n
+
+for i in range(n):
+    if visited[i]:
+        continue
+    # BFS to collect component
+    comp = []
+    q = deque([i])
+    visited[i] = True
+    while q:
+        u = q.popleft()
+        comp.append(u)
+        for v in adj[u]:
+            if not visited[v]:
+                visited[v] = True
+                q.append(v)
+    # Try to assign color 1 to the smallest index in this component
+    # We can flip all colors in this component if needed.
+    # Current color from previous BFS is in `color`.
+    # We'll decide based on the smallest node in comp.
+    smallest = min(comp)
+    # If color[smallest] == 1, keep as is; else flip
+    flip = (color[smallest] == 0)
+    for u in comp:
+        if flip:
+            color_final[u] = 1 - color[u]
+        else:
+            color_final[u] = color[u]
+
+print("YES")
+print(" ".join(str(c + 1) for c in color_final))

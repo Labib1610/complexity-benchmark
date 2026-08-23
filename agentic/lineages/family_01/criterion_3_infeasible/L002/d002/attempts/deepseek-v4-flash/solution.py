@@ -1,0 +1,30 @@
+import sys
+
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+
+    # Try all possible smallest vertex a
+    for a in range(1, n + 1):
+        # Neighbors of a sorted to get lexicographically smallest b
+        neighbors = sorted(adj[a])
+        for b in neighbors:
+            if b <= a:
+                continue
+            # Check common neighbors between a and b
+            for c in adj[b]:
+                if c <= b:
+                    continue
+                if c in adj[a]:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,104 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = defaultdict(set)
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+        index += 2
+    
+    # Create a list of neighbors for each node
+    neighbors = {}
+    for node in adj:
+        neighbors[node] = sorted(list(adj[node]))
+    
+    # We want to find a triangle (three nodes all connected to each other)
+    # That means we need to find three nodes a,b,c such that (a,b), (b,c), (a,c) are all edges
+    
+    # To do it efficiently, we'll iterate through all edges and for each edge (u,v),
+    # we look for a common neighbor w such that u,v,w form a triangle.
+    
+    # To ensure lexicographical order and efficiency, we process nodes in sorted order.
+    nodes = sorted(adj.keys())
+    node_index = {node: i for i, node in enumerate(nodes)}
+    
+    found = False
+    result = None
+    
+    # For each edge, check if it can be part of a triangle
+    # Sort edges to help with lexicographical ordering
+    edge_list = []
+    for u, v in edges:
+        if u < v:
+            edge_list.append((u, v))
+        else:
+            edge_list.append((v, u))
+    
+    # Sort edges primarily by first node, then by second
+    edge_list.sort()
+    
+    for u, v in edge_list:
+        if found:
+            break
+        # Get neighbors of u and v
+        nu = set(neighbors[u]) if u in neighbors else set()
+        nv = set(neighbors[v]) if v in neighbors else set()
+        
+        # Find common neighbors
+        common = nu & nv
+        common_sorted = sorted(common)
+        
+        for w in common_sorted:
+            # Ensure we have a valid triangle u, v, w and maintain order u < v < w
+            a, b, c = sorted([u, v, w])
+            if not found or (a, b, c) < result:
+                result = (a, b, c)
+                found = True
+                break  # Since we're looking for the lex smallest and edges are sorted
+    
+    # If not found yet, we need to search more thoroughly
+    if not found:
+        # Try all combinations of three nodes to see if they form a triangle
+        # But since we know one exists, and m is limited, let's try a better approach
+        
+        # Let's re-process by checking triangles properly
+        # For every pair of nodes, check their common neighbors
+        
+        triplets_checked = set()
+        
+        # Re-sort edges again just in case
+        edges_sorted = sorted(edges, key=lambda x: (min(x[0], x[1]), max(x[0], x[1])))
+        
+        for u, v in edges_sorted:
+            if u in adj and v in adj:
+                nu = adj[u]
+                nv = adj[v]
+                common = nu & nv
+                for w in sorted(common):
+                    triplet = tuple(sorted([u, v, w]))
+                    if triplet not in triplets_checked:
+                        triplets_checked.add(triplet)
+                        a, b, c = sorted([u, v, w])
+                        if not result or (a, b, c) < result:
+                            result = (a, b, c)
+                            found = True
+        
+    if result:
+        print(result[0], result[1], result[2])
+
+if __name__ == "__main__":
+    main()

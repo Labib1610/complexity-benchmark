@@ -1,9 +1,51 @@
-```json
-{
-  "statement": "# Automated Facility Management: Multi-Shift Duty Allocator\n\nTime limit: 2 s   Memory limit: 256 MB\n\n## Description\nAn industrial facility manages automated personnel scheduling through a multi-phase system. In the operational assignment phase, each employee indexed from $1$ to $n$ must be assigned to exactly one shift from the available set $\{1, 2, 3\}$.\n\nAn assignment $s = (s_1, s_2, \dots, s_n)$ with $s_i \in \{1, 2, 3\}$ is considered valid if and only if all of the following conditions are satisfied:\n1. **Conflict Separation**: For every pair of mutually incompatible employees $(u, v)$, their assigned shift numbers must differ ($s_u \neq s_v$).\n2. **Local Diversity Bound**: For every employee $u$, the set of shifts assigned to all employees incompatible with $u$ contains at most $2$ distinct shift values.\n3. **Aggregate Bounds**: The sum of all assigned shift numbers, $\\sum_{i=1}^n s_i$, lies within the range $[n, 3n]$.\n\nIf one or more valid shift assignments exist, the system requires the lexicographically smallest sequence $s_1, s_2, \\dots, s_n$. If no valid assignment can satisfy all conditions, report `NO`.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \\le n \\le 40$, $0 \\le m \\le \\frac{n(n-1)}{2}$) — the number of employees and the number of incompatible pairs.\nEach of the next $m$ lines contains two integers $u$ and $v$ ($1 \\le u, v \\le n, u \\neq v$), indicating that employee $u$ and employee $v$ cannot share the same shift.\n\n## Output\nIf no valid assignment exists, print a single line containing `NO`.\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \\dots, s_n$ ($s_i \\in \\{1, 2, 3\\}$) representing the lexicographically smallest valid shift assignment.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "Explicitly added two rules (a local shift diversity bound on incompatible neighbors and an aggregate sum range bound). The model must realize that any valid shift allocation under the conflict separation rule automatically satisfies both added conditions, ensuring no valid assignments are pruned.",
-  "preserved_answer": "Because any valid 3-shift assignment assigning employee u shift s_u restricts all incompatible neighbors to at most 2 remaining shift values and all individual shift numbers lie in [1, 3], every valid assignment under conflict separation trivially satisfies the added rules, leaving the answer set completely unchanged.",
-  "preserved_class": "The underlying problem is equivalent to 3-coloring, which is NP-complete, as the extra conditions are mathematically redundant tautologies.",
-  "risk": "none"
-}
+# Problem A — Telemetry Configuration
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A facility's monitoring system consists of $n$ telemetry stations. Each station must be configured to use a specific radio band. The hardware allows each station to be set to band 1, band 2, or band 3.
+
+Due to physical proximity, certain pairs of stations have overlapping broadcast ranges. If two stations with overlapping ranges are configured to the identical band, they will jam one another. 
+
+Typically, engineers attempt to configure the system using only bands 1 and 2 by flipping back and forth between them across overlapping stations. Band 3 is provided solely as a patch for situations where a chain of overlapping stations wraps around asymmetrically, making it impossible to use just the first two bands. Since the facility's layout is intended to be well-structured, the assumption is that finding a stable configuration should not be complicated.
+
+Given $n$ telemetry stations and $m$ pairs with overlapping ranges, you must assign every station to exactly one of the supported bands such that no jamming occurs. If a stable configuration is possible, you must output the lexicographically smallest sequence of band assignments.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of stations and the number of overlapping pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that station $u$ and station $v$ have overlapping ranges and cannot share a band.
+
+## Output
+If no stable configuration is possible, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in $\{1, 2, 3\}$), where $b_i$ is the band assigned to station $i$. Among all stable configurations, output the lexicographically smallest sequence (compare $b_1$ first, then $b_2$, and so on).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

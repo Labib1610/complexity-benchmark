@@ -1,0 +1,59 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for lexicographical processing
+    sorted_adj = [sorted(s) for s in adj]
+    
+    # We need to find a triangle (x, y, z) with x < y < z that is lexicographically smallest.
+    # Iterate x from 1 to n.
+    # For each x, iterate y in adj[x] with y > x.
+    # For each such y, iterate z in adj[x] with z > y.
+    # Check if y and z are connected.
+    
+    for x in range(1, n + 1):
+        neighbors_x = sorted_adj[x]
+        # We can iterate all y > x, but to ensure we find the lex smallest,
+        # we iterate y in sorted order.
+        # However, we only care about y > x.
+        # The sorted_adj[x] is sorted, so we can iterate and filter.
+        
+        # Let's collect valid y candidates (y > x)
+        # Actually, iterating all y in neighbors_x and checking y > x is fine.
+        # To optimize, we can iterate through sorted_adj[x] and skip y <= x.
+        
+        # Since we want the lexicographically smallest (x, y, z),
+        # and we iterate x in increasing order, the first triangle found is the answer.
+        
+        for y in neighbors_x:
+            if y <= x:
+                continue
+            
+            # Now we need a z such that z is in adj[x], z > y, and z is in adj[y].
+            # We iterate z in adj[x] in sorted order.
+            for z in neighbors_x:
+                if z <= y:
+                    continue
+                
+                # Check if z is in adj[y]
+                # Using a set for adjacency check is O(1) on average.
+                if z in adj[y]:
+                    print(f"{x} {y} {z}")
+                    return
+
+if __name__ == '__main__':
+    solve()

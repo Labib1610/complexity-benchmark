@@ -1,0 +1,107 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Precompute for each vertex the set of vertices with index < v that are adjacent
+    lower_adj = [0] * n
+    for v in range(n):
+        for u in range(v):
+            if adj[u] & (1 << v):
+                lower_adj[v] |= 1 << u
+
+    # Precompute for each vertex the set of vertices with index > v that are adjacent
+    higher_adj = [0] * n
+    for v in range(n):
+        for u in range(v + 1, n):
+            if adj[u] & (1 << v):
+                higher_adj[v] |= 1 << u
+
+    # For each vertex v, compute the set of vertices < v that are NOT adjacent to v
+    lower_non_adj = [0] * n
+    for v in range(n):
+        lower_non_adj[v] = ((1 << v) - 1) & ~lower_adj[v]
+
+    # For each vertex v, compute the set of vertices > v that are NOT adjacent to v
+    higher_non_adj = [0] * n
+    for v in range(n):
+        higher_non_adj[v] = (((1 << n) - 1) ^ ((1 << (v + 1)) - 1)) & ~higher_adj[v]
+
+    # Precompute popcount
+    popcount = [0] * (1 << n)
+    for i in range(1, 1 << n):
+        popcount[i] = popcount[i >> 1] + (i & 1)
+
+    # Precompute for each vertex v, the set of vertices < v that are adjacent to v
+    # lower_adj already computed
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices < v that are not adjacent to v
+    # lower_adj[v] and lower_non_adj[v]
+
+    # For each vertex v, compute the set of vertices > v that are adjacent to v
+    # higher_adj[v]
+
+    # For each vertex v, compute the set of vertices > v that are not adjacent to v
+    # higher_non_adj[v]
+
+    # Now we need to find for each vertex v, the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+    # For each vertex v, compute the set of vertices < v that are adjacent to v
+    # and the set of vertices > v that are adjacent to v
+    # lower_adj[v] and higher_adj[v]
+
+   ......

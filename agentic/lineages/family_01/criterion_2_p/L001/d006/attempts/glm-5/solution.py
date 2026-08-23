@@ -1,0 +1,152 @@
+import sys
+from sys import setrecursionlimit
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    head = list(range(n + 1))
+    nxt = [0] * (2 * m + 1)
+    to = [0] * (2 * m + 1)
+    cnt = 0
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        cnt += 1
+        to[cnt] = v
+        nxt[cnt] = head[u]
+        head[u] = cnt
+        cnt += 1
+        to[cnt] = u
+        nxt[cnt] = head[v]
+        head[v] = cnt
+    
+    color = [0] * (n + 1)
+    parent = [0] * (n + 1)
+    order = []
+    possible = True
+    
+    for s in range(1, n + 1):
+        if color[s] == 0:
+            color[s] = 1
+            parent[s] = 0
+            stack = [s]
+            while stack:
+                u = stack.pop()
+                order.append(u)
+                e = head[u]
+                while e != 0:
+                    v = to[e]
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        parent[v] = u
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        nonlocal possible
+                        possible = False
+                    e = nxt[e]
+    
+    if not possible:
+        sys.stdout.write("NO\n")
+        return
+    
+    comp_id = [0] * (n + 1)
+    comp_cnt = 0
+    for u in range(1, n + 1):
+        if comp_id[u] == 0:
+            comp_cnt += 1
+            stack = [u]
+            comp_id[u] = comp_cnt
+            while stack:
+                x = stack.pop()
+                e = head[x]
+                while e != 0:
+                    y = to[e]
+                    if comp_id[y] == 0:
+                        comp_id[y] = comp_cnt
+                        stack.append(y)
+                    e = nxt[e]
+    
+    comp_size = [0] * (comp_cnt + 1)
+    for u in range(1, n + 1):
+        comp_size[comp_id[u]] += 1
+    
+    comp_root = [0] * (comp_cnt + 1)
+    for u in range(1, n + 1):
+        if comp_root[comp_id[u]] == 0:
+            comp_root[comp_id[u]] = u
+    
+    comp_adj = [[] for _ in range(comp_cnt + 1)]
+    for u in range(1, n + 1):
+        e = head[u]
+        while e != 0:
+            v = to[e]
+            if u < v:
+                cu = comp_id[u]
+                cv = comp_id[v]
+                if cu != cv:
+                    comp_adj[cu].append(cv)
+                    comp_adj[cv].append(cu)
+            e = nxt[e]
+    
+    for c in range(1, comp_cnt + 1):
+        if comp_adj[c]:
+            seen = set()
+            unique = []
+            for x in comp_adj[c]:
+                if x not in seen:
+                    seen.add(x)
+                    unique.append(x)
+            comp_adj[c] = unique
+    
+    comp_parent = [0] * (comp_cnt + 1)
+    comp_order = []
+    visited = [False] * (comp_cnt + 1)
+    
+    for s in range(1, comp_cnt + 1):
+        if not visited[s]:
+            visited[s] = True
+            comp_parent[s] = 0
+            stack = [s]
+            while stack:
+                c = stack.pop()
+                comp_order.append(c)
+                for nc in comp_adj[c]:
+                    if not visited[nc]:
+                        visited[nc] = True
+                        comp_parent[nc] = c
+                        stack.append(nc)
+    
+    comp_flip = [False] * (comp_cnt + 1)
+    comp_subtree = [0] * (comp_cnt + 1)
+    
+    for c in reversed(comp_order):
+        s = comp_size[c]
+        for nc in comp_adj[c]:
+            if nc != comp_parent[c]:
+                s += comp_subtree[nc]
+        comp_subtree[c] = s
+    
+    for c in comp_order:
+        for nc in comp_adj[c]:
+            if nc != comp_parent[c]:
+                if comp_subtree[nc] > n // 2:
+                    comp_flip[c] = True
+    
+    ans = [0] * (n + 1)
+    for u in range(1, n + 1):
+        c = comp_id[u]
+        if comp_flip[c]:
+            ans[u] = 3 - color[u]
+        else:
+            ans[u] = color[u]
+    
+    out = ["YES\n", " ".join(map(str, ans[1:])), "\n"]
+    sys.stdout.write("".join(out))
+
+solve()

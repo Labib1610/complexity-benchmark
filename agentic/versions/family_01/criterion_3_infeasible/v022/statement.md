@@ -1,22 +1,21 @@
-# Problem C — Server Loop Analysis
+# Problem C — Flight Manifest Rejection
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A high-availability computing network consists of $n$ servers numbered $1$ through $n$, connected by $m$ direct two-way communication links. Each link directly connects two distinct servers.
+A cargo company relies on two transport planes to ship various industrial chemicals. Many of these chemicals are volatile when mixed, meaning certain pairs will react dangerously and must be transported on different planes.
 
-A diagnostic protocol requires identifying a tightly interconnected cluster of three servers: three distinct servers $a$, $b$, and $c$ such that every pair among them is directly connected by a communication link (that is, direct links exist between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$).
+The current shipping manifest is fundamentally flawed: it is impossible to divide all the chemicals between just two planes without risking a reaction. Your task is to generate an automated safety rejection report. You do not need to attempt a safe allocation; you only need to prove that no such allocation exists.
 
-It is guaranteed that at least one such three-server cluster exists in the network.
-
-Find the valid triple $a, b, c$ with $a < b < c$ that is lexicographically smallest. That is, choose the triple that minimizes $a$; if there is a tie, minimizes $b$; if there is still a tie, minimizes $c$.
+To provide this proof, you must identify a "volatile triad"—a group of exactly three chemicals where every chemical in the group reacts dangerously with the other two. Because all three are mutually reactive, they would require at least three separate planes, formally proving the two-plane plan is impossible. 
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$) — the number of servers and the number of communication links, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a direct two-way communication link between server $u$ and server $v$.
-It is guaranteed that at least one valid triple exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of chemicals and the number of reactive pairs. Chemicals are numbered from $1$ to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) — a pair of chemicals that react dangerously with each other. 
+It is guaranteed that at least one volatile triad exists in the given data.
 
 ## Output
-Print three space-separated integers $a\ b\ c$ on a single line with $a < b < c$, representing the lexicographically smallest triple of servers where all three pairwise direct links exist.
+Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the IDs of the three chemicals that form a volatile triad.
+If there are multiple such groups, output the one that is lexicographically smallest (i.e., smallest $a$; ties broken by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

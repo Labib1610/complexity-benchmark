@@ -1,22 +1,29 @@
-# Shift Certificate Audit
+# Problem C — Automated Audit Evidence Extraction
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial site schedules its staff across two distinct work shifts such that each staff member is placed into exactly one shift. Due to safety rules, specific pairs of staff members are prohibited from working during the same shift.
+Our logistics platform processes shipments of industrial chemicals. Because some chemicals are highly reactive when stored in the same environment, they must be separated. Currently, our fleet consists of exactly two transport vessels. 
 
-To demonstrate why two shifts are insufficient to satisfy all safety constraints, an auditor must find a group of three staff members who are all mutually prohibited from sharing a shift. Since each pair among these three staff members cannot be in the same shift, no two-shift setup can accommodate all three simultaneously.
+The daily scheduling pipeline consists of four sequential execution phases:
+1. **Ingestion:** The system parses the manifest of $n$ chemicals and a list of $m$ known reactive pairs.
+2. **Allocation:** A scheduler attempts to safely distribute all chemicals between the two vessels. 
+3. **Evidence Extraction:** If the scheduler fails, it triggers a diagnostic routine to isolate the root cause.
+4. **Reporting:** The isolated cause is formatted into a regulatory rejection ticket.
 
-If multiple such groups of three staff members exist, select the one that comes earliest in lexicographical order. Specifically, if the three staff IDs are arranged as $a < b < c$, choose the set that minimizes $a$ first, then $b$, and finally $c$.
+You are responsible for implementing Phase 3. The scheduler (Phase 2) has already aborted and determined that a safe two-vessel distribution is impossible for the given manifest. To satisfy the reporting requirements of Phase 4, you must extract a minimal proof of this impossibility. 
+
+Specifically, you must find a group of exactly three chemicals that are mutually incompatible—meaning each chemical in the group reacts dangerously with the other two. Because they all conflict with each other, they would require at least three vessels, which serves as a formal proof that the two-vessel limit cannot be met.
+
+You do not need to parse the original manifest formats or generate the final PDF report; your module will receive the raw conflict data directly from Phase 1. Your program must simply locate the three mutually reactive chemicals. 
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$. Here $n$ represents the total workforce count, bounded between a minimum team size of 3 and a facility capacity limit of 2000. The integer $m$ represents the total number of pairwise conflicts, which is at least 3 and does not exceed either 200,000 or the total possible number of distinct pairs among $n$ staff members.
-
-The next $m$ lines each contain two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that staff member $u$ and staff member $v$ cannot be assigned to the same shift. No conflict pair appears more than once in the input.
-
-It is guaranteed that at least one such mutually conflicting group of three staff members exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of chemicals and the number of reactive pairs. Chemicals are assigned integer IDs from $1$ to $n$.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that chemical $u$ and chemical $v$ react dangerously. 
+The input data is guaranteed to represent a failed manifest containing at least one such group of three mutually reactive chemicals.
 
 ## Output
-Output a single line containing three space-separated integers $a$, $b$, and $c$ ($a < b < c$) representing the lexicographically smallest triple where all three pairs $(a, b)$, $(a, c)$, and $(b, c)$ are registered conflicts.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$. These are the IDs of the three chemicals forming the proof.
+To ensure the Reporting phase behaves deterministically, if multiple valid groups of three exist, you must output the group that is lexicographically smallest. (This means selecting the group with the smallest value for $a$; if tied, the smallest value for $b$; and if still tied, the smallest value for $c$).
 
 ## Example 1
 Input:

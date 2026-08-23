@@ -1,0 +1,55 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    graph = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        graph[u].add(v)
+        graph[v].add(u)
+    
+    # For each node, sort its neighbors for consistent intersection
+    for i in range(1, n + 1):
+        graph[i] = sorted(graph[i])
+    
+    # We want the lexicographically smallest trio (a,b,c) with a<b<c
+    # So we iterate a from 1 to n, b from a+1 to n, c from b+1 to n
+    # But we optimize by checking if there's a common neighbor
+    
+    # For efficiency, we'll go through each edge (u,v) with u<v
+    # And look for a third node w such that u-v, u-w, v-w are all edges
+    # Since we want lexicographically smallest, we process edges in order
+    
+    edges_sorted = sorted(edges)
+    
+    for u, v in edges_sorted:
+        if u >= v:
+            continue
+        # Find common neighbors of u and v that are > v
+        # This ensures u < v < w
+        neighbors_u = set(graph[u])
+        neighbors_v = set(graph[v])
+        common = neighbors_u & neighbors_v
+        
+        # We need w > v
+        candidates = [w for w in common if w > v]
+        if candidates:
+            w = min(candidates)
+            print(u, v, w)
+            return
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,7 @@
 id: S02
 summary: Same structure, entirely different real-world scenario.
 classes: all
+perturbation_family: paraphrase_domain
 
 Move the problem into a different domain that is a genuine structural fit — the
 entities, relations, and constraints must map one to one onto the seed. Do not merely

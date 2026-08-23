@@ -1,6 +1,7 @@
 id: S06
 summary: Hide the reason no solution exists.
 classes: INFEASIBLE
+perturbation_family: novel (complexity-directed)
 
 Present the problem as an ordinary task to be solved, with the contradiction distributed
 across separate constraints rather than stated in one place. Never claim a solution

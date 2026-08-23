@@ -1,21 +1,20 @@
-# Schedule Compatibility Assignment
+# Problem A — Rotation Roster
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial facility manages a headcount of $n$ staff members, identified by numbers $1$ through $n$. The facility operates across three sequential time blocks designated as $1$, $2$, and $3$.
+A facility operates continuously and requires technicians to be scheduled. Each technician must be assigned to exactly one daily rotation: morning (denoted by 1), afternoon (denoted by 2), or night (denoted by 3).
 
-Certain pairs of staff members are flagged as mutually incompatible and cannot be assigned to work during the same time block. Every staff member must be assigned to exactly one of the three available time blocks such that no two mutually incompatible staff members share a time block.
+Certain pairs of technicians require the use of the same specialized calibration tool. Because there is only one such tool available per rotation, two technicians who share this requirement cannot be assigned to the same rotation.
 
-If multiple valid schedule configurations exist, select the configuration that minimizes the assigned time block number of staff member 1; if ties remain, minimize for staff member 2, then staff member 3, and so on up to staff member $n$. If no valid configuration satisfies all incompatibility conditions, report that it cannot be done.
+You must determine a valid rotation assignment for every technician or report that no such roster is possible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the headcount of staff members and the number of incompatible pairings ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that staff member $u$ and staff member $v$ are mutually incompatible.
+The first line contains two integers $n$ and $m$ — the number of technicians and the number of tool-sharing pairs. The facility guarantees at least one technician, but due to a strict locker limit, there are never more than forty technicians. The value $m$ ranges from zero up to the absolute maximum where every technician pairs with every other.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that technician $u$ and technician $v$ require the same tool.
 
 ## Output
-If no valid schedule configuration exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the time block assigned to staff member $i$. Among all valid schedule configurations, output the sequence prioritized by the tie-breaking rule.
+If there is no way to assign the technicians to the rotations under these constraints, print `NO` on a single line.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each in $\{1, 2, 3\}$), where $s_i$ represents the rotation for technician $i$. If there are multiple valid rosters, you must output the one that assigns the lowest possible rotation number to technician 1. If ties remain, assign the lowest possible rotation number to technician 2, and so on.
 
 ## Example 1
 Input:

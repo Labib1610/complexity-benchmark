@@ -1,19 +1,21 @@
-# Factory Roster Audit
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-## Description
-Consider a factory workforce consisting of $n$ individual workers, labeled $1$ through $n$. Certain pairs of workers have documented mutual scheduling conflicts, meaning they cannot be assigned to work during the same shift. In this system, there are $m$ total pairwise conflicts logged. A conflict always involves two distinct workers, and conflict relationship is mutual.
+A manufacturing plant employs $n$ individuals, numbered 1 through $n$. The HR department has identified $m$ specific pairs of employees who exhibit irreconcilable differences. If two employees share an irreconcilable difference, they cannot be placed on the same schedule. It is guaranteed that the provided records contain at least one triad of employees where all three individuals mutually refuse to work with one another—meaning every employee in the triad has an irreconcilable difference with both of the other two.
 
-It is guaranteed that within the workforce, there exists at least one group of three distinct workers where every two workers in the group have a logged conflict between them. To demonstrate why a simple two-shift arrangement fails, your task is to identify such a mutually conflicting group of three workers. Specifically, among all valid triplets $(a, b, c)$ with $a < b < c$ where $a$ conflicts with $b$, $a$ conflicts with $c$, and $b$ conflicts with $c$, you must find and report the one that is lexicographically smallest.
+Management initially proposed dividing the workforce into exactly two daily shifts. However, this proposal is fundamentally unworkable. Because of the existence of such a triad, no two-shift system can possibly accommodate them without forcing two incompatible employees to work together.
+
+To finalize the rejection of the two-shift proposal, you must provide a formal certificate of its failure. Your task is to identify one of these mutually incompatible triads.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$) — the number of workers and the number of pairwise conflicts, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating a pairwise conflict between worker $u$ and worker $v$.
-It is guaranteed that at least one mutually conflicting group of three workers exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing an irreconcilable difference between employee $u$ and employee $v$. Each incompatible pair is listed at most once.
+It is guaranteed that at least one mutually incompatible triad exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the lexicographically smallest triple of workers who all pairwise conflict with one another (that is, minimizing $a$, then $b$, then $c$).
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the IDs of three employees who form a mutually incompatible triad. The IDs must be printed in ascending order ($a < b < c$).
+If there are multiple such triads, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
 
 ## Example 1
 Input:

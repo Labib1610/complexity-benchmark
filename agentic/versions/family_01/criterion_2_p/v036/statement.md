@@ -1,20 +1,18 @@
-# Personnel Sector Allocation
+# Problem B — Broadcast Frequencies
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A facility manages a workforce of $n$ individuals, indexed from $1$ to $n$. To maintain smooth operations, every individual must be assigned to work in one of two available facility zones, identified as Zone 1 and Zone 2.
+A regional emergency broadcast system consists of $n$ radio transmitters. Each transmitter must be tuned to either the primary frequency (denoted as 1) or the secondary frequency (denoted as 2). Due to geographic proximity, $m$ specific pairs of transmitters will severely interfere with each other if they broadcast on the exact same frequency.
 
-Certain pairs of workers are known to have severe operational friction. For safety and productivity, two individuals who form a friction pair cannot be assigned to the same zone.
-
-Your task is to determine whether a valid assignment of all $n$ workers to these two zones exists. If it is possible, output the assignment that produces the lexicographically smallest sequence of zone choices $s_1, s_2, \dots, s_n$, where $s_i \in \{1, 2\}$ denotes the zone assigned to individual $i$.
+Your task is to determine if there is a way to tune all transmitters such that no interfering pair shares the same frequency. If such a tuning is impossible, you must report this. If multiple valid tunings exist, you must output the one that prioritises the primary frequency for the lowest-numbered transmitters. Specifically, the sequence of frequency assignments (from transmitter 1 to $n$) must be the smallest possible when compared element by element from left to right.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of workers and the number of friction pairs, respectively.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that worker $u$ and worker $v$ cannot be assigned to the same zone.
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 2·10⁵, 0 ≤ $m$ ≤ 2·10⁵), representing the number of transmitters and the number of interfering pairs, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that transmitters $u$ and $v$ will interfere if they share a frequency.
 
 ## Output
-If no valid zone assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid zone assignment.
+If there is no way to tune the transmitters without interference, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the frequency assigned to each transmitter in the required optimal tuning.
 
 ## Example 1
 Input:

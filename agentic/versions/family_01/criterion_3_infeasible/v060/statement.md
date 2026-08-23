@@ -1,20 +1,20 @@
-# Problem C — Network Triad Discovery
+# Problem C — Feedback Cascade
 
 Time limit: 2 s   Memory limit: 256 MB
 
-Consider a data processing network with $n$ units labeled $1$ through $n$, connected by $m$ bidirectional communication channels. Each channel establishes a direct link between two distinct units. No pair of units is connected by more than one channel.
+The system you are evaluating consists of $n$ signal relays. Among these relays, there are $m$ active bidirectional mirroring configurations. Each configuration links two specific relays such that any signal received by either is instantaneously mirrored to the other.
 
-Within this infrastructure, three distinct units $a$, $b$, and $c$ form a mutually connected triad if direct channels exist between $a$ and $b$, between $b$ and $c$, and between $a$ and $c$. The network configuration is such that at least one mutually connected triad is present.
+When three distinct relays are all mutually linked by these mirroring configurations—meaning each relay in the group of three is directly linked to both of the other two—any signal entering the group is trapped in an infinite amplification loop. Such a configuration triggers a critical failure known as a feedback cascade. Diagnostic scans confirm that the current network architecture is unstable and contains at least one such group of three relays.
 
-Among all valid mutually connected triads, we order the three unit labels such that $a < b < c$. Your task is to identify the triad that is lexicographically smallest. That is, select the tuple $(a, b, c)$ that minimizes $a$; if multiple such tuples share the minimum $a$, minimize $b$; and if a tie still remains, minimize $c$.
+Your objective is to pinpoint a source of this instability. You must find three relays that form a feedback cascade. To standardize the diagnostic report, the three relay identifiers must be listed in ascending order. If there is more than one such group of three relays, you must output the lexicographically smallest sequence of three identifiers (meaning the group with the lowest first identifier, tying groups broken by the lowest second identifier, and finally the lowest third).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$) — the number of units and the number of channels, respectively.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a direct bidirectional channel between unit $u$ and unit $v$.
-It is guaranteed that at least one valid triad exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of relays linked by a mirroring configuration.
+It is guaranteed that at least one feedback cascade exists.
 
 ## Output
-Print three space-separated integers $a\ b\ c$ on a single line with $a < b < c$, representing the lexicographically smallest mutually connected triad.
+Print three integers $a$ $b$ $c$ on one line with $a < b < c$ such that the pairs $a$–$b$, $a$–$c$, and $b$–$c$ are all linked by mirroring configurations. Output the lexicographically smallest such triple (smallest $a$; ties broken by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

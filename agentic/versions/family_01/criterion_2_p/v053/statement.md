@@ -1,22 +1,20 @@
-# Hardware Bus Allocation Optimization
+# Problem B — Operational Windows
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A high-performance computing system consists of $n$ processing modules, numbered $1$ through $n$. Each module must be assigned to operate on one of two independent data buses, designated as Bus 1 or Bus 2.
+A manufacturing facility must schedule a workforce of $n$ individuals, numbered 1 through $n$. A complete roster configuration requires making a discrete choice for every individual, creating a massive search space of potential schedules. Specifically, each person must be assigned an operational window, represented by an integer. Since the facility operates exactly two windows—designated 1 and 2—there are $2^n$ possible configuration sequences to consider.
 
-There are $m$ hardware conflict constraints. Each constraint specifies a pair of modules that share a direct high-speed interconnect and therefore cannot be assigned to the same data bus under any circumstances.
+To avoid production hazards, a configuration is only valid if it satisfies a strict system of $m$ separation constraints. The facility maintains a registry of incompatible pairs. For every pair $(u, v)$ recorded in this registry, any configuration where individual $u$ and individual $v$ are assigned the identical operational window is strictly prohibited. You must determine if there exists a sequence in the $2^n$ search space that satisfies all $m$ constraints simultaneously.
 
-Determine whether it is possible to assign every processing module to either Bus 1 or Bus 2 such that all $m$ conflict constraints are simultaneously satisfied.
-
-If one or more valid bus assignments exist, output the assignment that is lexicographically smallest. Comparing two sequences of bus assignments $(s_1, s_2, \dots, s_n)$ and $(t_1, t_2, \dots, t_n)$, sequence $s$ is smaller than sequence $t$ if at the first position $i$ where $s_i \neq t_i$, $s_i < t_i$.
+If the safety guidelines cannot be satisfied by any configuration, you must report this failure. Should multiple configurations meet all the mandates, you must output the sequence that is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of modules and the number of pairwise conflict constraints, respectively.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$), indicating that module $u$ and module $v$ cannot be assigned to the same bus.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of personnel and the number of separation constraints.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that person $u$ and person $v$ are an incompatible pair.
 
 ## Output
-If no valid bus assignment exists that satisfies all constraints, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid configuration.
+If no roster configuration can satisfy the safety mandates, output a single line containing `NO`.
+Otherwise, output a line containing `YES`. On the following line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the allocated window for each person. This sequence must be the lexicographically smallest among all valid configurations.
 
 ## Example 1
 Input:

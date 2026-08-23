@@ -1,0 +1,45 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    idx = 2
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx + 1]); idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    best = None
+    for a in range(1, n + 1):
+        if best is not None and a >= best[0]:
+            break
+        neighbors = adj[a]
+        # candidates b > a
+        sorted_b = sorted(neighbors)
+        for b in sorted_b:
+            if b <= a:
+                continue
+            if best is not None and b >= best[1]:
+                continue
+            # find c > b in both adj[a] and adj[b]
+            adj_b = adj[b]
+            for c in sorted_b:
+                if c <= b:
+                    continue
+                if best is not None and c >= best[2]:
+                    continue
+                if c in adj_b:
+                    best = (a, b, c)
+                    break
+            if best is not None and best[0] == a and best[1] == b:
+                # can't improve c for this (a,b) since we took first valid
+                pass
+    print(best[0], best[1], best[2])
+
+solve()

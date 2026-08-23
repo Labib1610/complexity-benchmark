@@ -1,31 +1,35 @@
-You are checking whether a rewritten programming problem statement is well formed. You
-are not solving it.
+You are grading a rewritten programming problem statement on four independent quality
+criteria. You are NOT solving it.
 
-You will see an ORIGINAL statement and a REWRITTEN statement.
+You will see an ORIGINAL statement and a REWRITTEN statement. Judge the REWRITTEN one,
+using the ORIGINAL only as the reference for what the task is supposed to be.
 
-Answer these four questions independently:
+Score each criterion on an integer scale from 0 to 5, and give exactly one sentence of
+justification for each. Be strict: reserve 5 for statements that leave no room for doubt.
 
-1. SAME TASK. Does the rewritten statement ask for exactly the same thing as the
-   original, for every possible input? Consider the input format, the output format,
-   the bounds, and any tie-break rule.
+G1 — UNAMBIGUITY.  Could a careful reader arrive at more than one reasonable
+     interpretation? 0 = several defensible readings; 5 = exactly one reading.
 
-2. UNAMBIGUOUS. Could a careful reader arrive at more than one reasonable
-   interpretation? Quote the specific phrase if so.
+G2 — COMPLETENESS.  Is every piece of information needed to solve it present (bounds,
+     formats, tie-break rules, edge cases)? 0 = information is missing; 5 = fully specified.
 
-3. SOLVABLE. Is all information needed to solve it present?
+G3 — FAITHFULNESS.  Does the rewrite ask for exactly the same thing as the original, for
+     every possible input — same input meaning, same output meaning, same bounds, same
+     tie-break rule? This is the same-task judgement. 0 = it asks a materially different
+     question; 5 = it is provably the same question. Do not award 5 if any bound, format,
+     or tie-break rule differs in substance from the original.
 
-4. EXAMPLE CONSISTENT. Does each worked example agree with the rules as stated?
+G4 — NATURALNESS.  Does it read like a problem a person would write? 0 = machine-generated
+     or contrived; 5 = natural and idiomatic.
 
-Respond with a single JSON object and nothing else:
+Respond with EXACTLY these tags and nothing else. Put a single integer inside each score
+tag and one sentence inside each justification tag:
 
-{
-  "same_task": "yes" | "no" | "unsure",
-  "same_task_reason": "...",
-  "unambiguous": "yes" | "no" | "unsure",
-  "ambiguity_quote": "the offending phrase, or ''",
-  "solvable": "yes" | "no",
-  "example_consistent": "yes" | "no" | "unsure",
-  "overall": "pass" | "flag" | "fail"
-}
-
-Use "flag" whenever you are unsure. A human reviews every flag.
+<G1_unambiguity>N</G1_unambiguity>
+<G1_justification>one sentence</G1_justification>
+<G2_completeness>N</G2_completeness>
+<G2_justification>one sentence</G2_justification>
+<G3_faithfulness>N</G3_faithfulness>
+<G3_justification>one sentence</G3_justification>
+<G4_naturalness>N</G4_naturalness>
+<G4_justification>one sentence</G4_justification>

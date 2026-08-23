@@ -1,22 +1,23 @@
-# Chemical Vault Partitioning
+# Problem A — Hopper Allocation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A research facility must store $n$ hazardous chemical substances, labeled from $1$ to $n$, across three isolated containment vaults designated as $1$, $2$, and $3$. Every substance must be assigned to exactly one vault.
+An automated dispensing system processes $n$ distinct pharmaceutical ingredients. The system distributes these ingredients among three isolated holding hoppers, which are mechanically designated as hopper 1, hopper 2, and hopper 3.
 
-Certain pairs of substances are chemically incompatible and cause unstable reactions if placed within the same vault. Thus, incompatible substances must always be assigned to different vaults.
+Due to cross-contamination risks, specific pairs of ingredients will degrade if they are loaded into the same holding hopper. You must assign every ingredient to exactly one of the three hoppers such that no two ingredients that pose a mutual cross-contamination risk share a hopper.
 
-Find an assignment of all $n$ substances to the three vaults such that no two incompatible substances occupy the same vault. If multiple valid vault assignments exist, choose the one that forms the lexicographically smallest sequence of vault numbers $(s_1, s_2, \dots, s_n)$, where $s_i$ denotes the vault assigned to substance $i$.
+To standardize loading procedures across multiple facilities, the system enforces a strict priority rule for valid assignments. The configuration must be chosen such that the sequence of hopper numbers assigned to ingredients $1$ through $n$ is lexicographically minimized. This means the system prioritizes placing ingredient 1 into the lowest-numbered hopper possible, then ingredient 2 into the lowest-numbered hopper possible, and so forth, while still ensuring a completely safe arrangement for all ingredients.
+
+If no safe configuration exists for the given ingredients and contamination risks, the system must reject the batch.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of chemical substances and the number of incompatible pairs, respectively.
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that substance $u$ and substance $v$ are incompatible.
+The first line contains two integers $n$ and $m$ — the number of ingredients and the number of cross-contamination risks ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of ingredients that pose a cross-contamination risk.
 
 ## Output
-If no valid vault assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \dots s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the vault assigned to substance $i$. If multiple valid assignments exist, output the lexicographically smallest sequence.
+If no safe hopper assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $h_1, h_2, \dots, h_n$ (each in $\{1, 2, 3\}$), where $h_i$ is the hopper assigned to ingredient $i$. This sequence must be the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

@@ -1,0 +1,31 @@
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = data[idx]; v = data[idx + 1]; idx += 2
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+
+    mask_gt = [0] * (n + 1)
+    for x in range(1, n + 1):
+        mask_gt[x] = ((1 << (n - x)) - 1) << x
+
+    for a in range(1, n + 1):
+        nb = adj[a] & mask_gt[a]
+        while nb:
+            lsb = nb & -nb
+            b = lsb.bit_length()
+            nb ^= lsb
+            cmask = adj[a] & adj[b] & mask_gt[b]
+            if cmask:
+                c = (cmask & -cmask).bit_length()
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+solve()

@@ -1,20 +1,19 @@
-# Frequency Channel Allocation
+# Channel Allocation
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A telecommunications operator manages $n$ signal relay units, indexed from $1$ to $n$. The operator has cataloged $m$ operational interference rules; each rule specifies a pair of units that are located too close together and will cause signal corruption if operated on the same frequency channel.
+A fleet of $n$ autonomous surveying vessels must each be assigned to one of two communication channels, designated as channel 1 and channel 2. During the survey, certain pairs of vessels will operate in close proximity. If two vessels in close proximity broadcast on the same channel, their signals will interfere. You are given $m$ records of such vessel pairs.
 
-Only two operational channels are available, designated as channel $1$ and channel $2$. Every relay unit must be assigned exactly one channel such that no pair of units subject to an interference rule shares the same channel.
-
-If it is impossible to assign channels to all units without violating any interference constraints, report that no valid configuration exists. If valid channel assignments exist, the operator requires the configuration that yields the lexicographically smallest sequence of channel choices $s_1, s_2, \dots, s_n$. A sequence $A = (a_1, \dots, a_n)$ is lexicographically smaller than sequence $B = (b_1, \dots, b_n)$ if at the first position $i$ where $a_i \neq b_i$, $a_i < b_i$.
+Your task is to assign a channel to every vessel such that no two vessels in close proximity share the same channel, or determine that this is impossible. If there are multiple valid ways to assign the channels, you must output the configuration that produces the lexicographically smallest sequence of channel assignments for vessels 1 through $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of signal relay units and the number of interference rules.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that relay unit $u$ and relay unit $v$ interfere with each other.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of vessels and the number of proximity records.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that vessel $u$ and vessel $v$ will operate in close proximity.
 
 ## Output
-If no valid channel assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
+If no assignment can prevent all interference, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
 
 ## Example 1
 Input:

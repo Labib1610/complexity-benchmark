@@ -1,0 +1,970 @@
+Let me analyze this problem:
+
+1. We have n transceivers, each needs to be assigned a polarity index from {1, 2}
+2. For each link (u, v), the XOR of their polarity indices must be exactly 3
+3. 1 XOR 1 = 0, 1 XOR 2 = 3, 2 XOR 1 = 3, 2 XOR 2 = 0
+4. So for each link, the two endpoints must have different polarity indices (one must be 1, the other must be 2)
+
+This is essentially a bipartite graph coloring problem! We need to check if the graph is bipartite and if so, find the lexicographically smallest valid 2-coloring.
+
+For lexicographically smallest, we want to assign 1 to as many early nodes as possible.
+
+Algorithm:
+1. Build the graph
+2. Try to do a bipartite coloring using BFS/DFS
+3. For each connected component, we have two choices: either start with 1 or start with 2
+4. To get lexicographically smallest, for each component, we should try both options and pick the one that gives a smaller result
+
+Wait, let me think more carefully. For each connected component, once we fix the value of one node, all other nodes in that component are determined. So for each component, we have exactly 2 choices.
+
+To get the lexicographically smallest assignment:
+- For each component, we need to decide which of the two colorings to use
+- We want to minimize the sequence lexicographically
+
+A greedy approach: process components in order of their smallest node. For each component, try both colorings and pick the one that gives a lexicographically smaller result.
+
+Actually, let me think about this differently. For each connected component, we have two possible colorings. We want to choose the combination that gives the lexicographically smallest overall sequence.
+
+Since components are independent, we can process them one by one. For each component, we should choose the coloring that makes the sequence as small as possible.
+
+But wait, the lexicographic comparison is done on the entire sequence. So we need to be careful.
+
+Let me think about it component by component. For each component, let's say the nodes are sorted. The first node in the component determines the coloring. If we assign 1 to the first node, all other nodes in the component are determined. If we assign 2 to the first node, all other nodes are determined differently.
+
+For lexicographically smallest, we want to assign 1 to as many early nodes as possible. So for each component, we should try assigning 1 to the smallest node in that component, and see if that leads to a valid coloring. If it does, use that. Otherwise, try assigning 2.
+
+Wait, but both assignments are valid (if the graph is bipartite). The question is which one gives a lexicographically smaller result.
+
+Let me think about this more carefully with an example:
+- Component with nodes {1, 3, 5} where 1-3 and 3-5 are edges
+- If we assign 1 to node 1, then node 3 gets 2, node 5 gets 1
+- If we assign 2 to node 1, then node 3 gets 1, node 5 gets 2
+
+The first option gives: b[1]=1, b[3]=2, b[5]=1
+The second option gives: b[1]=2, b[3]=1, b[5]=2
+
+Clearly the first option is lexicographically smaller because b[1]=1 < 2.
+
+So for each component, we should assign 1 to the smallest node in that component.
+
+But wait, what if there are multiple components and the smallest node of one component is larger than some node in another component? Let me think...
+
+Actually, components are independent, so we can process them separately. For each component, we want to choose the coloring that minimizes the contribution to the overall sequence.
+
+For a component with nodes {v1, v2, ..., vk} (sorted), if we assign 1 to v1, then all other nodes are determined. If we assign 2 to v1, then all other nodes are determined differently.
+
+Since v1 is the smallest node in the component, and we want to minimize b[v1], we should assign 1 to v1.
+
+But wait, what about nodes that are not in any component (isolated nodes)? They can be assigned either 1 or 2, and we should assign 1 to minimize lexicographically.
+
+So the algorithm is:
+1. Build the graph
+2. For each connected component, do a BFS/DFS starting from the smallest node, assigning 1 to it
+3. If at any point we find a contradiction (a node needs to be both 1 and 2), output NO
+4. For isolated nodes, assign 1
+
+Wait, but I need to be more careful. Let me re-think.
+
+For each connected component:
+- Start BFS from the smallest node in the component
+- Assign 1 to this node
+- Propagate: for each neighbor, assign the opposite value (if current is 1, neighbor is 2; if current is 2, neighbor is 1)
+- If we find a contradiction, output NO
+
+For isolated nodes (not connected to any other node), assign 1.
+
+This should give the lexicographically smallest valid assignment.
+
+Let me verify with the examples:
+
+Example 1:
+4 nodes, 4 edges: 1-2, 2-3, 3-4, 1-4
+This is a cycle of length 4.
+Starting from node 1, assign 1.
+Node 2 must be 2 (neighbor of 1).
+Node 3 must be 1 (neighbor of 2).
+Node 4 must be 2 (neighbor of 3).
+Check: 1-4 edge: 1 XOR 2 = 3. ✓
+Result: 1 2 1 2. Matches expected output.
+
+Example 2:
+3 nodes, 3 edges: 1-2, 1-3, 2-3
+This is a triangle (cycle of length 3).
+Starting from node 1, assign 1.
+Node 2 must be 2 (neighbor of 1).
+Node 3 must be 2 (neighbor of 1) AND must be 1 (neighbor of 2). Contradiction!
+Output: NO. Matches expected output.
+
+Great, the algorithm seems correct.
+
+Now let me implement it:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        # BFS from start
+        color[start] = 1
+        queue = deque([start])
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]  # if u is 1, v is 2; if u is 2, v is 1
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I need to think about whether this gives the lexicographically smallest result.
+
+For each connected component, we start from the smallest unvisited node and assign 1 to it. This ensures that the smallest node in each component gets 1, which is optimal for lexicographic order.
+
+But wait, what if there's a component where assigning 1 to the smallest node doesn't give the lexicographically smallest result for that component?
+
+Let me think of an example:
+Component with nodes {1, 2, 3} and edges 1-2, 2-3.
+If we assign 1 to node 1: b[1]=1, b[2]=2, b[3]=1
+If we assign 2 to node 1: b[1]=2, b[2]=1, b[3]=2
+
+The first option is lexicographically smaller because b[1]=1 < 2.
+
+Another example:
+Component with nodes {1, 2, 3, 4} and edges 1-2, 2-3, 3-4, 1-4 (cycle of length 4).
+If we assign 1 to node 1: b[1]=1, b[2]=2, b[3]=1, b[4]=2
+If we assign 2 to node 1: b[1]=2, b[2]=1, b[3]=2, b[4]=1
+
+The first option is lexicographically smaller.
+
+So for each component, assigning 1 to the smallest node gives the lexicographically smallest result for that component. And since components are independent, this gives the overall lexicographically smallest result.
+
+Actually, wait. I need to think about this more carefully. The lexicographic comparison is done on the entire sequence b[1], b[2], ..., b[n]. So we need to consider all components together.
+
+Let's say we have two components: C1 with smallest node 1, and C2 with smallest node 3.
+
+For C1, we have two choices:
+- Choice A: b[1]=1, and other nodes in C1 determined
+- Choice B: b[1]=2, and other nodes in C1 determined
+
+For C2, we have two choices:
+- Choice C: b[3]=1, and other nodes in C2 determined
+- Choice D: b[3]=2, and other nodes in C2 determined
+
+To get the lexicographically smallest overall sequence, we should:
+1. First, minimize b[1]. So choose Choice A (b[1]=1).
+2. Then, minimize b[2] (if node 2 is in C1, it's already determined; if node 2 is isolated, assign 1).
+3. Then, minimize b[3]. So choose Choice C (b[3]=1).
+4. And so on.
+
+So the greedy approach of assigning 1 to the smallest node in each component is correct.
+
+But wait, there's a subtlety. What if node 2 is in C1 and node 3 is in C2? Then:
+- With Choice A: b[1]=1, b[2]=2 (determined by C1)
+- With Choice B: b[1]=2, b[2]=1 (determined by C1)
+
+Since b[1] is more significant for lexicographic comparison, Choice A is better.
+
+And for C2:
+- With Choice C: b[3]=1
+- With Choice D: b[3]=2
+
+Choice C is better.
+
+So the greedy approach is correct.
+
+But wait, what if node 2 is in C2 and node 3 is in C1? This can't happen because we process components in order of their smallest node. If node 1 is in C1 and node 3 is in C2, then node 2 must be in C1 (if it's connected to node 1) or in its own component (if it's not connected to node 1).
+
+Hmm, actually, the components are determined by the graph structure, not by our processing order. Let me re-think.
+
+OK so the key insight is: for each connected component, once we fix the value of one node, all other nodes are determined. And we have two choices for each component.
+
+For lexicographically smallest, we want to minimize b[1], then b[2], then b[3], etc.
+
+For node 1:
+- If node 1 is in a component, we can choose b[1]=1 or b[1]=2. We should choose b[1]=1.
+- If node 1 is isolated, we can choose b[1]=1 or b[1]=2. We should choose b[1]=1.
+
+For node 2:
+- If node 2 is in the same component as node 1, b[2] is already determined.
+- If node 2 is in a different component, we can choose b[2]=1 or b[2]=2. We should choose b[2]=1.
+- If node 2 is isolated, we should choose b[2]=1.
+
+And so on.
+
+So the algorithm is:
+1. For each node from 1 to n, if it's not yet colored, assign 1 to it and propagate.
+2. If we find a contradiction, output NO.
+
+This is exactly what my code does. Let me verify once more.
+
+Actually, I realize there might be an issue. When we process nodes from 1 to n, we might not process all nodes in a component before moving to the next component. Let me think...
+
+No, actually, the BFS will process all nodes in the component before we move to the next unvisited node. So if node 1 is in a component with nodes {1, 3, 5}, we'll color all of them before moving to node 2 (if node 2 is in a different component).
+
+Wait, but what if node 2 is in the same component as node 1? Then when we process node 1, we'll also color node 2. And when we get to node 2 in the loop, it's already colored, so we skip it.
+
+OK so the algorithm is correct. Let me also handle the case where there are no edges (m=0). In this case, all nodes are isolated, and we assign 1 to all of them.
+
+Let me also think about the time complexity. We have n nodes and m edges. BFS visits each node and edge at most once, so the time complexity is O(n + m). This should be efficient enough.
+
+Let me also think about the space complexity. We store the adjacency list, which takes O(n + m) space. We also store the color array, which takes O(n) space. This should be fine.
+
+Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        # BFS from start
+        color[start] = 1
+        queue = deque([start])
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I should double-check the XOR condition. The problem says "the bitwise XOR of their assigned polarity indices must evaluate to exactly 3".
+
+1 XOR 1 = 0
+1 XOR 2 = 3
+2 XOR 1 = 3
+2 XOR 2 = 0
+
+So for the XOR to be 3, the two endpoints must have different values (one 1 and one 2). This is exactly the bipartite graph condition.
+
+My algorithm assigns different values to adjacent nodes, which ensures the XOR is 3. So the algorithm is correct.
+
+Let me also verify the output format. The problem says:
+- If no valid assignment, output "NO"
+- If valid, output "YES" on the first line, and the assignment on the second line
+
+My code does this correctly.
+
+One more thing: I should make sure that the output is in the correct format. The problem says "output n integers b_1, b_2, ..., b_n (each being 1 or 2)". My code outputs them space-separated, which should be correct.
+
+Let me also think about edge cases:
+- n=1, m=0: Only one node, no edges. Assign 1 to it. Output: YES\n1
+- n=2, m=0: Two isolated nodes. Assign 1 to both. Output: YES\n1 1
+- n=2, m=1, edge 1-2: Assign 1 to node 1, 2 to node 2. Output: YES\n1 2
+
+These all seem correct.
+
+Actually, let me reconsider the lexicographically smallest requirement more carefully.
+
+For a connected component, we have two possible colorings. Let's call them coloring A and coloring B, where coloring A assigns 1 to the smallest node in the component.
+
+For the overall sequence to be lexicographically smallest, we need to choose the right coloring for each component.
+
+Since we process components in order of their smallest node, and we always assign 1 to the smallest node, we're making the locally optimal choice. But is this globally optimal?
+
+Let me think of a counterexample...
+
+Suppose we have two components:
+- C1: nodes {1, 4} with edge 1-4
+- C2: nodes {2, 3} with edge 2-3
+
+For C1:
+- Coloring A: b[1]=1, b[4]=2
+- Coloring B: b[1]=2, b[4]=1
+
+For C2:
+- Coloring C: b[2]=1, b[3]=2
+- Coloring D: b[2]=2, b[3]=1
+
+To get the lexicographically smallest sequence:
+- We want to minimize b[1]. So choose Coloring A (b[1]=1).
+- Then, we want to minimize b[2]. So choose Coloring C (b[2]=1).
+- Then, we want to minimize b[3]. b[3]=2 (determined by Coloring C).
+- Then, we want to minimize b[4]. b[4]=2 (determined by Coloring A).
+
+Result: 1 1 2 2
+
+Let's check if there's a better choice:
+- A + D: 1 2 1 2 → Compare with 1 1 2 2: at position 2, 1 < 2, so A + C is better.
+- B + C: 2 1 2 1 → Compare with 1 1 2 2: at position 1, 1 < 2, so A + C is better.
+- B + D: 2 2 1 1 → Compare with 1 1 2 2: at position 1, 1 < 2, so A + C is better.
+
+So A + C is the best, which is what our algorithm produces.
+
+Now let me think of a more complex example...
+
+Suppose we have two components:
+- C1: nodes {1, 3} with edge 1-3
+- C2: nodes {2, 4} with edge 2-4
+
+For C1:
+- Coloring A: b[1]=1, b[3]=2
+- Coloring B: b[1]=2, b[3]=1
+
+For C2:
+- Coloring C: b[2]=1, b[4]=2
+- Coloring D: b[2]=2, b[4]=1
+
+To get the lexicographically smallest sequence:
+- We want to minimize b[1]. So choose Coloring A (b[1]=1).
+- Then, we want to minimize b[2]. So choose Coloring C (b[2]=1).
+- Then, we want to minimize b[3]. b[3]=2 (determined by Coloring A).
+- Then, we want to minimize b[4]. b[4]=2 (determined by Coloring C).
+
+Result: 1 1 2 2
+
+Let's check other choices:
+- A + D: 1 2 2 1 → Compare with 1 1 2 2: at position 2, 1 < 2, so A + C is better.
+- B + C: 2 1 1 2 → Compare with 1 1 2 2: at position 1, 1 < 2, so A + C is better.
+- B + D: 2 2 1 1 → Compare with 1 1 2 2: at position 1, 1 < 2, so A + C is better.
+
+So A + C is the best, which is what our algorithm produces.
+
+Hmm, but what if choosing a different coloring for an earlier component could lead to a better overall result?
+
+Let me think of such an example...
+
+Suppose we have:
+- C1: nodes {1, 2} with edge 1-2
+- C2: nodes {3, 4} with edge 3-4
+
+For C1:
+- Coloring A: b[1]=1, b[2]=2
+- Coloring B: b[1]=2, b[2]=1
+
+For C2:
+- Coloring C: b[3]=1, b[4]=2
+- Coloring D: b[3]=2, b[4]=1
+
+To get the lexicographically smallest sequence:
+- A + C: 1 2 1 2
+- A + D: 1 2 2 1
+- B + C: 2 1 1 2
+- B + D: 2 1 2 1
+
+A + C is the best (1 2 1 2), which is what our algorithm produces.
+
+But wait, what if we have:
+- C1: nodes {1, 3} with edge 1-3
+- C2: nodes {2} (isolated)
+
+For C1:
+- Coloring A: b[1]=1, b[3]=2
+- Coloring B: b[1]=2, b[3]=1
+
+For C2 (isolated node):
+- b[2]=1 (always choose 1 for isolated nodes)
+
+To get the lexicographically smallest sequence:
+- A: 1 1 2
+- B: 2 1 1
+
+A is better, which is what our algorithm produces.
+
+OK I'm convinced that the greedy approach is correct. The key insight is that for lexicographic comparison, earlier positions are more important. By assigning 1 to the smallest node in each component (and 1 to isolated nodes), we're minimizing the earliest positions first.
+
+Actually, let me think about this more rigorously. Suppose we have two valid assignments A and B, and A is lexicographically smaller than B. Let k be the first position where they differ, so A[k] < B[k].
+
+Now, node k is in some component C. In assignment A, node k has value 1, and in assignment B, node k has value 2 (since the only possible values are 1 and 2).
+
+For all nodes j < k, A[j] = B[j]. This means that for all components that have nodes with indices less than k, the two assignments agree on those components.
+
+Now, node k is the smallest node in component C that hasn't been "decided" yet (i.e., all nodes in C with indices less than k have the same values in both assignments). But wait, if there's a node in C with index less than k, then that node's value would determine node k's value, and they would have to agree. So node k must be the smallest node in component C.
+
+Since node k is the smallest node in component C, and we want A[k] = 1 (to be lexicographically smaller), we should assign 1 to the smallest node in each component. This is exactly what our algorithm does.
+
+Great, the algorithm is correct. Let me finalize the code.
+
+Actually, I realize I should also handle the case where the graph might have self-loops. If there's an edge from a node to itself, then the XOR would be 0 (since 1 XOR 1 = 0 and 2 XOR 2 = 0), which is not 3. So a self-loop would make the graph non-bipartite, and we should output NO.
+
+But wait, the problem says "a data link between transceiver u and transceiver v". It doesn't explicitly say u ≠ v. Let me check if the problem allows self-loops...
+
+The problem doesn't explicitly forbid self-loops, so I should handle them. If u = v, then the XOR is 0, which is not 3, so we should output NO.
+
+Actually, let me re-read the problem... "Each link establishes a direct telemetry channel between a specific pair of transceivers." The word "pair" suggests u ≠ v, but I'm not 100% sure.
+
+To be safe, I'll handle self-loops. If there's a self-loop, the graph is not bipartite, and we should output NO.
+
+In my current algorithm, if there's a self-loop (u = v), when we process node u, we'll check its neighbor v = u. Since color[u] = color[v] (they're the same node), we'll detect a contradiction and output NO. So the algorithm already handles self-loops correctly.
+
+Wait, let me double-check. If u = v, then adj[u] contains u. When we process node u, we iterate over its neighbors, including u itself. We check if color[u] == color[u], which is always true. So we output NO. 
+
+Actually, hmm, let me trace through the code more carefully.
+
+When we process node u:
+- color[u] = 1 (or some value)
+- We iterate over neighbors of u
+- For neighbor v = u, we check if color[v] == color[u]
+- color[u] == color[u] is true
+- So we output NO
+
+Yes, this is correct. Self-loops are handled.
+
+What about multiple edges between the same pair of nodes? The problem doesn't mention this, but it's possible. Multiple edges don't affect bipartiteness, so they should be fine. My algorithm adds both edges to the adjacency list, but when we process them, we'll just check the same condition twice, which is fine.
+
+OK I think the algorithm is correct. Let me also think about the output format once more.
+
+The problem says:
+- If no valid assignment, output "NO"
+- If valid, output "YES" on the first line, and the assignment on the second line
+
+My code outputs "YES" followed by a newline, then the assignment followed by a newline. This should be correct.
+
+Wait, I should also make sure that the assignment is output as space-separated integers, not as a list or anything else. My code uses " ".join(str(color[i]) for i in range(1, n + 1)), which produces space-separated integers. This should be correct.
+
+Let me also think about potential issues with the input parsing. The problem says the input is:
+- First line: n and m
+- Subsequent m lines: u and v
+
+My code reads all input at once and parses it. This should be efficient and correct.
+
+One more thing: the problem says 1 ≤ n ≤ 2 * 10^5 and 0 ≤ m ≤ 2 * 10^5. So n and m can be large, and I need to make sure my algorithm is efficient enough. The time complexity is O(n + m), which should be fine.
+
+Let me also think about the memory usage. The adjacency list takes O(n + m) space, and the color array takes O(n) space. The total is O(n + m), which should be within the 256 MB limit.
+
+OK I'm confident the algorithm is correct and efficient. Let me finalize the code.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        # BFS from start
+        color[start] = 1
+        queue = deque([start])
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I just realized that I should use sys.stdout.write for faster output, but print should be fine for this problem size.
+
+Actually, let me reconsider the output. The problem says "output n integers b_1, b_2, ..., b_n (each being 1 or 2), representing the lexicographically smallest valid assignment." So the output should be space-separated integers.
+
+My code uses " ".join(str(color[i]) for i in range(1, n + 1)), which produces "1 2 1 2" for the first example. This matches the expected output.
+
+I think the code is correct. Let me also add some optimizations for large inputs:
+
+1. Use sys.stdin.buffer.read() for faster input (already done)
+2. Use deque for BFS (already done)
+3. Use list comprehension for output (already done)
+
+I think the code is ready. Let me test it on the examples once more.
+
+Example 1:
+Input:
+4 4
+1 2
+2 3
+3 4
+1 4
+
+Processing:
+- n=4, m=4
+- adj[1] = [2, 4], adj[2] = [1, 3], adj[3] = [2, 4], adj[4] = [3, 1]
+- color = [0, 0, 0, 0, 0]
+- start=1: color[1]=1, queue=[1]
+  - u=1: neighbors 2, 4
+    - v=2: color[2]=0, so color[2]=2, queue=[2]
+    - v=4: color[4]=0, so color[4]=2, queue=[2, 4]
+  - u=2: neighbors 1, 3
+    - v=1: color[1]=1 ≠ color[2]=2, OK
+    - v=3: color[3]=0, so color[3]=1, queue=[4, 3]
+  - u=4: neighbors 3, 1
+    - v=3: color[3]=1 ≠ color[4]=2, OK
+    - v=1: color[1]=1 ≠ color[4]=2, OK
+  - u=3: neighbors 2, 4
+    - v=2: color[2]=2 ≠ color[3]=1, OK
+    - v=4: color[4]=2 ≠ color[3]=1, OK
+- color = [0, 1, 2, 1, 2]
+- Output: YES\n1 2 1 2
+
+This matches the expected output.
+
+Example 2:
+Input:
+3 3
+1 2
+1 3
+2 3
+
+Processing:
+- n=3, m=3
+- adj[1] = [2, 3], adj[2] = [1, 3], adj[3] = [1, 2]
+- color = [0, 0, 0, 0]
+- start=1: color[1]=1, queue=[1]
+  - u=1: neighbors 2, 3
+    - v=2: color[2]=0, so color[2]=2, queue=[2]
+    - v=3: color[3]=0, so color[3]=2, queue=[2, 3]
+  - u=2: neighbors 1, 3
+    - v=1: color[1]=1 ≠ color[2]=2, OK
+    - v=3: color[3]=2 == color[2]=2, CONTRADICTION!
+- Output: NO
+
+This matches the expected output.
+
+Great, the algorithm is correct. Let me finalize the code.
+
+Actually, I just realized that I should also handle the case where n=0. But the problem says 1 ≤ n, so n is at least 1. So I don't need to handle n=0.
+
+Also, I should handle the case where m=0. In this case, all nodes are isolated, and we assign 1 to all of them. My algorithm handles this correctly because the BFS will just assign 1 to each node without any neighbors.
+
+Let me also think about the case where the graph is disconnected. My algorithm handles this correctly by iterating over all nodes and starting a new BFS for each unvisited node.
+
+I think the code is ready. Let me finalize it.
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        color[start] = 1
+        queue = deque([start])
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+Hmm, I want to double-check the lexicographically smallest property once more.
+
+Consider a component with nodes {2, 5} and edge 2-5. When we process node 1 (which might be in a different component or isolated), we assign 1 to it. Then we process node 2, which is unvisited, so we start a BFS from node 2 and assign 1 to it. Then node 5 gets 2.
+
+But what if we had assigned 2 to node 2 and 1 to node 5? The sequence would be:
+- Original: b[1]=1, b[2]=1, b[5]=2
+- Alternative: b[1]=1, b[2]=2, b[5]=1
+
+The original is lexicographically smaller because b[2]=1 < 2.
+
+So assigning 1 to the smallest node in each component is correct.
+
+But wait, what if the smallest node in a component is not the first unvisited node we encounter? Let me think...
+
+Actually, in my algorithm, I iterate over nodes from 1 to n. For each unvisited node, I start a BFS. So the first unvisited node I encounter in a component is the smallest node in that component (since I iterate in increasing order).
+
+For example, if a component has nodes {2, 5}, when I reach node 2 in the loop, it's unvisited, so I start a BFS from node 2 and assign 1 to it. When I reach node 5 in the loop, it's already visited, so I skip it.
+
+So the algorithm is correct.
+
+Let me also think about a more complex example. Suppose we have:
+- Component C1: nodes {1, 4, 7} with edges 1-4, 4-7
+- Component C2: nodes {2, 5} with edge 2-5
+- Component C3: nodes {3, 6} with edge 3-6
+
+Processing:
+- start=1: color[1]=1, BFS colors 1→2→1 for nodes 1, 4, 7
+  - color[1]=1, color[4]=2, color[7]=1
+- start=2: color[2]=1, BFS colors 1→2 for nodes 2, 5
+  - color[2]=1, color[5]=2
+- start=3: color[3]=1, BFS colors 1→2 for nodes 3, 6
+  - color[3]=1, color[6]=2
+
+Result: 1 1 1 2 2 2 1
+
+Is this lexicographically smallest? Let's check other options:
+- For C1, we could have color[1]=2, color[4]=1, color[7]=2
+- For C2, we could have color[2]=2, color[5]=1
+- For C3, we could have color[3]=2, color[6]=1
+
+The original is 1 1 1 2 2 2 1.
+If we flip C1: 2 1 1 1 2 2 2. This is worse because b[1]=2 > 1.
+If we flip C2: 1 2 1 2 1 2 1. This is worse because b[2]=2 > 1.
+If we flip C3: 1 1 2 2 2 1 1. This is worse because b[3]=2 > 1.
+
+So the original is indeed lexicographically smallest.
+
+Great, the algorithm is correct. Let me finalize the code.
+
+Actually, I want to make one more optimization. Instead of using deque, I can use a simple list as a stack (DFS). This might be slightly faster due to less overhead.
+
+But BFS with deque is also fine for this problem size. Let me stick with BFS.
+
+Actually, let me use iterative DFS with a stack for potentially better performance:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        color[start] = 1
+        stack = [start]
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This should work correctly. Let me trace through the first example once more to make sure.
+
+Example 1:
+Input:
+4 4
+1 2
+2 3
+3 4
+1 4
+
+Processing:
+- n=4, m=4
+- adj[1] = [2, 4], adj[2] = [1, 3], adj[3] = [2, 4], adj[4] = [3, 1]
+- color = [0, 0, 0, 0, 0]
+- start=1: color[1]=1, stack=[1]
+  - u=1: neighbors 2, 4
+    - v=2: color[2]=0, so color[2]=2, stack=[2]
+    - v=4: color[4]=0, so color[4]=2, stack=[2, 4]
+  - u=4: neighbors 3, 1
+    - v=3: color[3]=0, so color[3]=1, stack=[2, 3]
+    - v=1: color[1]=1 ≠ color[4]=2, OK
+  - u=3: neighbors 2, 4
+    - v=2: color[2]=2 ≠ color[3]=1, OK
+    - v=4: color[4]=2 ≠ color[3]=1, OK
+  - u=2: neighbors 1, 3
+    - v=1: color[1]=1 ≠ color[2]=2, OK
+    - v=3: color[3]=1 ≠ color[2]=2, OK
+- color = [0, 1, 2, 1, 2]
+- Output: YES\n1 2 1 2
+
+This matches the expected output.
+
+Wait, I made an error in the trace. Let me redo it.
+
+When we pop from the stack, we get the last element. So:
+- stack=[1]
+- pop u=1, neighbors 2, 4
+  - v=2: color[2]=0, so color[2]=2, stack=[2]
+  - v=4: color[4]=0, so color[4]=2, stack=[2, 4]
+- pop u=4, neighbors 3, 1
+  - v=3: color[3]=0, so color[3]=1, stack=[2, 3]
+  - v=1: color[1]=1 ≠ color[4]=2, OK
+- pop u=3, neighbors 2, 4
+  - v=2: color[2]=2 ≠ color[3]=1, OK
+  - v=4: color[4]=2 ≠ color[3]=1, OK
+- pop u=2, neighbors 1, 3
+  - v=1: color[1]=1 ≠ color[2]=2, OK
+  - v=3: color[3]=1 ≠ color[2]=2, OK
+- stack is empty
+
+color = [0, 1, 2, 1, 2]
+Output: YES\n1 2 1 2
+
+This is correct.
+
+Let me also trace through the second example.
+
+Example 2:
+Input:
+3 3
+1 2
+1 3
+2 3
+
+Processing:
+- n=3, m=3
+- adj[1] = [2, 3], adj[2] = [1, 3], adj[3] = [1, 2]
+- color = [0, 0, 0, 0]
+- start=1: color[1]=1, stack=[1]
+  - pop u=1, neighbors 2, 3
+    - v=2: color[2]=0, so color[2]=2, stack=[2]
+    - v=3: color[3]=0, so color[3]=2, stack=[2, 3]
+  - pop u=3, neighbors 1, 2
+    - v=1: color[1]=1 ≠ color[3]=2, OK
+    - v=2: color[2]=2 == color[3]=2, CONTRADICTION!
+- Output: NO
+
+This is correct.
+
+Great, the algorithm is correct. Let me finalize the code.
+
+Actually, I want to use sys.stdout.write for the output to make it slightly faster, but print should be fine for this problem size. Let me stick with print.
+
+One more thing: I should make sure that the output doesn't have any trailing whitespace or extra newlines. My code uses print("YES") and print(" ".join(...)), which should produce the correct output.
+
+Let me finalize the code:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        color[start] = 1
+        stack = [start]
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    sys.stdout.write("NO\n")
+                    return
+    
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(str(color[i]) for i in range(1, n + 1)) + "\n")
+
+solve()
+```
+
+Actually, I'll use print for simplicity. The performance difference is negligible for this problem size.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)  # 0 = unvisited, 1 or 2
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        color[start] = 1
+        stack = [start]
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This should be the final code. Let me review it once more.
+
+1. Read input: n, m, and m edges.
+2. Build adjacency list.
+3. For each unvisited node, start a DFS and assign colors.
+4. If a contradiction is found, output NO.
+5. Otherwise, output YES and the color assignment.
+
+The algorithm is correct and efficient. The time complexity is O(n + m), and the space complexity is O(n + m).
+
+Wait, I just realized that I should also handle the case where the graph has multiple connected components. My algorithm already handles this by iterating over all nodes and starting a new DFS for each unvisited node.
+
+Also, I should handle the case where there are isolated nodes (nodes with no edges). My algorithm handles this correctly because the DFS will just assign 1 to the isolated node without any neighbors.
+
+I think the code is ready. Let me finalize it.
+
+Actually, let me reconsider the output format. The problem says "output n integers b_1, b_2, ..., b_n (each being 1 or 2)". My code outputs them space-separated, which should be correct based on the example output.
+
+Let me also make sure that the output doesn't have any extra spaces or newlines. My code uses print(" ".join(str(color[i]) for i in range(1, n + 1))), which produces a single line with space-separated integers, followed by a newline. This should be correct.
+
+I'm confident the code is correct. Let me finalize it.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        
+        color[start] = 1
+        stack = [start]
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+solve()
+```
+
+This is the final code.

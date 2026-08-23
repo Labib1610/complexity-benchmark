@@ -1,0 +1,171 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [[] for _ in range(n)]
+    adj_mask = [0] * n
+    deg = [0] * n
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            # self-conflict makes assignment impossible
+            adj[u].append(v)
+            if not (adj_mask[u] >> v) & 1:
+                adj_mask[u] |= 1 << v
+                deg[u] += 1
+            continue
+        if not (adj_mask[u] >> v) & 1:
+            adj[u].append(v)
+            adj[v].append(u)
+            adj_mask[u] |= 1 << v
+            adj_mask[v] |= 1 << u
+            deg[u] += 1
+            deg[v] += 1
+
+    # Quick rejection: any K4 is not 3-colorable
+    def has_k4() -> bool:
+        for a in range(n):
+            am = adj_mask[a]
+            # only consider b > a
+            bm = am & ~((1 << (a + 1)) - 1)
+            while bm:
+                lsb = bm & -bm
+                b = lsb.bit_length() - 1
+                common = am & adj_mask[b]
+                cm = common
+                while cm:
+                    lsb2 = cm & -cm
+                    c = lsb2.bit_length() - 1
+                    # need d > c in common adjacent to c
+                    dmask = common & adj_mask[c] & ~((1 << (c + 1)) - 1)
+                    if dmask:
+                        return True
+                    cm ^= lsb2
+                bm ^= lsb
+        return False
+
+    if has_k4():
+        sys.stdout.write("NO")
+        return
+
+    sys.setrecursionlimit(1000000)
+
+    def is_feasible(partial):
+        """Return True iff partial assignment (list of -1/0/1/2) can be extended
+        to a proper 3-coloring."""
+        domain = [7] * n          # bits 0,1,2 correspond to colors 0,1,2
+        assigned = [False] * n
+        col = [-1] * n
+        stack = []
+
+        def assign_and_propagate(v, c):
+            if assigned[v]:
+                return col[v] == c
+            if not ((domain[v] >> c) & 1):
+                return False
+            stack.append((v, domain[v], True))
+            domain[v] = 1 << c
+            assigned[v] = True
+            col[v] = c
+            q = [(v, c)]
+            while q:
+                x, cx = q.pop()
+                for u in adj[x]:
+                    if assigned[u]:
+                        if col[u] == cx:
+                            return False
+                        continue
+                    if (domain[u] >> cx) & 1:
+                        stack.append((u, domain[u], False))
+                        domain[u] &= ~(1 << cx)
+                        if domain[u] == 0:
+                            return False
+                        if domain[u] & (domain[u] - 1) == 0:
+                            cu = domain[u].bit_length() - 1
+                            q.append((u, cu))
+            return True
+
+        def undo(mark):
+            while len(stack) > mark:
+                v, old, is_assign = stack.pop()
+                domain[v] = old
+                if is_assign:
+                    assigned[v] = False
+                    col[v] = -1
+
+        # apply precolored vertices
+        for v in range(n):
+            c = partial[v]
+            if c >= 0:
+                if not assign_and_propagate(v, c):
+                    return False
+
+        def search():
+            v = -1
+            best = 4
+            for i in range(n):
+                if not assigned[i]:
+                    bc = domain[i].bit_count()
+                    if v == -1 or bc < best or (bc == best and deg[i] > deg[v]):
+                        best = bc
+                        v = i
+            if v == -1:
+                return True
+            if best == 0:
+                return False
+
+            dom = domain[v]
+            # try most constraining color first
+            order = []
+            for c in range(3):
+                if (dom >> c) & 1:
+                    cnt = 0
+                    for u in adj[v]:
+                        if not assigned[u] and (domain[u] >> c) & 1:
+                            cnt += 1
+                    order.append((cnt, c))
+            order.sort()
+
+            for _, c in order:
+                mark = len(stack)
+                if assign_and_propagate(v, c):
+                    if search():
+                        return True
+                undo(mark)
+            return False
+
+        return search()
+
+    ans = [-1] * n
+    for i in range(n):
+        chosen = False
+        for c in range(3):
+            conflict = False
+            for u in adj[i]:
+                if ans[u] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            ans[i] = c
+            if is_feasible(ans):
+                chosen = True
+                break
+            ans[i] = -1
+        if not chosen:
+            sys.stdout.write("NO")
+            return
+
+    out = ["YES", " ".join(str(c + 1) for c in ans)]
+    sys.stdout.write("\n".join(out))
+
+if __name__ == "__main__":
+    solve()

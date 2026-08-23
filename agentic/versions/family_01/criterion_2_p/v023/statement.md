@@ -1,22 +1,23 @@
-# Signal Channel Allocation
+# Problem B — Isotope Containment
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-An environmental monitoring network comprises $N$ observation posts, labeled $1$ through $N$. Each post must be configured to transmit on one of two available frequency bands, designated as channel 1 or channel 2.
+A research station must store $n$ unstable isotopes, numbered 1 through $n$. The station has two distinct magnetic containment fields, labeled Field 1 and Field 2. Every isotope must be placed into exactly one of these two fields.
 
-Due to regional radio interference, certain pairs of posts suffer from mutual cross-talk. To maintain clear communications, any two posts that share a cross-talk link must operate on different frequency channels (one on channel 1 and the other on channel 2).
+Certain pairs of isotopes will resonate dangerously if they are exposed to the same magnetic field. You are given a list of $m$ such resonating pairs. For safety, no two isotopes that resonate with each other can be assigned to the same field.
 
-Your task is to determine whether a valid assignment of channels exists for all posts. If multiple valid channel assignments are possible, choose the sequence $s_1, s_2, \dots, s_N$ that is lexicographically smallest. If no valid assignment exists, report that it cannot be done.
+The station has exactly 2000 storage racks, each capable of holding exactly 100 isotopes. The number of isotopes $n$ to be stored is at least one, and cannot exceed the total physical capacity of all these racks combined. The number of known resonance pairs $m$ can be zero, and its maximum possible value is equal to that same total capacity of all racks.
+
+Your task is to determine if it is possible to safely assign all $n$ isotopes to the two containment fields. If multiple safe assignments exist, the automated sorting system requires the lexicographically smallest assignment. (An assignment sequence is lexicographically smaller than another if, at the first isotope where their field assignments differ, it assigns the isotope to Field 1 instead of Field 2).
 
 ## Input
-The first line contains two integers $N$ and $M$. The network infrastructure supports up to two hundred thousand posts ($1 \le N \le 200\,000$), and the system tracks up to two hundred thousand cross-talk links ($0 \le M \le 200\,000$).
-
-Each of the next $M$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le N, u \neq v$), representing a cross-talk link between post $u$ and post $v$.
+The first line of input contains two integers $n$ and $m$.
+Each of the following $m$ lines contains two integers $u$ and $v$, representing a pair of isotopes that resonate with each other.
 
 ## Output
-If no valid channel assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $N$ space-separated integers $s_1, s_2, \dots, s_N$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment sequence for posts $1$ through $N$.
+If it is impossible to safely assign all isotopes to the two fields, print a single line containing `NO`.
+If a safe assignment is possible, print `YES` on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each in {1, 2}) representing the field assignment for each isotope. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

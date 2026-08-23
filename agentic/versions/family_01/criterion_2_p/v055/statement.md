@@ -1,9 +1,46 @@
-```json
-{
-  "statement": "# Problem B — Optimal Shift Schedule\n\nTime limit: 1 s   Memory limit: 256 MB\n\nConsider a workforce management setting involving $n$ individuals, numbered $1$ through $n$. Every individual must be assigned to one of two operational modes, denoted by $1$ and $2$. The overall system configuration is thus described by a sequence $s = (s_1, s_2, \dots, s_n) \in \\{1, 2\\}^n$, chosen from a state space of $2^n$ possible assignments.\n\nThe system is subject to $m$ pairwise interference conditions. Each condition specifies two individuals $u$ and $v$ who cannot operate in the same mode; that is, any allowable configuration must satisfy $s_u \\neq s_v$.\n\nAmong all configurations in the search space that satisfy all $m$ interference conditions simultaneously, your task is to find the one that is lexicographically smallest. A sequence $A = (a_1, \\dots, a_n)$ is lexicographically smaller than $B = (b_1, \\dots, b_n)$ if at the earliest index $k$ where $a_k \\neq b_k$, $a_k < b_k$. If no allowable configuration exists, you must report that no solution can be found.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \\le n \\le 2 \\cdot 10^5$, $0 \\le m \\le 2 \\cdot 10^5$) — the number of individuals and the number of interference conditions, respectively.\n\nEach of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \\le u, v \\le n$, $u \\neq v$), specifying that individual $u$ and individual $v$ cannot share the same operational mode.\n\n## Output\nIf no allowable configuration exists, print a single line containing `NO`.\n\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \\dots, s_n$ ($s_i \\in \\{1, 2\\}$) representing the lexicographically smallest allowable configuration.\n\n## Example 1\nInput:\n```\n4 4\n1 2\n2 3\n3 4\n1 4\n```\nOutput:\n```\nYES\n1 2 1 2\n```\n\n## Example 2\nInput:\n```\n3 3\n1 2\n1 3\n2 3\n```\nOutput:\n```\nNO\n```",
-  "rationale": "The problem framing emphasizes the $2^n$ search space and formalizes the search as finding a valid sequence in a combinatorial domain. This shifts the focus toward exhaustive or constraint-satisfaction paradigms, forcing the reader to independently recognize that the binary conflict restrictions decouple component-wise into two-colorability.",
-  "preserved_answer": "The underlying rules, input structure, tie-breaking rule, and required string outputs are mathematically identical to the original problem.",
-  "preserved_class": "The problem remains in P as it can be solved by graph traversal (BFS/DFS) to 2-color connected components in linear time.",
-  "risk": "none"
-}
+# Plasma Containment Grid
+
+Time limit: 1 s
+Memory limit: 256 MB
+
+You are commissioning a fusion reactor's plasma containment grid. The grid is driven by $n$ electromagnetic coils, labeled 1 to $n$. To maintain magnetic confinement, each coil requires a fixed polarity assignment: either positive (1) or negative (2).
+
+The reactor's blueprints detail $m$ thermal proximity links between specific pairs of coils. When two coils share a proximity link, their magnetic fluxes will constructively interfere and melt the shielding unless they operate with opposite polarities.
+
+You must determine if a polarity assignment exists for all $n$ coils that prevents shielding failure. The control software records the configuration as a sequence of $n$ numbers (1s and 2s) ordered by coil label. To pass automated safety checks, if multiple safe configurations exist, you must provide the one whose sequence is lexicographically smallest.
+
+## Input
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of coils and the number of proximity links.
+Each of the following $m$ lines provides two integers $u$ and $v$, indicating a proximity link between coil $u$ and coil $v$.
+
+## Output
+If it is impossible to assign polarities safely, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers (each 1 or 2) representing the lexicographically smallest safe polarity sequence.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
 ```

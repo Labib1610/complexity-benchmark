@@ -1,22 +1,20 @@
-# Line Station Scheduling
+# Problem A — Shift Allocation Protocol
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing facility operates three distinct work channels (labeled 1, 2, and 3). There are $n$ technicians, indexed sequentially from 1 through $n$, who must each be assigned to exactly one channel.
+A manufacturing plant operates three daily shifts, numbered 1, 2, and 3. There are $n$ employees, and management has compiled a list of incompatible employee pairs who cannot work the same shift.
 
-The assignment proceeds under two primary requirements:
-1. **Conflict Avoidance**: A list of $m$ pair restrictions specifies which pairs of technicians cannot be assigned to the same channel.
-2. **Priority Minimization**: Channel 1 is preferred over channel 2, which is preferred over channel 3. When considering technicians in order from index 1 to $n$, earlier technicians take priority in receiving smaller channel numbers. Specifically, among all valid channel assignments, the chosen sequence $(s_1, s_2, \dots, s_n)$ must be lexicographically smallest.
+The allocation process evaluates employees in numerical order (from 1 to $n$). For each employee, the system prefers to assign shift 1, then shift 2, and finally shift 3. Your goal is to determine a sequence of shifts $s_1, s_2, \dots, s_n$ that respects these local priorities as much as possible while ensuring no incompatible employees share a shift. Formally, among all completely valid schedules, you must find and output the one that is lexicographically smallest.
 
-Determine whether a valid channel assignment exists for all $n$ technicians. If so, determine the lexicographically smallest valid assignment sequence.
+If no combination of assignments can separate all incompatible pairs across the three shifts, you must report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of technicians and the number of restriction pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that technician $u$ and technician $v$ cannot share the same channel.
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n-1)/2$) — the number of employees and the number of incompatible pairs.
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of incompatible employees.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), representing the assigned channel for each technician from 1 to $n$, yielding the lexicographically smallest valid sequence.
+If a valid schedule cannot be formed, print `NO` on a single line.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the shift assigned to each employee. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

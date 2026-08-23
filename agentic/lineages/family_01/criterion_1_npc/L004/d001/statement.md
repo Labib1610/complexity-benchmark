@@ -1,24 +1,20 @@
-# Data Module Channel Assignment
+# Orbital Power Routing
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A server rack hosts $n$ digital assets labeled $1, 2, \dots, n$. To prevent signal collisions, each asset must be assigned a frequency channel represented by an integer from the set $\{1, 2, 3\}$.
+An orbital satellite contains $n$ electronic modules, numbered 1 through $n$. The power management system requires each module to be configured with a specific operating state. To ensure stability, this state must be chosen from the integer values 1, 2, or 3.
 
-Certain asset pairs are incompatible and cannot share the same channel. You are given a list of $m$ such pairwise incompatibilities.
+Due to electromagnetic sensitivity, the satellite's diagnostic system has identified $m$ critical pairs of modules. If the two modules in a critical pair are configured with the exact same operating state, their interference exceeds safe thresholds. Consequently, for every critical pair, the assigned operating states of the two modules must differ.
 
-Your goal is to assign a channel $s_i \in \{1, 2, 3\}$ to every asset $i \in \{1, \dots, n\}$ such that no incompatible pair receives the same channel assignment. If multiple valid channel assignments exist, select the one that produces the lexicographically smallest sequence $(s_1, s_2, \dots, s_n)$. If no valid configuration exists, report that it is impossible.
+Your task is to determine whether it is possible to choose an operating state for every module such that all safety protocols are satisfied.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the total asset count (bounded by a single 40-slot rack capacity) and the number of pairwise incompatibilities (bounded by the total number of unordered asset pairs).
-
-Each of the following $m$ lines contains two distinct integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) indicating that asset $u$ and asset $v$ are incompatible and must be assigned different channels.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), representing the number of modules and the number of critical pairs, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$ denoting a critical pair of modules.
 
 ## Output
-If no valid channel assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the assigned channel for asset $i$.
-
-If there are multiple valid configurations, output the one that is lexicographically smallest.
+If no safe configuration exists, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$, where $b_i \in \{1, 2, 3\}$ is the operating state for module $i$. If multiple valid configurations exist, output the one that is lexicographically smallest (i.e., compare $b_1$ first, then $b_2$, and so on).
 
 ## Example 1
 Input:

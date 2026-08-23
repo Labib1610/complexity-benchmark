@@ -1,21 +1,21 @@
-# Problem C — Safety Audit Certificate
+# Problem C — Fatal Configuration
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing facility maintains a registry of $n$ personnel, labeled from $1$ to $n$. Due to operational hazards, certain pairs of personnel have an active safety restriction preventing them from being assigned to the same area.
+A complex system contains $n$ modules. During stress testing, $m$ specific combinations of two modules were flagged as interfering with each other when operated simultaneously. 
 
-A safety audit requires identifying a mutual conflict trio: a set of three distinct personnel members $a$, $b$, and $c$ such that an active safety restriction is recorded between every pair among the three (that is, between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$).
+The system administrator needs to isolate a fatal configuration. To do this, you must select exactly three distinct modules from the $n$ available. With up to 2000 modules, there are over a billion possible selections to evaluate. A selection of three modules is considered fatal if and only if every pair of modules within that selection interferes with each other according to the logs. 
 
-It is guaranteed that at least one such trio exists in the registry. Among all valid trios $(a, b, c)$ satisfying $a < b < c$, determine the one that is lexicographically smallest (minimizing $a$, then $b$, then $c$).
+You must search this space to find a fatal selection. It is guaranteed that the system is flawed and at least one such selection of three modules exists.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of personnel and the number of active safety restrictions, respectively.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a mutual safety restriction between personnel $u$ and personnel $v$. No pair of personnel is listed more than once.
-
-It is guaranteed that at least one valid trio exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that module $u$ and module $v$ interfere with each other. 
+It is guaranteed that at least one fatal selection of three modules exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $1 \le a < b < c \le n$ such that safety restrictions exist for $a$–$b$, $a$–$c$, and $b$–$c$. Output the lexicographically smallest such triple.
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ such that the pairs $\{a, b\}$, $\{a, c\}$, and $\{b, c\}$ are all listed as interfering in the input. 
+If multiple fatal selections exist, output the one with the smallest value for $a$; if there is a tie, choose the one with the smallest value for $b$; and if still tied, the smallest value for $c$.
 
 ## Example 1
 Input:

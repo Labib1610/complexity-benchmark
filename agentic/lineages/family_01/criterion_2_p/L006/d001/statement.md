@@ -1,0 +1,45 @@
+# Fragrance Formulation
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A master perfumer is developing two distinct signature fragrances, Formulation 1 and Formulation 2. The laboratory has $n$ essential extracts, numbered 1 through $n$. Each extract must be incorporated into exactly one of the two formulations.
+
+Due to chemical volatility, certain pairs of extracts will neutralize each other if mixed into the same formulation. The laboratory has identified $m$ such volatile pairs.
+
+Your task is to determine if the extracts can be divided into the two formulations without mixing any volatile pair. If multiple valid divisions exist, the laboratory's standard operating procedure dictates that lower-numbered extracts should be prioritized for Formulation 1. Specifically, you must output the valid assignment that is lexicographically smallest (assigning Formulation 1 to lower-numbered extracts whenever possible). If no valid division is possible, the batch must be discarded.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a volatile pair of extracts that cannot be added to the same formulation.
+
+## Output
+If there is no valid way to divide the extracts, output a single line containing NO.
+Otherwise, output YES on the first line. On the second line, output $n$ space-separated integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2\}$) representing the formulation assigned to each extract in the lexicographically smallest valid division.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

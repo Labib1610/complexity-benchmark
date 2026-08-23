@@ -1,0 +1,42 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges lexicographically: (u, v) with u < v
+    edges.sort()
+    
+    # For each edge (u, v), find common neighbors w > v to get a < b < c
+    # We want the lexicographically smallest triangle
+    for u, v in edges:
+        # Find common neighbors of u and v that are > v
+        # Iterate over the smaller adjacency set
+        if len(adj[u]) <= len(adj[v]):
+            small = adj[u]
+            large = adj[v]
+        else:
+            small = adj[v]
+            large = adj[u]
+        
+        for w in small:
+            if w > v and w in large:
+                print(f"{u} {v} {w}")
+                return
+
+solve()

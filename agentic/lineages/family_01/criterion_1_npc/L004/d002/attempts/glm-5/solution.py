@@ -1,0 +1,61 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We want the lexicographically smallest assignment.
+    # Greedy strategy: assign bus 1 to node 0, then for each subsequent node,
+    # assign the smallest valid bus (1, 2, or 3).
+    # This greedy approach works because:
+    # 1. If a valid coloring exists, there exists one where node 0 is bus 1 (by symmetry).
+    # 2. For any node k, assigning the smallest available valid bus preserves the existence
+    #    of a valid extension for the remaining nodes. This is because the constraint graph
+    #    is 3-colorable, and reducing the color of a node only restricts its neighbors,
+    #    which can always be satisfied by using the other two colors.
+    
+    color = [0] * n
+    color[0] = 1
+    
+    for u in range(1, n):
+        # Determine colors used by neighbors with index < u
+        used = set()
+        for v in adj[u]:
+            if v < u:
+                used.add(color[v])
+        
+        # Assign the smallest available color
+        for c in range(1, 4):
+            if c not in used:
+                color[u] = c
+                break
+        
+        if color[u] == 0:
+            # No valid color found
+            print("NO")
+            return
+    
+    # Verify the coloring (safety check)
+    for u in range(n):
+        for v in adj[u]:
+            if u < v: # Check each edge once
+                if color[u] == color[v]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(*(color))
+
+if __name__ == '__main__':
+    solve()

@@ -63,6 +63,20 @@ def load_run_config() -> dict:
     return _load_yaml(CONFIG_DIR / "run_config.yaml")
 
 
+_NITRO = None
+
+
+def _openrouter_nitro() -> bool:
+    """Cached global toggle for OpenRouter :nitro routing (execution.openrouter_nitro)."""
+    global _NITRO
+    if _NITRO is None:
+        try:
+            _NITRO = bool(load_models().get("execution", {}).get("openrouter_nitro", False))
+        except Exception:
+            _NITRO = False
+    return _NITRO
+
+
 def family_slug(family: str) -> str:
     """Map a family id like '01' to its dataset/seeds directory name."""
     matches = sorted(SEEDS_DIR.glob(f"family_{family}_*"))
@@ -115,87 +129,136 @@ def ollama_host() -> str:
     return val.rstrip("/")
 
 
-# --- HTTP -------------------------------------------------------------------
-def _post_json(url: str, payload: dict, headers: dict, timeout: float) -> dict:
-    body = json.dumps(payload).encode()
-    h = {"Content-Type": "application/json"}
-    h.update(headers)
-    req = urllib.request.Request(url, data=body, headers=h)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode())
+# --- LiteLLM backend --------------------------------------------------------
+# All model calls go through litellm.completion, which normalizes token usage and cost
+# across providers (OpenRouter, OpenAI, Gemini, Ollama). drop_params lets litellm strip
+# params a given model rejects (e.g. temperature on OpenAI reasoning models, max_tokens ->
+# max_completion_tokens) so we don't hand-maintain per-provider quirks.
+import litellm  # noqa: E402
+
+litellm.drop_params = True
+litellm.suppress_debug_info = True
+litellm.telemetry = False
 
 
-def _openai_compat(cfg: dict, system: str, user: str, timeout: float) -> str:
-    base = cfg["base_url"].rstrip("/") + "/"
-    url = base + "chat/completions"
-    api_key = get_key(cfg["api_key_env"])
-    payload = {
-        "model": cfg["model_string"],
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": cfg.get("temperature", 0.7),
-        "max_tokens": cfg.get("max_tokens", 4096),
-    }
-    headers = {"Authorization": f"Bearer {api_key}"}
-    # Optional provider headers (e.g. OpenRouter's HTTP-Referer / X-Title ranking
-    # headers): set `extra_headers:` on the model entry in models.yaml.
-    headers.update(cfg.get("extra_headers") or {})
-    resp = _post_json(url, payload, headers, timeout)
-    msg = resp["choices"][0]["message"]
-    content = msg.get("content") or ""
-    # Some providers (OpenRouter/OpenAI reasoning models) return the chain-of-thought
-    # in a separate `reasoning` field. Inline it as <think>...</think> so the trace is
-    # captured (trace.txt) while extract_code still strips it to get clean code.
-    reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
-    if reasoning:
-        content = f"<think>\n{reasoning.strip()}\n</think>\n{content}"
-    return content
+def _litellm_target(cfg: dict):
+    """Map a model entry to (litellm_model, api_key, api_base, extra_body). The provider is
+    inferred from base_url so litellm can attach the correct pricing for cost accounting."""
+    base = cfg.get("base_url", "") or ""
+    ms = cfg["model_string"]
+    backend = cfg.get("backend")
+    extra_body: dict = {}
+
+    if backend == "ollama":
+        return "ollama/" + ms, None, ollama_host(), extra_body
+
+    if "openrouter.ai" in base:
+        # :nitro routing (execution.openrouter_nitro or per-model nitro: true)
+        if (cfg.get("nitro") or _openrouter_nitro()) and not ms.endswith(":nitro"):
+            ms += ":nitro"
+        model = "openrouter/" + ms
+        # reasoning control: explicit dict passed verbatim (kimi's mandatory reasoning uses
+        # {exclude:true, effort:low}); otherwise thinking: -> {enabled: bool}
+        if isinstance(cfg.get("reasoning"), dict):
+            extra_body["reasoning"] = cfg["reasoning"]
+        elif "thinking" in cfg:
+            extra_body["reasoning"] = {"enabled": bool(cfg["thinking"])}
+        extra_body["usage"] = {"include": True}   # make OpenRouter return actual cost
+    elif "generativelanguage" in base:
+        model = "gemini/" + ms
+    elif "api.openai.com" in base:
+        model = ms                                # litellm native OpenAI (has pricing)
+    else:
+        model = "openai/" + ms                    # generic OpenAI-compatible endpoint
+
+    api_base = base or None if backend != "ollama" else ollama_host()
+    # For native openrouter/gemini/openai routes litellm knows the base; only pass api_base
+    # for the generic openai-compatible fallback.
+    if "openrouter.ai" in base or "generativelanguage" in base or "api.openai.com" in base:
+        api_base = None
+    key = None if backend == "ollama" else get_key(cfg["api_key_env"])
+    return model, key, api_base, extra_body
 
 
-def _ollama(cfg: dict, system: str, user: str, timeout: float) -> str:
-    url = f"{ollama_host()}/api/chat"
-    payload = {
-        "model": cfg["model_string"],
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "stream": False,
-        "options": {"num_predict": cfg.get("max_tokens", 4096)},
-    }
-    resp = _post_json(url, payload, {}, timeout)
-    return resp["message"]["content"]
+def _usage_of(resp) -> dict:
+    """Pull input/output/thinking tokens and cost out of a litellm response."""
+    inp = out = think = cost = None
+    u = getattr(resp, "usage", None)
+    if u is not None:
+        inp = getattr(u, "prompt_tokens", None)
+        out = getattr(u, "completion_tokens", None)
+        ctd = getattr(u, "completion_tokens_details", None)
+        if ctd is not None:
+            think = (ctd.get("reasoning_tokens") if isinstance(ctd, dict)
+                     else getattr(ctd, "reasoning_tokens", None))
+    try:
+        cost = litellm.completion_cost(completion_response=resp)
+    except Exception:
+        cost = None
+    if not cost:   # OpenRouter returns the real cost in hidden params
+        hp = getattr(resp, "_hidden_params", {}) or {}
+        cost = hp.get("response_cost") or cost
+    return {"input_tokens": inp, "output_tokens": out,
+            "thinking_tokens": think, "cost": cost}
+
+
+def usage_of(resp: dict) -> dict:
+    """Flat usage fields from a chat() result, for callers to merge into their JSON."""
+    return {k: resp.get(k) for k in ("input_tokens", "output_tokens",
+                                     "thinking_tokens", "cost", "elapsed_s")}
+
+
+def _empty_usage() -> dict:
+    return {"input_tokens": None, "output_tokens": None, "thinking_tokens": None, "cost": None}
 
 
 def chat(model_cfg: dict, system: str, user: str,
          timeout: float | None = None, retries: int = 3) -> dict:
-    """Call the configured backend. Returns {text, raw, elapsed_s, error}.
-
+    """Call the model via litellm. Returns
+    {text, raw, elapsed_s, error, input_tokens, output_tokens, thinking_tokens, cost}.
     Never raises: on hard failure returns text="" and a populated error string.
     """
-    backend = model_cfg["backend"]
     timeout = timeout if timeout is not None else 1800
+    model, key, api_base, extra_body = _litellm_target(model_cfg)
+    kwargs = dict(model=model, timeout=timeout,
+                  messages=[{"role": "system", "content": system},
+                            {"role": "user", "content": user}])
+    if key:
+        kwargs["api_key"] = key
+    if api_base:
+        kwargs["api_base"] = api_base
+    if model_cfg.get("reasoning_effort"):
+        kwargs["reasoning_effort"] = model_cfg["reasoning_effort"]
+    if model_cfg.get("temperature") is not None:
+        kwargs["temperature"] = model_cfg["temperature"]
+    if model_cfg.get("top_p") is not None:
+        kwargs["top_p"] = model_cfg["top_p"]
+    if model_cfg.get("max_tokens"):
+        kwargs["max_tokens"] = model_cfg["max_tokens"]
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
     t0 = time.time()
     last_err = None
     for attempt in range(retries):
         try:
-            if backend == "openai_compat":
-                raw = _openai_compat(model_cfg, system, user, timeout)
-            elif backend == "ollama":
-                raw = _ollama(model_cfg, system, user, timeout)
-            else:
-                return {"text": "", "raw": "", "elapsed_s": 0.0,
-                        "error": f"unknown backend {backend!r}"}
-            return {"text": raw, "raw": raw,
-                    "elapsed_s": round(time.time() - t0, 3), "error": None}
+            resp = litellm.completion(**kwargs)
+            msg = resp.choices[0].message
+            content = msg.content or ""
+            # reasoning is returned separately; inline as <think> so trace.txt captures it
+            # while extract_code strips it to get clean code.
+            reasoning = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None) or ""
+            if reasoning:
+                content = f"<think>\n{str(reasoning).strip()}\n</think>\n{content}"
+            return {"text": content, "raw": content,
+                    "elapsed_s": round(time.time() - t0, 3), "error": None,
+                    **_usage_of(resp)}
         except Exception as exc:  # noqa: BLE001 - report, never crash the driver
             last_err = exc
             if attempt < retries - 1:
                 time.sleep(2.0 * (2 ** attempt))
     return {"text": "", "raw": "", "elapsed_s": round(time.time() - t0, 3),
-            "error": f"{type(last_err).__name__}: {last_err}"}
+            "error": f"{type(last_err).__name__}: {last_err}", **_empty_usage()}
 
 
 # --- parsing ----------------------------------------------------------------
@@ -229,5 +292,5 @@ __all__ = [
     "REPORTS_DIR", "STRATEGIES_DIR", "PROMPTS_DIR", "LOGS_DIR",
     "load_models", "load_run_config", "family_slug", "criterion_dirname",
     "get_key", "ollama_host",
-    "chat", "strip_thinking", "extract_code", "extract_json",
+    "chat", "usage_of", "strip_thinking", "extract_code", "extract_json",
 ]

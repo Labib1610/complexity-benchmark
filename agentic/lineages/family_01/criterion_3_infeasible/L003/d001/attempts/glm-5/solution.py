@@ -1,0 +1,97 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+
+    best = None
+
+    # Strategy 1: low-degree vertex processing
+    for a in range(1, n + 1):
+        if best is not None and a >= best[0]:
+            break
+        deg_a = len(adj[a])
+        if deg_a == 0:
+            continue
+        if deg_a <= 200:
+            neighbors = sorted(adj[a])
+            L = len(neighbors)
+            limit_b = best[1] if best is not None else n + 1
+            for i in range(L):
+                b = neighbors[i]
+                if b >= limit_b:
+                    break
+                adj_b = adj[b]
+                for j in range(i + 1, L):
+                    c = neighbors[j]
+                    if c in adj_b:
+                        if best is None or (a, b, c) < best:
+                            best = (a, b, c)
+                            limit_b = best[1]
+                            break
+        else:
+            # high degree: iterate edges and check common neighbor a
+            for (u, v) in edges:
+                if u > a or v > a:
+                    continue
+                if u == a:
+                    b = v
+                    if best is not None and b >= best[1]:
+                        continue
+                    if b in adj[a]:
+                        common = adj[a] & adj[b]
+                        common.discard(a)
+                        common.discard(b)
+                        if common:
+                            c = min(common)
+                            if best is None or (a, b, c) < best:
+                                best = (a, b, c)
+                elif v == a:
+                    b = u
+                    if best is not None and b >= best[1]:
+                        continue
+                    if b in adj[a]:
+                        common = adj[a] & adj[b]
+                        common.discard(a)
+                        common.discard(b)
+                        if common:
+                            c = min(common)
+                            if best is None or (a, b, c) < best:
+                                best = (a, b, c)
+
+    if best is not None:
+        print(best[0], best[1], best[2])
+        return
+
+    # Strategy 2: fallback edge iteration
+    for (u, v) in edges:
+        if best is not None and u > best[0]:
+            break
+        if best is not None and u == best[0] and v >= best[1]:
+            continue
+        common = adj[u] & adj[v]
+        common.discard(u)
+        common.discard(v)
+        if common:
+            c = min(common)
+            cand = (u, v, c)
+            if best is None or cand < best:
+                best = cand
+
+    print(best[0], best[1], best[2])
+
+solve()

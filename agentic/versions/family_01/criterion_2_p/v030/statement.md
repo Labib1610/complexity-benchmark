@@ -1,23 +1,24 @@
-# Factory Roster
+# Problem B — Factory Protocol
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A facility operates under two operational modes, designated as Mode 1 and Mode 2. There are $n$ personnel, numbered $1$ through $n$. Certain pairs of personnel cannot work under the same operational mode due to equipment sharing restrictions. You are given $m$ such mutual exclusion constraints, where each constraint identifies two personnel who must be assigned different modes.
+A factory employs $n$ workers, numbered 1 through $n$. Management is implementing a new operational protocol where every worker must be assigned a schedule code. Each schedule code must be chosen from the set $\{1, 2\}$.
 
-Your task is to determine whether it is possible to assign every person a mode (either 1 or 2) such that no mutual exclusion constraint is violated. If a valid configuration exists, find the sequence of assigned modes $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest.
+The factory floor has strict safety regulations regarding shared workstations. You are given a log of $m$ pairs of workers who operate the same workstation. To maintain the required operational balance, any two workers in a logged pair must have schedule codes that sum to exactly 3.
+
+Determine if it is possible to assign a schedule code to all $n$ workers in accordance with the safety regulations. If it is impossible, report it. If there are multiple valid assignments, you must output the one that is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of personnel and the number of mutual exclusion constraints, respectively.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that person $u$ and person $v$ cannot share the same operational mode.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of workers who share a workstation.
 
 ## Output
-If no valid assignment satisfies all constraints, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid mode assignment.
+If no valid assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1, 2\}$), representing the lexicographically smallest valid assignment.
 
 ## Example 1
-Input:
+**Input:**
 ```
 4 4
 1 2
@@ -25,21 +26,21 @@ Input:
 3 4
 1 4
 ```
-Output:
+**Output:**
 ```
 YES
 1 2 1 2
 ```
 
 ## Example 2
-Input:
+**Input:**
 ```
 3 3
 1 2
 1 3
 2 3
 ```
-Output:
+**Output:**
 ```
 NO
 ```

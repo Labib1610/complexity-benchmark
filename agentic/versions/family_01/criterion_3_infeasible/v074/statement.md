@@ -1,20 +1,21 @@
-# Factory Roster Conflict Certification
+# Problem C — Conflict Resolution Study
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-In an industrial facility employing $n$ workers indexed from $1$ to $n$, specific pairs of workers are recorded as mutually incompatible, meaning they cannot share a shift. To establish proof of scheduling impossibility, auditors require a conflict certificate consisting of three distinct workers such that every pair among the three is recorded as mutually incompatible.
+The human resources department is conducting a study on workplace conflict. They have compiled a comprehensive registry of documented incompatibilities between pairs of employees. The goal of the study is to assemble a perfectly dysfunctional focus group. A group of employees is considered perfectly dysfunctional if every individual in the group has a documented incompatibility with every other individual in the same group.
 
-While evaluating all possible combinations of three workers involves examining up to $\binom{n}{3}$ candidate worker triplets, the facility audit protocol specifies that you must identify the single triplet $(a, b, c)$ with $1 \le a < b < c \le n$ where pairs $(a, b)$, $(a, c)$, and $(b, c)$ are all listed as incompatible. If multiple such triplets exist, you must select the lexicographically smallest one (minimizing $a$, then $b$, then $c$).
+Given that the company employs up to two thousand individuals, the number of potential focus groups is astronomically large, easily exceeding the number of atoms in the observable universe. Evaluating every conceivable subset of employees to check for total internal incompatibility would require an impractical amount of computation. You have been tasked with developing a tool to navigate this massive search space and identify a valid focus group to facilitate the study. The researchers have secured a budget to compensate exactly three employees for their participation in this phase, so the focus group must be exactly this size.
 
-It is guaranteed that at least one mutually incompatible triplet exists in the input data.
+You are guaranteed that the registry contains at least one such focus group. If multiple valid groups can be formed, you must report the one whose members' employee ID numbers form the lexicographically smallest sequence when sorted in ascending order.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the total number of workers and the number of incompatible pairs, respectively.
+The first line of the input contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2\cdot 10^5)$), representing the number of employees and the number of documented incompatibility records, respectively. Employees are identified by integers from $1$ to $n$.
 
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that worker $u$ and worker $v$ are mutually incompatible. No unordered pair $(u, v)$ appears more than once.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a documented incompatibility between employee $u$ and employee $v$. Each pair is listed at most once, and the order of $u$ and $v$ does not matter. It is guaranteed that there is at least one perfectly dysfunctional focus group of the required size.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line ($1 \le a < b < c \le n$) representing the lexicographically smallest worker triplet where all three constituent pairs are mutually incompatible.
+Output a single line containing three integers $a$, $b$, and $c$ with $a < b < c$, representing the employee IDs of the chosen focus group. The sequence $a, b, c$ must be the lexicographically smallest valid sequence (smallest $a$; in case of ties, smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

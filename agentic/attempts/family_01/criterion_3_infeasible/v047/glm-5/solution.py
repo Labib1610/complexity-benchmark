@@ -1,0 +1,32 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    for a in range(1, n - 1):
+        adj_a = adj[a]
+        for b in adj_a:
+            if b <= a:
+                continue
+            adj_b = adj[b]
+            for c in adj_a:
+                if c > b and c in adj_b:
+                    sys.stdout.write(f"{a} {b} {c}\n")
+                    return
+
+if __name__ == "__main__":
+    solve()

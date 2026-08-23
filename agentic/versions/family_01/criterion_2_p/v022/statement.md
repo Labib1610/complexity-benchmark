@@ -1,24 +1,22 @@
-# Spectrum Allocation for Transmitter Networks
+# Diophantine Feasibility
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A telecommunications authority needs to assign operating channels to $n$ wireless transmitters, numbered $1$ through $n$. Due to hardware restrictions, only two channel frequencies are available, designated as Channel $1$ and Channel $2$.
+You are analyzing a system of linear constraints over a discrete set of variables. The model consists of a state vector $X = (x_1, x_2, \dots, x_n)$ in an $n$-dimensional space. 
 
-There are $m$ interference conditions. Each condition specifies a pair of transmitters that are geographically adjacent; if both transmitters in a pair operate on the same channel, severe crosstalk occurs. Therefore, any two transmitters linked by an interference condition must be assigned different channels.
+Every variable is subject to the strict domain bound $x_i \in \{1, 2\}$. Consequently, the global configuration space contains exactly $2^n$ potential state vectors.
 
-You must determine whether it is possible to assign a channel $s_i \in \{1, 2\}$ to every transmitter $i \in \{1, \dots, n\}$ such that no interference condition is violated. If at least one valid assignment exists, find the lexicographically smallest channel sequence $(s_1, s_2, \dots, s_n)$.
+The system is restricted by a set of $m$ equations. Each equation is defined by a pair of variable indices $(u, v)$ and specifies that the sum of these two variables must be exactly 3. 
 
-A sequence $(s_1, \dots, s_n)$ is lexicographically smaller than $(t_1, \dots, t_n)$ if at the first position $k$ where $s_k \neq t_k$, we have $s_k < t_k$.
+Your objective is to evaluate the system and find a feasible state vector $X$ that satisfies all $m$ equations simultaneously. Because multiple feasible state vectors may exist in the space, you must output the lexicographically smallest valid vector. If the system of equations has no solution within the specified domain, you must report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$) — the number of transmitters and the number of interference conditions.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) representing an interference condition between transmitter $u$ and transmitter $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing the constraint $x_u + x_v = 3$.
 
 ## Output
-If no valid channel assignment exists without interference, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment.
+If there is no state vector satisfying all equations, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $x_1, x_2, \dots, x_n$ (each in $\{1, 2\}$), representing the lexicographically smallest valid state vector.
 
 ## Example 1
 Input:

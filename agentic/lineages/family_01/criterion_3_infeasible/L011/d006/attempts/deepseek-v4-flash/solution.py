@@ -1,0 +1,34 @@
+import sys
+
+def main():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+
+    best = None
+
+    for u, v in edges:
+        # Find common neighbors
+        if len(adj[u]) > len(adj[v]):
+            small, large = adj[v], adj[u]
+        else:
+            small, large = adj[u], adj[v]
+        common = small & large
+        for w in common:
+            triple = sorted((u, v, w))
+            if best is None or triple < best:
+                best = triple
+        if best is not None and best[0] == 1:
+            # Early exit possible if we found smallest possible first element
+            pass
+
+    print(*best)
+
+if __name__ == "__main__":
+    main()

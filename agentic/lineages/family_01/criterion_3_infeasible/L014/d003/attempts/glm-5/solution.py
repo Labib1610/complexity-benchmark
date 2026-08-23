@@ -1,0 +1,43 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Find lexicographically smallest triangle
+    for a in range(1, n - 1):
+        # Get neighbors of a that are > a
+        neighbors_a = [v for v in adj[a] if v > a]
+        if len(neighbors_a) < 2:
+            continue
+        
+        # Sort to ensure we find lexicographically smallest
+        neighbors_a.sort()
+        
+        # For each pair of neighbors b, c of a (with b < c)
+        # check if b and c are connected
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            for j in range(i + 1, len(neighbors_a)):
+                c = neighbors_a[j]
+                if c in adj[b]:
+                    print(a, b, c)
+                    return
+    
+    # Should not reach here as problem guarantees a solution exists
+    print(-1, -1, -1)
+
+if __name__ == "__main__":
+    solve()

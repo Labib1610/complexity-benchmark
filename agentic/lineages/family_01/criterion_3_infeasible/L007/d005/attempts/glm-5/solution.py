@@ -1,0 +1,40 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort edges lexicographically: (u, v) ascending
+    edges.sort()
+    
+    for u, v in edges:
+        # Find common neighbors w > v to ensure u < v < w
+        # Iterate over the smaller adjacency set for efficiency
+        if len(adj[u]) <= len(adj[v]):
+            small = adj[u]
+            large = adj[v]
+        else:
+            small = adj[v]
+            large = adj[u]
+        
+        for w in small:
+            if w > v and w in large:
+                print(u, v, w)
+                return
+
+solve()

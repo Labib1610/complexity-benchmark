@@ -1,0 +1,51 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = defaultdict(set)
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # For each edge (u,v), look for a third node w such that:
+    # u-v, v-w, w-u are all edges (i.e., a triangle)
+    # We want the one with minimum a*10^8 + b*10^4 + c where a < b < c
+    
+    best = None
+    best_score = float('inf')
+    
+    # To optimize, we'll iterate through all edges and for each edge (u,v),
+    # we look for common neighbors of u and v
+    for u, v in edges:
+        if u > v:
+            u, v = v, u  # Ensure u < v for consistent ordering
+        
+        # Find common neighbors of u and v
+        common = adj[u] & adj[v]
+        for w in common:
+            if w != u and w != v:
+                # We have a triangle u-v-w
+                a, b, c = sorted([u, v, w])
+                score = a * 100000000 + b * 10000 + c
+                if score < best_score:
+                    best_score = score
+                    best = (a, b, c)
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

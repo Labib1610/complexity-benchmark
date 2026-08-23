@@ -1,0 +1,52 @@
+# Problem A — Harmonic Calibration
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+An acoustic testing facility evaluates $n$ distinct sound emitters. During a test, each emitter must be tuned to exactly one of three available base frequencies, designated as frequency 1, frequency 2, and frequency 3.
+
+Because of acoustic wave superposition, specific pairs of emitters will produce destructive interference if they are tuned to the identical base frequency. You must determine a tuning configuration for all emitters such that no two emitters prone to mutual interference are set to the same frequency.
+
+To ensure reproducibility across tests, the facility requires a specific tie-breaking rule for valid configurations. You must select the configuration where the sequence of frequencies assigned to emitters $1$ through $n$ is lexicographically minimized. This means the facility prioritizes setting emitter 1 to the lowest possible frequency, then emitter 2 to the lowest possible frequency, and so on, while maintaining a completely interference-free setup for all emitters.
+
+If no interference-free tuning configuration exists for the given emitters and superposition constraints, the test must be aborted.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of emitters and the number of interference constraints ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of emitters that produce destructive interference if tuned to the same frequency.
+
+## Output
+If no valid tuning configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the frequency assigned to emitter $i$. This sequence must be the lexicographically smallest valid configuration.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

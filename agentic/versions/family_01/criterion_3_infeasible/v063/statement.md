@@ -1,22 +1,29 @@
-# Problem C — Diagnostic Triplet Search
+# Problem C — Phase 2: Cascade Isolation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-Consider a communication system with $n$ distinct endpoints numbered $1$ through $n$. There are $m$ bidirectional links present, where each link directly connects two distinct endpoints. No pair of endpoints is connected by more than one direct link.
+The Automated Stability Protocol is responsible for maintaining the integrity of volatile compound batches. The protocol operates in three sequential phases.
 
-A group of three distinct endpoints $x$, $y$, and $z$ is called a *triplet cluster* if a direct link exists between $x$ and $y$, between $y$ and $z$, and between $x$ and $z$. The network configuration guarantees that at least one triplet cluster exists.
+Phase 1 has already concluded. During this phase, $n$ chemical compounds were screened pairwise to determine which specific combinations exhibit mutual reactivity. The system has generated a log of these bidirectional reactions.
 
-Every triplet cluster can be uniquely represented as a sequence $(a, b, c)$ such that $a < b < c$. We compare two such sequences $(a_1, b_1, c_1)$ and $(a_2, b_2, c_2)$ lexicographically: $(a_1, b_1, c_1)$ is smaller than $(a_2, b_2, c_2)$ if $a_1 < a_2$; or if $a_1 = a_2$ and $b_1 < b_2$; or if $a_1 = a_2$, $b_1 = b_2$, and $c_1 < c_2$.
+Your objective is to execute Phase 2. Safety regulations dictate that a batch is unstable if a closed three-step reaction sequence can occur. You must find a group of three distinct compounds—let us call them $X$, $Y$, and $Z$—that satisfy the following operational rules:
+- A recorded reaction exists between $X$ and $Y$.
+- A recorded reaction exists between $Y$ and $Z$.
+- A recorded reaction exists between $Z$ and $X$.
 
-Your objective is to identify the lexicographically smallest sequence $(a, b, c)$ with $a < b < c$ corresponding to a valid triplet cluster.
+It is chemically guaranteed that the current batch contains at least one such group of three compounds. Your task is to process the logs and identify one such group to initiate emergency neutralization.
+
+Phase 3 will deploy neutralizers based on your output. To ensure deterministic deployment, you must list the identifiers of the three compounds in the chosen group in ascending order. If more than one valid group of three compounds exists, you must choose the group whose lowest identifier is as small as possible. In the event of a tie, minimize the second-lowest identifier, and if a tie still remains, minimize the highest identifier.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$) — the number of endpoints and the number of links, respectively.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a direct link between endpoint $u$ and endpoint $v$.
-It is guaranteed that at least one valid triplet cluster exists.
+The first line of the Phase 1 log contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of compounds (numbered $1$ to $n$) and the number of mutual reactions observed.
+
+Following this are $m$ lines, each containing two integers $u$ and $v$, indicating that compound $u$ and compound $v$ react with one another. 
+It is guaranteed that the log contains at least one group of three compounds satisfying the reaction sequence rules.
 
 ## Output
-Print three space-separated integers $a\ b\ c$ on a single line with $a < b < c$, representing the lexicographically smallest sequence corresponding to a triplet cluster.
+Output a single line with three integers $a$, $b$, and $c$ representing the identifiers of the compounds in the chosen group. The identifiers must be sorted in ascending order ($a < b < c$). Apply the exact tie-breaking criteria as specified for Phase 3.
 
 ## Example 1
 Input:

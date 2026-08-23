@@ -1,0 +1,67 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build graph
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Color each component. Each node must have opposite color to its neighbors.
+    # Colors: 1 and 2. If u has color 1, then v must have color 2 and vice versa.
+    color = [0] * (n + 1)  # 0 means unvisited
+    visited = [False] * (n + 1)
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        visited[start] = True
+        
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 3 - current_color  # flips 1 <-> 2
+            
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] != next_color:
+                    return False
+        return True
+    
+    # Check all components
+    for i in range(1, n + 1):
+        if not visited[i]:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    # Verify all edges satisfy the constraint
+    for u, v in edges:
+        if color[u] + color[v] != 3:
+            print("NO")
+            return
+    
+    # Output the result
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    main()

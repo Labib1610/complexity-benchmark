@@ -1,20 +1,20 @@
-# Network Subnet Partitioning
+# Quantum State Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-An infrastructure manager controls $n$ network devices numbered $1$ to $n$. Certain pairs of devices are linked by high-traffic hardware channels. Due to bandwidth constraints, two linked devices cannot be assigned to the same network segment. Exactly two network segments are available, labeled $1$ and $2$.
+You are calibrating a quantum array containing $n$ interacting particles. Each particle must be stabilized by assigning it a spin state, which must be chosen as either $1$ or $2$.
 
-Each device $i$ ($1 \le i \le n$) must be assigned to segment $s_i \in \{1, 2\}$ such that for every hardware link connecting device $u$ and device $v$, $s_u \neq s_v$.
+The array's stability is dictated by $m$ entanglement links between specific pairs of particles. When two particles are linked, their spin states must be complementary to prevent destructive interference. Specifically, if an entanglement link connects particle $u$ and particle $v$, their assigned spin states $s_u$ and $s_v$ must satisfy the equation $s_u + s_v = 3$. 
 
-Determine whether a valid segment assignment exists for all $n$ devices. If multiple valid assignments exist, select the assignment sequence $s_1, s_2, \dots, s_n$ that is lexicographically smallest. A sequence $A = (a_1, \dots, a_n)$ is lexicographically smaller than $B = (b_1, \dots, b_n)$ if at the first index $i$ where $a_i \neq b_i$, $a_i < b_i$.
+Your task is to determine whether it is possible to assign a valid spin state to every particle in the array such that all entanglement constraints are satisfied.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of devices and the number of hardware links.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating a hardware link between device $u$ and device $v$.
+The first line contains the number of particles, $n$, and the number of entanglement links, $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$). The particles are indexed from $1$ to $n$.
+The next $m$ lines each contain two integers $u$ and $v$ — representing an entanglement link between particle $u$ and particle $v$.
 
 ## Output
-If no valid segment assignment exists, print `NO` on a single line.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ representing the lexicographically smallest valid segment assignment.
+If no valid spin state assignment exists, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the spin state assigned to each particle. If there are multiple valid assignments, output the one whose sequence of states is lexicographically smallest.
 
 ## Example 1
 Input:

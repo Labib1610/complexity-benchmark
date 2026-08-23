@@ -17,6 +17,10 @@ runs at temperature 0.9, so repeated draws from the same (strategy, intensity) p
 genuinely different statements. Distribute round-robin across cells so no single
 strategy dominates. Each sample gets a distinct sub-seed.
 
+Empirical note: in the Family 01 batch, this source was the least effective (mean delta
++0.12, the worst of the four). Temperature alone produces paraphrase, not genuine
+diversity. Persona conditioning of the teacher prompt is the intended fix.
+
 ## Source 3 — composition
 Pairs of compatible strategies applied together (both instructions injected, joined by
 "Apply both of the following, in combination:"). Skip pairs that conflict — S04 and S05

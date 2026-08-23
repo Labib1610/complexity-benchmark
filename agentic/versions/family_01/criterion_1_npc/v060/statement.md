@@ -1,9 +1,52 @@
-```json
-{
-  "statement": "# Industrial Operations Management Workflow: Shift Allocation Stage\n\nTime limit: 2 s   Memory limit: 256 MB\n\nAn industrial automated facility management pipeline processes daily staffing through a three-stage operational workflow:\n\n1. **Data Aggregation**: The system indexes $n$ staff members with integer identifiers from $1$ to $n$, and compiles a list of $m$ conflicting worker pairings.\n2. **Shift Allocation (Current Task)**: Each staff member must be assigned to one of three designated operational time slots, labelled $1$, $2$, or $3$. To maintain safety standards, two workers who form a conflicting pair must not be assigned to the same operational time slot. If multiple valid configurations exist, the pipeline requires the assignment sequence $s_1, s_2, \dots, s_n$ that is lexicographically smallest. If no valid allocation exists, this stage terminates with a failure signal.\n3. **Roster Dispatch**: The generated assignment sequence is forwarded to the automated scheduling units.\n\nYour task is to implement the computation for Stage 2. Given the output of Stage 1, determine whether a valid shift allocation exists, and if so, determine the lexicographically smallest allocation sequence.\n\n## Input\nThe first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of staff members and the number of conflicting worker pairs.\nEach of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) representing a conflicting pair of staff members.\n\n## Output\nIf no valid shift allocation exists, print a single line containing `NO`.\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the assigned time slot for staff member $i$. Among all valid allocation sequences, output the lexicographically smallest one.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "By embedding the task inside a larger three-stage industrial workflow, the problem forces the reader to identify which stage requires programmatic solving and filter out background context. The underlying mathematical requirement remains identifying a 3-coloring of a graph that satisfies lexicographical priority.",
-  "preserved_answer": "Every valid input generates the exact same output because the constraint set, time slot values (1, 2, 3), and lexicographical comparison rule are identical to the original problem.",
-  "preserved_class": "The complexity class remains NP-complete as the core computational problem is equivalent to 3-coloring on a graph with $n \\le 40$.",
-  "risk": "none"
-}
+# Problem A — Asset Portfolio Allocation
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+A wealth management firm is structuring a new portfolio consisting of $n$ distinct financial assets. To distribute risk, every asset must be allocated to exactly one of three available investment vehicles, designated as Fund 1, Fund 2, and Fund 3.
+
+Due to strict antitrust regulations and sector exposure limits, certain pairs of assets cannot be held within the same fund. If two such restricted assets are placed together, the firm will face compliance violations. You must distribute all $n$ assets among the three funds such that no compliance violations occur.
+
+The firm's automated auditing software requires the allocation to be deterministic. Specifically, among all valid allocations, the system mandates the one where the sequence of fund numbers assigned to assets $1, 2, \dots, n$ is lexicographically smallest. This means the system prioritizes placing asset 1 into the lowest-numbered fund possible, then asset 2 into the lowest-numbered fund possible, and so forth, while still maintaining complete regulatory compliance.
+
+If it is impossible to allocate the assets without triggering a violation, the portfolio proposal must be rejected.
+
+## Input
+The first line provides two integers $n$ and $m$ — the total number of assets and the number of regulatory restrictions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$ — a pair of assets that are prohibited from being allocated to the same fund.
+
+## Output
+If no compliant allocation strategy exists, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, provide a sequence of $n$ integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2, 3\}$), representing the fund assigned to each asset $i$. This sequence must be the lexicographically smallest valid allocation.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

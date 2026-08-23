@@ -1,0 +1,1917 @@
+<think>
+Let me analyze this problem:
+
+1. We have n data shards and need to assign each to one of 3 zones.
+2. We have m critical pairs - shards in each pair must be in different zones.
+3. We need to find a valid 3-coloring of the graph where edges are critical pairs.
+4. If multiple valid colorings exist, output the lexicographically smallest one.
+
+This is essentially a graph 3-coloring problem. Since n ≤ 40, we can use various approaches:
+
+1. **Backtracking with pruning**: Try to assign colors to vertices one by one, checking constraints.
+2. **Meet in the middle**: Split vertices into two halves, enumerate all valid colorings for each half, then combine.
+
+Let me think about the complexity:
+- Pure backtracking: O(3^n) which is 3^40 ≈ 10^19, too slow.
+- Meet in the middle: O(3^(n/2)) for each half, which is 3^20 ≈ 3.5 * 10^9, still potentially slow but might work with optimizations.
+
+Actually, let me reconsider. For n=40, we need smarter approaches.
+
+**Meet in the middle approach:**
+1. Split vertices into two halves: first half has vertices 1 to n/2, second half has vertices n/2+1 to n.
+2. For each half, enumerate all valid 3-colorings.
+3. For each valid coloring of the first half, check which colorings of the second half are compatible (no edge between the halves has same color).
+4. Find the lexicographically smallest valid combination.
+
+For the first half (n/2 = 20 vertices), we have at most 3^20 ≈ 3.5 billion colorings. This is too many to enumerate directly.
+
+But wait, many of these colorings will be invalid due to internal edges. Let me think more carefully.
+
+Actually, for a graph with m edges, the number of valid 3-colorings can be much smaller. But in the worst case (no edges), we'd have 3^n valid colorings.
+
+Let me think of another approach:
+
+**Constraint propagation + backtracking:**
+- Use constraint propagation to reduce the search space.
+- For each vertex, maintain the set of possible colors.
+- When a vertex is assigned a color, propagate the constraint to its neighbors.
+
+This is essentially a CSP solver approach. For n=40, this might work well in practice, especially with good heuristics.
+
+**Another approach: Split into connected components**
+If the graph has multiple connected components, we can solve each component independently and combine the results. This can significantly reduce the problem size.
+
+Let me implement a backtracking solution with optimizations:
+
+```python
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # colors[i] = 0 means unassigned, 1, 2, 3 are the zones
+    colors = [0] * n
+    
+    def is_valid(v, c):
+        for neighbor in adj[v]:
+            if colors[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in range(1, 4):
+            if is_valid(v, c):
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+```
+
+This is a basic backtracking approach. For n=40, this might be too slow in the worst case.
+
+Let me think about optimizations:
+
+1. **Order vertices by degree**: Process vertices with higher degree first (more constrained).
+2. **Forward checking**: After assigning a color to a vertex, check if any neighbor still has valid colors.
+3. **Constraint propagation**: Use more advanced techniques like arc consistency.
+
+Actually, let me reconsider the meet-in-the-middle approach more carefully.
+
+For n=40, if we split into two halves of 20 vertices each:
+- For each half, we enumerate all valid colorings.
+- For each valid coloring of the first half, we need to find compatible colorings of the second half.
+
+The key insight is that we only need to check edges between the two halves. For each vertex in the second half, its color must be different from all its neighbors in the first half.
+
+Let me think about this differently. For each vertex in the second half, the colors of its neighbors in the first half determine which colors are forbidden for that vertex.
+
+So for each valid coloring of the first half, we can compute the forbidden colors for each vertex in the second half. Then, we need to find a valid coloring of the second half given these constraints.
+
+This is still a 3-coloring problem for the second half, but with additional constraints from the first half.
+
+Hmm, this is getting complex. Let me try a different approach.
+
+**Using connected components:**
+If the graph is disconnected, we can solve each component independently. For each component, we find the lexicographically smallest valid coloring. Then we combine them.
+
+For a component with k vertices, we have at most 3^k valid colorings (in the worst case with no edges). But for most practical graphs, the number of valid colorings is much smaller.
+
+Let me implement a solution that:
+1. Finds connected components.
+2. For each component, uses backtracking to find the lexicographically smallest valid coloring.
+3. Combines the results.
+
+Actually, for finding the lexicographically smallest coloring, we need to be careful. The lexicographically smallest coloring for the entire graph might not be the combination of lexicographically smallest colorings for each component.
+
+Wait, actually it is! If we have two components A and B, and we want the lexicographically smallest coloring for A∪B, we should first find the lexicographically smallest coloring for A (vertices with smaller indices), and then for B.
+
+So the approach is:
+1. Find connected components.
+2. Sort components by the minimum vertex index in each component.
+3. For each component, find the lexicographically smallest valid coloring.
+4. Combine the results.
+
+For each component, we use backtracking with vertices ordered by their index (to ensure lexicographically smallest).
+
+Let me implement this:
+
+```python
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            component.sort()  # Sort by vertex index
+            components.append(component)
+    
+    # Sort components by minimum vertex index
+    components.sort(key=lambda c: c[0])
+    
+    colors = [0] * n
+    
+    def is_valid(v, c):
+        for neighbor in adj[v]:
+            if colors[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            if is_valid(v, c):
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+This should work, but might be slow for large components. Let me think about further optimizations.
+
+For a component with k vertices, the backtracking has complexity O(3^k) in the worst case. For k=40, this is too slow.
+
+Let me think about the meet-in-the-middle approach again.
+
+**Meet in the middle for a single component:**
+1. Split the component into two halves A and B.
+2. Enumerate all valid colorings of A.
+3. For each valid coloring of A, enumerate all valid colorings of B that are compatible.
+4. Find the lexicographically smallest combination.
+
+For step 2, we enumerate all 3^|A| colorings and filter valid ones.
+For step 3, for each valid coloring of A, we compute the forbidden colors for each vertex in B, then enumerate valid colorings of B.
+
+The key optimization is that for step 3, we can precompute the valid colorings of B for each "constraint pattern" from A.
+
+Let me think about this more carefully.
+
+For each vertex b in B, let N_A(b) be the neighbors of b in A. The forbidden colors for b are the colors assigned to vertices in N_A(b) by the current coloring of A.
+
+So for each valid coloring of A, we get a constraint pattern for B: for each b in B, the set of forbidden colors.
+
+The number of distinct constraint patterns is at most 2^3 = 8 for each vertex (each color can be forbidden or not), so at most 8^|B| total patterns.
+
+But wait, this is still exponential.
+
+Let me think differently. For each valid coloring of A, we need to check if there exists a valid coloring of B. This is a 3-coloring problem with additional constraints.
+
+Actually, let me just implement the straightforward backtracking and see if it's fast enough. For n=40, with good pruning, it might work.
+
+Actually, I realize that for competitive programming, we often need to be more clever. Let me think about this problem more carefully.
+
+The problem is 3-coloring, which is NP-complete in general. But for n=40, we need an efficient algorithm.
+
+One approach that works well for small n is:
+1. Use bitmasks to represent colorings.
+2. Use meet-in-the-middle to enumerate valid colorings.
+
+Let me try a different approach: **split by vertices, not by halves**.
+
+Actually, let me reconsider. The key observation is that for 3-coloring, we can use the following approach:
+
+1. For each vertex, try all 3 colors.
+2. Use constraint propagation to prune invalid branches.
+
+For n=40, this should work with good pruning.
+
+Let me also consider: if the graph has a clique of size 4 or more, then 3-coloring is impossible. This is a quick check we can do.
+
+Actually, let me just implement a straightforward backtracking with some optimizations and see if it passes.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This is the basic approach. Let me think about optimizations:
+
+1. **Order vertices by degree**: Process vertices with higher degree first.
+2. **Forward checking**: After assigning a color, check if all neighbors still have valid colors.
+
+Let me implement these:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Order vertices by degree (descending) for better pruning
+    # But we need to maintain original order for lexicographically smallest output
+    # So we process vertices in order 0, 1, 2, ..., n-1
+    
+    colors = [0] * n
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, for n=40, this might be too slow. Let me think about the meet-in-the-middle approach more carefully.
+
+**Meet in the middle:**
+1. Split vertices into two halves: A = {0, 1, ..., n/2-1} and B = {n/2, ..., n-1}.
+2. Enumerate all valid colorings of A.
+3. For each valid coloring of A, compute the constraints on B.
+4. Enumerate all valid colorings of B that satisfy the constraints.
+5. Find the lexicographically smallest combination.
+
+For step 2, we enumerate all 3^(n/2) colorings and check validity. For n=40, this is 3^20 ≈ 3.5 billion, which is too slow.
+
+But wait, we can use a smarter approach. Instead of enumerating all colorings, we can use backtracking within each half, which will prune many invalid colorings early.
+
+Let me think about this differently. 
+
+For the first half A, we use backtracking to find all valid colorings. For each valid coloring, we store:
+- The coloring itself
+- The constraints on B (for each vertex in B, which colors are forbidden)
+
+For the second half B, we use backtracking to find all valid colorings given the constraints from A.
+
+The key insight is that we don't need to enumerate all valid colorings of A. We just need to find the lexicographically smallest valid coloring of A that can be extended to a valid coloring of B.
+
+So the algorithm is:
+1. Use backtracking to find valid colorings of A in lexicographic order.
+2. For each valid coloring of A, check if there exists a valid coloring of B.
+3. If yes, find the lexicographically smallest valid coloring of B and return.
+
+This is essentially a two-level backtracking.
+
+Let me implement this:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    mid = n // 2
+    A = list(range(mid))  # First half
+    B = list(range(mid, n))  # Second half
+    
+    colors = [0] * n
+    
+    def is_valid_partial(v, c, vertices):
+        """Check if color c is valid for vertex v given current partial coloring."""
+        for neighbor in adj[v]:
+            if neighbor in vertices and colors[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack_B(idx):
+        """Backtrack to find valid coloring of B."""
+        if idx == len(B):
+            return True
+        v = B[idx]
+        for c in range(1, 4):
+            if is_valid_partial(v, c, range(n)):  # Check against all colored vertices
+                colors[v] = c
+                if backtrack_B(idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    def backtrack_A(idx):
+        """Backtrack to find valid coloring of A."""
+        if idx == len(A):
+            return backtrack_B(0)
+        v = A[idx]
+        for c in range(1, 4):
+            if is_valid_partial(v, c, A):  # Check against A only
+                colors[v] = c
+                if backtrack_A(idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack_A(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Wait, this is essentially the same as the original backtracking, just split into two phases. The complexity is still O(3^n) in the worst case.
+
+Let me think about this more carefully. The key is that for n=40, we need a more efficient algorithm.
+
+Actually, let me reconsider the problem. For n=40 and 3 colors, the search space is 3^40 ≈ 10^19, which is way too large for brute force.
+
+But with constraint propagation and pruning, the actual search space can be much smaller. Let me think about what makes the problem tractable:
+
+1. **Graph structure**: If the graph is sparse, there are many valid colorings, and backtracking will find one quickly.
+2. **Constraint propagation**: When we assign a color to a vertex, we can propagate this constraint to its neighbors.
+
+Let me implement a more sophisticated backtracking with constraint propagation:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    # possible[v] is a set of possible colors for vertex v
+    possible = [set([1, 2, 3]) for _ in range(n)]
+    
+    def propagate(v, c):
+        """Propagate the constraint that vertex v has color c."""
+        for neighbor in adj[v]:
+            if c in possible[neighbor]:
+                possible[neighbor].discard(c)
+                if len(possible[neighbor]) == 0:
+                    return False
+        return True
+    
+    def restore(v, c):
+        """Restore the possible colors after backtracking."""
+        for neighbor in adj[v]:
+            possible[neighbor].add(c)
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in sorted(possible[v]):
+            colors[v] = c
+            # Save the state of possible colors
+            saved = [set(s) for s in possible]
+            possible[v] = set()
+            if propagate(v, c) and backtrack(v + 1):
+                return True
+            # Restore the state
+            possible = saved
+            colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, this has issues with the `possible` variable being reassigned. Let me fix it:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, let me think about this problem from a different angle.
+
+For n=40, we can use the following approach:
+
+1. **Connected components**: If the graph is disconnected, solve each component independently.
+2. **For each component**: Use backtracking with good heuristics.
+
+For a component with k vertices, the backtracking complexity depends on the graph structure. In the worst case (no edges), we have 3^k valid colorings, but backtracking will find the lexicographically smallest one in O(k) time (just assign color 1 to all vertices).
+
+For a dense graph, the number of valid colorings is small, and backtracking will quickly find one or determine that none exists.
+
+The challenging case is when the graph has a medium density, where there are many valid colorings but also many constraints.
+
+Let me think about the worst case for backtracking. The worst case is when the graph is a complete bipartite graph or similar, where there are exactly 3! = 6 valid colorings (all vertices in one part get one color, all vertices in the other part get another color, and the third color is unused).
+
+Actually, for a complete bipartite graph K_{a,b}, the number of valid 3-colorings is:
+- Choose 2 colors out of 3 for the two parts: C(3,2) = 3 ways
+- Assign one color to part A and another to part B: 2 ways
+- Total: 3 * 2 = 6 valid colorings
+
+So for a complete bipartite graph, backtracking will quickly find a valid coloring.
+
+The worst case for backtracking is when the graph has a structure that causes many branches to be explored before finding a valid coloring or determining that none exists.
+
+Let me just implement the straightforward backtracking and hope it's fast enough:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I realize that for n=40, this might not be fast enough. Let me think about optimizations.
+
+One optimization is to use bitmask representation for colors and adjacency. This can speed up the validity check.
+
+Another optimization is to use a more sophisticated search order. We can order vertices by their degree (descending), so that more constrained vertices are processed first.
+
+But wait, for lexicographically smallest output, we need to process vertices in order 0, 1, 2, ..., n-1. So we can't reorder vertices.
+
+Let me think about another approach: **split into connected components**.
+
+If the graph is disconnected, we can solve each component independently. For each component, we find the lexicographically smallest valid coloring. Then we combine the results.
+
+This can significantly reduce the problem size if the graph has many small components.
+
+Let me implement this:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+This should work better if the graph has many small components. But for a single large component, it's still O(3^n) in the worst case.
+
+Let me think about the meet-in-the-middle approach more carefully.
+
+**Meet in the middle for a single component:**
+
+1. Split the component into two halves A and B.
+2. Enumerate all valid colorings of A.
+3. For each valid coloring of A, compute the constraints on B.
+4. Check if there exists a valid coloring of B that satisfies the constraints.
+
+For step 2, we use backtracking to enumerate valid colorings of A. For each valid coloring, we store it.
+
+For step 3, for each vertex b in B, the forbidden colors are the colors of its neighbors in A.
+
+For step 4, we use backtracking to check if there exists a valid coloring of B given the constraints.
+
+The key insight is that we don't need to enumerate all valid colorings of A. We just need to find the lexicographically smallest valid coloring of A that can be extended to a valid coloring of B.
+
+So the algorithm is:
+1. Use backtracking to find valid colorings of A in lexicographic order.
+2. For each valid coloring of A, check if there exists a valid coloring of B.
+3. If yes, find the lexicographically smallest valid coloring of B and return.
+
+This is essentially a two-level backtracking, which I implemented earlier.
+
+But the issue is that for a large component, this can still be slow.
+
+Let me think about a different approach: **using the structure of the graph**.
+
+If the graph is bipartite, then 2-coloring is sufficient, and we can find a valid coloring in O(n + m) time.
+
+If the graph is not bipartite, we need 3 colors. We can first check if the graph is bipartite, and if so, use 2-coloring.
+
+For non-bipartite graphs, we can use the following approach:
+1. Find an odd cycle in the graph.
+2. Assign colors to the odd cycle (requires 3 colors).
+3. Extend the coloring to the rest of the graph using BFS/DFS.
+
+This approach works if the graph is 3-colorable, but finding the lexicographically smallest coloring is more complex.
+
+Actually, let me just implement the straightforward backtracking and see if it's fast enough. For n=40, with good pruning, it might work.
+
+Let me also add some optimizations:
+1. Use bitmask representation for colors.
+2. Use early termination when a valid coloring is found.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        # Try colors in order 1, 2, 3 for lexicographically smallest
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Actually, I think this should work for most cases. Let me test it on the examples.
+
+Example 1:
+- n=4, m=5
+- Edges: (1,2), (1,3), (2,3), (1,4), (2,4)
+- This is a graph where vertices 1, 2, 3 form a triangle, and vertex 4 is connected to 1 and 2.
+- Expected output: YES, 1 2 3 3
+
+Let me trace through:
+- v=0 (shard 1): Try c=1. No neighbors colored yet. Valid. colors=[1,0,0,0]
+- v=1 (shard 2): Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Valid. colors=[1,2,0,0]
+- v=2 (shard 3): Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Neighbor 1 has color 2. Invalid. Try c=3. Valid. colors=[1,2,3,0]
+- v=3 (shard 4): Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Neighbor 1 has color 2. Invalid. Try c=3. Valid. colors=[1,2,3,3]
+- v=4: Return True.
+
+Output: YES, 1 2 3 3. Correct!
+
+Example 2:
+- n=4, m=6
+- Edges: (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
+- This is a complete graph K4, which requires 4 colors.
+- Expected output: NO
+
+Let me trace through:
+- v=0 (shard 1): Try c=1. Valid. colors=[1,0,0,0]
+- v=1 (shard 2): Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Valid. colors=[1,2,0,0]
+- v=2 (shard 3): Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Neighbor 1 has color 2. Invalid. Try c=3. Valid. colors=[1,2,3,0]
+- v=3 (shard 4): Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Neighbor 1 has color 2. Invalid. Try c=3. Neighbor 2 has color 3. Invalid. No valid color. Backtrack.
+- v=2: No more colors to try. Backtrack.
+- v=1: Try c=3. Valid. colors=[1,3,0,0]
+- v=2: Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Valid. colors=[1,3,2,0]
+- v=3: Try c=1. Neighbor 0 has color 1. Invalid. Try c=2. Neighbor 2 has color 2. Invalid. Try c=3. Neighbor 1 has color 3. Invalid. No valid color. Backtrack.
+- ... (continue backtracking)
+- Eventually, all possibilities are exhausted. Return False.
+
+Output: NO. Correct!
+
+So the algorithm works for the examples. Let me think about the time complexity.
+
+For n=40, the worst case is when the graph has no edges, and we try all 3^40 colorings. But in this case, the first coloring (all 1s) is valid, so we return immediately.
+
+The worst case for backtracking is when the graph has a structure that causes many branches to be explored. For 3-coloring, this can happen when the graph is close to being non-3-colorable.
+
+Let me think about optimizations:
+
+1. **Connected components**: If the graph is disconnected, solve each component independently.
+2. **Degree ordering**: Process vertices with higher degree first (but this conflicts with lexicographic ordering).
+3. **Forward checking**: After assigning a color, check if all uncolored neighbors still have valid colors.
+
+Let me implement connected components:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+This should help if the graph has many small components.
+
+But for a single large component, we still need a more efficient algorithm.
+
+Let me think about the meet-in-the-middle approach again.
+
+For a component with k vertices, we split into two halves A and B, each with k/2 vertices.
+
+For each half, we enumerate all valid colorings. For k/2 = 20, this is 3^20 ≈ 3.5 billion, which is too slow.
+
+But wait, we don't need to enumerate all valid colorings. We just need to find the lexicographically smallest valid coloring of A that can be extended to a valid coloring of B.
+
+So the algorithm is:
+1. Use backtracking to find valid colorings of A in lexicographic order.
+2. For each valid coloring of A, check if there exists a valid coloring of B.
+3. If yes, find the lexicographically smallest valid coloring of B and return.
+
+This is essentially a two-level backtracking, which I implemented earlier.
+
+The key insight is that for each valid coloring of A, checking if there exists a valid coloring of B is a constraint satisfaction problem. We can use backtracking to solve it.
+
+The complexity is O(3^|A| * 3^|B|) = O(3^k) in the worst case, which is the same as the original backtracking.
+
+But in practice, the two-level backtracking can be faster because:
+1. We can prune branches in A early if they can't be extended to B.
+2. We can use constraint propagation to reduce the search space.
+
+Let me implement a more sophisticated version with constraint propagation:
+
+Actually, let me just try the simple backtracking with connected components and see if it's fast enough.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+I think this should work for most cases. Let me also add some optimizations for speed:
+
+1. Use iterative backtracking instead of recursive (to avoid stack overflow).
+2. Use bitmask representation for colors.
+
+Actually, let me just test the current implementation and see if it's fast enough.
+
+Hmm, I realize that for n=40, the worst case might still be too slow. Let me think about a more efficient approach.
+
+**Meet in the middle with precomputation:**
+
+1. Split vertices into two halves A and B.
+2. Precompute all valid colorings of B.
+3. For each valid coloring of A (in lexicographic order), check if there exists a compatible coloring of B.
+
+For step 2, we need to enumerate all valid colorings of B. For |B| = 20, this can be up to 3^20 ≈ 3.5 billion colorings, which is too many.
+
+But wait, we can use a smarter approach. Instead of enumerating all valid colorings of B, we can use a hash table to store them.
+
+For each valid coloring of B, we compute a "signature" based on the colors of vertices in B that have neighbors in A. Then, for each valid coloring of A, we compute the required signature for B and look it up in the hash table.
+
+This is the key insight: we only need to match the colors of vertices in B that have neighbors in A.
+
+Let me think about this more carefully.
+
+For each vertex b in B, let N_A(b) be the neighbors of b in A. The color of b must be different from the colors of all vertices in N_A(b).
+
+So for each valid coloring of A, we can compute the "forbidden colors" for each vertex in B. Then, we need to find a valid coloring of B that satisfies these constraints.
+
+The key observation is that the constraints on B only depend on the colors of vertices in A that have neighbors in B. Let's call these vertices the "boundary" of A.
+
+For each vertex a in the boundary of A, its color affects the constraints on its neighbors in B.
+
+So the algorithm is:
+1. Identify the boundary of A (vertices in A that have neighbors in B).
+2. Precompute all valid colorings of B.
+3. For each valid coloring of A (in lexicographic order), compute the constraints on B and check if there exists a compatible coloring.
+
+For step 2, we can use a hash table to store valid colorings of B, keyed by the colors of the boundary vertices.
+
+Wait, this is getting complex. Let me simplify.
+
+Actually, let me just use the straightforward backtracking and hope it's fast enough. For n=40, with connected components, it should work for most cases.
+
+Let me also add a check for K4 (complete graph on 4 vertices), which is a quick way to determine if 3-coloring is impossible.
+
+Actually, checking for K4 is not straightforward. Let me just use the backtracking.
+
+Here's my final implementation:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+Actually, I realize that for n=40, this might still be too slow in the worst case. Let me think about a more efficient approach.
+
+**Using the structure of the graph:**
+
+If the graph is bipartite, we can use 2-coloring. This is O(n + m).
+
+If the graph is not bipartite, we need 3 colors. We can use the following approach:
+1. Find an odd cycle in the graph.
+2. Assign colors to the odd cycle (requires 3 colors).
+3. Extend the coloring to the rest of the graph using BFS/DFS.
+
+This approach works if the graph is 3-colorable, but finding the lexicographically smallest coloring is more complex.
+
+Actually, let me think about this differently. The problem is to find the lexicographically smallest valid 3-coloring. This is a constraint satisfaction problem.
+
+For n=40, we can use the following approach:
+1. Use backtracking with constraint propagation.
+2. Use forward checking to prune invalid branches.
+
+Let me implement this:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    # possible[v] is a bitmask of possible colors for vertex v
+    possible = [0b111 for _ in range(n)]  # All colors 1, 2, 3 are possible
+    
+    def get_first_possible(mask):
+        for c in range(1, 4):
+            if mask & (1 << c):
+                return c
+        return 0
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        # Check if vertex v has any possible colors
+        if possible[v] == 0:
+            return False
+        # Try colors in order 1, 2, 3 for lexicographically smallest
+        for c in range(1, 4):
+            if possible[v] & (1 << c):
+                colors[v] = c
+                # Save the state of possible colors
+                saved = []
+                for neighbor in adj[v]:
+                    if possible[neighbor] & (1 << c):
+                        saved.append(neighbor)
+                        possible[neighbor] &= ~(1 << c)
+                possible[v] = 0
+                if backtrack(v + 1):
+                    return True
+                # Restore the state
+                possible[v] = 0b111
+                for neighbor in saved:
+                    possible[neighbor] |= (1 << c)
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+Hmm, there's a bug in the restoration. Let me fix it:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    possible = [0b111 for _ in range(n)]
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        if possible[v] == 0:
+            return False
+        for c in range(1, 4):
+            if possible[v] & (1 << c):
+                colors[v] = c
+                saved = []
+                for neighbor in adj[v]:
+                    if possible[neighbor] & (1 << c):
+                        saved.append((neighbor, possible[neighbor]))
+                        possible[neighbor] &= ~(1 << c)
+                        if possible[neighbor] == 0:
+                            # This neighbor has no possible colors, backtrack
+                            for nb, old_mask in saved:
+                                possible[nb] = old_mask
+                            possible[v] = 0b111
+                            colors[v] = 0
+                            continue  # Try next color
+                old_v = possible[v]
+                possible[v] = 0
+                if backtrack(v + 1):
+                    return True
+                # Restore
+                possible[v] = old_v
+                for neighbor, old_mask in saved:
+                    possible[neighbor] = old_mask
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+This is getting messy. Let me simplify and just use the straightforward backtracking:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    colors = [0] * n
+    
+    def backtrack(v):
+        if v == n:
+            return True
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(v + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, colors)))
+    else:
+        print("NO")
+
+solve()
+```
+
+I think this should work for most cases. Let me also add connected components optimization:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+This should be efficient enough for most cases. Let me test it on the examples.
+
+Example 1:
+- n=4, m=5
+- Edges: (1,2), (1,3), (2,3), (1,4), (2,4)
+- All vertices are in one component.
+- Expected output: YES, 1 2 3 3
+
+Example 2:
+- n=4, m=6
+- Edges: (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
+- All vertices are in one component (K4).
+- Expected output: NO
+
+Both should work correctly.
+
+Let me also think about edge cases:
+- n=1, m=0: Single vertex, can be colored with any color. Output: YES, 1 (lexicographically smallest).
+- n=2, m=1: Two vertices connected by an edge. Output: YES, 1 2 (lexicographically smallest).
+
+I think the implementation is correct. Let me finalize it.
+
+Actually, I realize that for n=40, the worst case might still be too slow. Let me think about a more efficient approach.
+
+One optimization is to use bitmask representation for the adjacency list and colors. This can speed up the validity check.
+
+Another optimization is to use a more sophisticated search order. We can order vertices by their degree (descending), so that more constrained vertices are processed first. But this conflicts with the lexicographic ordering requirement.
+
+Actually, let me think about this more carefully. The lexicographically smallest coloring means that we want to minimize c_1 first, then c_2, and so on. So we should process vertices in order 0, 1, 2, ..., n-1.
+
+But within each vertex, we try colors in order 1, 2, 3. So the first valid coloring we find is the lexicographically smallest.
+
+I think the current implementation is correct. Let me just make sure it's efficient enough.
+
+For n=40, the worst case is when the graph has a structure that causes many branches to be explored. This can happen when the graph is close to being non-3-colorable.
+
+But in practice, most graphs are either easily 3-colorable or clearly non-3-colorable. The challenging cases are rare.
+
+Let me just submit the current implementation and see if it passes.
+
+Actually, let me add one more optimization: check if the graph has a clique of size 4 or more. If so, 3-coloring is impossible.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency set for faster lookup
+    adj_set = [set() for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj_set[u].add(v)
+        adj_set[v].add(u)
+    
+    # Convert to list for iteration
+    adj = [list(s) for s in adj_set]
+    
+    # Check for K4 (complete graph on 4 vertices)
+    for i in range(n):
+        for j in adj[i]:
+            if j > i:
+                for k in adj[i]:
+                    if k > j and k in adj_set[j]:
+                        for l in adj[i]:
+                            if l > k and l in adj_set[j] and l in adj_set[k]:
+                                print("NO")
+                                return
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+Actually, the K4 check is O(n^4) which might be slow for n=40. Let me remove it and just rely on the backtracking.
+
+Actually, for n=40, O(n^4) = 40^4 = 2.56 million, which is acceptable. Let me keep it.
+
+Hmm, but the K4 check might not be necessary. The backtracking will quickly determine that K4 is not 3-colorable.
+
+Let me simplify and just use the backtracking:
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack_component(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack_component(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack_component(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+I think this should work. Let me finalize it.
+
+Actually, I just realized that the problem says n ≤ 40, which is small enough for backtracking with connected components optimization.
+
+Let me also add some micro-optimizations:
+1. Use local variables instead of global variables.
+2. Use list comprehension for building the output.
+
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+    
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```
+
+This should be the final implementation. Let me test it on the examples one more time.
+
+Example 1:
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+
+Expected output:
+```
+YES
+1 2 3 3
+```
+
+Let me trace through:
+- n=4, m=5
+- adj = [[1, 2, 3], [0, 2, 3], [0, 1], [0, 1]]
+- components = [[0, 1, 2, 3]]
+- backtrack([0, 1, 2, 3], 0):
+  - v=0, try c=1, valid (no colored neighbors), colors=[1, 0, 0, 0]
+  - backtrack([0, 1, 2, 3], 1):
+    - v=1, try c=1, invalid (neighbor 0 has color 1)
+    - try c=2, valid, colors=[1, 2, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, invalid (neighbor 0 has color 1)
+      - try c=2, invalid (neighbor 1 has color 2)
+      - try c=3, valid, colors=[1, 2, 3, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid (neighbor 0 has color 1)
+        - try c=2, invalid (neighbor 1 has color 2)
+        - try c=3, valid, colors=[1, 2, 3, 3]
+        - backtrack([0, 1, 2, 3], 4):
+          - return True
+        - return True
+      - return True
+    - return True
+  - return True
+- Output: YES, 1 2 3 3
+
+Correct!
+
+Example 2:
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+
+Expected output:
+```
+NO
+```
+
+Let me trace through:
+- n=4, m=6
+- adj = [[1, 2, 3], [0, 2, 3], [0, 1, 3], [0, 1, 2]]
+- components = [[0, 1, 2, 3]]
+- backtrack([0, 1, 2, 3], 0):
+  - v=0, try c=1, valid, colors=[1, 0, 0, 0]
+  - backtrack([0, 1, 2, 3], 1):
+    - v=1, try c=1, invalid
+    - try c=2, valid, colors=[1, 2, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, invalid
+      - try c=2, invalid
+      - try c=3, valid, colors=[1, 2, 3, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid
+        - try c=2, invalid
+        - try c=3, invalid
+        - return False
+      - colors=[1, 2, 0, 0]
+      - return False
+    - try c=3, valid, colors=[1, 3, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, invalid
+      - try c=2, valid, colors=[1, 3, 2, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid
+        - try c=2, invalid
+        - try c=3, invalid
+        - return False
+      - colors=[1, 3, 0, 0]
+      - return False
+    - return False
+  - colors=[0, 0, 0, 0]
+  - try c=2, valid, colors=[2, 0, 0, 0]
+  - backtrack([0, 1, 2, 3], 1):
+    - v=1, try c=1, valid, colors=[2, 1, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, invalid
+      - try c=2, invalid
+      - try c=3, valid, colors=[2, 1, 3, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid
+        - try c=2, invalid
+        - try c=3, invalid
+        - return False
+      - colors=[2, 1, 0, 0]
+      - return False
+    - try c=2, invalid
+    - try c=3, valid, colors=[2, 3, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, valid, colors=[2, 3, 1, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid
+        - try c=2, invalid
+        - try c=3, invalid
+        - return False
+      - colors=[2, 3, 0, 0]
+      - try c=2, invalid
+      - try c=3, invalid
+      - return False
+    - return False
+  - colors=[0, 0, 0, 0]
+  - try c=3, valid, colors=[3, 0, 0, 0]
+  - backtrack([0, 1, 2, 3], 1):
+    - v=1, try c=1, valid, colors=[3, 1, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, invalid
+      - try c=2, valid, colors=[3, 1, 2, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid
+        - try c=2, invalid
+        - try c=3, invalid
+        - return False
+      - colors=[3, 1, 0, 0]
+      - return False
+    - try c=2, valid, colors=[3, 2, 0, 0]
+    - backtrack([0, 1, 2, 3], 2):
+      - v=2, try c=1, valid, colors=[3, 2, 1, 0]
+      - backtrack([0, 1, 2, 3], 3):
+        - v=3, try c=1, invalid
+        - try c=2, invalid
+        - try c=3, invalid
+        - return False
+      - colors=[3, 2, 0, 0]
+      - try c=2, invalid
+      - try c=3, invalid
+      - return False
+    - return False
+  - return False
+- Output: NO
+
+Correct!
+
+The implementation looks correct. Let me finalize it.
+</think>
+```python
+def solve():
+    import sys
+    sys.setrecursionlimit(10000)
+    data = sys.stdin.read().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1
+        v = int(data[idx + 1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+    
+    visited = [False] * n
+    components = []
+    
+    for start in range(n):
+        if not visited[start]:
+            component = []
+            stack = [start]
+            while stack:
+                v = stack.pop()
+                if visited[v]:
+                    continue
+                visited[v] = True
+                component.append(v)
+                for neighbor in adj[v]:
+                    if not visited[neighbor]:
+                        stack.append(neighbor)
+            components.append(sorted(component))
+    
+    colors = [0] * n
+    
+    def backtrack(component, idx):
+        if idx == len(component):
+            return True
+        v = component[idx]
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[v]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            if valid:
+                colors[v] = c
+                if backtrack(component, idx + 1):
+                    return True
+                colors[v] = 0
+        return False
+    
+    for component in components:
+        if not backtrack(component, 0):
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, colors)))
+
+solve()
+```

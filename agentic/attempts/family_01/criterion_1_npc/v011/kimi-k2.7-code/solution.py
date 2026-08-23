@@ -1,0 +1,158 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    sys.setrecursionlimit(10000)
+
+    def reduce(dom, mask):
+        # unit propagation
+        m = mask
+        stack = []
+        while m:
+            lsb = m & -m
+            v = lsb.bit_length() - 1
+            d = dom[v]
+            if d == 0:
+                return 0, False
+            if d & (d - 1) == 0:
+                stack.append(v)
+            m ^= lsb
+        while stack:
+            v = stack.pop()
+            c = dom[v]
+            nb = adj[v] & mask
+            while nb:
+                u_lsb = nb & -nb
+                u = u_lsb.bit_length() - 1
+                if dom[u] & c:
+                    dom[u] &= ~c
+                    if dom[u] == 0:
+                        return 0, False
+                    if dom[u] & (dom[u] - 1) == 0:
+                        stack.append(u)
+                nb ^= u_lsb
+        # defer vertices that always have an available color
+        while True:
+            rem = 0
+            m = mask
+            while m:
+                lsb = m & -m
+                v = lsb.bit_length() - 1
+                if dom[v].bit_count() > (adj[v] & mask).bit_count():
+                    rem |= lsb
+                m ^= lsb
+            if rem == 0:
+                break
+            mask &= ~rem
+        return mask, True
+
+    def dfs(dom, mask):
+        mask, ok = reduce(dom, mask)
+        if not ok:
+            return False
+        if mask == 0:
+            return True
+        minv = -1
+        minsize = 4
+        m = mask
+        while m:
+            lsb = m & -m
+            v = lsb.bit_length() - 1
+            d = dom[v]
+            if d & (d - 1):
+                sz = d.bit_count()
+                if sz < minsize:
+                    minsize = sz
+                    minv = v
+                    if sz == 2:
+                        break
+            m ^= lsb
+        if minv == -1:
+            return True
+        d = dom[minv]
+        b = d
+        nmask = mask
+        while b:
+            lsb = b & -b
+            ndom = dom[:]
+            ndom[minv] = lsb
+            if dfs(ndom, nmask):
+                return True
+            b ^= lsb
+        return False
+
+    def can_extend(fixed):
+        dom = [7] * n
+        mask = 0
+        for i in range(n):
+            c = fixed[i]
+            if c:
+                bit = 1 << (c - 1)
+                if not (dom[i] & bit):
+                    return False
+                dom[i] = bit
+            else:
+                mask |= 1 << i
+        stack = [i for i in range(n) if fixed[i]]
+        while stack:
+            v = stack.pop()
+            c = dom[v]
+            nb = adj[v] & mask
+            while nb:
+                u_lsb = nb & -nb
+                u = u_lsb.bit_length() - 1
+                if dom[u] & c:
+                    dom[u] &= ~c
+                    if dom[u] == 0:
+                        return False
+                    if dom[u] & (dom[u] - 1) == 0:
+                        stack.append(u)
+                nb ^= u_lsb
+        return dfs(dom, mask)
+
+    fixed = [0] * n
+    ans = [0] * n
+    for i in range(n):
+        blocked = 0
+        nb = adj[i]
+        while nb:
+            lsb = nb & -nb
+            u = lsb.bit_length() - 1
+            c = fixed[u]
+            if c:
+                blocked |= 1 << (c - 1)
+            nb ^= lsb
+        chosen = 0
+        for c in (1, 2, 3):
+            bit = 1 << (c - 1)
+            if blocked & bit:
+                continue
+            fixed[i] = c
+            if can_extend(fixed):
+                chosen = c
+                break
+            fixed[i] = 0
+        if chosen == 0:
+            sys.stdout.write("NO")
+            return
+        ans[i] = chosen
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, ans)))
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,61 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort adjacency lists for ordered iteration
+    adj_lists = [sorted(s) for s in adj]
+    
+    # We need to find the lexicographically smallest triangle (x, y, z)
+    # Iterate x from 1 to n, then y from x+1 to n, then z from y+1 to n
+    # Check if (x,y), (x,z), (y,z) are all edges
+    
+    # Optimization: For each x, iterate y in adj[x] where y > x
+    # Then iterate z in adj[x] where z > y
+    # Check if y and z are connected
+    
+    for x in range(1, n + 1):
+        neighbors_x = adj_lists[x]
+        len_x = len(neighbors_x)
+        # Find start index for y > x
+        # Since neighbors_x is sorted, we can use binary search or linear scan
+        # Linear scan is fine since total work is bounded
+        for i in range(len_x):
+            y = neighbors_x[i]
+            if y <= x:
+                continue
+            for j in range(i + 1, len_x):
+                z = neighbors_x[j]
+                if z <= y:
+                    continue
+                # Check if y and z are connected
+                if z in adj[y]:
+                    print(x, y, z)
+                    return
+    
+    # Should not reach here as problem guarantees a solution exists
+    # Fallback: brute force check (should not be needed)
+    for x in range(1, n - 1):
+        for y in range(x + 1, n):
+            if y not in adj[x]:
+                continue
+            for z in range(y + 1, n + 1):
+                if z in adj[x] and z in adj[y]:
+                    print(x, y, z)
+                    return
+
+if __name__ == "__main__":
+    solve()

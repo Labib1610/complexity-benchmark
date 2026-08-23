@@ -1,0 +1,81 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    edge_set = set()
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        edge_set.add((u, v))
+    
+    # Sort edges to help with ordering
+    edges.sort()
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    for u, v in edges:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We need to find a triangle in the graph
+    # That is, three nodes a, b, c such that all three edges (a,b), (a,c), (b,c) exist
+    
+    # To get the lexicographically smallest, we'll iterate through possible triples
+    # in lexicographical order
+    
+    # Let's collect all nodes
+    nodes = sorted(adj.keys())
+    
+    best = None
+    
+    # For each node a
+    for a in nodes:
+        # Get neighbors of a
+        neighbors_a = list(adj[a])
+        neighbors_a.sort()
+        # For each pair of neighbors b, c of a, check if (b,c) exists
+        for i in range(len(neighbors_a)):
+            b = neighbors_a[i]
+            if b <= a:
+                continue
+            for j in range(i+1, len(neighbors_a)):
+                c = neighbors_a[j]
+                if c <= a:
+                    continue
+                # Check if edge (b,c) exists
+                if (b, c) in edge_set:
+                    # Found a triangle
+                    candidate = (a, b, c)
+                    if best is None or candidate < best:
+                        best = candidate
+                    # Since we're looking for the lex smallest and we're iterating
+                    # in order, the first one we find will be the lex smallest
+                    break
+            if best is not None:
+                break
+        if best is not None:
+            break
+    
+    if best is None:
+        # Fallback - check all triangles
+        # This should not happen due to problem guarantee
+        pass
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

@@ -1,23 +1,20 @@
-# Problem B — Dual Isolation Protocol
+# Problem B — Harmonic Calibration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A laboratory manages $n$ sensitive chemical compounds, numbered $1$ to $n$. Certain pairs of compounds undergo hazardous reactions if stored together in the same containment unit. There are $m$ such reactive pairs recorded in the system logs.
+A research facility contains $n$ experimental modules, indexed from 1 to $n$. Over the course of preliminary testing, engineers have identified $m$ pairs of modules that exhibit harmonic resonance. 
 
-The facility operates exactly two containment units, designated as unit $1$ and unit $2$.
+Each module must be permanently calibrated to operate in one of two phase states, designated as state 1 and state 2. A calibration plan is represented as a sequence of $n$ integers, where the $i$-th integer corresponds to the phase state of module $i$. Because of the physical risks involved, a calibration plan is strictly required to be stable. Stability means that for every identified pair of modules exhibiting harmonic resonance, the two modules in the pair must be assigned distinct phase states.
 
-To ensure safety, every compound must be placed into one of the two units such that no two compounds that form a reactive pair reside in the same unit. That is, for every reactive pair $(u, v)$, compound $u$ and compound $v$ must be stored in different units.
-
-Your task is to determine whether a safe placement exists. If it is possible, output `YES` followed by the unit assignment sequence $s_1, s_2, \dots, s_n$ (where $s_i \in \{1, 2\}$ represents the unit assigned to compound $i$). If several valid assignments exist, output the one that is lexicographically smallest. If no valid placement can satisfy all safety requirements, output `NO`.
+Your objective is to process the list of resonating pairs and determine if at least one stable calibration plan exists for the $n$ modules. If such a plan is possible, you must find the stable calibration plan that is lexicographically smallest. If no stable calibration plan can be achieved, you must report that it is impossible.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), representing a pair of compounds that cannot share a unit.
+Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of modules that exhibit harmonic resonance.
 
 ## Output
-If no valid placement exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid unit assignment.
+If no stable calibration plan exists, print a single line containing the word NO.
+Otherwise, print YES on the first line. On the second line, print $n$ integers $s_1 \dots s_n$ (each either 1 or 2), representing the lexicographically smallest stable calibration plan.
 
 ## Example 1
 Input:

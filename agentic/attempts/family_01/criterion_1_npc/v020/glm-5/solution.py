@@ -1,0 +1,106 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    # Precompute maximal independent sets via Bron-Kerbosch with pivoting
+    MIS = []
+    def bron_kerbosch(R, P, X):
+        if P == 0 and X == 0:
+            MIS.append(R)
+            return
+        # Pivot selection: choose vertex in P | X with max degree in P
+        pivot = -1
+        best = -1
+        combined = P | X
+        while combined:
+            v_bit = combined & (-combined)
+            v = v_bit.bit_length() - 1
+            combined ^= v_bit
+            cnt = bin(adj[v] & P).count('1')
+            if cnt > best:
+                best = cnt
+                pivot = v
+        # Candidates: P \ N(pivot)
+        candidates = P & ~adj[pivot]
+        while candidates:
+            v_bit = candidates & (-candidates)
+            v = v_bit.bit_length() - 1
+            candidates ^= v_bit
+            bron_kerbosch(R | v_bit, P & ~adj[v], X & ~adj[v])
+            P ^= v_bit
+            X |= v_bit
+
+    full_mask = (1 << n) - 1
+    bron_kerbosch(0, full_mask, 0)
+
+    # Sort MIS by size descending for better pruning
+    MIS.sort(key=lambda x: -bin(x).count('1'))
+
+    # Try to cover all vertices with at most 3 independent sets
+    # We need exactly 3 sets, but empty sets are allowed (size 0)
+    # Since MIS are maximal, any independent set is a subset of some MIS
+    # So covering with 3 independent sets is equivalent to covering with 3 MIS
+    found = False
+    S1 = S2 = S3 = 0
+    L = len(MIS)
+    for i in range(L):
+        A = MIS[i]
+        if A == full_mask:
+            found = True
+            S1, S2, S3 = A, 0, 0
+            break
+        rem1 = full_mask & ~A
+        for j in range(i, L):
+            B = MIS[j]
+            if (A | B) == full_mask:
+                found = True
+                S1, S2, S3 = A, B, 0
+                break
+            rem2 = rem1 & ~B
+            if rem2 == 0:
+                found = True
+                S1, S2, S3 = A, B, 0
+                break
+            for k in range(j, L):
+                C = MIS[k]
+                if (rem2 & C) == rem2:
+                    found = True
+                    S1, S2, S3 = A, B, rem2
+                    break
+            if found:
+                break
+        if found:
+            break
+
+    if not found:
+        print("NO")
+        return
+
+    # Assign colors greedily for lexicographically smallest sequence
+    # Color 1: S1, Color 2: S2, Color 3: S3
+    # For each vertex, try color 1, then 2, then 3
+    color = [0] * (n + 1)
+    for v in range(1, n + 1):
+        v_bit = 1 << (v - 1)
+        if v_bit & S1:
+            color[v] = 1
+        elif v_bit & S2:
+            color[v] = 2
+        else:
+            color[v] = 3
+
+    print("YES")
+    print(' '.join(str(color[v]) for v in range(1, n + 1)))
+
+solve()

@@ -1,0 +1,48 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list and set for O(1) lookup
+    adj = defaultdict(set)
+    edges = []
+    
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index+1])
+        index += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges to process in order
+    edges.sort()
+    
+    best = None
+    best_score = float('inf')
+    
+    # For each edge (u,v), look for a common neighbor w
+    for u, v in edges:
+        if u >= best_score // 100000000:  # Early pruning
+            break
+        # Find common neighbors
+        for w in adj[u]:
+            if w > v and w in adj[v]:  # Ensure u < v < w and triangle
+                score = u * 100000000 + v * 10000 + w
+                if score < best_score:
+                    best_score = score
+                    best = (u, v, w)
+    
+    print(best[0], best[1], best[2])
+
+if __name__ == "__main__":
+    main()

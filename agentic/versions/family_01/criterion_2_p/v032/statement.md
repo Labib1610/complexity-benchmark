@@ -1,20 +1,21 @@
-# Problem B — System Mode Allocation
+# Problem B — Schedule Search
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A system contains $n$ numbered units, labeled from $1$ to $n$. Each unit must be configured into one of two operational states, labeled $1$ or $2$.
+A factory manager is evaluating schedule sequences for $n$ employees. A complete schedule is a sequence of codes $s_1, s_2, \dots, s_n$. The manager has compiled a list of $m$ separation requirements. Each requirement identifies two employees who must receive different schedule codes.
 
-Because there are $2^n$ total ways to set the states across all units, finding a viable configuration requires satisfying $m$ mutual interference conditions. Each condition lists two units that are forbidden from sharing the same operational state; that is, if one unit is set to state $1$, the other must be set to state $2$, and vice versa.
+You must search the space of possible schedule sequences to find one that satisfies all $m$ separation requirements. Because of operational limitations, the pool of allowed codes for any employee is restricted to exactly two values: 1 and 2. This means you are evaluating a space of $2^n$ possible sequences.
 
-Determine if there exists a valid assignment of states to all $n$ units such that no interference condition is violated. If one or more valid assignments exist, output the one that produces the lexicographically smallest sequence of state values $(s_1, s_2, \dots, s_n)$. Otherwise, indicate that no valid assignment is possible.
+If there are multiple valid sequences that satisfy all requirements, you must resolve the tie by selecting the sequence that minimizes the codes. Specifically, a sequence $A$ is preferred over a different valid sequence $B$ if $A$ has a smaller code at the earliest employee index where $A$ and $B$ differ. If the search space contains no valid sequence, you must output NO.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that units $u$ and $v$ cannot be assigned the same operational state.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of employees and the number of separation requirements.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a separation requirement between employee $u$ and employee $v$.
 
 ## Output
-If no valid state assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ (where each $s_i \in \{1, 2\}$) representing the lexicographically smallest valid assignment.
+If the search space contains no valid sequence, print a single line NO.
+Otherwise, print YES on the first line. On the second line, print the $n$ integers $s_1, s_2, \dots, s_n$ (each either 1 or 2) representing the optimal valid schedule sequence.
 
 ## Example 1
 Input:

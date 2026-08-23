@@ -1,0 +1,490 @@
+Let me analyze this problem:
+
+1. We have n technicians and m incompatible pairs
+2. We need to assign each technician to shift 1 or 2
+3. No incompatible pair should work the same shift
+4. We need the lexicographically smallest valid assignment
+
+This is essentially a bipartite graph problem - we need to check if the graph formed by technicians (nodes) and incompatible pairs (edges) is bipartite, and if so, find the lexicographically smallest bipartition.
+
+For the lexicographically smallest assignment:
+- We want to assign lower-numbered technicians to shift 1 whenever possible
+- This means we should try to assign technician 1 to shift 1, then technician 2 to shift 1 if possible, etc.
+
+One approach:
+- Use BFS/DFS to check bipartiteness
+- For lexicographically smallest, we can use a greedy approach:
+  - Process technicians in order from 1 to n
+  - For each unassigned technician, try to assign them to shift 1
+  - If that causes a conflict, assign them to shift 2
+  - If both cause conflicts, it's impossible
+
+Wait, but this greedy approach might not work correctly. Let me think again.
+
+Actually, for bipartite graphs, once we fix one node's assignment, the rest is determined (within each connected component). So the greedy approach should work:
+- Process technicians from 1 to n
+- For each unassigned technician, assign them to shift 1
+- Then propagate the assignment through their connected component (BFS/DFS)
+- If we encounter a conflict during propagation, it's impossible
+
+Let me trace through Example 1:
+- n=4, m=4
+- Edges: (1,2), (2,3), (3,4), (1,4)
+- Process technician 1: assign to shift 1
+- Propagate: 2 must be shift 2, 4 must be shift 2
+- But wait, 4 is connected to 3, so 3 must be shift 1
+- And 2 is connected to 3, so 3 must be shift 1 (consistent)
+- Result: 1->1, 2->2, 3->1, 4->2
+- Output: 1 2 1 2 ✓
+
+Example 2:
+- n=3, m=3
+- Edges: (1,2), (1,3), (2,3)
+- Process technician 1: assign to shift 1
+- Propagate: 2 must be shift 2, 3 must be shift 2
+- But 2 and 3 are connected, so they can't both be shift 2
+- Conflict! Output: NO ✓
+
+The algorithm:
+1. Build adjacency list
+2. Initialize all technicians as unassigned
+3. For each technician from 1 to n:
+   - If unassigned, assign to shift 1
+   - BFS/DFS to propagate: for each neighbor, assign opposite shift
+   - If conflict found, output NO
+4. Output YES and the assignment
+
+Let me code this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr]); ptr += 1
+    m = int(input[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[ptr]); ptr += 1
+        v = int(input[ptr]); ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    assignment = [0] * (n + 1)  # 0 = unassigned, 1 = shift 1, 2 = shift 2
+    
+    for start in range(1, n + 1):
+        if assignment[start] != 0:
+            continue
+        # Assign to shift 1
+        assignment[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if assignment[v] == 0:
+                    assignment[v] = 3 - assignment[u]  # opposite shift
+                    queue.append(v)
+                elif assignment[v] == assignment[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, assignment[1:])))
+
+solve()
+```
+
+Wait, I need to double-check the logic. When we process technician `start`, we assign them to shift 1. Then we propagate through the connected component. If there's a conflict (neighbor already assigned to the same shift), we output NO.
+
+Actually, there's a subtle issue. When we start from technician `start` and assign them to shift 1, we propagate through the entire connected component. But what if some nodes in that component were already assigned from a previous iteration?
+
+Hmm, that shouldn't happen because we only start from unassigned nodes. Once a node is assigned, its entire connected component gets assigned in the same BFS.
+
+Let me trace through again with a more complex example:
+- Suppose we have edges: (1,2), (2,3), (4,5)
+- Process 1: assign 1->1, propagate: 2->2, 3->1
+- Process 2: already assigned, skip
+- Process 3: already assigned, skip
+- Process 4: assign 4->1, propagate: 5->2
+- Process 5: already assigned, skip
+- Result: 1 2 1 1 2
+
+This looks correct.
+
+But wait, there's another consideration. What if we have:
+- Edges: (1,2), (2,3), (1,3)
+- Process 1: assign 1->1
+- Propagate: 2->2, 3->2
+- But 2 and 3 are connected, so when we process 2's neighbors, we see 3 is already assigned to 2, which is different from 2's assignment. Good.
+- But wait, 1 and 3 are also connected. When we process 1's neighbors, we see 3 is unassigned, so we assign 3->2. Then when we process 3's neighbors, we see 1 is assigned to 1, which is different from 3's assignment. Good.
+- Result: 1 2 2
+
+Hmm, but this is a triangle, which is not bipartite. Let me check:
+- 1->1, 2->2, 3->2
+- Check edges: (1,2): 1≠2 ✓, (2,3): 2=2 ✗
+
+Oh, I see the issue. When we process 1's neighbors, we assign 2->2 and 3->2. But 2 and 3 are connected, so they should have different assignments. The conflict should be detected.
+
+Let me trace more carefully:
+- Process 1: assign 1->1
+- BFS queue: [1]
+- Pop 1, neighbors are 2 and 3
+  - 2 is unassigned, assign 2->2, add to queue
+  - 3 is unassigned, assign 3->2, add to queue
+- Queue: [2, 3]
+- Pop 2, neighbors are 1 and 3
+  - 1 is assigned to 1, which is different from 2's assignment (2). OK.
+  - 3 is assigned to 2, which is the same as 2's assignment (2). CONFLICT!
+
+So the conflict is detected when we pop 2 and check its neighbor 3. Good.
+
+Let me re-check my code:
+
+```python
+for v in adj[u]:
+    if assignment[v] == 0:
+        assignment[v] = 3 - assignment[u]
+        queue.append(v)
+    elif assignment[v] == assignment[u]:
+        print("NO")
+        return
+```
+
+When we pop 2 (assignment=2), we check neighbor 3 (assignment=2). Since assignment[3] == assignment[2], we print NO. Correct!
+
+Actually wait, I think there might be an issue with the order of processing. Let me trace again:
+
+- Process 1: assign 1->1
+- BFS queue: [1]
+- Pop 1 (assignment=1), neighbors are 2 and 3
+  - 2 is unassigned, assign 2->2, add to queue
+  - 3 is unassigned, assign 3->2, add to queue
+- Queue: [2, 3]
+- Pop 2 (assignment=2), neighbors are 1 and 3
+  - 1 is assigned to 1, which is different from 2's assignment (2). OK, no action.
+  - 3 is assigned to 2, which is the same as 2's assignment (2). CONFLICT! Print NO.
+
+Yes, this is correct.
+
+Now let me verify Example 1:
+- n=4, m=4
+- Edges: (1,2), (2,3), (3,4), (1,4)
+- Process 1: assign 1->1
+- BFS queue: [1]
+- Pop 1 (assignment=1), neighbors are 2 and 4
+  - 2 is unassigned, assign 2->2, add to queue
+  - 4 is unassigned, assign 4->2, add to queue
+- Queue: [2, 4]
+- Pop 2 (assignment=2), neighbors are 1 and 3
+  - 1 is assigned to 1, different from 2. OK.
+  - 3 is unassigned, assign 3->1, add to queue
+- Queue: [4, 3]
+- Pop 4 (assignment=2), neighbors are 3 and 1
+  - 3 is assigned to 1, different from 4. OK.
+  - 1 is assigned to 1, different from 4. OK.
+- Queue: [3]
+- Pop 3 (assignment=1), neighbors are 2 and 4
+  - 2 is assigned to 2, different from 3. OK.
+  - 4 is assigned to 2, different from 3. OK.
+- Queue: []
+- Process 2, 3, 4: all assigned, skip
+- Result: 1 2 1 2 ✓
+
+Great, the algorithm works.
+
+Now let me think about the lexicographically smallest property. By processing technicians in order from 1 to n and always assigning the starting technician to shift 1, we ensure:
+- Technician 1 is assigned to shift 1 (if possible)
+- For each subsequent unassigned technician, they are assigned to shift 1 (if possible)
+
+This should give us the lexicographically smallest valid assignment.
+
+Actually, let me think about this more carefully. Consider:
+- Edges: (1,2), (2,3)
+- Process 1: assign 1->1, propagate: 2->2, 3->1
+- Result: 1 2 1
+
+Is this lexicographically smallest? Let's check:
+- Valid assignments: (1,2,1) and (2,1,2)
+- (1,2,1) < (2,1,2) lexicographically. ✓
+
+Another example:
+- Edges: (1,3), (2,3)
+- Process 1: assign 1->1, propagate: 3->2
+- Process 2: assign 2->1 (since 2 is unassigned and not connected to 1)
+- Result: 1 1 2
+
+Is this valid? Check edges: (1,3): 1≠2 ✓, (2,3): 1≠2 ✓. Yes!
+Is this lexicographically smallest? Let's check other valid assignments:
+- (1,1,2), (1,2,1), (2,1,1), (2,2,1), ...
+- Wait, (1,2,1) is not valid because (1,3) would have 1 and 1, which is invalid.
+- (2,1,1) is not valid because (2,3) would have 1 and 1, which is invalid.
+- (2,2,1) is valid: (1,3): 2≠1 ✓, (2,3): 2≠1 ✓
+- (1,1,2) < (2,2,1) lexicographically. ✓
+
+So the algorithm gives the correct answer.
+
+One more edge case: what if there are no edges?
+- n=3, m=0
+- Process 1: assign 1->1, no neighbors to propagate
+- Process 2: assign 2->1, no neighbors to propagate
+- Process 3: assign 3->1, no neighbors to propagate
+- Result: 1 1 1
+
+This is valid and lexicographically smallest. ✓
+
+What about self-loops? The problem says "pairs of technicians", so I assume u ≠ v. But let me check if the problem allows self-loops... The problem says "a pair of technicians who cannot share a shift", which implies u ≠ v. I'll assume no self-loops.
+
+What about duplicate edges? The problem doesn't explicitly say edges are unique. But duplicate edges shouldn't affect the algorithm since we're just checking bipartiteness.
+
+Let me also consider the time complexity:
+- Building adjacency list: O(n + m)
+- BFS: Each node is visited once, each edge is checked twice. O(n + m)
+- Total: O(n + m)
+
+This should be efficient enough for n, m ≤ 2 * 10^5.
+
+Space complexity:
+- Adjacency list: O(n + m)
+- Assignment array: O(n)
+- Queue: O(n)
+- Total: O(n + m)
+
+This should fit in 256 MB.
+
+I think the solution is correct. Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr]); ptr += 1
+    m = int(input[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[ptr]); ptr += 1
+        v = int(input[ptr]); ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    assignment = [0] * (n + 1)  # 0 = unassigned, 1 = shift 1, 2 = shift 2
+    
+    for start in range(1, n + 1):
+        if assignment[start] != 0:
+            continue
+        assignment[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if assignment[v] == 0:
+                    assignment[v] = 3 - assignment[u]
+                    queue.append(v)
+                elif assignment[v] == assignment[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, assignment[1:])))
+
+solve()
+```
+
+Actually, I realize I should double-check the output format. The problem says:
+- If no valid assignment exists, print a single line NO.
+- Otherwise print YES, then a second line with n integers.
+
+My code does this correctly.
+
+Let me also make sure the code handles the case where m=0 correctly:
+- n=3, m=0
+- adj = [[], [], [], []] (empty adjacency lists)
+- Process 1: assign 1->1, queue=[1], pop 1, no neighbors, queue=[]
+- Process 2: assign 2->1, queue=[2], pop 2, no neighbors, queue=[]
+- Process 3: assign 3->1, queue=[3], pop 3, no neighbors, queue=[]
+- Output: YES, 1 1 1
+
+This is correct.
+
+One more thing: I should use sys.stdout.write for faster output, but print should be fine for this problem size.
+
+Actually, let me reconsider the algorithm once more. The key insight is that for bipartite graphs, once we fix one node's assignment, the rest of the connected component is determined. By processing nodes in order and always assigning the starting node to shift 1, we get the lexicographically smallest assignment.
+
+But wait, is this always true? Let me think of a counterexample...
+
+Consider:
+- Edges: (1,2), (1,3)
+- Process 1: assign 1->1, propagate: 2->2, 3->2
+- Result: 1 2 2
+
+Is there a lexicographically smaller valid assignment?
+- (1,2,2) is valid: (1,2): 1≠2 ✓, (1,3): 1≠2 ✓
+- (1,1,2) is not valid: (1,2): 1=1 ✗
+- (1,2,1) is not valid: (1,3): 1=1 ✗
+- So (1,2,2) is the only valid assignment starting with 1.
+
+What about starting with 2?
+- (2,1,1) is valid: (1,2): 2≠1 ✓, (1,3): 2≠1 ✓
+- (2,1,2) is not valid: (1,3): 2=2 ✗
+- (2,2,1) is valid: (1,2): 2=2 ✗... wait, that's invalid.
+
+Hmm, let me reconsider. (2,1,1) means technician 1 is assigned to shift 2, technician 2 is assigned to shift 1, technician 3 is assigned to shift 1.
+- (1,2): technician 1 is shift 2, technician 2 is shift 1. Different shifts. ✓
+- (1,3): technician 1 is shift 2, technician 3 is shift 1. Different shifts. ✓
+
+So (2,1,1) is valid. But (1,2,2) < (2,1,1) lexicographically. So our algorithm gives the correct answer.
+
+Let me think of another example:
+- Edges: (1,2), (2,3), (3,4), (4,5)
+- This is a path graph, which is bipartite.
+- Process 1: assign 1->1, propagate: 2->2, 3->1, 4->2, 5->1
+- Result: 1 2 1 2 1
+
+Is this lexicographically smallest?
+- Valid assignments alternate between (1,2,1,2,1) and (2,1,2,1,2).
+- (1,2,1,2,1) < (2,1,2,1,2). ✓
+
+I'm convinced the algorithm is correct.
+
+Actually, let me think about this more formally. The lexicographically smallest assignment is the one that minimizes the first element, then the second, etc. By processing nodes in order and always assigning the starting node to shift 1, we ensure:
+1. Technician 1 is assigned to shift 1 (minimizing the first element).
+2. For each subsequent unassigned technician, they are assigned to shift 1 (minimizing subsequent elements).
+
+This works because:
+- If technician 1 is assigned to shift 1, all technicians in the same connected component have their assignments determined.
+- If technician 1 is assigned to shift 2, all technicians in the same connected component would have their assignments flipped, which would be lexicographically larger.
+
+So the algorithm is correct.
+
+Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr]); ptr += 1
+        v = int(data[ptr]); ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    assignment = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if assignment[start] != 0:
+            continue
+        assignment[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if assignment[v] == 0:
+                    assignment[v] = 3 - assignment[u]
+                    queue.append(v)
+                elif assignment[v] == assignment[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, assignment[1:])))
+
+solve()
+```
+
+This should be the correct solution. Let me verify once more with the examples:
+
+Example 1:
+- Input: 4 4, edges (1,2), (2,3), (3,4), (1,4)
+- Process 1: assign 1->1, propagate through BFS
+- BFS: 1->1, 2->2, 4->2, 3->1
+- Result: 1 2 1 2
+- Output: YES, 1 2 1 2 ✓
+
+Example 2:
+- Input: 3 3, edges (1,2), (1,3), (2,3)
+- Process 1: assign 1->1, propagate through BFS
+- BFS: 1->1, 2->2, 3->2
+- Check edge (2,3): both assigned to 2. Conflict!
+- Output: NO ✓
+
+Great, the solution is correct.
+
+Wait, I just realized there might be an issue with recursion depth if I use DFS. But I'm using BFS with a queue, so there's no recursion. The solution should be fine.
+
+Actually, let me also consider using iterative DFS with a stack instead of BFS. Both should work, but BFS is more natural for this problem.
+
+One more thing: I should make sure the code handles the case where n=1 and m=0:
+- n=1, m=0
+- adj = [[], []]
+- Process 1: assign 1->1, queue=[1], pop 1, no neighbors, queue=[]
+- Output: YES, 1
+
+This is correct.
+
+What about n=1 and m=1 with a self-loop (u=v=1)?
+- This would mean technician 1 cannot work with themselves, which is impossible.
+- But the problem says "pairs of technicians", implying u ≠ v.
+- If such input is given, my code would:
+  - adj[1] = [1] (self-loop)
+  - Process 1: assign 1->1, queue=[1], pop 1
+  - Check neighbor 1: assignment[1] == assignment[1] (both 1). Conflict!
+  - Output: NO
+
+This is actually correct behavior for a self-loop, even though the problem probably doesn't have such inputs.
+
+I think the solution is complete and correct. Let me write the final code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr]); ptr += 1
+        v = int(data[ptr]); ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    assignment = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if assignment[start] != 0:
+            continue
+        assignment[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if assignment[v] == 0:
+                    assignment[v] = 3 - assignment[u]
+                    queue.append(v)
+                elif assignment[v] == assignment[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, assignment[1:])))
+
+solve()
+```
+
+This is the final solution.

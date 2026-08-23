@@ -1,0 +1,49 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    conflicts = defaultdict(set)
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1  # Convert to 0-based indexing
+        v = int(data[idx+1]) - 1
+        conflicts[u].add(v)
+        conflicts[v].add(u)
+        idx += 2
+    
+    # Try all 3^n assignments, but prune using constraints
+    # We'll use backtracking to find the lex smallest valid assignment
+    assignment = [-1] * n  # -1 means unassigned
+    
+    def is_valid(worker, shift):
+        for neighbor in conflicts[worker]:
+            if assignment[neighbor] == shift:
+                return False
+        return True
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        for shift in [1, 2, 3]:
+            if is_valid(i, shift):
+                assignment[i] = shift
+                if backtrack(i+1):
+                    return True
+                assignment[i] = -1
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, assignment)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,53 @@
+import sys
+
+def solve() -> None:
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    n = int(next(iterator))
+    m = int(next(iterator))
+
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].add(v)
+        adj[v].add(u)
+
+    best_triplet = None
+    min_score = -1
+
+    for u in range(1, n + 1):
+        neighbors = adj[u]
+        # We iterate through all pairs of neighbors of u.
+        # If two neighbors v and w are connected, (u, v, w) is a triangle.
+        # To ensure we process each triplet once and check validity,
+        # we iterate v and w such that v < w.
+        neighbors_list = list(neighbors)
+        deg = len(neighbors_list)
+        
+        for i in range(deg):
+            v = neighbors_list[i]
+            # Optimization: if v < u, the triangle (u, v, w) was already found
+            # when the outer loop was at v. 
+            if v < u:
+                continue
+            
+            for j in range(i + 1, deg):
+                w = neighbors_list[j]
+                if w < u:
+                    continue
+                
+                # Check if edge exists between v and w
+                if w in adj[v]:
+                    # Found a triangle (u, v, w) with u < v < w
+                    # Since we iterate u from 1 to n, and v, w in increasing order,
+                    # the first valid triplet found has the minimum score.
+                    a, b, c = u, v, w
+                    print(f"{a} {b} {c}")
+                    return
+
+if __name__ == '__main__':
+    solve()

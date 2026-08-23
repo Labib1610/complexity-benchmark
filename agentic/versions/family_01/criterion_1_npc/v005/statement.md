@@ -1,20 +1,16 @@
-# Shift Assignment with Incompatibilities
+# Problem A — Trichrome Shifts
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility operates across three distinct time slots, identified as 1, 2, and 3. There are $n$ workers who must each be assigned to a single time slot. Certain pairs of workers are incompatible and cannot be assigned to the same time slot. Determine whether it is possible to assign every worker to a time slot such that no incompatible pair shares a slot, and if so, find the valid assignment.
+A factory runs three shifts labeled 1, 2, 3. There are n workers. Some pairs of workers are in conflict and must not be placed on the same shift. Assign every worker to exactly one of the three shifts so that no conflicting pair shares a shift, or report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$.
-* The headcount $n$ satisfies $1 \le n \le 40$, bounded by the facility's single-shift room capacity.
-* The number of incompatible pairs $m$ ranges from $0$ up to the total number of distinct two-worker combinations, $\frac{n(n-1)}{2}$.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that worker $u$ and worker $v$ are incompatible.
+The first line contains two integers n and m — the number of workers and the number of conflict pairs. The number of workers n is at least 1 and at most the 40-person capacity of the factory break room. The number of conflict pairs m is at least 0 and at most the total number of distinct pairs of workers.
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid shift assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), where $s_i$ is the time slot assigned to worker $i$. If multiple valid assignments exist, output the lexicographically smallest sequence (compare $s_1$ first, then $s_2$, and so on).
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence (compare s₁ first, then s₂, and so on).
 
 ## Example 1
 Input:

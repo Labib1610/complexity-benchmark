@@ -1,6 +1,7 @@
 id: S03
 summary: Describe the special structure through its mechanics, never by name.
 classes: all
+perturbation_family: logical_equivalence
 
 Where the seed relies on a structural property, state that property as a set of
 operational rules about how the data is built or behaves. The reader must infer the

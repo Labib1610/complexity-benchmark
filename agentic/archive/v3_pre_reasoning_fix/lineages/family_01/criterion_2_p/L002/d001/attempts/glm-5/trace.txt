@@ -1,0 +1,943 @@
+Let me analyze this problem:
+
+1. We have n fields, each must be tuned to either 1 or 2
+2. We have m monitors, each connecting two fields
+3. Each monitor must read a total of exactly 3 (so if fields u and v are connected, s_u + s_v = 3)
+4. We need to find the lexicographically smallest valid assignment
+
+Since each field can only be 1 or 2, and the sum must be 3, if two fields are connected by a monitor, one must be 1 and the other must be 2.
+
+This is essentially a bipartite graph problem. We need to check if the graph is bipartite and find the lexicographically smallest valid 2-coloring.
+
+For each connected component:
+- If it has no edges, we can assign all nodes to 1 (lexicographically smallest)
+- If it has edges, we need to check if it's bipartite
+- For bipartite components, we need to choose the assignment that gives the lexicographically smallest result
+
+Let me think about the algorithm:
+
+1. Build the graph
+2. For each connected component:
+   - Check if it's bipartite using BFS/DFS
+   - If bipartite, determine which assignment gives the lexicographically smallest result
+3. If all components are bipartite, output the result; otherwise output NO
+
+For finding the lexicographically smallest assignment in a connected component:
+- We can do a BFS starting from the smallest node
+- Assign the starting node to 1
+- Then propagate: neighbors get 2, neighbors of neighbors get 1, etc.
+- This should give us the lexicographically smallest assignment because:
+  - The smallest node in the component gets 1 (smallest possible)
+  - Then we propagate in order of node index
+
+Wait, but this might not give the lexicographically smallest result. Let me think again.
+
+Actually, for a connected component with edges, we have two choices:
+- Choice A: node v gets 1, neighbors get 2, etc.
+- Choice B: node v gets 2, neighbors get 1, etc.
+
+To get the lexicographically smallest, we should:
+- Start BFS from the smallest node in the component
+- Try both assignments and pick the lexicographically smaller one
+
+But actually, if we start from the smallest node and assign it 1, then propagate, we get the lexicographically smallest assignment for that component. This is because:
+- The smallest node gets the smallest value (1)
+- Then we process nodes in order of their distance from the start, and within the same distance, in order of their index (due to BFS)
+
+Hmm, but BFS doesn't guarantee processing nodes in index order within the same level. Let me think more carefully.
+
+Actually, let me reconsider. The key insight is:
+- For each connected component, we need to decide which nodes get 1 and which get 2
+- If we fix one node's value, all others in the same component are determined
+- To get lexicographically smallest, we want smaller-indexed nodes to have smaller values when possible
+
+So the algorithm should be:
+1. For each connected component, start from the smallest-indexed node
+2. Assign it value 1
+3. BFS/DFS to assign values to all other nodes (alternating 1 and 2)
+4. If at any point we find a contradiction (a node needs to be both 1 and 2), output NO
+
+Wait, but this might not give the lexicographically smallest. Consider a component with nodes 1-2-3 (a path). If we start from node 1 and assign it 1:
+- Node 1: 1
+- Node 2: 2 (neighbor of 1)
+- Node 3: 1 (neighbor of 2)
+Result: [1, 2, 1]
+
+If we instead assign node 1 to 2:
+- Node 1: 2
+- Node 2: 1
+- Node 3: 2
+Result: [2, 1, 2]
+
+[1, 2, 1] is lexicographically smaller than [2, 1, 2], so starting with 1 is correct.
+
+But what if the graph is more complex? Let's say nodes 1-2-3-4 form a cycle 1-2-3-4-1. If we start from 1 with value 1:
+- Node 1: 1
+- Node 2: 2
+- Node 3: 1
+- Node 4: 2
+Check: 1-4 edge: 1+2=3 ✓
+Result: [1, 2, 1, 2]
+
+If we start from 1 with value 2:
+- Node 1: 2
+- Node 2: 1
+- Node 3: 2
+- Node 4: 1
+Check: 1-4 edge: 2+1=3 ✓
+Result: [2, 1, 2, 1]
+
+[1, 2, 1, 2] is lexicographically smaller.
+
+So the strategy of starting from the smallest node and assigning it 1 seems correct.
+
+But wait, what if the graph is not connected? We need to handle each component separately.
+
+For isolated nodes (no edges), they can be either 1 or 2. To get lexicographically smallest, we should assign them 1.
+
+Let me code this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr]); ptr += 1
+    m = int(input[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input[ptr]) - 1; ptr += 1
+        v = int(input[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n  # -1: unvisited, 0: value 1, 1: value 2
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        # BFS from start
+        queue = deque([start])
+        color[start] = 0  # Assign value 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+Wait, this doesn't handle the case where a node has no edges. Let me check: if a node has no edges, it won't be visited in the BFS, and its color will remain -1. We need to handle this.
+
+Actually, looking at my code again, the for loop iterates over all nodes, so isolated nodes will be visited and assigned color 0 (value 1). That's correct.
+
+But there's another issue: the BFS might not process nodes in the optimal order for lexicographically smallest result. Let me think about this more carefully.
+
+Consider a graph: 1-3, 2-3 (edges: (1,3), (2,3))
+If we start BFS from node 0 (index 0, which is node 1):
+- Node 0: 0 (value 1)
+- Node 2: 1 (value 2) - neighbor of 0
+- Node 1: 0 (value 1) - neighbor of 2
+Result: [1, 1, 2]
+
+But wait, let me re-index. In my code, nodes are 0-indexed. So:
+- Node 0 (field 1): 1
+- Node 1 (field 2): 1
+- Node 2 (field 3): 2
+
+Check: 1+2=3 ✓, 1+2=3 ✓
+
+Is this the lexicographically smallest? Let's see the alternative:
+- Node 0: 2
+- Node 2: 1
+- Node 1: 2
+Result: [2, 2, 1]
+
+[1, 1, 2] < [2, 2, 1], so the first assignment is correct.
+
+Actually, I realize my BFS approach might not be optimal. Let me think again.
+
+The issue is that when we start BFS from a node, we're essentially fixing its color. But what if starting from a different node in the same component gives a better result?
+
+Actually, since all nodes in a connected component are connected, fixing any one node's color determines all others. So starting from the smallest-indexed node and assigning it 1 should give the lexicographically smallest result.
+
+But wait, there's a subtlety. When we do BFS, the order in which we process nodes matters. If we use a regular queue (FIFO), we might not process nodes in index order.
+
+Let me think of a counterexample:
+Graph: 1-2, 1-3 (edges: (1,2), (1,3))
+BFS from node 0 (field 1):
+- Node 0: 1
+- Node 1: 2 (processed first)
+- Node 2: 2 (processed second)
+Result: [1, 2, 2]
+
+Alternative assignment:
+- Node 0: 2
+- Node 1: 1
+- Node 2: 1
+Result: [2, 1, 1]
+
+[1, 2, 2] < [2, 1, 1], so the first assignment is correct.
+
+Hmm, but what if we have a more complex graph?
+
+Graph: 1-2, 2-3, 1-3 (triangle)
+This is not bipartite, so we should output NO.
+
+Let me check my code handles this:
+- Start from node 0, color[0] = 0
+- Process node 0: neighbors are 1 and 2
+  - color[1] = 1, add to queue
+  - color[2] = 1, add to queue
+- Process node 1: neighbors are 0 and 2
+  - color[0] = 0, already set, no conflict
+  - color[2] = 1, but color[1] = 1, so color[2] == color[1], conflict!
+- Output NO
+
+Good, this handles the triangle case correctly.
+
+Now, let me think about whether my approach gives the lexicographically smallest result.
+
+For a connected component, we have two possible colorings (if bipartite). Let's call them coloring A and coloring B, where B is the "flip" of A (all 1s become 2s and vice versa).
+
+To get the lexicographically smallest, we should:
+1. Find the smallest-indexed node in the component
+2. Assign it value 1
+3. Propagate to all other nodes
+
+This gives us one coloring. The other coloring would have the smallest node as 2, which is lexicographically larger.
+
+So my approach should be correct. Let me verify with the examples:
+
+Example 1:
+n=4, m=4
+Edges: (1,2), (2,3), (3,4), (1,4)
+Graph: 0-1-2-3-0 (cycle of 4)
+
+BFS from node 0:
+- color[0] = 0 (value 1)
+- Process node 0: neighbors 1, 3
+  - color[1] = 1 (value 2)
+  - color[3] = 1 (value 2)
+- Process node 1: neighbors 0, 2
+  - color[0] = 0, OK
+  - color[2] = 0 (value 1)
+- Process node 3: neighbors 2, 0
+  - color[2] = 0, OK (already set)
+  - color[0] = 0, OK
+- Process node 2: neighbors 1, 3
+  - color[1] = 1, OK
+  - color[3] = 1, OK
+
+Result: [1, 2, 1, 2] ✓
+
+Example 2:
+n=3, m=3
+Edges: (1,2), (1,3), (2,3)
+Graph: 0-1-2-0 (triangle)
+
+BFS from node 0:
+- color[0] = 0
+- Process node 0: neighbors 1, 2
+  - color[1] = 1
+  - color[2] = 1
+- Process node 1: neighbors 0, 2
+  - color[0] = 0, OK
+  - color[2] = 1, but color[1] = 1, conflict!
+- Output NO ✓
+
+Great, my approach seems correct.
+
+But wait, I need to double-check the BFS order. In my code, I use a deque and process nodes in FIFO order. This might not give the optimal result in all cases.
+
+Let me think of a case where the order matters:
+
+Graph: 1-2, 1-3, 2-4, 3-4 (a "diamond" shape)
+Nodes: 0, 1, 2, 3
+Edges: (0,1), (0,2), (1,3), (2,3)
+
+BFS from node 0:
+- color[0] = 0
+- Process node 0: neighbors 1, 2
+  - color[1] = 1
+  - color[2] = 1
+- Process node 1: neighbors 0, 3
+  - color[0] = 0, OK
+  - color[3] = 0
+- Process node 2: neighbors 0, 3
+  - color[0] = 0, OK
+  - color[3] = 0, OK (already set)
+- Process node 3: neighbors 1, 2
+  - color[1] = 1, OK
+  - color[2] = 1, OK
+
+Result: [1, 2, 2, 1]
+
+Is this the lexicographically smallest? Let's check the alternative:
+- color[0] = 1 (value 2)
+- color[1] = 0 (value 1)
+- color[2] = 0 (value 1)
+- color[3] = 1 (value 2)
+Result: [2, 1, 1, 2]
+
+[1, 2, 2, 1] < [2, 1, 1, 2], so the first assignment is correct.
+
+Hmm, but what if we have multiple connected components? Let me think...
+
+If we have two disconnected components, we process them separately. For each component, we start from the smallest-indexed node and assign it 1. This should give the lexicographically smallest result overall.
+
+Actually, wait. If we have two disconnected components, say component A with nodes {0, 1} and component B with nodes {2, 3}, and we process them in order:
+- Component A: start from node 0, assign 1, then node 1 gets 2 (if connected)
+- Component B: start from node 2, assign 1, then node 3 gets 2 (if connected)
+
+But what if component A has no edges? Then node 0 and node 1 are both isolated. We'd assign:
+- Node 0: 1
+- Node 1: 1
+
+And for component B (if it has an edge):
+- Node 2: 1
+- Node 3: 2
+
+Result: [1, 1, 1, 2]
+
+This seems correct for lexicographically smallest.
+
+OK so I think my approach is correct. Let me refine the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr]); ptr += 1
+    m = int(input[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input[ptr]) - 1; ptr += 1
+        v = int(input[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n  # -1: unvisited, 0: value 1, 1: value 2
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        # BFS from start
+        queue = deque([start])
+        color[start] = 0  # Assign value 1
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+Actually, I realize there might be an issue. When I do BFS, I might not be processing nodes in the optimal order for lexicographically smallest result.
+
+Let me think more carefully. The key insight is:
+- For each connected component, we have exactly two valid colorings (if bipartite)
+- One coloring has the smallest-indexed node as 1, the other has it as 2
+- To get lexicographically smallest, we should choose the coloring where the smallest-indexed node is 1
+
+But within a component, the order in which we process nodes doesn't affect the final coloring (as long as we start from the smallest node and assign it 1). This is because the coloring is uniquely determined by the starting node's value.
+
+So my approach should be correct. Let me trace through once more:
+
+For each connected component:
+1. Find the smallest-indexed unvisited node
+2. Assign it value 1
+3. BFS to propagate the coloring
+4. If we find a conflict, output NO
+
+This gives the lexicographically smallest result because:
+- Each component's smallest node gets value 1 (smallest possible)
+- The rest of the coloring is uniquely determined
+
+I think the code is correct. Let me also handle the edge case where m=0 (no monitors):
+- All nodes are isolated
+- Each node can be 1 or 2
+- Lexicographically smallest: all nodes are 1
+
+My code handles this: each node is its own "component", and we assign it 1.
+
+Let me also check the edge case where n=1, m=0:
+- One node, no edges
+- Output: YES, 1
+
+My code handles this.
+
+Edge case where n=1, m=1 with edge (1,1) - self-loop:
+- This would require 1+1=3, which is impossible
+- But wait, the problem says "a monitor connecting field u and field v", which might allow u=v?
+
+Let me re-read the problem... It says "a monitor connecting field u and field v". It doesn't explicitly say u != v. If u = v, then we need s_u + s_u = 3, so 2*s_u = 3, which is impossible. So if there's a self-loop, we should output NO.
+
+Let me check my code handles this:
+- If u = v, then adj[u] contains u itself
+- When we process node u, we check its neighbor v = u
+- color[u] = 0, and we check if color[v] == color[u], which is color[u] == color[u], which is true
+- So we output NO
+
+Good, my code handles self-loops correctly.
+
+Actually wait, let me trace through more carefully:
+- color[start] = 0
+- Process node start: for each neighbor v in adj[start]
+  - If v == start (self-loop), then color[v] = color[start] = 0
+  - We check if color[v] == -1, which is false
+  - We check if color[v] == color[start], which is 0 == 0, true
+  - Output NO
+
+Yes, this is correct.
+
+Now let me also think about the complexity:
+- Building the adjacency list: O(n + m)
+- BFS: Each node and edge is visited once, so O(n + m)
+- Total: O(n + m)
+
+This should be efficient enough for n, m up to 2*10^5.
+
+I think the code is correct. Let me finalize it:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[ptr]) - 1; ptr += 1
+        v = int(data[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        queue = deque([start])
+        color[start] = 0
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+Hmm, I just realized there might be an issue with the BFS order. Let me think again...
+
+When we do BFS, we process nodes in the order they're added to the queue. This might not be in index order. But does this affect the final coloring?
+
+No, it doesn't! The final coloring is uniquely determined by the starting node's value. The order in which we process nodes only affects the order in which we discover the coloring, not the coloring itself.
+
+So my code should be correct.
+
+Actually, let me think about this more carefully. Consider a graph:
+- Nodes: 0, 1, 2
+- Edges: (0, 1), (0, 2)
+
+BFS from node 0:
+- color[0] = 0
+- Process node 0: neighbors 1, 2
+  - color[1] = 1
+  - color[2] = 1
+- Process node 1: neighbor 0
+  - color[0] = 0, OK
+- Process node 2: neighbor 0
+  - color[0] = 0, OK
+
+Result: [1, 2, 2]
+
+Alternative (if we processed in a different order):
+- color[0] = 0
+- Process node 0: neighbors 1, 2
+  - color[1] = 1
+  - color[2] = 1
+- Process node 2: neighbor 0
+  - color[0] = 0, OK
+- Process node 1: neighbor 0
+  - color[0] = 0, OK
+
+Result: [1, 2, 2]
+
+Same result! The order doesn't matter because the coloring is uniquely determined.
+
+OK I'm confident the code is correct now. Let me also add some optimizations for large inputs:
+
+Actually, the code is already efficient. Using sys.stdin.read() and splitting is faster than reading line by line. The BFS is O(n + m). I think we're good.
+
+One more thing: I should make sure the output format is correct. The problem says:
+- If impossible, output "NO"
+- If possible, output "YES" on the first line, and the n integers on the second line
+
+My code does this correctly.
+
+Let me also double-check the example outputs:
+
+Example 1:
+Input:
+4 4
+1 2
+2 3
+3 4
+1 4
+
+Expected output:
+YES
+1 2 1 2
+
+My code:
+- Build adjacency list: adj[0] = [1, 3], adj[1] = [0, 2], adj[2] = [1, 3], adj[3] = [2, 0]
+- BFS from node 0:
+  - color[0] = 0
+  - Process node 0: neighbors 1, 3
+    - color[1] = 1
+    - color[3] = 1
+  - Process node 1: neighbors 0, 2
+    - color[0] = 0, OK
+    - color[2] = 0
+  - Process node 3: neighbors 2, 0
+    - color[2] = 0, OK
+    - color[0] = 0, OK
+  - Process node 2: neighbors 1, 3
+    - color[1] = 1, OK
+    - color[3] = 1, OK
+- Output: YES, 1 2 1 2 ✓
+
+Example 2:
+Input:
+3 3
+1 2
+1 3
+2 3
+
+Expected output:
+NO
+
+My code:
+- Build adjacency list: adj[0] = [1, 2], adj[1] = [0, 2], adj[2] = [0, 1]
+- BFS from node 0:
+  - color[0] = 0
+  - Process node 0: neighbors 1, 2
+    - color[1] = 1
+    - color[2] = 1
+  - Process node 1: neighbors 0, 2
+    - color[0] = 0, OK
+    - color[2] = 1, but color[1] = 1, conflict!
+- Output: NO ✓
+
+Great, the code handles both examples correctly.
+
+Actually, I want to reconsider the lexicographically smallest aspect once more.
+
+Consider a graph with two disconnected components:
+- Component 1: nodes 0, 1 with edge (0, 1)
+- Component 2: nodes 2, 3 with edge (2, 3)
+
+My code:
+- BFS from node 0: color[0] = 0, color[1] = 1
+- BFS from node 2: color[2] = 0, color[3] = 1
+- Result: [1, 2, 1, 2]
+
+Is this the lexicographically smallest? Let's check alternatives:
+- If we flip component 1: [2, 1, 1, 2] - larger than [1, 2, 1, 2]
+- If we flip component 2: [1, 2, 2, 1] - larger than [1, 2, 1, 2]
+- If we flip both: [2, 1, 2, 1] - larger than [1, 2, 1, 2]
+
+So [1, 2, 1, 2] is indeed the lexicographically smallest. My code is correct.
+
+Now, what if we have:
+- Component 1: nodes 0, 2 with edge (0, 2)
+- Component 2: nodes 1, 3 with edge (1, 3)
+
+My code:
+- BFS from node 0: color[0] = 0, color[2] = 1
+- BFS from node 1: color[1] = 0, color[3] = 1
+- Result: [1, 1, 2, 2]
+
+Is this the lexicographically smallest? Let's check alternatives:
+- Flip component 1: [2, 1, 1, 2] - compare with [1, 1, 2, 2]
+  - [1, 1, 2, 2] vs [2, 1, 1, 2]
+  - First element: 1 < 2, so [1, 1, 2, 2] is smaller
+- Flip component 2: [1, 2, 2, 1] - compare with [1, 1, 2, 2]
+  - [1, 1, 2, 2] vs [1, 2, 2, 1]
+  - First element: 1 = 1
+  - Second element: 1 < 2, so [1, 1, 2, 2] is smaller
+- Flip both: [2, 2, 1, 1] - compare with [1, 1, 2, 2]
+  - First element: 1 < 2, so [1, 1, 2, 2] is smaller
+
+So [1, 1, 2, 2] is indeed the lexicographically smallest. My code is correct.
+
+I'm now confident the code is correct. Let me finalize:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[ptr]) - 1; ptr += 1
+        v = int(data[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        queue = deque([start])
+        color[start] = 0
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+Wait, I should also consider if there are duplicate edges. If there are duplicate edges (u, v) and (u, v) again, my code would handle it correctly because we'd just add v to adj[u] twice, but when processing, we'd check color[v] and it would already be set.
+
+What about edges (u, v) and (v, u)? Same thing, they're just added to the adjacency list twice.
+
+I think the code is robust. Let me also consider if there are no edges at all (m = 0):
+- All nodes are isolated
+- Each node gets color 0 (value 1)
+- Output: YES, 1 1 1 ... 1
+
+This is correct for lexicographically smallest.
+
+What if n = 0? The problem says 1 <= n, so we don't need to handle this case.
+
+I think the code is complete and correct. Let me write the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[ptr]) - 1; ptr += 1
+        v = int(data[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        queue = deque([start])
+        color[start] = 0
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+Actually, I want to use a simpler approach without deque. Since we're just doing BFS/DFS, we can use a list as a stack or queue:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[ptr]) - 1; ptr += 1
+        v = int(data[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        stack = [start]
+        color[start] = 0
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+This uses DFS instead of BFS, but the result is the same because the coloring is uniquely determined.
+
+Actually, I realize I should double-check if DFS gives the same result as BFS for lexicographically smallest.
+
+Consider the graph:
+- Nodes: 0, 1, 2, 3
+- Edges: (0, 1), (0, 2), (1, 3), (2, 3)
+
+BFS from node 0:
+- color[0] = 0
+- Process node 0: neighbors 1, 2
+  - color[1] = 1
+  - color[2] = 1
+- Process node 1: neighbors 0, 3
+  - color[0] = 0, OK
+  - color[3] = 0
+- Process node 2: neighbors 0, 3
+  - color[0] = 0, OK
+  - color[3] = 0, OK
+- Process node 3: neighbors 1, 2
+  - color[1] = 1, OK
+  - color[2] = 1, OK
+- Result: [1, 2, 2, 1]
+
+DFS from node 0 (using stack):
+- color[0] = 0
+- Process node 0: neighbors 1, 2
+  - color[1] = 1, push 1
+  - color[2] = 1, push 2
+- Stack: [1, 2]
+- Pop 2: neighbors 0, 3
+  - color[0] = 0, OK
+  - color[3] = 0, push 3
+- Stack: [1, 3]
+- Pop 3: neighbors 1, 2
+  - color[1] = 1, OK
+  - color[2] = 1, OK
+- Stack: [1]
+- Pop 1: neighbors 0, 3
+  - color[0] = 0, OK
+  - color[3] = 0, OK
+- Result: [1, 2, 2, 1]
+
+Same result! The coloring is uniquely determined, so the order doesn't matter.
+
+OK I'm confident the code is correct. Let me finalize:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[ptr]) - 1; ptr += 1
+        v = int(data[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        stack = [start]
+        color[start] = 0
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+This should be the correct and efficient solution.
+
+Hmm, let me reconsider once more. The problem says "lexicographically smallest sequence". I want to make sure my approach gives the lexicographically smallest.
+
+For each connected component, we have two choices:
+1. Assign the smallest node value 1, and propagate
+2. Assign the smallest node value 2, and propagate
+
+Choice 1 is always lexicographically smaller because the smallest node in the component gets value 1 instead of 2.
+
+But wait, what if there are multiple connected components? We process them in order of their smallest node. For each component, we assign the smallest node value 1. This should give the lexicographically smallest overall.
+
+Let me verify with an example:
+- Component 1: nodes 0, 2 with edge (0, 2)
+- Component 2: nodes 1, 3 with edge (1, 3)
+
+My code processes:
+- Component 1: start from node 0, color[0] = 0, color[2] = 1
+- Component 2: start from node 1, color[1] = 0, color[3] = 1
+- Result: [1, 1, 2, 2]
+
+Is this the lexicographically smallest? Let's check all possibilities:
+- [1, 1, 2, 2] - both components have smallest node as 1
+- [1, 2, 2, 1] - component 2 flipped
+- [2, 1, 1, 2] - component 1 flipped
+- [2, 2, 1, 1] - both flipped
+
+Comparing:
+- [1, 1, 2, 2] vs [1, 2, 2, 1]: first element same, second: 1 < 2, so [1, 1, 2, 2] is smaller
+- [1, 1, 2, 2] vs [2, 1, 1, 2]: first: 1 < 2, so [1, 1, 2, 2] is smaller
+- [1, 1, 2, 2] vs [2, 2, 1, 1]: first: 1 < 2, so [1, 1, 2, 2] is smaller
+
+So [1, 1, 2, 2] is indeed the lexicographically smallest. My code is correct.
+
+Actually, I realize there's a subtle issue. When I process components, I iterate through nodes in order (0, 1, 2, ...). For each unvisited node, I start a DFS/BFS. This means I process components in order of their smallest node.
+
+But what if a component has nodes {1, 3} and another has nodes {0, 2}? My code would:
+- Process node 0: start DFS/BFS for component {0, 2}
+- Process node 1: start DFS/BFS for component {1, 3}
+- Process node 2: already visited
+- Process node 3: already visited
+
+So the order of processing doesn't matter for the final result. Each component's smallest node gets value 1, which is the lexicographically smallest.
+
+I'm now fully confident the code is correct. Let me write the final version:
+
+```python
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr]); ptr += 1
+    m = int(data[ptr]); ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(data[ptr]) - 1; ptr += 1
+        v = int(data[ptr]) - 1; ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * n
+    
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        stack = [start]
+        color[start] = 0
+        
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    stack.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))
+
+solve()
+```
+
+This is my final solution. It correctly handles:
+1. Bipartite checking
+2. Lexicographically smallest assignment
+3. Multiple connected components
+4. Isolated nodes
+5. Self-loops (outputs NO)
+6. Large inputs efficiently
+
+I'm confident this is correct.

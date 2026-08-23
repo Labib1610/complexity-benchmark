@@ -1,18 +1,20 @@
-# Tri-Duty Allocation
+# Problem A — Security Clearance Resolution
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility operates across three distinct operational time slots, identified by the integers 1, 2, and 3. There are $n$ personnel members, indexed from 1 to $n$. Certain pairs of personnel experience workplace friction and cannot be assigned to the same time slot.
+In many distributed architectures, configuration rules can be resolved efficiently by propagating forced choices. You are given a system of $n$ components. Each component must be assigned a clearance level from the set $\{1, 2, 3\}$.
 
-Your task is to assign every personnel member to exactly one time slot (1, 2, or 3) such that no two individuals with workplace friction share the same slot. Among all valid assignments, select the one that yields the lexicographically smallest sequence of time slot choices $s_1, s_2, \dots, s_n$ (comparing $s_1$ first, then $s_2$, and so forth). If no valid assignment exists, report that it is impossible.
+To maintain strict compartmentalization, the system enforces $m$ separation rules. Each rule specifies two components $u$ and $v$ that must not share the same clearance level. Because these rules only restrict components two at a time, rather than imposing complex global dependencies, the constraints are highly localized. 
+
+Your task is to determine whether a valid clearance assignment exists for all $n$ components. If the system can be configured safely, you must output the lexicographically smallest sequence of clearance levels.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of personnel members and the number of friction pairs, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a pair of personnel members who cannot share a time slot.
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$) — the number of components and the number of separation rules.
+Each of the following $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$) representing a separation rule between component $u$ and component $v$.
 
 ## Output
 If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ is the time slot assigned to personnel member $i$. Output the lexicographically smallest valid assignment sequence.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the clearance level of each component. This sequence must be the lexicographically smallest among all valid assignments (comparing $c_1$ first, then $c_2$, and so on).
 
 ## Example 1
 Input:

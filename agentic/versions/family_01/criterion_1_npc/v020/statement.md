@@ -1,18 +1,18 @@
-# Vault Allocation
+# Orbital Power Routing
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A chemical research facility houses $n$ sensitive compounds, numbered $1$ through $n$. The facility has three isolated storage vaults labeled $1$, $2$, and $3$. Certain pairs of compounds are chemically volatile when stored together and must not be placed into the same vault.
+An orbital satellite contains $n$ electronic modules, numbered 1 through $n$. To distribute the electrical load, the satellite is equipped with exactly three independent power buses, designated as Bus 1, Bus 2, and Bus 3. Every module must be directly wired to exactly one of these three buses.
 
-You must assign every compound to exactly one vault such that no volatile pair shares a vault, or determine that no safe arrangement exists.
+Due to electromagnetic sensitivity, certain pairs of modules will experience severe crosstalk if they draw power from the same bus. You are provided with a list of all such incompatible module pairs. Your task is to determine whether it is possible to assign every module to a power bus such that no two incompatible modules share a bus.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — the number of chemical compounds and the number of incompatible pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ — indicating that compound $u$ and compound $v$ cannot be stored in the same vault.
+The first line contains two integers $n$ and $m$ — the number of modules and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of modules that cannot share the same bus.
 
 ## Output
-If no valid vault assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \dots s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the vault assignment for each compound $i$. If there are multiple valid assignments, output the one that is lexicographically smallest (comparing $s_1$ first, then $s_2$, and so on).
+If no safe routing configuration exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $b_1, b_2, \dots, b_n$ (each in $\{1,2,3\}$), where $b_i$ is the bus assignment for module $i$. Among all valid assignments, output the lexicographically smallest sequence (compare $b_1$ first, then $b_2$, and so on).
 
 ## Example 1
 Input:

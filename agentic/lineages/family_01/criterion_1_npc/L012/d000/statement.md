@@ -1,18 +1,20 @@
-# Shift Scheduling Conflicts
+# Problem A — Deployment Tiers
 
 Time limit: 2 s   Memory limit: 256 MB
 
-There are $n$ workers in a facility and $m$ specified pair-wise conflicts between them. A valid schedule requires that any two workers who are in conflict must not be assigned to the same work shift. Exactly three shifts are available, labeled 1, 2, and 3. Every worker must be assigned to one of these three shifts.
+A software system consists of $n$ microservices, identified by integers from 1 to $n$. You must assign each microservice a security tier. A tier is represented by a positive integer strictly less than 4.
 
-Given these conflict rules and shift options, determine whether a valid assignment exists for every worker. If multiple valid assignments exist, choose the one that forms the lexicographically smallest sequence of shift numbers $(s_1, s_2, \dots, s_n)$.
+Extensive testing has revealed that certain pairs of microservices exhibit parallel execution flaws. If a pair with this flaw operates at the exact same security tier, the system becomes unstable. To guarantee stability, the two microservices in any such pair must be assigned to different tiers.
+
+You must determine a valid tier assignment for all $n$ microservices. If there are several valid ways to assign the tiers, you must prefer the configuration that assigns the lowest possible tier to microservice 1. If ties remain, you must break them by minimizing the tier assigned to microservice 2, continuing this element-by-element comparison up to microservice $n$. If no such configuration is possible, you must report this failure.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of workers and the number of conflict pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u\ v$ — a conflicting pair.
+The first line provides $n$ and $m$ — the number of microservices and the number of flawed pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$, indicating that microservice $u$ and microservice $v$ share a parallel execution flaw.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise print `YES` on the first line. On the second line print $n$ integers $s_1\ s_2\ \dots\ s_n$ (each in \{1,2,3\}), where $s_i$ is the shift of worker $i$. Among all valid assignments output the lexicographically smallest sequence (compare $s_1$ first, then $s_2$, and so on).
+If the system cannot be stabilized, output a single line with the word NO.
+Otherwise, output YES on the first line. On the second line, output $n$ integers separated by spaces, representing the tiers assigned to microservices 1 through $n$ respectively, following the tie-breaking rules described above.
 
 ## Example 1
 Input:

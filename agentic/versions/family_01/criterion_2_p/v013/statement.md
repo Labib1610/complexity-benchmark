@@ -1,22 +1,20 @@
-# Shift Allocation Optimization
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A facility employs $n$ workers, indexed from $1$ to $n$. The facility operates across two distinct operational windows, designated as Schedule 1 and Schedule 2.
+The factory administration must assign each of its $n$ workers to one of two operational shifts, labeled 1 and 2. A complete schedule can be represented as a sequence of $n$ shift choices, meaning there are $2^n$ possible configurations to consider for the upcoming week.
 
-There are $m$ pairwise incompatibility constraints between specific pairs of workers. An incompatibility constraint between worker $u$ and worker $v$ dictates that worker $u$ and worker $v$ cannot be assigned to the same operational window.
+However, a configuration is only valid if it satisfies a set of $m$ strict separation constraints. Each constraint specifies two workers who have a history of disputes; a valid configuration must never place both workers in the same shift.
 
-Evaluating all $2^n$ possible schedule configurations to find one where no two incompatible workers share an operational window is a major operational challenge. Your task is to determine whether there exists any valid schedule assignment of every worker to either Schedule 1 or Schedule 2 such that all $m$ incompatibility constraints are simultaneously satisfied.
-
-If one or more valid assignments exist, you must output the one that is lexicographically smallest. That is, comparing two valid schedule sequences $(s_1, s_2, \dots, s_n)$ and $(t_1, t_2, \dots, t_n)$, the sequence $s$ is smaller if at the first index $i$ where $s_i \neq t_i$, $s_i < t_i$.
+Your objective is to search this space to find a valid configuration. Because there may be multiple such configurations, the administration requires the optimal one—specifically, the valid configuration that is lexicographically smallest when written as a sequence of $n$ shift labels. If the constraint system is so restrictive that absolutely no valid configuration exists in the entire $2^n$ space, you must report this impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of workers and the number of pairwise incompatibility constraints, respectively.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$), indicating that worker $u$ and worker $v$ cannot share the same schedule.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of workers and the number of separation constraints, respectively. 
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) — a pair of workers who cannot share the same shift.
 
 ## Output
-If no valid schedule configuration exists that satisfies all constraints, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid schedule configuration.
+If no valid configuration exists among all possibilities, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1,2\}$), representing the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

@@ -1,0 +1,102 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    # Sort edges to process in lexicographic order
+    edges.sort()
+    
+    # For each edge (u, v), check if there exists w such that
+    # w is connected to both u and v, and w > v (to ensure u < v < w)
+    # We want the lexicographically smallest triple, so we process edges
+    # in order and find the smallest valid w
+    
+    # To speed up intersection checks, we can iterate through edges
+    # and for each edge, iterate through candidates w in the adjacency of u
+    # that are > v and check if w is in adjacency of v
+    
+    # Since we process edges in sorted order, the first valid triple found
+    # will be lexicographically smallest
+    
+    for u, v in edges:
+        # We need w > v, so iterate through neighbors of u that are > v
+        # and check if they are neighbors of v
+        # To find smallest w, we should iterate in order
+        # Convert to sorted list for deterministic order (though set iteration is arbitrary)
+        # But since we want smallest w, we should check in increasing order
+        # So we sort the candidates
+        candidates = [w for w in adj[u] if w > v]
+        candidates.sort()
+        for w in candidates:
+            if w in adj[v]:
+                print(u, v, w)
+                return
+    
+    # If no triple found with w > v, we need to check other orderings
+    # But since at least one Hedge Ring exists, we should find it
+    # The above loop finds triples where u < v < w
+    # If no such triple exists, we need to check other orderings
+    
+    # Let's check all possible orderings
+    # We need three nodes a < b < c such that all three pairs are connected
+    # So we can iterate through all triples a < b < c and check
+    
+    # But this is O(n^3) which is too slow for n=2000
+    # Instead, we can use the fact that we already checked edges (u, v)
+    # and looked for w > v
+    
+    # If no triple found with u < v < w, then the Hedge Ring must have
+    # a different ordering. Let's check edges (u, w) where u < w and look for v < u
+    # or edges (v, w) where v < w and look for u < v
+    
+    # Actually, the condition is that all three pairs must be connected
+    # So for any triple (a, b, c) with a < b < c, we need:
+    # (a, b), (a, c), (b, c) all in edges
+    
+    # The above loop already checks this for all edges (a, b) and looks for c > b
+    
+    # If no triple found, then the Hedge Ring must have a different structure
+    # But the problem guarantees at least one exists
+    
+    # Let's try a different approach: for each node, check its neighbors
+    # and find a pair of neighbors that are connected
+    
+    for a in range(1, n + 1):
+        neighbors = sorted(adj[a])
+        # For each pair of neighbors b < c where both > a
+        # check if b and c are connected
+        for i in range(len(neighbors)):
+            b = neighbors[i]
+            if b <= a:
+                continue
+            for j in range(i + 1, len(neighbors)):
+                c = neighbors[j]
+                if c <= b:
+                    continue
+                if c in adj[b]:
+                    print(a, b, c)
+                    return
+    
+    # If still not found, check other orderings
+    # This shouldn't happen given the guarantee
+    print("")
+
+if __name__ == "__main__":
+    solve()

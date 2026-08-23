@@ -1,18 +1,16 @@
-# Shift Allocation
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A facility operates two shifts, labeled 1 and 2. Given $n$ personnel and $m$ incompatibility pairs, assign each person a shift so that no incompatible pair shares a shift, or report that no such assignment exists. If multiple valid shift schedules exist, determine the lexicographically smallest sequence of shift assignments.
+The same factory now runs only two shifts, labeled 1 and 2. With $n$ workers and $m$ conflict pairs, assign each worker a shift so that no conflicting pair shares a shift, or report impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$. The headcount $n$ ranges from a single person up to the facility's total worker capacity of two hundred thousand ($1 \le n \le 2 \cdot 10^5$). The number of conflict pairs $m$ is non-negative and bounded by that same upper limit ($0 \le m \le 2 \cdot 10^5$).
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), denoting a pair of mutually incompatible workers.
+The first line contains two integers $n$ and $m$. The number of workers $n$ is at least $1$ and is bounded by the factory's maximum fire-code capacity of $2 \cdot 10^5$. The number of logged conflicts $m$ ranges from zero up to this same capacity limit.
+Each of the next $m$ lines contains two integers $u$ $v$ — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-
-Otherwise, print `YES`, followed by a second line containing $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

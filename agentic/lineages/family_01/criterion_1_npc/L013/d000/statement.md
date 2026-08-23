@@ -1,21 +1,21 @@
-# Schedule Compatibility Assignment
+# Problem A — Scheduling Pipeline: Phase 2
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An industrial facility manages a headcount of $n$ staff members, identified by numbers $1$ through $n$. The facility operates across three sequential time blocks designated as $1$, $2$, and $3$.
+A factory's automated management software operates in three phases. 
+In Phase 1, the HR module collects data on n workers and identifies pairs of workers who have interpersonal conflicts. 
 
-Certain pairs of staff members are flagged as mutually incompatible and cannot be assigned to work during the same time block. Every staff member must be assigned to exactly one of the three available time blocks such that no two mutually incompatible staff members share a time block.
+Your task is to implement Phase 2: the shift assignment module. The factory runs three shifts labeled 1, 2, and 3. You must assign every worker to exactly one of the three shifts so that no conflicting pair shares a shift. 
 
-If multiple valid schedule configurations exist, select the configuration that minimizes the assigned time block number of staff member 1; if ties remain, minimize for staff member 2, then staff member 3, and so on up to staff member $n$. If no valid configuration satisfies all incompatibility conditions, report that it cannot be done.
+In Phase 3, the payroll module will take your assignment and generate the daily timetables. To ensure Phase 3 behaves predictably, if multiple valid assignments exist, you must provide the lexicographically smallest sequence of shift assignments (comparing the shift of worker 1 first, then worker 2, and so on). If no valid assignment is possible, Phase 2 must report that it is impossible so the software can alert management.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the headcount of staff members and the number of incompatible pairings ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that staff member $u$ and staff member $v$ are mutually incompatible.
+The first line contains two integers n and m — the number of workers and the number of conflict pairs identified in Phase 1 (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+Each of the next m lines contains two integers u v — a conflicting pair.
 
 ## Output
-If no valid schedule configuration exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the time block assigned to staff member $i$. Among all valid schedule configurations, output the sequence prioritized by the tie-breaking rule.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers s₁ s₂ … sₙ (each in {1,2,3}), where sᵢ is the shift of worker i. Among all valid assignments output the lexicographically smallest sequence.
 
 ## Example 1
 Input:

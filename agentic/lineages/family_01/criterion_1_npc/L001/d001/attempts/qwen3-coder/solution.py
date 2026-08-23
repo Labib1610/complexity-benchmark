@@ -1,0 +1,47 @@
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n, m = int(data[0]), int(data[1])
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # Try to color the graph with 3 colors using backtracking
+    # Colors are 1, 2, 3. 0 means unassigned
+    color = [0] * (n + 1)
+    
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] == c:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for c in [1, 2, 3]:
+            if is_safe(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+        return False
+    
+    # Start backtracking from node 1
+    if backtrack(1):
+        print("YES")
+        print(' '.join(map(str, color[1:])))
+    else:
+        print("NO")
+
+solve()

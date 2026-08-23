@@ -1,0 +1,35 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list using sets for O(1) lookup
+    adj = [set() for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        adj[u].add(v)
+        adj[v].add(u)
+        index += 2
+    
+    # Iterate through all combinations of three metals in lexicographical order
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            if b not in adj[a]:
+                continue
+            for c in range(b + 1, n + 1):
+                if c not in adj[a] or c not in adj[b]:
+                    continue
+                # Found a valid triangle
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    main()

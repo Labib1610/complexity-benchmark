@@ -1,22 +1,20 @@
-# Shift Assignment Coordination
+# Problem A — Security Tier Allocation
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility manages $n$ individuals, identified by integer labels from $1$ through $n$. Operations at the facility are divided into three distinct operational shifts, indexed as $1$, $2$, and $3$.
+A distributed architecture consists of $n$ modules, which are subject to $m$ separation protocols. Each separation protocol acts as a strict restriction between a given pair of modules. 
 
-Certain pairs of individuals have mutual incompatibilities. A collection of $m$ distinct incompatibility conditions is given, where each condition specifies two individuals who cannot be scheduled in the same operational shift.
+The system utilizes exactly three security tiers, denoted by the integers 1, 2, and 3. A valid configuration of the architecture requires that every module is assigned exactly one security tier, with the condition that no two modules connected by a separation protocol share the same tier.
 
-A valid schedule assigns each individual $i$ (for $1 \le i \le n$) to a single shift $s_i \in \{1, 2, 3\}$ such that no incompatibility condition is violated. The configuration of a schedule is represented by the sequence of choices $(s_1, s_2, \dots, s_n)$.
-
-Your task is to determine whether a valid schedule exists. If one or more valid schedules exist, you must output the one that is lexicographically smallest. Otherwise, you must indicate that no valid schedule can be formed.
+Your task is to determine whether the entire architecture can be configured under these conditions. If a valid configuration exists, you must output the sequence of security tiers that is lexicographically smallest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of individuals and the number of mutual exclusion restrictions, respectively.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating a pair of individuals who cannot share the same operational shift.
+The first line contains two integers $n$ and $m$ (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$) — the number of modules and the number of separation protocols.
+Each of the following $m$ lines contains two integers $u$ and $v$ (1 ≤ $u, v$ ≤ $n$, $u \neq v$) representing a separation protocol between module $u$ and module $v$.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \dots s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the assigned operational shift for each individual from $1$ to $n$. Output the lexicographically smallest valid sequence if multiple valid assignments exist.
+If no valid configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the security tier of each module. This sequence must be the lexicographically smallest among all valid configurations (comparing $c_1$ first, then $c_2$, and so on).
 
 ## Example 1
 Input:

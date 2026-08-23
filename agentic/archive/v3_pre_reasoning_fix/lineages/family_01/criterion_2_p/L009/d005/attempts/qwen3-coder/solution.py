@@ -1,0 +1,88 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    adj = [[] for _ in range(n)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+        index += 2
+    
+    # For each edge (u,v), the intersection of their windows must be exactly 1 hour
+    # Window 1: [0,2]
+    # Window 2: [1,3]
+    # Overlaps:
+    # 1 and 1: [0,2] ∩ [0,2] = [0,2] -> length 2 --> INVALID
+    # 1 and 2: [0,2] ∩ [1,3] = [1,2] -> length 1 --> VALID
+    # 2 and 1: [1,3] ∩ [0,2] = [1,2] -> length 1 --> VALID
+    # 2 and 2: [1,3] ∩ [1,3] = [1,3] -> length 2 --> INVALID
+    
+    # So, for every edge, the two endpoints must have different windows.
+    # This is a 2-coloring (bipartite) problem.
+    
+    color = [-1] * n
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 0
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[u] = 1 - color[v]
+                    return False
+                elif color[v] == color[u]:
+                    return False
+                # else already colored correctly, continue
+        return True
+    
+    for i in range(n):
+        if color[i] == -1:
+            queue = deque()
+            queue.append(i)
+            color[i] = 0
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        queue.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+    
+    # If we reach here, a valid coloring exists.
+    # We need the lexicographically smallest one.
+    # Since we start coloring with 0 and consistently assign 1 - color,
+    # and we process nodes in order, this should give us the lex smallest.
+    # But we need to ensure that we try to assign 0 (window 1) first.
+    # Actually, our BFS already ensures that by starting with color 0.
+    
+    # Let's re-encode colors: 0 -> 1, 1 -> 2
+    result = []
+    for c in color:
+        result.append(str(c + 1))
+    
+    print("YES")
+    print(" ".join(result))
+
+if __name__ == "__main__":
+    main()

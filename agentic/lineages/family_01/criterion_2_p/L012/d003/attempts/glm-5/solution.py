@@ -1,0 +1,67 @@
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0] * (n + 1)
+    components = []
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            comp = []
+            q = deque([i])
+            color[i] = 1
+            while q:
+                u = q.popleft()
+                comp.append(u)
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+            components.append(comp)
+    
+    # For each component, we have two choices: keep colors or flip colors.
+    # We want to minimize sum of (s_i - 1) * 2^(n-i).
+    # Since 2^(n-1) > 2^(n-2) + ... + 2^0, we greedily assign from left to right.
+    # For each component, we want to minimize the first (leftmost) index's value.
+    # If the leftmost index is fixed to 1, we keep the coloring if color[leftmost] == 1,
+    # else flip. If it's fixed to 2, we do the opposite.
+    # But since we process left to right, the first component we encounter (with smallest
+    # leftmost index) should have its leftmost index set to 1 if possible.
+    # Actually, since each component is independent, for each component, we want to
+    # minimize the value at its leftmost index. So we set the leftmost index to 1.
+    
+    # Sort components by their minimum index (which is the first element since BFS starts from smallest unvisited)
+    # Actually, the components are already in order of their first element because we iterate i from 1 to n.
+    
+    final_color = [0] * (n + 1)
+    for comp in components:
+        leftmost = min(comp)
+        # We want final_color[leftmost] = 1
+        if color[leftmost] == 1:
+            for u in comp:
+                final_color[u] = color[u]
+        else:
+            for u in comp:
+                final_color[u] = 3 - color[u]
+    
+    print("YES")
+    print(' '.join(str(final_color[i]) for i in range(1, n + 1)))
+
+solve()

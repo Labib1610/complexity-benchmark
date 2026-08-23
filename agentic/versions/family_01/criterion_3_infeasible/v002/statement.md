@@ -1,21 +1,16 @@
-# Problem C — Signal Interference Audit
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A telecom provider operates $n$ wireless relay stations, numbered $1$ to $n$. Due to overlapping frequency bands, certain pairs of stations experience mutual signal interference.
-
-An audit requires identifying three distinct stations that all mutually interfere with one another—meaning every pair among the three interferes. It is guaranteed that at least one such set of three mutually interfering stations exists.
-
-Your task is to find one such set.
+The laboratory still has only two storage units, 1 and 2, but the allocation is known to be hopeless. Your job is not to assign units — it is to certify the impossibility. It is guaranteed that the reaction registry contains at least one set of three chemicals that pairwise react. Any such set proves two units cannot suffice. Output one such set.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of relay stations and the number of interfering pairs, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$, indicating that relay stations $u$ and $v$ mutually interfere.
-It is guaranteed that at least one such set of three stations exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a reacting pair.
+It is guaranteed that at least one such triple exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$ such that station $a$ interferes with $b$, $a$ interferes with $c$, and $b$ interferes with $c$.
-Output the lexicographically smallest such triple (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print three integers a b c on one line with a < b < c such that all three pairs a–b, a–c, b–c are reactions. Output the lexicographically smallest such triple (smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

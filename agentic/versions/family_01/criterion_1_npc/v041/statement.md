@@ -1,22 +1,18 @@
-# Operational Shift Assignment
+# Problem A — Roster Planning
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility manages a team of $n$ staff members, labeled $1$ through $n$. Each staff member must be assigned to one of three available work shifts: shift $1$, shift $2$, or shift $3$.
+A facility employs $n$ personnel. The daily operation is divided into a morning, afternoon, and evening block (identified by the integers 1, 2, and 3). Due to operational guidelines, certain pairs of personnel are required to be placed in different time blocks.
 
-There are $m$ specified pairs of staff members who have interpersonal conflicts and cannot be assigned to the same shift. 
-
-Determine whether a valid shift schedule exists such that no conflicting pair of staff members works during the same shift. If one or more valid schedules exist, find the schedule that yields the lexicographically smallest sequence of shift choices when listed in order from staff member $1$ to staff member $n$.
+Your task is to determine if it is possible to assign each person to exactly one time block such that all separation guidelines are satisfied. 
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), representing the number of staff members and the number of conflicting pairs, respectively.
-
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that staff member $u$ and staff member $v$ have a conflict and cannot share the same shift.
+The first line provides two integers $n$ and $m$ (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2), representing the number of personnel and the number of separation guidelines.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that person $u$ and person $v$ must be given different time blocks.
 
 ## Output
-If no valid shift schedule exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1\ s_2\ \dots\ s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ represents the shift assigned to staff member $i$. Among all valid assignments, output the one that is lexicographically smallest.
+If there is no valid way to assign the time blocks, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $s_1, s_2, \dots, s_n$ separated by spaces, where $s_i \in \{1, 2, 3\}$ is the time block assigned to person $i$. Among all valid assignments, output the lexicographically smallest sequence (compare $s_1$ first, then $s_2$, and so on).
 
 ## Example 1
 Input:

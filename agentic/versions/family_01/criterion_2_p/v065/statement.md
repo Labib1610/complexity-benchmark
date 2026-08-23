@@ -1,23 +1,25 @@
-# Factory Roster Optimization
+# Problem B — Facility Allocation
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A manufacturing plant operates under two distinct operational modes, designated as Mode 1 and Mode 2. The plant employs $n$ personnel, numbered $1$ through $n$. There are $m$ restriction rules given between pairs of personnel. Each rule specifies two personnel who cannot be assigned to the same operational mode.
+A corporation is distributing its $n$ employees between two separate production facilities, designated as Facility 1 and Facility 2. 
 
-We say two personnel belong to the same restriction group if they are directly linked by a restriction rule, or indirectly linked through a sequence of restriction rules. To comply with plant protocol, the final mode assignment must satisfy the following requirement:
-- Within each restriction group, the person with the smallest numeric identifier among all members of that group must be assigned to Mode 1.
+The HR department has identified $m$ compatibility issues. Each issue involves a specific pair of employees who have a history of conflict. To maintain productivity, any two employees involved in a shared compatibility issue must be placed in different facilities. 
 
-Your task is to determine whether it is possible to assign every person to either Mode 1 or Mode 2 such that no restriction rule is violated and the plant protocol is met. If valid assignments exist, output the mode sequence $(s_1, s_2, \dots, s_n)$ that is lexicographically smallest.
+To guarantee that the management system can process the data, the dataset satisfies the following structural properties:
+1. The sum of the number of conflicts each employee is involved in, taken over all $n$ employees, is exactly $2m$.
+2. If we group employees such that any two employees connected by a chain of conflicts are in the same group, the total number of these independent groups (including employees with zero conflicts) is at least $n - m$.
+
+Your task is to determine if it is possible to assign every employee to either Facility 1 or Facility 2 without violating the compatibility restrictions. If it is possible, you must provide the assignment. If multiple valid assignments exist, you must provide the one that is lexicographically smallest when the assignment is represented as a sequence of facility numbers (1s and 2s) for employees $1$ through $n$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of personnel and the number of restriction rules, respectively.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that person $u$ and person $v$ cannot share the same operational mode.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+The following $m$ lines each contain two integers $u$ and $v$, representing a compatibility issue between employee $u$ and employee $v$.
 
 ## Output
-If no valid assignment satisfies all constraints, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid mode assignment.
+If there is no way to assign the employees to the two facilities under the given rules, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer is the facility number (1 or 2) assigned to employee $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

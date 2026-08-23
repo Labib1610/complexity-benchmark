@@ -1,22 +1,19 @@
-# Factory Operations Pipeline: Shift Partitioning Module
+# Problem A — Schedule Allocation
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-## Description
-As part of an automated facility management workflow, employee scheduling is executed in three consecutive phases:
-1. *Constraint Aggregation*: The system compiles a list of paired personnel who cannot be present on the factory floor simultaneously due to safety regulations.
-2. *Duty Assignment (Current Phase)*: Every employee must be assigned to exactly one of three available operational shifts (designated as 1, 2, or 3). An assignment is valid if no two conflicting personnel share the same shift assignment. If valid assignments exist, the system requires the lexicographically smallest sequence of shift numbers to ensure deterministic pipeline execution downstream. If no valid partition exists, execution halts.
-3. *Audit & Logging*: The generated assignment is forwarded to the compliance logging module.
+In a manufacturing facility, the workforce consists of $n$ employees. Over time, interpersonal issues have developed, resulting in a known list of incompatible employee pairs. The facility's operations are divided into three distinct daily schedules, which are designated by the numbers 1, 2, and 3. Management enforces a strict policy for organizing the workforce: any two employees who are listed as incompatible must be assigned to different schedules. Furthermore, every employee must be placed into exactly one of these three schedules.
 
-Your task is to implement Phase 2 of this workflow. Given the total number of employees and the list of pairwise conflicts, determine whether a valid assignment of shifts 1, 2, or 3 exists. If impossible, report `NO`. Otherwise, output `YES` followed by the lexicographically smallest sequence of shift numbers assigned to employees 1 through $n$.
+Your task is to determine whether it is possible to distribute the employees according to these rules. If it is possible, you must find the specific valid distribution that is lexicographically smallest when represented as a sequence of schedule numbers (meaning the schedule number for employee 1 is minimized, first and foremost, then employee 2, and so on).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of employees and the number of conflicting pairs.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that employee $u$ and employee $v$ cannot share a shift.
+The first line contains two integers $n$ and $m$ — the number of employees and the number of incompatible pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of employees who are incompatible.
 
 ## Output
-If no valid shift assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ where $s_i \in \{1, 2, 3\}$ represents the shift assigned to employee $i$. If multiple valid shift assignments exist, output the one that is lexicographically smallest (i.e., comparing $s_1$ first, then $s_2$, and so on).
+If there is no way to assign schedules that satisfies all rules, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the schedule assigned to employee $i$. If there are multiple valid assignments, output the one whose sequence $s_1, s_2, \dots, s_n$ is lexicographically smallest.
 
 ## Example 1
 Input:

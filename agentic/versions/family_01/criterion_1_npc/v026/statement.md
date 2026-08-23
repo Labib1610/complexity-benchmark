@@ -1,24 +1,24 @@
-# Problem A — Spectrum Division Protocol
+# Problem A — Orbital Telemetry Pipeline
 
 Time limit: 2 s   Memory limit: 256 MB
 
-As part of an automated signal pipeline, the control system executes three consecutive procedures: Signal Extraction, Spectrum Division, and Packet Encoding.
+The orbital mapping pipeline operates in three distinct stages to ensure stable telemetry from a constellation of $n$ satellites. 
 
-In the completed Signal Extraction phase, the system registered $n$ active broadcast units, numbered $1$ through $n$, and identified $m$ interfering pairs of units.
+**Stage A: Calibration.** The system registers the satellites and conducts signal diagnostics. This stage has already been completed. Its output is a log of $m$ satellite pairs whose transmission beams overlap and cause cross-talk.
 
-In the current **Spectrum Division** phase, every unit must be assigned to exactly one of three available operational frequencies, represented by the integers $1$, $2$, and $3$. If two units form an interfering pair, they cannot be assigned to the same frequency.
+**Stage B: Frequency Allocation (Your Module).** You must process the diagnostic log from Stage A to configure the communications array. The array hardware supports exactly three distinct frequency bands, designated 1, 2, and 3. Your module must assign every satellite to exactly one frequency band. To guarantee data integrity, no two satellites flagged for cross-talk in Stage A may be assigned the same frequency band. 
 
-Once this phase succeeds, the chosen frequency assignment sequence $s_1, s_2, \dots, s_n$ will be passed directly to the Packet Encoding phase. If multiple valid frequency assignments exist, you must select the one that is lexicographically smallest (comparing $s_1$ first, then $s_2$, and so on) to ensure downstream deterministic initialization. If no valid assignment can satisfy all interference constraints, the processing pipeline aborts.
+**Stage C: Initialization.** The satellites boot up and begin transmission using your configuration. The boot sequence is fully deterministic: if multiple valid allocations exist, your module must provide the one that is lexicographically first. That is, it must minimize the frequency band assigned to satellite 1; if there are ties, it must minimize the band for satellite 2, and so on. If no valid allocation can be found, your module must halt the pipeline.
 
-Determine whether a valid assignment exists, and if so, produce the lexicographically smallest frequency allocation sequence.
+Write the software for Stage B.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of broadcast units and the number of interfering pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that unit $u$ and unit $v$ form an interfering pair.
+The first line of the input contains two integers $n$ and $m$ — the number of satellites and the number of cross-talk pairs (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n \cdot (n-1)/2$). 
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of satellites that experience cross-talk.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the frequency assigned to unit $i$. Among all valid assignments, output the lexicographically smallest sequence.
+If the pipeline must be halted because no valid frequency allocation exists, print a single line containing `NO`. 
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the frequency band assigned to satellite $i$. Remember to output the lexicographically smallest valid sequence.
 
 ## Example 1
 Input:

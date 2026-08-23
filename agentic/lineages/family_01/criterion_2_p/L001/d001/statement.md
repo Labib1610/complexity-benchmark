@@ -1,0 +1,45 @@
+# Problem B — Pairs Trading Strategy
+
+Time limit: 1 s   Memory limit: 256 MB
+
+A quantitative hedge fund is configuring an automated trading algorithm for a universe of $n$ equities, numbered 1 through $n$. The algorithm requires each equity to be assigned exactly one trading posture: posture 1 (representing a long position) or posture 2 (representing a short position).
+
+The fund's market analysis has identified $m$ pairs of equities that are strongly cointegrated. To maintain a market-neutral profile, the algorithm mandates that for every cointegrated pair identified, the two equities involved must be assigned different postures.
+
+Your task is to construct such a posture assignment for all $n$ equities. If it is impossible to balance the cointegrated pairs according to this rule, you must report this failure. Should there be more than one assignment that meets all mandates, you must output the sequence of postures that is lexicographically smallest.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of equities and the number of cointegrated pairs.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that equity $u$ and equity $v$ form a cointegrated pair.
+
+## Output
+If no valid assignment of trading postures is possible, output a single line containing `NO`.
+Otherwise, output a line containing `YES`. On the following line, output $n$ space-separated integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2\}$) representing the assigned posture for each equity. This sequence must be the lexicographically smallest among all valid assignments.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

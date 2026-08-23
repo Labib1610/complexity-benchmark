@@ -1,28 +1,29 @@
-# Multi-Channel Signal Allocation
+# Problem A — Shift Allocation Protocol
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A telemetry system must distribute data streams across three operating frequency bands, identified by the integers 1, 2, and 3. The system processes $n$ distinct streams, numbered 1 to $n$. Every stream must be routed through exactly one frequency band.
+A corporate processing center is overhauling its induction pipeline. The pipeline operates in a dedicated orientation hall containing exactly 8 rows of 5 biometric scanning stations.
 
-Certain streams generate inter-channel noise when placed on the same band. You are given $m$ specific pairs of mutually interfering streams that must be assigned to different frequency bands.
+During the initial phase, a cohort of new hires is processed. Each individual in the cohort is assigned a unique identifier from $1$ to $n$.
 
-Determine if an interference-free routing exists. If such a configuration is possible, find the configuration that minimizes the sequence of assigned bands $s_1, s_2, \dots, s_n$ lexicographically (prioritizing the lowest possible band index for stream 1, then stream 2, through stream $n$).
+Next, a background screening system cross-references the cohort to find individuals with documented prior grievances. It produces a list of conflicting pairs. 
+
+The core requirement is to allocate each person to a daily work shift. There are exactly three available shifts, designated by the integers 1, 2, and 3. Safety regulations dictate that if two individuals are listed as a conflicting pair, they must be allocated to different shifts.
+
+Finally, the automated credential system must receive a complete allocation. An allocation is formatted as a sequence of $n$ shift numbers, where the $i$-th number is the shift assigned to the individual with identifier $i$. When several valid allocations exist that satisfy all safety regulations, the system requires the one that is lexicographically smallest (i.e., comparing the shift of hire 1 first, then hire 2, and so on). If it is impossible to allocate the shifts without violating safety regulations, the system must abort the pipeline.
+
+Your objective is to build the logic that processes the cohort size and the list of conflicts to produce the required shift sequence or the abort signal.
 
 ## Input
-
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$), where $n$ is the number of data streams (bounded by the system's hardware limit of 40 concurrent channels) and $m$ is the number of interference constraints (which cannot exceed the total number of unordered stream pairs).
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that stream $u$ and stream $v$ cannot share the same frequency band.
+The first line contains two integers $n$ and $m$. The integer $n$ represents the cohort size; it is at least 1 and at most the total number of scanning stations in the orientation hall. The integer $m$ represents the number of conflicting pairs; it is at least 0 and at most the total number of possible distinct pairs of individuals in the cohort.
+Each of the next $m$ lines contains two integers $u$ and $v$, representing the identifiers of two individuals who have a documented grievance and cannot share the same shift.
 
 ## Output
-
-If no valid frequency allocation exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where $s_i \in \{1, 2, 3\}$), representing the frequency band assigned to stream $i$, such that $s_1, s_2, \dots, s_n$ is lexicographically as small as possible.
+If there is no way to allocate shifts safely, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers separated by spaces, each being 1, 2, or 3, representing the shift allocation for each individual from $1$ to $n$. Among all valid allocations, output the sequence that is lexicographically smallest.
 
 ## Example 1
-
 Input:
 ```
 4 5
@@ -32,7 +33,6 @@ Input:
 1 4
 2 4
 ```
-
 Output:
 ```
 YES
@@ -40,7 +40,6 @@ YES
 ```
 
 ## Example 2
-
 Input:
 ```
 4 6
@@ -51,7 +50,6 @@ Input:
 2 4
 3 4
 ```
-
 Output:
 ```
 NO

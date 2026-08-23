@@ -1,0 +1,1542 @@
+<think>
+We need solve problem. Need output only Python code block. Let's analyze problem carefully.
+
+We have n up to 40, m edges. Assign each vertex label in {1,2,3}. Constraint for edge uv: |s_u - s_v| >= 1. Wait that's always true unless equal? Since labels are integers 1,2,3, absolute difference is >=1 iff labels differ. Actually if equal, diff=0 <1. So constraint simply says adjacent vertices must have different labels. So it's graph coloring with 3 colors, labels 1,2,3. Need lexicographically smallest color sequence among all proper 3-colorings. n=40, brute force 3^40 impossible. Need algorithm.
+
+Graph 3-coloring NP-complete generally, but n=40 small. Need find lexicographically smallest 3-coloring or determine none. Could use backtracking with pruning, bitsets, maybe meet-in-the-middle? Since n=40, exponential but manageable with branch and bound for lexicographically smallest. We can use DSATUR or recursive with ordering fixed (1..n) and try colors 1,2,3 in order, prune by checking if remaining graph is 3-colorable. Need efficient 3-colorability test for n<=40. Could use backtracking itself; trying colors lexicographically and returning first found gives lexicographically smallest. A simple recursive with forward checking and maybe graph structure may pass n=40 within 2s in Python? Need robust.
+
+We need consider worst-case graphs. 3-coloring decision for n=40 is doable with backtracking. But lexicographic smallest may require exploring many branches? If we try colors in increasing order and return first full coloring, it's standard backtracking; pruning can cut. But worst-case no coloring (e.g., complete graph K4 or larger) may explore many nodes. Need strong algorithm.
+
+Alternative: Since labels only 3, proper coloring means graph is 3-colorable. For n=40, can use inclusion-exclusion / chromatic polynomial? Or use SAT/backtracking. Could use BFS on connected components and 2-SAT? No, 3-coloring not 2-SAT.
+
+Could use branch and reduce: choose vertex with max degree, try colors, propagate constraints (neighbors can't use that color). For lexicographic order, we need assign vertices in order 1..n, not max degree, because lexicographic smallest sequence. But we can still do recursion on index order; at each step choose smallest feasible color that doesn't create immediate conflict with already colored neighbors, and also check if the uncolored subgraph can still be completed. The completion check can be done via a graph coloring algorithm on remaining graph with constraints that some vertices have forbidden colors due to colored neighbors. This is still 3-list-coloring on up to 40 vertices. Could run a recursive coloring check each time; might be heavy but n small.
+
+Simpler: Use Python's recursive backtracking with bitset representation and good branching. Since n=40, 3-coloring can be solved via recursive with adjacency bitsets and domain bitmask per vertex (3 bits). Choose vertex with smallest domain size >1 (or uncolored). Branch on colors in domain. This finds any coloring quickly. For lexicographically smallest with respect to vertex order 1..n, we cannot choose arbitrary vertex; we must branch on next vertex in order. But we can still use domain propagation. At step i, try colors 1..3 that are not used by already colored neighbors. Need also ensure completion possible. We can run a feasibility check after assigning color to i before recursing. But if we just recurse and backtrack when dead, it will explore all branches maybe huge. However with n=40 maybe okay? Let's think worst-case graph with no edges: any coloring valid, lexicographically smallest is all 1s. Recursion: vertex1 try 1 -> success, vertex2 try 1 -> success, etc. Very fast. Worst-case for 3-colorable but first vertex color 1 leads to dead end deep? Could be. Example graph that is 3-colorable only with vertex1=3 maybe? Then algorithm tries 1, explores huge subtree before trying 3. Need avoid by feasibility check at each step: before recursing, check if remaining graph (with list constraints) is colorable. If not, prune immediately. That ensures we don't explore huge dead subtrees. Need efficient list-3-colorability test for up to 40 vertices, called many times. Could be expensive if called at each node. But maybe okay with memoization / bit DP.
+
+Alternative: Compute lexicographically smallest coloring via iterative deepening / dynamic programming? Since colors only 1..3, lexicographic minimal means we want s1 as small as possible, then s2, etc. We can test for each prefix whether there exists a valid coloring extending it. Specifically, for i from 1..n, try color c=1..3 (consistent with previous assignments and constraints with earlier vertices). For each candidate prefix, test if graph with constraints (fixed colors for prefix) is colorable. Choose first feasible. This requires up to 3n colorability tests. Each test is list-3-coloring on n<=40. If we have a fast 3-colorability solver, this is fine. We can also reuse assignments.
+
+So main challenge: solve list-3-coloring (each vertex domain subset of {1,2,3}) for n<=40 quickly, many instances. Since labels 1..3, can map colors to bits 0,1,2. Domain bitmask 1..7. Constraint: adjacent vertices must have different colors. Equivalent to graph homomorphism to K3.
+
+We can implement a recursive coloring solver with bitsets and pruning. n=40 small. Need it fast enough for up to ~120 calls. Should be fine with good algorithm.
+
+Potential algorithm: Use BFS/branch and bound with DSATUR but for list coloring. Represent domains as 3-bit masks. Propagation: if a vertex domain becomes 0 -> fail. Also if vertex degree to a vertex with singleton domain {c}, remove c from its domain. Propagate iteratively. Additionally, if two adjacent vertices both have domain {c} -> fail. Also if vertex domain size 1, propagate to neighbors. This is arc consistency. For 3-coloring of graphs up to 40, this is strong.
+
+Then branch on vertex with smallest domain size >1 (or maybe vertex of max degree). Try colors in domain. Use recursion. This is standard and fast for n=40. For list coloring instances from prefixes, may be easy.
+
+But we need be careful with Python recursion depth; n=40 fine.
+
+Could also use meet-in-the-middle: split graph into two halves of 20 each. Precompute all valid colorings of each half (3^20 ~ 3.5 billion too many). Not possible. But with constraints maybe? No.
+
+Could use inclusion-exclusion / chromatic polynomial via subset expansion O(2^n) = 1 trillion no.
+
+Backtracking is appropriate.
+
+Let's design robust solver.
+
+Input n,m, edges 1-indexed. Build adjacency list or bitmasks. Since n<=40, use integer bitmask of neighbors (up to 40 bits). For each vertex, adjacency mask.
+
+List coloring solver:
+- domains: list of ints mask (bits 0,1,2). Initially 0b111 except fixed vertices have mask of assigned color.
+- We need maintain current assignment? For feasibility test, just domains.
+- Propagation: Use stack of vertices whose domain became singleton. For each neighbor, remove the singleton color from neighbor's domain; if neighbor domain becomes 0 -> fail; if becomes singleton -> push. Also check if two adjacent vertices have same singleton color -> fail. Actually when a vertex becomes singleton {c}, we remove c from neighbors; if any neighbor also singleton {c}, removal makes 0 -> fail. So covered.
+- Additionally, if a vertex has domain size 2 and both colors appear in neighbor singletons? Not needed.
+- After propagation, choose uncolored vertex with smallest domain size (>=2). If none, success.
+- Branch: for each color in domain (maybe order not important for feasibility; but for speed choose colors least used? Not needed). Recurse with that color assigned (domain set to singleton) and propagate.
+- Use recursion and maybe memoization of domain tuple? Could help but domain tuple of length n with values 0..7 (3 bits) -> 8^40 huge; but encountered states limited. Might not need.
+
+For lexicographic smallest prefix test, we can call solver for each prefix. But we can also integrate: after fixing prefix, run solver to find any coloring; if yes, accept prefix and continue. To speed, we can reuse the found coloring? Not necessary.
+
+Potential issue: For each prefix, solver may explore many branches. In worst-case graph not 3-colorable, solver explores search tree. n=40 worst-case 3-coloring unsolvable could be large but manageable with propagation and good branching. There are known algorithms solving 3-coloring for n=40 in milliseconds.
+
+But we need guarantee within 2s Python. Let's think of worst-case inputs. n=40, m up to 780. Dense graphs. If graph contains K4, unsolvable; propagation may detect quickly? With K4, each vertex domain size 3; propagation no singletons. Branching explores many possibilities before concluding no. For K4 alone, backtracking tries 4!*? Actually 3-coloring K4 impossible; search tree size maybe 3*2*1*? small. For larger dense graphs, unsatisfiable may be harder but constraints strong.
+
+What about a graph that is 3-colorable but with high symmetry causing many branches? E.g., disjoint union of many triangles? Each triangle forces all 3 colors; many global permutations. For n=39 (13 triangles), number of colorings = 6^13 *? huge. Lexicographically smallest assignment would assign first vertex 1 etc. Prefix testing may call solver many times; each call may find a coloring quickly if satisfiable. For unsatisfiable prefixes? We try colors; if prefix leads to unsat, solver explores maybe many branches. But prefix length small? Could be.
+
+Alternative approach: Instead of prefix testing with full solver each time, we can directly do recursive lexicographic search with same solver but prune using feasibility of remaining graph. That is equivalent to prefix test but incremental. We can maintain domains and at each step i try colors; before recursing, run a feasibility check on the remaining instance (with current assignments). If feasible, recurse. This avoids exploring dead subtrees. The feasibility check is same solver. We can also after assigning color to i, the propagation may already detect contradictions; if not, run solver on remaining. If solver returns a coloring, we can use it to fill rest? But we need lexicographically smallest for later vertices too, so we still need to determine next vertex. However if we find any completion for prefix, we know prefix feasible; we then fix s_i to that color and continue to i+1. This is exactly prefix method. We can also maintain domains across prefix decisions to avoid recomputing from scratch. But simpler to recompute.
+
+Given n=40 and at most 120 solver calls, each on small graph, should pass.
+
+Let's design solver with recursion and maybe use bitset operations for speed.
+
+Represent colors as bits: 1<<0=1 (color 1), 1<<1=2 (color 2), 1<<2=4 (color 3). Domain mask 1..7.
+
+Adjacency bitmask per vertex: integer with bit v set if edge u-v.
+
+Propagation function:
+Input domains list (mutable). Use stack = [v for v if popcount(domains[v])==1]. But need also check initial conflicts: if any edge between two vertices with same singleton domain -> fail. We can detect during stack processing: when pushing singleton, for each neighbor already singleton same color -> fail. Or during removal, if neighbor becomes 0 fail; if neighbor already singleton with color being removed, fail. Simpler: after building stack, process: for v in stack: color = bit to value. For each neighbor u in adjacency list: if domains[u] == color_mask (singleton same) -> fail; else if domains[u] & color_mask: domains[u] ^= color_mask; if domains[u]==0 fail; if popcount==1 push u. Need avoid revisiting; but revisiting okay? Could loop. Use index pointer over stack list.
+
+popcount can use built-in bit_count().
+
+Branching: choose vertex with domain size >1 and minimal size. If none, success.
+
+Order of trying colors: For feasibility, any order. Maybe choose color with highest heuristic. But for lexicographic prefix test, we only need yes/no. So order doesn't matter much. Choose color that appears in many neighbor domains? Actually to find coloring quickly, choose color that is least constrained? Could use smallest bit first.
+
+Potential optimization: If graph has many vertices, recursion depth up to n. Fine.
+
+Memoization: Since domains are small ints, we can memoize unsat states to avoid recomputation. State key = tuple(domains). But copying tuple each call expensive. Could use dictionary with tuple and result. Might help for repeated subproblems in dense unsat. But maybe overhead. We can add memo for unsatisfiable states only (cache no). Use tuple(domains) as key. However number of states could be large; memory 256 MB. For n=40, tuple of 40 ints ~ overhead big. Maybe avoid memo.
+
+Alternative: Use iterative branch with bitset and no memo.
+
+Let's test mentally on worst-case. Suppose graph is complete graph K5 (not 3-colorable). Domains all 7. Propagation none. Branch vertex0 color0 -> propagate remove color0 from others (domains {1,2}). Branch next vertex color1 -> propagate remove color1 from others (domains {2}). Then all others singleton color2, but edges between them -> conflict? Actually K5: after assigning v0=0, v1=1, remaining vertices domain {2}. They are all adjacent to each other and to assigned vertices (ok). But two remaining adjacent both singleton 2 -> propagation when processing first remaining singleton, neighbor also singleton 2 -> fail. So branch v1=1 fails quickly. Try v1=2 -> similarly fail. Backtrack v0=0 fails. Try v0=1 etc. Search small.
+
+Hard unsat instances for 3-coloring are around critical graphs like Grötzsch? But n=40 manageable.
+
+Now lexicographic smallest. Approach:
+- Read input.
+- Build adjacency list and masks.
+- For i in 1..n:
+    - For c in [1,2,3]:
+        - Check if any already assigned neighbor j<i has s_j == c -> if so skip (immediate conflict).
+        - Temporarily set s_i = c.
+        - Build initial domains: for j<=i, domain singleton s_j; for j>i, domain 7 (all colors). Actually vertices j>i may have constraints with assigned neighbors (including i and earlier). Solver propagation handles.
+        - Run solver(domains). If yes: keep c, break.
+    - If no c works: print NO and exit.
+- Print YES and sequence.
+
+But building domains each time from scratch O(n) per call; fine.
+
+However, we can improve by maintaining current assignment and using solver only on uncolored subgraph with forbidden colors from assigned neighbors. But building domains is easy.
+
+Potential issue: The solver may find a coloring for prefix, but we don't need full coloring; just need feasibility. Good.
+
+Edge case: m=0 -> all 1s. Prefix test: i=1, c=1, solver yes (all domains can be 1). Keep. etc.
+
+Now complexity: For each i, up to 3 solver calls. Each solver call on n vertices with some fixed singletons. In worst case, for i=1 c=1 on graph where only color 3 works for vertex1, solver explores huge before trying? Wait solver tries arbitrary branches; it may find a coloring using color1 quickly if one exists. If no coloring with vertex1=1, it must explore entire search space for that fixed prefix to prove unsat. That could be large. But there are at most few unsat prefixes per i (maybe 1 or 2). Total search across all prefixes could be larger than a single search for lexicographic minimal? But still bounded by search tree for full problem with root fixed? Actually prefix testing sequentially may repeat work. Could be up to 3n times solving. But n=40 small.
+
+Could integrate incremental: maintain domains and after fixing prefix, if solver says feasible, keep. If we later try next vertex, we can continue from previous state. But implementing incremental with backtracking is essentially recursive lexicographic search. Simpler to just call solver repeatedly; likely passes.
+
+But let's consider worst-case adversarial input for n=40. Could there be a graph where testing prefix (1=1) unsat requires exploring enormous tree, and prefix (1=2) unsat also, etc., repeated for each i? Maybe. Need more robust.
+
+Alternative: Direct recursive lexicographic search with feasibility pruning using a strong solver. At each level i, try colors 1..3. For each color, propagate and run feasibility check (solver). If feasible, recurse to i+1. This is same as prefix testing but we can maintain state and avoid re-solving from scratch for prefixes that are feasible? Actually we still solve feasibility for each tried color. The total work equals sum of solver calls. Could be large.
+
+Maybe we can do lexicographic search without separate feasibility solver by using recursive coloring with fixed vertex order and propagation, but with a good heuristic to avoid exploring dead subtrees. However if a branch leads to dead end, it will explore until contradiction; that's unavoidable unless we can detect global unsat early.
+
+Could use a SAT solver style with watched literals? Overkill.
+
+Given n=40, a well-implemented backtracking 3-coloring solver can handle worst-case in <0.1s. Calling it ~120 times maybe <1s. Should be okay.
+
+Let's design solver carefully for speed.
+
+Implementation details:
+
+Use recursion with domains as list of ints. Use adjacency list as list of lists of neighbor indices (for propagation). Also adjacency masks.
+
+Propagation function returns bool (consistent). It modifies domains in place.
+
+def propagate(domains):
+    stack = [v for v in range(n) if domains[v] in (1,2,4)]
+    # But need check initial same-color adjacent singletons? Could be if prefix has same color adjacent vertices; we should detect. We can check during stack processing: when pushing initial singletons, no order. Better: while stack: v = stack.pop(); cmask = domains[v]; if cmask not singleton: continue? Actually once singleton stays singleton unless removed? We only remove colors from neighbors, not from singleton itself. So okay. For each u in adj[v]: if domains[u] == cmask: return False; if domains[u] & cmask: new = domains[u] ^ cmask; if new == 0: return False; domains[u] = new; if new in singletons: stack.append(u)
+    return True
+
+But initial stack may include adjacent singletons with same color; processing will detect when popping first and checking neighbor. Good.
+
+However, if two adjacent singletons same color, when popping one, neighbor domain == cmask -> fail. Good.
+
+Need singleton set: {1,2,4}.
+
+Branching: choose vertex with smallest popcount among domains not in singletons and not 0. If all singletons -> success.
+
+def solve(domains):
+    if not propagate(domains): return False
+    # choose branch vertex
+    v = -1; best=4
+    for i in range(n):
+        d = domains[i]
+        if d not in singletons:
+            pc = d.bit_count()
+            if pc < best:
+                best=pc; v=i
+                if best==2: break
+    if v==-1: return True
+    # try colors
+    d = domains[v]
+    # maybe order by least constraining: count available? For feasibility, any.
+    # Use bit iteration.
+    for color in (1,2,4):
+        if d & color:
+            # assign
+            old = domains[:]  # need backtrack copy
+            domains[v] = color
+            if solve(domains):
+                return True
+            domains[:] = old
+    return False
+
+Copying domains list each branch costs O(n). n=40, fine. Could use manual undo stack but not needed.
+
+But this solver returns only bool. For prefix test, bool enough. However, if we want to speed repeated calls, we could have solver return a coloring (list of colors) when satisfiable. For prefix test, we don't need it, but maybe for final output we need full coloring. We can after determining all s_i, output s_i. We don't need solver's coloring. Wait we determine s_i via prefix feasibility, but we never get colors for vertices beyond prefix. At the end, we have assignment for all vertices from prefix decisions; since each prefix was feasible, final assignment is valid. We don't need solver's full coloring. Good. So solver bool only.
+
+But careful: When we test prefix i with color c, we set domains for j<=i to assigned colors. If solver says yes, we keep s_i=c and move to i+1. At the end, s is a valid coloring because at each step prefix was feasible and final prefix includes all vertices, so solver would say yes. Actually we don't call solver for full assignment; but by construction, when i=n, we test color c for vertex n with all others fixed; if yes, final assignment valid. So output s.
+
+Potential subtlety: For i=n, we need to test colors consistent with neighbors; if none works, NO. Good.
+
+Now, is the condition |s_u - s_v| >= 1 truly equivalent to different labels? Let's double-check: stages are 1,2,3. |a-b| >=1 means a != b. Yes. So graph coloring.
+
+Wait the problem statement says "must satisfy condition |s_u - s_v| >= 1". That's trivially requiring stages differ. Maybe they intended >=2? But example: n=4, edges: 1-2,1-3,2-3,1-4,2-4. Output 1 2 3 3. Vertex 3 and 4 are not adjacent? Edges include 1-4,2-4 but not 3-4. Vertex3=3, vertex4=3 same; they are not adjacent, okay. If condition required >=2, then adjacent stages must differ by at least 2, i.e., colors 1 and 3 only? Actually with 1,2,3, |diff|>=2 means pairs (1,3) only. Then graph would be bipartite between stage1 and stage3, no stage2. Example output 1 2 3 3 has adjacent 1-2 diff=1 which would violate if >=2. So condition is indeed just !=. They wrote >=1 perhaps to emphasize at least one stage apart (since stages are integers, difference 0 means same stage, difference 1 means adjacent stages allowed). Wait "at least 1" means difference cannot be 0, so just different. Yes. So graph coloring.
+
+But maybe they meant "strict separation" as stages must differ by at least 1, i.e., cannot be same. Fine.
+
+Now need ensure lexicographically smallest. Our prefix method yields lexicographically smallest because at each position we choose smallest feasible color.
+
+Let's test on examples.
+
+Example1: n=4 edges. i=1: try 1. Is there 3-coloring with v1=1? Yes (output). Keep 1. i=2: neighbors 1 color1, so try 1 invalid (edge). try 2 feasible? yes. keep 2. i=3: neighbors 1(1),2(2); try1 conflict with1, try2 conflict with2, try3 feasible? edges 1-3,2-3 ok. keep3. i=4: neighbors 1(1),2(2); try1 conflict, try2 conflict? edge2-4 yes, try3 no conflict with neighbors (1 and2). keep3. Output 1 2 3 3. Good.
+
+Example2: K4. i=1 try1: K4 with v1=1 is 3-colorable? K4 chromatic 4, no. try2 no, try3 no -> NO. Good.
+
+Now performance. Let's think of possible worst-case for prefix method. Suppose graph is a large odd cycle (not 3-colorable? Actually odd cycles are 3-colorable; C5 3-colorable). Suppose graph is not 3-colorable (contains K4). Then at i=1 we may explore huge tree for each color before NO. But if graph not 3-colorable, answer NO after up to 3 solver calls. The solver must prove unsat from scratch each time for each color? Actually with v1 fixed to different colors, but unsat overall; each call explores search tree with root color fixed. Could be large but total maybe 3 times. For n=40, okay.
+
+If graph is 3-colorable but only with vertex1 color 3 (e.g., graph where vertex1 is in a triangle with vertices 2,3 that will be colored 1 and2? Actually if vertex1 in triangle, it can be any of 3 colors; there is always coloring with vertex1=1 by permuting colors? Not if other vertices have fixed colors? No fixed colors. For plain 3-colorability, if graph connected and has automorphism color permutations, any color for vertex1 possible if graph has at least one edge? Wait if graph is bipartite? With 3 colors, a connected graph that is not complete? If there is a proper 3-coloring, can we always recolor to make vertex1 color1? Only if graph is connected and we can permute colors globally: yes, choose permutation mapping s_v1 to 1. So for any connected graph with a proper 3-coloring, there exists coloring with vertex1=1. Thus trying c=1 always feasible for connected components. For disconnected, each component independent; vertex1 in its component can be mapped to 1. So prefix c=1 always feasible for any vertex if we can permute colors within its connected component. Wait if component has no edges, trivial. If component has edges, color permutation within component is allowed because constraints only differentiate colors (graph homomorphism to K3). So yes, any vertex can be assigned 1 in some coloring if component is 3-colorable. Therefore the first prefix c=1 will never be infeasible unless graph not 3-colorable. Good. So no huge dead subtree at i=1 for color1.
+
+For later vertices, prefix includes fixed colors for earlier vertices, which break color permutation symmetry. Could have infeasible colors. But search tree for infeasible color may be large. However number of infeasible trials per vertex limited. Could accumulate.
+
+Maybe we can improve by using the solver to also produce a full coloring for the current prefix, and then for next vertex we can use that coloring to guide? But lexicographic smallest requires testing smaller colors first; a full coloring may have next vertex color not minimal. We can still use it as a witness that current prefix feasible. For next vertex, we need test colors smaller than witness. Could be infeasible. Still need solver.
+
+Alternative: Use BFS/DP over tree decomposition? n=40, graph could be arbitrary. Not.
+
+Maybe implement a more clever lexicographic minimal algorithm using recursive search with branch and bound and caching of unsat states. Since n=40, we can do recursive in vertex order and maintain domains. At each step, try colors 1..3. Before recursing, run a quick feasibility check (propagation only maybe). If propagation alone doesn't detect contradiction, recurse. This may explore dead subtrees but maybe small. But separate full solver is stronger.
+
+Let's estimate solver cost for list-3-coloring n=40. With propagation and smallest-domain branching, typical search tree maybe thousands to millions. 120 calls -> maybe up to 100 million operations. Python might be borderline but likely okay with bit operations and n=40. We can optimize.
+
+Optimization ideas:
+- Use arrays (list) of ints.
+- Use adjacency list for propagation; adjacency mask for quick neighbor iteration? Iterating bits of mask each time may be slower than list. Use list of neighbors.
+- Precompute popcount? Use bit_count.
+- Precompute singleton check: domain & (domain-1)==0 and domain!=0? Actually singleton if bit_count==1.
+- In propagation, when removing color from neighbor, if neighbor domain becomes singleton, push. Use while stack.
+- Branching choose vertex with smallest domain size. Could also choose vertex with max degree among smallest domain? Not needed.
+
+Potential improvement: Use recursive coloring with "reduction" rules for 3-coloring: if vertex degree <=2, can defer? For list coloring, if a vertex has domain size 2 and degree <=1, etc. But n small.
+
+Another idea: Since we only need feasibility for prefixes, we can use a SAT solver style with bitset and memoization of unsat states. State key = tuple(domains). For each recursive call after propagation, if result false, store. Could reduce repeated work across calls? But each prefix has different initial domains, so states may not overlap much. However within a single unsat search, memo can prune revisiting equivalent states due to different assignment orders. But our branching order is fixed by choosing vertex, so no duplicate states? Actually with singleton propagation, choosing different branch vertices can lead to same domain state? Possibly. But not huge.
+
+Maybe better: Use iterative deepening / exact cover? Not.
+
+Let's consider implementing a dedicated 3-colorability test using BFS over connected components and checking if each component is bipartite? No, 3-coloring not just bipartite.
+
+Could use "3-coloring via deletion-contraction" with memoization on graph bitmask? n=40, state space huge.
+
+Backtracking is fine.
+
+Let's think about worst-case satisfiable instance causing solver to explore many branches before finding coloring. Our solver chooses vertex with smallest domain and tries colors in order 1,2,4. For satisfiable, it may find quickly. But if not, maybe many. However prefix method only asks feasibility; we can make solver find any coloring fast by using heuristic ordering: choose color that maximizes propagation? For satisfiable, maybe first branch leads to solution. For unsat, must explore all. Hard to guarantee.
+
+Could use randomized restarts? Not deterministic and not needed.
+
+Given constraints n<=40, time limit 2s, Python. Need be efficient. Let's maybe implement a more advanced exact algorithm: Use branch on vertex with max degree (or smallest domain) and use bitset domains. This is typical and fast.
+
+Let's write code and maybe test mentally with some random graphs. But we cannot run code here. Need ensure correctness.
+
+Potential bug: Propagation stack initial includes all singletons. But if a singleton is adjacent to another singleton with same color, fail. Good. If a singleton adjacent to another singleton different color, no removal. Good.
+
+When we assign a color to branch vertex, we set domains[v]=color and call solve, which propagates. But before propagation, there may be other singletons; propagate handles.
+
+Need to copy domains for backtracking. Using domains_copy = domains[:] (list copy) and restore. Or pass new list each recursion: new_domains = domains[:] ; new_domains[v]=color; if solve(new_domains): return True. This creates copy O(n) per node. n=40, nodes maybe many. Could be okay. But to reduce overhead, we can modify in place and backtrack with saved changes. However code complexity. Let's estimate: if search tree 1e6 nodes, copying list of 40 ints -> 40 million int copies, okay maybe 0.2s. If 10e6 nodes -> 400 million, maybe 1s. Could be borderline. We can implement in-place with undo list to be safe.
+
+In-place propagation with undo:
+- solve(domains):
+    - run propagate and record changes (list of (v, old_mask)).
+    - if contradiction: undo changes and return False.
+    - choose branch v.
+    - for each color in domain:
+        - record change (v, domains[v]) -> push to changes.
+        - domains[v]=color.
+        - if solve(domains): return True
+        - undo changes for this branch (restore domains[v] and any propagated changes).
+    - undo propagation changes before returning False.
+This requires propagate to record changes. Let's implement propagate that returns (success, changes). It modifies domains and returns list of (v, old_mask) for changed domains. Then solve can undo by applying reversed changes.
+
+But branching also changes domains[v]; we can include in changes or handle separately.
+
+Simpler: In solve, before branching, propagate and get changes. Then for each color, set domains[v]=color and recurse; after recursion, restore domains[v] to old. After loop, undo propagation changes. But recursion will propagate further and may change domains of many vertices; when returning, we need undo all changes made by recursive call. We can let recursive call manage its own changes and restore before returning. So at this level, after recursive call returns, domains should be in same state as before call (except branch vertex maybe? The recursive call will restore all changes it made, including the assignment of v? Wait if recursive call succeeds, we return True and don't care about restoring. But our loop needs to stop. If recursive call fails, it should restore domains to state before call. The state before call includes domains after initial propagation and with v set to color? Actually we set domains[v]=color then call solve. The recursive call will propagate and may modify; on failure it should undo all changes including restoring v's old domain. So after recursive call returns False, domains is back to state after initial propagation (v has original multi-color domain). Good. Then we can try next color. After all colors fail, we undo initial propagation changes and return False.
+
+Implementation:
+def solve(domains):
+    ok, changes = propagate(domains)
+    if not ok:
+        return False
+    # choose branch
+    v = select(domains)
+    if v == -1:
+        # undo changes? If success, we will return True; but caller may need domains in solved state. We can leave as is. However changes made by propagation at this level need not be undone because success. But caller may expect domains consistent. Fine.
+        return True
+    old_domain = domains[v]
+    for color in colors_in_domain(old_domain):
+        # assign
+        domains[v] = color
+        if solve(domains):
+            return True
+        # restore v (recursive call restored other changes)
+        domains[v] = old_domain
+    # undo propagation changes
+    for v, old in reversed(changes):
+        domains[v] = old
+    return False
+
+But note: When solve returns True, it may leave domains in a solved state with propagation changes from this level still applied. That's fine; we don't need to output. But if top-level caller wants domains, okay.
+
+However, if solve returns False, it restores propagation changes. Good.
+
+But there is subtlety: The recursive call, upon success, may not undo its propagation changes. It returns True leaving domains in a state where all vertices singleton. That's fine. The caller then returns True. The propagation changes at each level remain. No issue.
+
+Propagate function:
+def propagate(domains):
+    changes = []
+    stack = []
+    for v in range(n):
+        d = domains[v]
+        if d in SINGLETONS:
+            stack.append(v)
+    # But we also need detect initial same-color adjacent singletons. We'll do in loop.
+    while stack:
+        v = stack.pop()
+        cmask = domains[v]
+        # if domain no longer singleton? It shouldn't change except maybe if changed earlier? Actually when we process a singleton, we may have removed that color from neighbors, not from v. So remains.
+        for u in adj[v]:
+            du = domains[u]
+            if du == cmask:
+                # adjacent same singleton -> fail
+                return False, changes
+            if du & cmask:
+                # remove color
+                new = du ^ cmask
+                if new == 0:
+                    return False, changes
+                changes.append((u, du))
+                domains[u] = new
+                if new in SINGLETONS:
+                    stack.append(u)
+    return True, changes
+
+Wait: If two adjacent singletons same color exist initially, when we pop first v, we check neighbor u with du==cmask -> fail. Good.
+
+But what if a vertex domain becomes singleton {c} and there is already another singleton {c} adjacent that was processed earlier? When processing the new singleton, we check neighbor old singleton {c}, du==cmask -> fail. Good.
+
+What if a vertex domain becomes 0? fail.
+
+What if a vertex domain is 0 initially? We should fail. Our code: stack doesn't include 0; select branch may include domain 0? We should check before select. Propagate doesn't detect initial 0. We can check at start of solve: if any domain==0 return False. Or in propagate initial loop, if d==0 return False. Let's add.
+
+Also, propagation may push same vertex multiple times? If domain becomes singleton, we push. It can't become non-singleton later (we only remove colors). So each vertex pushed at most once after becoming singleton. But initial singletons all pushed. Good.
+
+Select branch: choose uncolored vertex (domain not singleton, not 0) with smallest bit_count. If none, success.
+
+def select(domains):
+    best_v=-1; best_c=4
+    for v,d in enumerate(domains):
+        if d not in SINGLETONS:
+            pc = d.bit_count()
+            if pc < best_c:
+                best_c=pc; best_v=v
+                if best_c==2: break
+    return best_v
+
+SINGLETONS = {1,2,4}.
+
+Color order: For feasibility, maybe try colors in order of bits. We can iterate bits: for color in (1,2,4): if d & color. This tries 1,2,3. Fine.
+
+Now top-level prefix test:
+def is_feasible(fixed):
+    domains = [7]*n
+    for v,c in fixed.items(): domains[v] = 1<<(c-1)
+    return solve(domains)
+
+But building fixed dict each time. We can just pass assignment list with 0 for unassigned.
+
+In main loop:
+assign = [0]*n  # colors 1..3
+for i in range(n):
+    for c in (1,2,3):
+        # check immediate conflict with earlier assigned neighbors
+        conflict=False
+        for u in adj[i]:
+            if u < i and assign[u]==c:
+                conflict=True
+                break
+        if conflict: continue
+        assign[i]=c
+        # build domains
+        domains=[7]*n
+        for v in range(i+1):
+ # actually all assigned vertices j<=i have assign[j]!=0
+            if assign[v]: domains[v]=1<<(assign[v]-1)
+        if solve(domains):
+            break
+        assign[i]=0
+    else:
+        print("NO"); return
+print("YES"); print(' '.join(map(str,assign)))
+
+But building domains includes all assigned vertices (including future unassigned 7). Good.
+
+However, we can avoid building domains from scratch by using assign list and a function that initializes domains with singletons for assigned and 7 for unassigned. O(n) per call, fine.
+
+Potential issue: solve modifies domains list; we don't need it after. Good.
+
+Now, is there any chance that solve returns True for prefix but assign list has some vertices unassigned? No, prefix includes all assigned vertices.
+
+Now complexity of prefix method: For each i, we may call solve up to 3 times. Each solve starts with domains that include singletons for prefix. The search space is the remaining graph. For feasible prefixes, solve finds coloring quickly. For infeasible prefixes, may explore many nodes. But as argued, for connected component of vertex i, color1 feasible if component 3-colorable. But prefix includes fixed colors of earlier vertices in same component, which may force vertex i to not be color1. Infeasible color trials may be limited.
+
+Could there be a graph where for many vertices, trying color1 and color2 both infeasible requiring large search, and only color3 feasible? Possibly. But each infeasible trial explores search tree constrained by prefix. The sum might be large but maybe manageable.
+
+Let's consider an adversarial graph: a long path/chain where lexicographically smallest coloring is forced to alternate 1,2,1,2,... maybe. At each vertex, color1 usually feasible. Not bad.
+
+A graph that is a large complete bipartite K_{20,20} plus some edges? 3-colorable. Lexicographically smallest might assign all left side 1, right side 2? Actually edges between sides, so left=1, right=2 works. Prefix decisions easy.
+
+Hard case: Graph is 3-colorable but has many automorphisms and constraints; lexicographically smallest may require backtracking. But n=40.
+
+I think backtracking solver per prefix will pass.
+
+But let's think if there is a polynomial solution? Since condition is just proper 3-coloring, NP-complete. n=40 suggests exponential/backtracking. Good.
+
+Potential issue: The problem statement says "if multiple valid assignments ... lexicographically smallest". Our prefix method correct.
+
+Now, let's consider if there is any nuance about stages being 1,2,3 and separation |diff|>=1. As we said, equivalent to !=. But wait, if stages are 1,2,3, |1-2|=1 satisfies >=1, so adjacent tasks can be stages 1 and 2. Yes. So it's just proper coloring. Good.
+
+Now, let's think about possible improvements to solver to guarantee time. Maybe implement "is_3_colorable" using recursive with bitsets and also use connected components decomposition: solve each component separately. Since constraints don't cross components, we can split. This can reduce n per solve. For prefix method, assigned vertices may connect components. But we can still decompose uncolored subgraph into connected components and solve each independently; if any component unsat, unsat. This can speed. But adds overhead. n=40 not needed.
+
+Another improvement: If graph has vertex with degree <=2, we can remove it and solve smaller graph, then assign. For list coloring, a vertex of degree <=1 with domain size 3 can always be colored after rest; vertex of degree 2 with domain size 3 also always colorable after rest? If its two neighbors use at most 2 colors, yes there is a free color. So we can reduce graph by removing low-degree vertices. This is a known kernel for 3-coloring: repeatedly remove vertices of degree <=2 (or maybe <=1) and color them later. But for list coloring with arbitrary domains, vertex of degree <=2 and domain size 3 can always be colored if rest colorable. Vertex of degree <=1 with domain size 2 also always colorable after. Could implement reduction to speed. But maybe not necessary.
+
+Let's maybe implement a small preprocessing: If a vertex has domain size 3 and degree <=2, we can defer it (treat as uncolored but always possible). Actually for feasibility, we can remove it from graph and add it back with a valid color after solving core. But for our simple solver, not needed.
+
+However, to be safe for time limit 2s, we might want a stronger solver. Let's design a dedicated 3-colorability test using BFS and reduction:
+
+Algorithm for list coloring feasibility:
+1. Propagate singleton constraints.
+2. If any domain 0 -> fail.
+3. If all domains singleton -> success.
+4. Choose vertex v with max degree? Or smallest domain? Use smallest domain.
+5. Branch on colors in domain.
+This is fine.
+
+Could also incorporate "if domain size 2 and both colors forbidden by adjacent singletons?" Already domain would be 0 or size1.
+
+Let's consider using recursion limit: sys.setrecursionlimit(1000000).
+
+Now, memory fine.
+
+Let's test mentally on K4 with prefix i=1 c=1. Domains: v0=1, others 7. Propagate: stack [0]. Process v0 color1: remove color1 from v1,v2,v3 -> domains {2,3} (bits 2,4). No singletons. Select vertex with domain size2 (any). Branch v1 color2 (bit2). Propagate: remove color2 from v2,v3 -> domains {3} (bit4). Push v2,v3. Process v2 color3: neighbor v3 domain {3} -> fail. Backtrack v1 color3. Propagate: remove color3 from v2,v3 -> {2}. Push v2,v3. Process v2 color2: neighbor v3 {2} -> fail. Return False. Then try root color2,3 similarly. Search tree small.
+
+Now for n=40 dense unsat, search may be moderate.
+
+Potential issue: In prefix method, for i=1 c=1 on a graph that is 3-colorable, solver may find a coloring where vertex1=1 but with vertex2 maybe color3, while we will later try vertex2 color1 first if feasible. That's fine.
+
+Now, let's think about correctness proof of prefix method. Standard.
+
+Now, code structure. Need output only one Python code block. We'll include solve() reading from sys.stdin.
+
+Let's write final code.
+
+But before final, let's consider if there is a simpler solution: Since condition is just proper 3-coloring, and n<=40, we could also use Python's itertools over all 3^n? No, 3^40 huge.
+
+Could use BFS over state of assignments for small n? No.
+
+Could use network flow? 3-coloring NP-complete.
+
+Backtracking is the way.
+
+Let's think about possible issue with recursion and copying. We'll implement in-place with changes list.
+
+Implementation details in code:
+
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        if u==v: continue # self loops? Not specified; ignore or impossible. Self-loop would require stage differ from itself impossible. Should handle: if u==v, then no assignment possible -> NO. But input likely no self-pairs. We'll handle by marking impossible. Actually if self-pair exists, |s_u-s_u|=0<1, impossible. We can detect and print NO. But m pairs of tasks sharing registers likely distinct. We'll add check.
+        adj[u].append(v); adj[v].append(u)
+
+    SINGLETONS = (1,2,4)
+    FULL = 7
+
+    sys.setrecursionlimit(10000)
+
+    def propagate(domains):
+        changes = []
+        stack = []
+        for v in range(n):
+            d = domains[v]
+            if d == 0:
+                return False, changes
+            if d in SINGLETONS:
+                stack.append(v)
+        while stack:
+            v = stack.pop()
+            cmask = domains[v]
+            for u in adj[v]:
+                du = domains[u]
+                if du == cmask:
+                    return False, changes
+                if du & cmask:
+                    new = du ^ cmask
+                    if new == 0:
+                        return False, changes
+                    changes.append((u, du))
+                    domains[u] = new
+                    if new in SINGLETONS:
+                        stack.append(u)
+        return True, changes
+
+    def is_colorable(domains):
+        # returns True/False; domains modified, but on False restored by propagate undo
+        ok, changes = propagate(domains)
+        if not ok:
+            return False
+        # choose branch vertex
+        v = -1
+        best = 4
+        for i in range(n):
+            d = domains[i]
+            if d not in SINGLETONS:
+                pc = d.bit_count()
+                if pc < best:
+                    best = pc
+                    v = i
+                    if best == 2:
+                        break
+        if v == -1:
+            return True
+        old = domains[v]
+        # try colors
+        # maybe order: try colors not in neighbor singletons? domain already.
+        for color in (1,2,4):
+            if old & color:
+                domains[v] = color
+                if is_colorable(domains):
+                    return True
+                # recursive call restored its changes; restore v
+                domains[v] = old
+        # undo propagation changes
+        for u, du in reversed(changes):
+            domains[u] = du
+        return False
+
+    assign = [0]*n
+    for i in range(n):
+        found = False
+        for c in (1,2,3):
+            # immediate conflict with earlier assigned neighbors
+            ok = True
+            cm = 1 << (c-1)
+            for u in adj[i]:
+                if u < i and assign[u] == c:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            assign[i] = c
+            domains = [FULL]*n
+            for v in range(i+1):
+                if assign[v]:
+                    domains[v] = 1 << (assign[v]-1)
+            # Note: vertices > i have domain FULL; propagation will handle constraints with assigned neighbors.
+            if is_colorable(domains):
+                found = True
+                break
+            assign[i] = 0
+        if not found:
+            print("NO")
+            return
+
+    print("YES")
+    print(' '.join(map(str, assign)))
+
+if __name__ == "__main__":
+    solve()
+
+Wait: In building domains, we iterate v in range(i+1) and set if assign[v]. But assign[v] is nonzero for v<=i (we set assign[i]=c and previous assigned). For v<i where assign[v] maybe 0? No, all previous assigned. Good. For v=i, set. For v>i, leave FULL. But what about constraints among unassigned vertices? solver handles.
+
+Potential bug: is_colorable modifies domains list; after it returns True, we don't need domains. Good.
+
+Potential bug: When is_colorable returns False, it restores propagation changes, but domains list is local; we discard. Fine.
+
+Potential bug: In is_colorable, after propagate success and branch, if branch returns True, we return True without undoing propagation changes at this level. That's okay. But note that domains list now reflects a complete coloring (all singletons) after recursive success. The caller (main) doesn't use domains after True. However, if caller is a recursive level that called is_colorable(domains) and got True, it returns True leaving its own propagation changes. So at top-level, domains may be fully colored. Fine.
+
+Potential bug: In is_colorable, after trying all colors and failing, we undo propagation changes. But we also need ensure domains[v] restored to old. In loop, after each recursive call False, we set domains[v]=old. After loop, domains[v]==old. Good. Then undo changes. Good.
+
+Potential bug: Propagation changes list includes changes to domains of neighbors. When we branch and assign v=color, then recursive call propagates and records its own changes. It will undo them on failure. It does not undo the assignment of v (because v's old domain before assignment is not recorded in changes at this level? Actually at this level, before branching, v is uncolored (domain size >1). We set domains[v]=color. The recursive call sees v as singleton and will propagate from it; it does not record changing v's domain because propagation only records changes to neighbors. On failure, it undoes its changes but leaves domains[v]=color. Then our loop sets domains[v]=old. Good. On success, we return True with domains[v]=color. Fine.
+
+Potential bug: In propagate, when we process a singleton v, we check neighbor u with du==cmask. But if du is also singleton same color, fail. Good. However, what if du is singleton same color but we haven't processed it; when processing v we fail. Good.
+
+Potential bug: Initial stack includes all singletons. Suppose two adjacent singletons same color; stack order arbitrary; when popping one, fail. Good.
+
+Potential bug: Self-loop detection. If input has u==v, our code adds self to adjacency. Propagation: if vertex assigned singleton c, neighbor u==v with du==cmask -> fail immediately. If unassigned, branch assign color c, propagate to self: du==cmask -> fail, so branch fails; all branches fail -> unsat. So self-loop leads NO. Good. But our adj list includes self; in main immediate conflict check, u<i condition false if u==i, so not detected. Solver handles. Fine. But self-loop in adj list may affect select? No.
+
+Potential bug: Multiple edges? If same pair repeated, adj list duplicates. Propagation may process duplicate neighbors; no harm, just extra work. Could cause changes list duplicate entries? Example: neighbor u appears twice. When removing color from u, we append (u,du) for first duplicate, set domain new. Second duplicate: du now new, if new & cmask? Since color removed, no. If du==cmask? no. So no duplicate changes. Fine.
+
+Potential performance issue: In main loop, for each i and c, we allocate domains list and call is_colorable which may recurse deeply. Recursion depth up to n=40, fine.
+
+Potential improvement: We can skip solver call if immediate conflict? Already skip.
+
+Potential improvement: For each i, after choosing c, we don't need to recompute domains for subsequent c trials; but we try only one feasible c, so at most 2 infeasible + 1 feasible per i. Fine.
+
+Now, let's think about worst-case time more concretely. Could there be a graph where prefix method causes is_colorable to be called many times on hard instances? Let's try to construct worst-case for n=40. Suppose graph is a disjoint union of many copies of K3 (triangles). It is 3-colorable. Lexicographically smallest assignment: process vertices in order; each triangle's vertices may not be consecutive. The prefix method will try colors. For each vertex, at least one color feasible. Infeasible trials may cause some search. But triangles are small; search tiny.
+
+Suppose graph is a large 3-colorable graph with high symmetry like Mycielski graph M4 (11 vertices, triangle-free, chromatic 4? Actually Mycielski builds triangle-free high chromatic; M4 has 23 vertices chromatic 4, not 3-colorable). For 3-colorable, maybe odd cycle C5. Search small.
+
+Hard 3-coloring instances are random graphs near threshold (p around 4.5/n?). For n=40, random G(40,0.1) maybe many 3-colorable. Backtracking can handle. For unsat near threshold, also.
+
+I think fine.
+
+But wait, the problem might be from some contest where expected solution is 3-SAT/backtracking or maybe using bitmask DP. n=40 suggests meet-in-the-middle? Let's explore if there is a polynomial-time solution due to condition |diff|>=1 maybe actually requiring difference at least 1 (i.e., not equal) which is graph 3-coloring. NP-complete. So exponential needed. n=40 small enough for backtracking.
+
+Could there be a trick: Since colors are ordered 1<2<3 and constraint is just !=, lexicographically smallest coloring can be found greedily? Is 3-coloring with lexicographically smallest labels maybe polynomial? No, because deciding if graph is 3-colorable is NP-complete; lexicographically smallest requires solving 3-colorability. So no.
+
+Now, let's consider if we can use Python's `functools.lru_cache` to memoize is_colorable states. Since domains list mutable, key tuple. Could speed repeated subproblems. But overhead of tuple conversion may be high. Maybe not.
+
+Alternative: Use BFS to find lexicographically smallest by treating it as CSP and using arc consistency + search. Our solver already does.
+
+Let's think about memory/performance of `d in SINGLETONS` check. SINGLETONS is tuple; membership O(3). Fine. Could use set for O(1) but small.
+
+Could use `d & (d-1) == 0` to check power of two (singleton or zero). Since d>0, `d & (d-1) == 0` means singleton. That's faster. Use `if d & d-1:` not singleton. But careful with precedence. We'll use `if d & (d - 1):` means not power of two. For d>0. Since domain never 0 when selecting (we check). In propagate, domain 0 handled. So we can use `if d & (d-1):` to check non-singleton. This avoids tuple membership. Let's use that.
+
+Select:
+if d & (d-1): # not singleton
+    pc = d.bit_count()
+    ...
+
+But if d could be 0, `0 & -1 = 0` -> false, would treat as singleton; but we ensure no 0. In propagate initial loop, if d==0 fail. Good.
+
+In propagate stack initial: if d & (d-1) == 0: push. But d==0 also power of two? 0 & -1 =0, so condition true; need exclude 0. Use `if d and not (d & (d-1))`. Or use bit_count()==1. `d.bit_count()==1` is fine and clear. Use that.
+
+Select: `if d.bit_count() > 1:`.
+
+Let's use bit_count for clarity; it's fast.
+
+Now, color iteration: for color in (1,2,4). Could precompute bits for colors 1..3: bits = [1,2,4]. In main, `cm = bits[c-1]`.
+
+Now, one more thought: The solver's branch order tries color 1 first. For a feasible prefix, this may quickly find a coloring. Good.
+
+Potential issue: The solver chooses branch vertex with smallest domain. For lexicographic prefix method, we don't care about coloring found. But branch heuristic affects speed. Smallest domain is good.
+
+Could also incorporate "if a vertex has domain size 2, branch on it" etc.
+
+Now, let's think about possible TLE due to Python recursion overhead and copying changes. We can maybe optimize by not recording changes for propagation and instead copying domains at each recursion level. Which is faster? Let's estimate. Search tree nodes maybe up to a few million. Copying list of 40 ints per node vs recording changes (maybe few per propagation). Recording changes likely faster and less memory. We'll keep changes.
+
+But changes list appends for each domain reduction. In dense graph, propagation from a singleton removes its color from all neighbors, causing up to n changes. Each recursion level may have O(n) changes. Branching depth up to n, total changes memory at any point O(n^2)? Actually changes list per level stored until level returns; depth n, each up to n changes -> O(n^2)=1600 ints, fine.
+
+Now, is it necessary to undo propagation changes on failure? Yes to keep domains consistent for next branch. Good.
+
+Let's test with a simple graph mentally: n=1,m=0. i=0: c=1, immediate no neighbors, domains [1], is_colorable propagate success, select no branch -> True. assign=[1]. Output YES 1. Good.
+
+n=2, edge 1-2. i=0 c=1 feasible. i=1: try c=1 conflict with neighbor (u=0<i). skip. c=2 domains [1,2], propagate: v0 singleton1, remove from v1 -> domain becomes 2 (already singleton same? du==cmask? v1=2, cmask=1, no; du&cmask=0). Then v1 singleton2, remove from v0 -> v0=1. success. Output 1 2. Lexicographically smallest yes.
+
+n=2 no edge. Output 1 1.
+
+Now, what about graph with edge 2-3 only. i=0 c=1. i=1 c=1 (no neighbor earlier). i=2: try c=1 conflict with vertex2? Edge 2-3, vertex3? Wait vertices 2 and3 (1-indexed). At i=2 (vertex3), neighbor vertex2 (index1) assigned 1, so c=1 conflict. c=2 feasible. Output 1 1 2. Lexicographically smallest yes.
+
+Now, consider graph not 3-colorable: K4. Output NO.
+
+Now, potential issue: The problem says n up to 40, m up to n(n-1)/2. Our adjacency list per vertex may have up to 39 entries. Propagation loops over all neighbors of popped singleton. Fine.
+
+Now, let's think if there is any possibility of stack overflow due to recursion in is_colorable. Depth <= n=40, fine.
+
+Now, let's consider if we can further optimize by caching results of is_colorable for domain tuples. Since we call many times, maybe not. But we can add a global memo for unsat states to avoid recomputation within a single call. However state key tuple of 40 ints heavy. Maybe use string? Not.
+
+Alternative: Use `lru_cache` on a function that takes tuple(domains) and returns bool. But converting to tuple each call costs O(n). Could still be okay. But recursion may generate many states; memory may blow. Avoid.
+
+Maybe we can use memoization only at top-level for prefixes? Not helpful.
+
+Let's think about using a more powerful reduction: In is_colorable, after propagation, if there is a vertex with domain size 2 and a neighbor with domain size 2 etc. Could use "vertex with domain size 2" branching. Already selected if smallest. Good.
+
+Now, consider using `sys.setrecursionlimit(1000000)`.
+
+Now, final code. But before final, let's consider if there is any issue with reading input: Use sys.stdin.buffer.read() for speed. Use `.split()`.
+
+Now, output format: If NO, print single line containing `NO`. If YES, print YES on first line, then sequence. Our code prints YES and then sequence with newline. Good.
+
+Now, let's think about edge case m=0 and n=40: Output all 1s. Our solver called for each i: c=1, domains with prefix singletons, propagate no conflicts, select no branch (all singletons? Wait unassigned vertices have domain FULL (7), not singleton. For i< n, there are unassigned vertices. Branch vertex selected among unassigned. Since graph empty, any color works. Branch tries color1 for first unassigned, then recursively all get 1. Finds coloring quickly. So per i, solver explores a small tree: assign unassigned vertices all 1. Actually at each prefix, solver will branch on first unassigned vertex, try color1, then next unassigned color1, etc., until all assigned. Since no conflicts, success. Number of recursive calls per solver = n-i. For each i, maybe O(n). Total O(n^2)=1600 calls. Fast.
+
+Now, graph with no edges but many vertices: fine.
+
+Graph with edges forming a path: similar.
+
+Now, worst-case for solver per prefix could be when prefix is feasible but first branch color1 leads deep before failure? But if graph no edges, first branch succeeds. For graph with constraints, branch color1 may lead to dead end after some depth. But then solver backtracks and tries other colors. The search tree size depends. For n=40, okay.
+
+Let's consider a graph that is a large cycle C40 (even? 3-colorable). Lexicographically smallest coloring: 1,2,1,2,...? Actually cycle even can be 2-colored 1,2,1,2. Odd cycle needs 3 somewhere. Prefix method: i=0 c=1; i=1 c=2 (c=1 conflict); i=2 c=1; etc. For even cycle, works. For odd cycle C41? n=41 not allowed. C39 odd. At last vertex, c=1 conflict with first and previous; c=2 conflict; c=3 works. Prefix method tries c=1,2 fail, c=3. Each infeasible trial may explore? For cycle, search small.
+
+Now, maybe there is a graph where lexicographically smallest requires many backtracks at each vertex. But still n=40.
+
+I think solution passes.
+
+But let's consider if we can make it even faster by using a single recursive search for lexicographic minimal directly, avoiding repeated solver calls. We can implement recursive function `dfs(i, domains)` that assigns vertex i in order. At each step, propagate constraints from current domains (which include singletons for assigned vertices). Try colors 1..3. For each color, if not conflict with earlier neighbors (propagation would detect), set domain[i]=color, propagate, then if i==n-1 success; else recurse. But to prune dead branches, before recursing we could check if remaining graph is colorable using a quick bound. Without that, may explore huge dead subtrees. We could use the same solver as a subroutine at each step. That's prefix method.
+
+Alternatively, we can maintain a full coloring witness: At each step, after assigning minimal feasible color, we need a coloring of remaining graph. We could compute one full coloring at start (any proper 3-coloring) and then try to make it lexicographically smaller? Not straightforward.
+
+Prefix method is clean.
+
+Now, let's think about correctness of using `is_colorable` for prefix with all assigned vertices fixed. Since constraints only involve differences, fixing some vertices reduces domains of others. The solver decides if there exists assignment for unassigned vertices respecting constraints and fixed vertices. Yes.
+
+Now, potential issue: When building domains in main loop, we set domains for all assigned vertices including those with assign[v]=0? We only iterate v in range(i+1), all assigned. Good.
+
+Now, let's think about memory of recursion and changes. Fine.
+
+Now, let's consider if we should handle multiple test cases? Problem doesn't mention multiple test cases. Single case.
+
+Now, final code. But before final, let's consider if there is any hidden nuance: "sequence of n integers where i-th integer is stage of task i". Lexicographically smallest among valid assignments. Yes.
+
+Now, maybe the intended condition was |s_u - s_v| >= 2? But example contradicts. So it's !=.
+
+Wait, let's re-examine example1 output 1 2 3 3. Edges: 1-2,1-3,2-3 (triangle among 1,2,3), and 1-4,2-4. Vertex4 adjacent to 1 and2, not 3. So vertex4 can be 3 (diff from 1=2, from2=1) or maybe 1? Adjacent to1 so no. 2? Adjacent to2 so no. 3 only. So output 1 2 3 3. If condition were >=2, vertex4 adjacent to2 (stage2) would need diff>=2 -> stage? 2+2=4 invalid, 2-2=0 invalid. So impossible. So indeed condition is just !=.
+
+Now, maybe they want to ensure deterministic preemption: tasks sharing registers cannot be in same stage; adjacent stages are fine. Yes.
+
+Now, let's think about using 3-coloring solver with adjacency bitmasks to speed up propagation. We can represent each vertex's neighbors as list. Propagation iterates over list. Fine.
+
+Potential micro-optimizations:
+- Precompute for each vertex a list of neighbors.
+- Use local variables in recursive functions for speed (assign adj to local).
+- Use `range_n = range(n)`.
+- Use `bit_count`.
+- Use `d & -d` to get least significant bit? For color iteration, we can iterate bits of domain: `d = domains[v]; while d: color = d & -d; ... d -= color`. This iterates colors in increasing bit order (1,2,4). Slightly faster. Use this.
+
+Let's implement color iteration in solver using while loop.
+
+In main, colors are 1,2,3; we need bit. Use bits = [1,2,4].
+
+Now, code:
+
+```
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data: return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v); adj[v].append(u)
+    FULL = 7
+    sys.setrecursionlimit(1000000)
+
+    def propagate(domains):
+        changes = []
+        stack = []
+        for v in range(n):
+            d = domains[v]
+            if d == 0:
+                return False, changes
+            if d.bit_count() == 1:
+                stack.append(v)
+        while stack:
+            v = stack.pop()
+            cmask = domains[v]
+            for u in adj[v]:
+                du = domains[u]
+                if du == cmask:
+                    return False, changes
+                if du & cmask:
+                    new = du ^ cmask
+                    if new == 0:
+                        return False, changes
+                    changes.append((u, du))
+                    domains[u] = new
+                    if new.bit_count() == 1:
+                        stack.append(u)
+        return True, changes
+
+    def is_colorable(domains):
+        ok, changes = propagate(domains)
+        if not ok:
+            return False
+        v = -1
+        best = 4
+        for i in range(n):
+            d = domains[i]
+            if d.bit_count() > 1:
+                pc = d.bit_count()
+                if pc < best:
+                    best = pc
+                    v = i
+                    if best == 2:
+                        break
+        if v == -1:
+            return True
+        old = domains[v]
+        d = old
+        while d:
+            color = d & -d
+            domains[v] = color
+            if is_colorable(domains):
+                return True
+            domains[v] = old
+            d -= color
+        for u, du in reversed(changes):
+            domains[u] = du
+        return False
+
+    assign = [0]*n
+    bits = [1,2,4]
+    for i in range(n):
+        chosen = 0
+        for c in (1,2,3):
+            cm = bits[c-1]
+            conflict = False
+            for u in adj[i]:
+                if u < i and assign[u] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            assign[i] = c
+            domains = [FULL]*n
+            for j in range(i+1):
+                if assign[j]:
+                    domains[j] = bits[assign[j]-1]
+            if is_colorable(domains):
+                chosen = c
+                break
+            assign[i] = 0
+        if chosen == 0:
+            print("NO")
+            return
+
+    out = sys.stdout
+    out.write("YES\n")
+    out.write(' '.join(map(str, assign)))
+    out.write("\n")
+
+if __name__ == "__main__":
+    solve()
+```
+
+Wait: In main, when building domains, we use `if assign[j]:` but assign[j] is 0 for j>i; for j<=i it's set. Good. But after we set assign[i]=c and before calling solver, assign[j] for j<=i all nonzero. Good.
+
+Potential issue: In `is_colorable`, after propagate success, we choose branch vertex. If all singletons, return True. But if some domain is 0, propagate returned False. Good.
+
+Potential issue: In `is_colorable`, when we return True after all singletons, propagation changes at this level remain. That's fine. But if the caller is `is_colorable` at a higher level and we return True, the higher level returns True without undoing its propagation changes. So at top-level, domains fully colored. Fine.
+
+Potential issue: In `is_colorable`, after propagate success, if branch vertex selected and all colors fail, we undo propagation changes. But what about changes made by deeper recursive calls? They are undone by those calls. Good.
+
+Potential issue: In `propagate`, if a vertex domain becomes singleton due to removal, we push it. But what if that vertex was already in stack as initial singleton? Then `du == cmask` check when processing its neighbor may fail if same color. If different color, removal of different color doesn't affect. If same color and already processed, then when it was processed, it removed its color from neighbors; if neighbor had same color singleton, would have failed then. So no issue.
+
+Potential issue: `d & -d` works for positive ints. Domain values are 1,2,3,4,5,6,7. `d & -d` yields lowest set bit. Iterating `d -= color` removes that bit. Good.
+
+Now, let's think about possible recursion depth and Python overhead. `is_colorable` recursive depth up to number of branch vertices <= n. Fine.
+
+Now, consider if graph has many vertices and is 3-colorable; solver may find coloring quickly. Good.
+
+Now, consider if graph is not 3-colorable; solver explores search tree. For n=40, maybe okay.
+
+Let's think about using connected components to speed. We can decompose the graph into connected components and solve each component independently. For prefix method, fixed vertices may be in multiple components. But we can process components separately: For each connected component of the full graph, the coloring problem is independent. The lexicographically smallest global assignment is determined by per-component choices, but because vertex order interleaves components, it's not simply independent. However feasibility of a prefix can be checked by solving each connected component of the induced subgraph on uncolored vertices plus constraints from fixed vertices. But fixed vertices connect to their components. We can just solve whole graph; n=40.
+
+Maybe we can improve by ordering vertices by degree for solver, but we need lexicographic order for output. The solver doesn't care about order; it just finds any coloring. So we can use dynamic ordering in branch heuristic. Good.
+
+Now, let's think about whether the prefix method might call is_colorable for a prefix where some assigned vertex has a neighbor with same color (immediate conflict). We skip those colors in main loop by checking earlier neighbors. But what about conflicts among assigned vertices where one is later? At step i, only vertex i newly assigned; previous assigned consistent. We check neighbors u<i with same color. Good. So no immediate conflict. Solver will handle constraints with unassigned neighbors.
+
+Now, is it possible that a color c for vertex i is immediately invalid due to a neighbor u>i that will be assigned same color later? That's not immediate; solver will ensure no conflict by choosing different color for u. So c can be feasible.
+
+Now, let's think about correctness of lexicographic minimal with prefix method: At each position, we choose smallest color that can be extended to a full coloring. This yields lexicographically smallest sequence. Standard.
+
+Now, let's consider if there is any issue with output trailing spaces. We use join, fine.
+
+Now, let's think about memory. Fine.
+
+Now, potential bug: In main loop, after `is_colorable(domains)` returns True, we keep assign[i]=c and break. But we don't use `chosen` variable except to check. We set chosen=c. Good.
+
+Now, potential bug: If `is_colorable` returns True but modifies `assign`? No, it only modifies local `domains`. Good.
+
+Now, potential bug: If input has extra whitespace, `.split()` handles.
+
+Now, potential bug: If m lines include duplicate edges, adj list duplicates. Propagation may process duplicate neighbors. Could cause `changes` to include duplicate entries? Let's examine duplicate edge u-v. When v singleton c, adjacency list has u twice. First time: du maybe FULL (7). du & cmask true, new = du ^ cmask, changes append (u,7), domains[u]=new. Second time: du now new (without c). If new still contains c? No, because c removed. So du & cmask false. No change. If du was already singleton c, first duplicate: du==cmask -> fail. Second duplicate not reached because return fail. If du was singleton other color, first duplicate: du & cmask false, no change. Second duplicate same. So changes no duplicate. Good.
+
+Now, potential bug: Self-loop with u==v. We currently skip adding and print NO? Actually code checks `if u == v: print("NO"); return`. But what if there are other edges after? We can just print NO immediately. That's correct because self-loop impossible. But if input has self-pair and also valid otherwise, answer NO. Good. However, if there are multiple test cases? Not relevant.
+
+Alternatively, we could allow self-loop and let solver detect. But immediate NO fine.
+
+Now, let's think about whether we need to handle 1-indexed vertices possibly out of range? Assume valid.
+
+Now, let's consider if n=0? Not allowed (n>=1).
+
+Now, let's think about time limit 2s. Python recursion with changes list should be okay. But let's consider worst-case unsatisfiable graph with n=40. Search tree could be large. Is there a known benchmark? 3-coloring random G(40, p) around unsat threshold. The algorithm with propagation and smallest-domain branching is quite efficient. Should finish in <1s.
+
+But prefix method multiplies by up to 120. However each prefix call on a graph with fixed singletons may be easier. For unsat graph, first call (i=0,c=1) will explore entire search tree to prove unsat. Then i=0,c=2 another full search, c=3 another. That's 3 times the cost of solving full problem. If full problem unsat takes e.g., 0.1s, total 0.3s. Fine. If full problem unsat takes 0.5s, total 1.5s, maybe okay. If full problem unsat takes >0.7s, total >2s maybe TLE. Could we reduce to solving full problem once? For NO case, we could first check if graph is 3-colorable at all. If not, output NO immediately, avoiding 3 calls. That's a good optimization! Indeed, if graph has no proper 3-coloring at all, answer is NO regardless of lexicographic. We can run solver once with all domains FULL. If unsat, print NO. If sat, then proceed with prefix method. This avoids repeated unsat searches for NO case. Great.
+
+Similarly, for YES case, we know at least one coloring exists. Prefix method will find it. But could still have infeasible color trials that explore large subtrees. However graph is satisfiable; infeasible prefixes may be easier? Not necessarily, but okay.
+
+So add initial feasibility check: `if not is_colorable([FULL]*n): print("NO"); return`. This solves full problem once. If unsat, done. If sat, proceed.
+
+But note: `is_colorable` modifies the domains list; we pass a new list. It returns True/False. For unsat, returns False. Good.
+
+Now, for YES case, we can also maybe find a full coloring first and use it? Not needed.
+
+This initial check is important for NO cases.
+
+Now, for YES case, prefix method may still call solver many times. Could we find lexicographically smallest coloring by a single search that tries colors in lexicographic order and prunes using feasibility? That's essentially prefix method but with feasibility check at each node. The initial full check doesn't help there.
+
+But maybe we can do better: Since we know graph is 3-colorable, we can use the solver to find a coloring for each prefix. The number of solver calls is at most 3n. For n=40, 120 calls. Each call on a graph with fixed prefix. Could be okay.
+
+Let's estimate worst-case for YES case. Suppose graph is a large 3-colorable graph where vertex1 must be color3 in any lexicographically smallest? Wait if graph satisfiable, vertex1 can always be color1 by permuting colors of its component. So c=1 feasible. So at i=0, one call. At i=1, maybe c=1 feasible or c=2. In worst case, for each vertex we try 2 infeasible colors before feasible. Each infeasible call may explore search tree. Could be large. But maybe constraints from prefix make it easier to prove infeasible.
+
+Could we avoid calling solver for colors that are obviously feasible? Not.
+
+Alternative: Instead of prefix method with full solver, we can do a single recursive search in lexicographic order with a strong pruning: at each vertex i, try colors 1..3. Before recursing to i+1, we need ensure the remaining graph can be completed. We can use a lower bound heuristic (e.g., check if any uncolored vertex has empty domain after propagation). If propagation alone doesn't detect contradiction, we might still have a dead subtree. But maybe propagation is strong enough for n=40? For graph coloring, arc consistency alone is not complete; there are instances where propagation doesn't detect dead end until deep. But maybe rare. Using full solver at each step is safer.
+
+Could we combine: Use prefix method but after each feasible prefix, keep the solver's found coloring as a witness for the next prefix? Actually we can maintain a full proper coloring consistent with current prefix. At step i, we have a witness coloring for prefix i-1. We want to assign vertex i the smallest color c such that there exists a coloring extending prefix i-1 + (i=c). We can try c=1,2,3. For each c, we need check feasibility. We could try to modify the witness coloring to use c at vertex i while keeping earlier vertices fixed. This is a recoloring problem. Hard.
+
+Prefix method with solver is fine.
+
+Now, after initial full feasibility check, for YES case we can maybe use a more efficient approach: We can compute lexicographically smallest coloring by iteratively fixing each vertex and using the solver to find any coloring for the remaining graph. But we already do that.
+
+Potential optimization: When we call solver for prefix i with color c, if it returns True, we don't need the coloring; we keep c. For the next prefix i+1, we could reuse the same `domains` state from the successful solver call (which is a complete coloring) and then restrict vertex i+1? Not exactly, because the successful solver's coloring may not respect lexicographic choices for future vertices, but it proves feasibility. For next step, we need test colors for vertex i+1 with earlier vertices fixed. We could start from the successful coloring and try to recolor vertex i+1 to smaller color if possible. But implementing this is complex.
+
+Given n=40, keep simple.
+
+Now, let's think about whether initial full check should be done before anything else. Yes.
+
+But wait: If graph is not 3-colorable, answer NO. If graph is 3-colorable, we proceed. Good.
+
+Now, one more optimization: In prefix method, when building domains, we can pass a list where assigned vertices are singletons and unassigned are FULL. The solver will propagate. For each i, we call solver up to 3 times. We can maybe short-circuit: For color c, if no neighbor among earlier vertices has c and the graph without considering future constraints is obviously colorable? Not.
+
+Now, let's think about using `is_colorable` with memoization of unsat states to speed repeated calls. Since prefixes differ, states may not repeat. But within a single call, memo can avoid duplicate work if branching order creates same domain state via different paths. However our branching chooses a specific vertex each level, so states are unique along a path; but after backtracking, different paths may lead to same domain configuration? Possibly if graph has symmetries. Memo could help but overhead. Let's skip.
+
+Now, let's consider if we can use `array('b')` or `list` of ints. List fine.
+
+Now, let's think about potential recursion overhead due to Python function calls. For n=40, search tree maybe millions -> millions of function calls. Python can handle maybe 50 million calls per second? Actually function call overhead ~0.5-1 microsecond? Millions ~0.5-1s. Could be okay. But if search tree tens of millions, maybe slow. We can optimize by making `is_colorable` iterative? Hard.
+
+We can reduce function call overhead by using recursion only for branch vertices, not for propagation. Propagation is iterative. Branch recursion depth <= number of branch vertices. For dense graphs, many vertices become singleton via propagation, reducing branch depth. Good.
+
+For empty graph, branch depth = n (40), but each branch succeeds first try, so only n calls. Fine.
+
+For hard unsat graph, branch depth maybe large but n=40.
+
+Now, maybe we can add a reduction rule to reduce branch vertices: If a vertex has domain size 3 and degree <=2, it can be removed (deferred). This can significantly reduce graph size for sparse graphs. Let's consider implementing this to speed. For list coloring, if vertex v has domain size 3 and degree <=2 in the current graph (considering uncolored vertices? Actually all vertices), then after coloring the rest, v can always be colored because its neighbors use at most 2 colors. So we can remove v from the graph and solve the smaller graph. Then assign v a color not used by neighbors. This is safe. More generally, if domain size > degree, vertex can be deferred. But domain size is at most 3. So if degree <=2 and domain size 3, remove. If degree <=1 and domain size >=2, remove. If degree ==0, remove. This is a reduction kernel. For 3-coloring, repeatedly removing vertices of degree <=2 yields a graph of minimum degree 3 (if any). The core may be smaller. For n=40, core size maybe still 40 for dense graphs. But for sparse, reduces.
+
+However, implementing removal with list coloring and backtracking is more complex. We can incorporate a preprocessing in `is_colorable`: repeatedly find vertices with domain size 3 and degree <=2 (or domain size > degree) and remove them from consideration (mark inactive). Solve core, then color removed vertices greedily. But need adjacency among removed and core. Could do recursively.
+
+Simpler: In branch selection, we can skip vertices that are "easy" by deferring them: If a vertex has domain size 3 and degree <=2, we don't branch on it; we can leave it uncolored and after core solved, assign it. But our solver requires all domains singleton to succeed. We can modify success condition: if all non-deferred vertices are singleton, and deferred vertices can be colored, success. This adds complexity.
+
+Given n=40, not needed.
+
+But maybe for dense graphs, propagation already makes many singletons.
+
+Let's think about a worst-case 3-colorable graph for backtracking: random 3-colorable graphs with planted partition. The solver with smallest-domain branching will likely find coloring quickly. For unsat random near threshold, search may be harder. But n=40 small.
+
+Now, let's consider using a more sophisticated branching: choose vertex with max degree among smallest domain. Might reduce search. But okay.
+
+Now, potential issue: In `is_colorable`, after propagate, we choose branch vertex with smallest domain. But if there is a vertex with domain size 2 that is adjacent to another vertex with domain size 2, branching on it may cause propagation. Fine.
+
+Now, let's think about correctness of propagation for list coloring. It enforces arc consistency: if vertex v is singleton {c}, remove c from all neighbors. This is sound and complete for propagation. It doesn't enforce higher-order consistency. Good.
+
+Now, let's think about whether we need to handle the case where a vertex's domain becomes empty due to multiple neighbor singletons of different colors. Propagation removes colors one by one; if all removed, domain becomes 0 -> fail. Good.
+
+Now, let's think about whether we need to handle a vertex with domain size 2 where both colors are taken by neighbors that are not singleton? Actually if neighbors are not singleton, they might still both be forced to use different colors in any coloring, making this vertex impossible. Arc consistency won't detect. Branching will. Fine.
+
+Now, let's think about possible improvements for lexicographic search: We can process vertices in order and maintain domains incrementally. At each step i, we have domains from previous step (with prefix i-1). We try colors for i. For each color, we copy domains and propagate. If feasible, recurse. This is same as prefix method but we can avoid rebuilding domains from assign each time. However we need to backtrack to previous prefix state to try next color for vertex i. We can maintain a stack of domain copies. This is essentially recursive lexicographic search. It may be slightly faster because we don't rebuild full domains for each trial; we copy current domains list (O(n)) and propagate. But prefix method also copies assign to domains O(n). Similar.
+
+Actually we can implement a recursive function `dfs(pos, domains)` that tries to assign vertex pos in lexicographic order. At each call, domains reflects assignments for vertices < pos (all singletons) and FULL for unassigned. It tries colors 1..3 for pos. For each color, if no conflict with earlier neighbors (propagation would detect but we can skip), set domains[pos]=color, propagate. If propagation fails, skip. If pos==n-1, success. Else recurse. If recursion succeeds, return True. This explores only feasible prefixes? Wait it doesn't check feasibility of remaining graph before recursing; it just propagates and recurses. If a branch leads to dead end later, it will backtrack. This is standard backtracking with forward checking (arc consistency). It may explore dead subtrees. But for n=40, maybe okay. It avoids the overhead of full solver calls at each node. Could be faster than prefix method? Maybe not, because prefix method has stronger pruning (full colorability test). But prefix method overhead may be high.
+
+Let's compare: Prefix method at each node does a full colorability test, which itself is exponential. But it only goes along one path (the lexicographically smallest). It doesn't explore dead subtrees beyond the infeasible color trials. For each vertex, it may try up to 2 infeasible colors, each requiring a full exponential proof. That's potentially heavy. Standard backtracking explores the search tree in lexicographic order and returns first solution; it may explore dead subtrees but not as heavily as full proofs for each prefix? Actually standard backtracking with arc consistency explores the same search tree as the union of all prefix feasibility tests? Let's see: Standard DFS tries s1=1, then recursively. If that branch has a solution, it finds it without exploring other s1 values. Prefix method tests s1=1 with full solver; if feasible, keeps it. The full solver explores the same subtree as DFS would to find a solution. Then for s2, prefix method tests s2=1 (with s1=1 fixed) with full solver, exploring subtree. Standard DFS already explored that subtree when finding the first solution. So prefix method repeats exploration of prefixes. It can be more expensive because it re-solves from scratch for each prefix. However n=40 small.
+
+To avoid repetition, we can implement standard DFS with arc consistency and return first solution. It will naturally find lexicographically smallest if we try colors in order and vertices in order. It may explore dead subtrees, but only those under the lexicographically smallest prefix. If the lexicographically smallest solution is found early, it stops. The dead subtrees explored are those where a prefix choice leads to no solution but the algorithm doesn't know until deep. Prefix method with full solver knows immediately if a prefix is infeasible, so it doesn't explore dead subtrees. But it pays the cost of full solver for each prefix. Which is better depends.
+
+For n=40, a full solver per prefix might be okay. But let's consider worst-case where many prefixes are infeasible and full proofs are hard. Standard DFS might explore huge dead subtrees too. Hard to compare.
+
+Maybe a hybrid: Use standard DFS with arc consistency and also at each node before recursing, run a quick feasibility check using a bounded search? Not.
+
+Given time, maybe implement a direct lexicographic DFS with arc consistency and also a global fallback to full solver if recursion steps exceed threshold? Overcomplicating.
+
+Let's try to estimate prefix method cost more concretely with random 3-colorable graph n=40. Suppose graph is satisfiable. For each vertex i, we try colors. The first feasible color is often small. Infeasible trials may require exploring search tree to prove unsat. But proving unsat for a prefix with one extra fixed vertex may be relatively easy because the fixed vertex reduces symmetry and often quickly leads to contradiction via propagation. For example, if prefix forces a K4, propagation detects. So infeasible prefixes often fail fast. Thus prefix method likely fast.
+
+Let's test mentally on a graph that is a disjoint union of 13 triangles (n=39). Lexicographically smallest: assign each triangle's vertices in order to colors 1,2,3 if possible. Prefix method: For each vertex, try colors. In a triangle, if first vertex of triangle gets 1, second gets 2, third gets 3. If vertex order doesn't align with triangles, still. Infeasible color trials: e.g., a vertex in a triangle whose two neighbors in triangle are earlier assigned 1 and2; then color3 forced, c=1,2 infeasible. Proving c=1 infeasible: assign vertex color1, propagate to its two neighbors (remove 1), but neighbors already singleton 2? Wait if earlier neighbors assigned 1 and2, then c=1 conflicts with neighbor1 immediate, so skip. c=2 conflicts with neighbor2 immediate, skip. c=3 feasible. So no solver calls for infeasible immediate conflicts. Good.
+
+If a vertex in triangle has one earlier neighbor assigned 1, the other neighbor unassigned. Try c=1 conflict immediate. c=2 feasible? maybe. c=3 maybe also feasible but not tried. So at most one infeasible immediate conflict. Solver calls few.
+
+Thus prefix method fast.
+
+Now, consider a graph that is a long path with chords making lexicographically smallest forced. Hard to construct huge infeasible proofs.
+
+I think prefix method passes.
+
+But to be safe, we can add initial full check and maybe also a limit? No.
+
+Let's also consider using `is_colorable` with a time/iteration limit? Not.
+
+Now, let's think about whether we can use a SAT solver library? No.
+
+Now, final code as above with initial full check. Let's refine.
+
+One more thought: The initial full check uses `is_colorable([FULL]*n)`. If returns True, we proceed. But `is_colorable` may take time. Then prefix method also takes time. Could we reuse the coloring found by initial check? The initial check returns True and leaves `domains` fully colored (if we passed a variable). But we don't capture it. We could capture it and use it to maybe speed prefix? Not straightforward. But we can avoid prefix method entirely by performing a single lexicographic DFS that uses the same solver. Hmm.
+
+Actually, we can find lexicographically smallest coloring by a recursive search that at each vertex tries colors 1..3 and uses the same `is_colorable` as a feasibility check before recursing. That's prefix method. We already have initial full check. Good.
+
+Alternatively, we can do recursive search without full solver but with arc consistency; if it finds solution, done. If it explores too many nodes, fallback. Not needed.
+
+Let's consider implementing a direct recursive lexicographic search with arc consistency only (no full solver). It might be even faster and simpler. But arc consistency alone may not prune enough for unsat subtrees. However for n=40, maybe still okay. Let's think: At each vertex, try colors. After assigning, propagate arc consistency. If fail, backtrack. This is essentially a CSP solver with MAC (Maintaining Arc Consistency) but not full lookahead. It may explore many nodes. For graph coloring, MAC is quite strong for 3 colors and n=40. It might solve in milliseconds. But for some instances, it may be slow.
+
+Prefix method with full solver is stronger but more overhead. Which to choose? Maybe combine: Use direct DFS with MAC; if it finds solution, output. If recursion depth/iterations exceed some threshold, switch to prefix method? Not elegant.
+
+Given contest problem, a well-implemented backtracking with MAC and lexicographic order is likely intended. Let's consider implementing that instead; it may be simpler and faster. But we need guarantee no TLE on worst-case. Let's analyze MAC search.
+
+Algorithm `dfs(pos, domains)`:
+- If pos == n: success, output assign.
+- For c in 1..3:
+    - If any neighbor u < pos has assign[u]==c: continue (immediate conflict).
+    - Set domains[pos] = bit(c).
+    - Copy domains (or propagate in place with undo).
+    - Propagate (arc consistency). If contradiction, undo and continue.
+    - Recurse dfs(pos+1, domains).
+    - If success, return True.
+    - Undo changes.
+- Return False.
+
+This tries colors in lexicographic order and returns first full coloring. It uses MAC at each step. It does not call a full solver to prove feasibility of prefix; it relies on MAC and backtracking. If a prefix is infeasible, MAC may or may not detect quickly; if not, it will explore subtree until contradiction. This could be large.
+
+But note: Because we try colors in lexicographic order, the first full coloring found is lexicographically smallest. The search tree explored is exactly the standard backtracking tree. For n=40, this might be fine.
+
+Which is more efficient: prefix method with full solver or standard MAC DFS? The prefix method's full solver at each prefix essentially does a complete search of the subtree to decide feasibility; if feasible, it finds a coloring (maybe not lexicographically minimal for later vertices). The standard DFS explores the same subtree but stops when it finds a full coloring. However prefix method repeats subtrees for each prefix. Standard DFS does not repeat; it builds assignment incrementally and reuses state. So standard MAC DFS is likely faster.
+
+But standard MAC DFS may explore dead subtrees that prefix method would avoid by full feasibility check. However prefix method pays to prove infeasibility of each tried color. Standard DFS explores dead subtrees under infeasible prefixes until it backtracks. They are similar: the union of subtrees explored by prefix method to prove infeasibility of colors equals the dead subtrees explored by standard DFS? Not exactly, but close. Standard DFS may explore less because it doesn't prove infeasibility of a prefix completely before moving to next color at same vertex? Actually it does: it tries a color, recurses deeply; if it fails, it backtracks and tries next color. It explores the entire subtree for that color (unless pruned by MAC). Prefix method for that color calls a full solver that explores the entire subtree. So they explore the same dead subtree. Prefix method repeats this for each prefix independently, while standard DFS reuses the state after backtracking. So standard DFS is more efficient.
+
+Therefore, maybe implement standard MAC DFS for lexicographic smallest. It will find the first (lexicographically smallest) coloring. It uses arc consistency propagation. This is likely sufficient for n=40 and faster than prefix method.
+
+But is MAC strong enough? For 3-coloring n=40, MAC ( Maintaining Arc Consistency ) is a standard algorithm and often efficient. However worst-case can be exponential. But n=40 small.
+
+Let's consider implementing standard DFS with MAC and see if it might TLE. We can also add a full solver as fallback if needed. But code complexity.
+
+Maybe the safest is to implement a single recursive search that finds lexicographically smallest coloring directly, using strong propagation and branching. This avoids repeated solver calls. Let's design it.
+
+Direct lexicographic DFS with MAC:
+
+- assign = [0]*n
+- domains = [FULL]*n
+- `dfs(pos)`:
+    if pos == n: return True (all assigned)
+    for c in 1,2,3:
+        # immediate conflict with earlier assigned neighbors
+        conflict = any(assign[u]==c for u in adj[pos] if u < pos)
+        if conflict: continue
+        # assign
+        assign[pos] = c
+        old_domain = domains[pos]
+        domains[pos] = bits[c-1]
+        # propagate with undo
+        ok, changes = propagate(domains)  # but propagate should consider all singletons including assign[pos] and previous
+        if ok:
+            if dfs(pos+1):
+                return True
+        # undo propagation changes
+        for u, du in reversed(changes):
+            domains[u] = du
+        domains[pos] = old_domain
+        assign[pos] = 0
+    return False
+
+But note: `propagate` initial stack includes all singletons (previous assigned vertices). Since previous assigned vertices are consistent, propagation will just maintain. It may also propagate from assign[pos]. Good.
+
+However, `propagate` will also process previous singletons and may have already removed colors from unassigned domains. Changes list will include those removals at each step. That's fine; undo restores.
+
+But this repeated propagation from all singletons at each recursion level is redundant; previous levels already propagated. However with undo, we need to re-propagate. Could optimize by only propagating from the newly assigned vertex, but previous singletons are still singletons and their constraints must hold. Since we undo changes when backtracking, at each level we need re-apply all singleton constraints. Propagation from all singletons does that. Cost O(n + edges) per level. n=40, edges up to 780, per node maybe 800 ops. Search nodes maybe up to millions -> 800 million ops, maybe too much. But typical search nodes far less.
+
+We can optimize by only propagating from newly assigned vertex and using incremental state. But then undo becomes complex because previous singletons' effects are already in domains. Actually at level pos, domains already reflect constraints from previous assignments (because we propagated after each assignment and didn't undo those changes when recursing deeper; we only undo when backtracking at the same level). Wait in the above algorithm, after assigning pos and propagating, we call dfs(pos+1). Inside dfs(pos+1), it will copy? No, it uses same domains list. It assigns pos+1 and propagates. But its `propagate` starts from all singletons, including pos and earlier. However the domains already reflect propagation from earlier singletons. Re-processing earlier singletons is redundant but doesn't change domains (no colors to remove). It still iterates over neighbors. Could avoid by only pushing newly assigned vertex. Let's modify propagate to accept an initial stack list rather than scanning all vertices. Then in DFS, after assigning pos, we call propagate with stack=[pos] (and maybe any vertices whose domains became singleton due to previous propagation? But they are already processed). However previous assignments' effects are already in domains. So only need propagate from pos. This is much faster.
+
+But we must ensure that assigning pos doesn't create a conflict with an earlier assigned neighbor (same color). If so, immediate conflict; we can skip before propagation. If no immediate conflict, propagation from pos removes its color from unassigned neighbors. Those neighbors may become singleton and propagate further. Good.
+
+Thus we can implement `propagate_from(domains, start_v)` that starts with stack=[start_v] and propagates. It returns ok and changes. This avoids scanning all vertices.
+
+But what about initial full check? We can use a separate solver that scans all singletons. Or we can call `propagate_all` for initial check.
+
+For direct DFS, we only need propagate from newly assigned vertex. However, when we backtrack and try a different color for pos, the domains are restored to state before pos assignment (after undoing previous color's propagation). That state already reflects constraints from vertices < pos. Good.
+
+So direct DFS algorithm:
+
+```
+def dfs(pos):
+    if pos == n:
+        return True
+    for c in (1,2,3):
+        cm = bits[c-1]
+        # check conflict with earlier assigned neighbors
+        conflict=False
+        for u in adj[pos]:
+            if u < pos and assign[u] == c:
+                conflict=True; break
+        if conflict: continue
+        assign[pos]=c
+        old = domains[pos]
+        domains[pos]=cm
+        ok, changes = propagate_from(domains, pos)
+        if ok:
+            if dfs(pos+1):
+                return True
+        # undo changes
+        for u, du in reversed(changes):
+            domains[u]=du
+        domains[pos]=old
+        assign[pos]=0
+    return False
+```
+
+Initial call: domains=[FULL]*n, assign=[0]*n. dfs(0). If returns False, print NO. Else print YES and assign.
+
+This finds lexicographically smallest because it tries colors in order and vertices in order.
+
+But does it guarantee to find a coloring if one exists? Yes, it explores all possibilities (with MAC pruning). MAC is sound: if a partial assignment can be extended, MAC won't prune it (arc consistency only removes values that cannot be part of any solution given current singletons). Actually arc consistency may remove values that are not part of any solution; it never removes a value that is part of some solution. So it preserves at least one solution if exists. Thus DFS with MAC is complete.
+
+This is likely faster than prefix method because no repeated full solver calls. It explores the search tree in lexicographic order. The first solution found is lexicographically smallest.
+
+But is MAC enough pruning for n=40? Let's think. For graph coloring, MAC can prune a lot. For unsat instances, it may still explore many nodes. But n=40 small.
+
+However, there is a subtlety: Arc consistency alone may not detect all dead ends. For example, a 5-cycle with domains {1,2,3} for all vertices and no singletons initially: MAC does nothing. Branching on vertex0 color1, then propagate removes 1 from neighbors. The cycle may become 2-colorable? Odd cycle with colors {2,3} is 2-colorable? Odd cycle is not 2-colorable, but with 3 colors available initially, after fixing one vertex, the rest form a path? Actually C5 with v0=1, remaining vertices v1-v4 form a path with endpoints adjacent to v0, so domains {2,3}. The path v1-v2-v3-v4 with v1,v4 both adjacent to v0=1, so they must be from {2,3}. The path v1-v2-v3-v4 is 2-colorable (bipartite), so solution exists. So no dead end. For C5 with v0=1, v1=2, etc., eventually v4 may conflict with v0? v4 adjacent to v0 and v3; can choose 2 or3 not used by v3 and v0. Works. So C5 satisfiable.
+
+For unsat graph K4, MAC after assigning v0=1 removes 1 from neighbors, domains {2,3}. No singletons. Branch v1=2 removes 2 from v2,v3 -> domains {3}, singletons. Then v2 and v3 adjacent both singleton 3 -> fail. So MAC detects quickly.
+
+For harder unsat graphs, MAC may need more branching. But n=40 manageable.
+
+Now, direct DFS with MAC might be the best. Let's compare with prefix method. Direct DFS explores search tree; prefix method does full feasibility per prefix. Direct DFS likely faster. Let's adopt direct DFS with MAC. But we need to be careful: The propagation function `propagate_from` starts from a single vertex. In DFS, after assigning pos, we propagate from pos. But what if during backtracking at a deeper level, a different branch causes propagation that changes domains; when we backtrack to current level and try next color, we undo changes made at this level (including propagation from pos). The state before trying next color reflects constraints from vertices < pos only. Good.
+
+But what if a vertex's domain was reduced by a previous assignment at level < pos, and then at level pos we assign a color that doesn't affect it; but due to backtracking at level pos (trying different colors), we undo changes and restore reduced domain. Good.
+
+Now, initial state: domains all FULL. At pos=0, assign color1, propagate from 0. Then recurse. Good.
+
+Now, if at some pos, all three colors lead to dead ends, dfs returns False. This means no coloring extends current prefix. Since we maintain consistency, if graph is colorable, we'll find it.
+
+Now, lexicographic smallest: Because we try colors 1,2,3 in order and vertices in order, the first complete coloring found has smallest possible s1, then s2, etc. Proof by induction.
+
+Now, we need to ensure that if a color c for vertex pos has an immediate conflict with an earlier neighbor (assign[u]==c), we skip. This is correct because any valid coloring must have different colors on edge. It also avoids unnecessary propagation.
+
+Now, what about immediate conflict with a later neighbor? Not known; propagation will handle.
+
+Now, implement `propagate_from(domains, start)`:
+- changes = []
+- stack = [start]
+- while stack:
+    v = stack.pop()
+    cmask = domains[v]
+    # cmask must be singleton; if not, skip? It should be singleton.
+    for u in adj[v]:
+        du = domains[u]
+        if du == cmask: return False, changes
+        if du & cmask:
+            new = du ^ cmask
+            if new == 0: return False, changes
+            changes.append((u, du))
+            domains[u] = new
+            if new.bit_count() == 1:
+                stack.append(u)
+- return True, changes
+
+But note: If start vertex's domain is not singleton? In DFS, we set it to singleton before calling. Good.
+
+However, when we backtrack and undo changes, the start vertex's domain is restored separately (we save old). Good.
+
+Now, what if a neighbor u is already assigned (singleton) with same color as v? `du == cmask` triggers fail. But we already checked immediate conflict with earlier neighbors. For later assigned neighbors? In DFS, when assigning pos, all vertices > pos are unassigned (domain FULL or reduced). So no later assigned neighbor. Good. But in general, if we use propagate_from in other contexts, it handles.
+
+Now, direct DFS with MAC may explore many nodes but should be okay.
+
+But wait: Is MAC complete for 3-coloring? Yes, arc consistency preserves solutions. However, if a partial assignment is already inconsistent (e.g., two adjacent vertices same color), propagate_from will detect via `du == cmask`. We also check immediate conflict. Good.
+
+Now, let's think about recursion depth and changes. At each level, changes list may be large. Undo in reverse. Good.
+
+Potential issue: The `changes` list may include changes to domains of vertices that later become assigned; when we assign them, we overwrite their domain with singleton and propagate. On backtracking, we restore their domain to the reduced value before assignment. That's correct.
+
+Now, direct DFS may be faster than prefix method. Let's adopt it. But we also need to handle NO case. If dfs(0) returns False, print NO.
+
+Now, is there any risk that direct DFS with MAC is too slow for some n=40 instances? Let's think of worst-case. Suppose graph is empty: DFS assigns all vertices color1 with propagation no changes. n recursive calls. Fast.
+
+Suppose graph is a path: DFS assigns 1,2,1,2,... Fast.
+
+Suppose graph is a large complete graph K5 (unsat). At pos0 color1 propagate removes 1 from others. pos1 try color1 conflict immediate skip; try color2 propagate removes 2 from others -> domains {3} for remaining. pos2 try color1 conflict with pos0, color2 conflict with pos1, color3 propagate -> domains {}? Actually remaining vertices domain {3}, adjacent to each other. pos3 try color3 conflict with pos2 immediate? pos3 adjacent to pos2 (same color3) skip; all colors skip -> backtrack. Search small.
+
+Suppose graph is a random graph near 3-colorability threshold with n=40. MAC may explore many nodes. But n=40 small. There are known results: 3-coloring random graphs with n=100 can be solved by backtracking in seconds. n=40 should be fine.
+
+Now, direct DFS with MAC and lexicographic order is a standard solution. Let's implement it.
+
+But we need to be absolutely sure it won't TLE. Let's consider adding a small optimization: choose branch order? In direct DFS, branch order is fixed by vertex order and color order. That's required for lexicographic. We cannot reorder vertices. Color order fixed.
+
+Could add forward checking: immediate conflict skip. Already.
+
+Could add domain size heuristic for color choice? No, lexicographic.
+
+Could add reduction: if an unassigned vertex's domain becomes singleton due to propagation, we don't immediately assign it in the DFS order; it will be assigned when its turn comes. But its domain is singleton, so when its turn comes, only one color possible (or conflict). This is fine. However, if a vertex's domain becomes empty, propagate fails and we backtrack. Good.
+
+Could we assign singleton vertices out of order to cause more propagation earlier? In DFS, we process vertices in fixed order. If a vertex later in order has domain singleton, we don't process it until its turn. This may miss early detection of conflicts that would be caught by processing it now. But propagate_from processes it when it becomes singleton (pushed onto stack), so its color is removed from neighbors, potentially causing more singletons. So propagation is active. The only thing we don't do is check conflicts between two singletons that are both unassigned until one of them is processed? Actually propagate_from processes a singleton immediately when pushed; it checks neighbor `du == cmask`, which would detect if a neighbor is already singleton same color. If neighbor is singleton different color, no conflict. So all conflicts among singletons detected. Good.
+
+Thus MAC is maintained.
+
+Now, what about a vertex whose domain is reduced to size 2 but both colors are impossible due to constraints involving other unassigned vertices? MAC won't detect; branching will.
+
+Now, implement direct DFS.
+
+But wait: The initial full check is not needed with direct DFS; if dfs(0) returns False, NO. It does the same. However direct DFS may explore huge tree before concluding NO. The initial full check using a smarter solver (branch heuristic) might be faster for NO. But direct DFS with MAC is also a solver. It will explore the same search tree as the full solver (with vertex order fixed). Actually the full solver with smallest-domain branching might be faster for NO because it can choose better branch vertices. Direct DFS is constrained to branch in vertex order, which may be suboptimal for proving unsat. For YES, direct DFS finds lexicographic solution. For NO, we just need any proof; a solver with better branching could be faster. So maybe we should use a separate strong solver for initial check with flexible branching, and if unsat, output NO. If sat, use direct DFS for lexicographic. But direct DFS may also be fast for NO? Not necessarily; vertex order branching can be bad for unsat. However n=40 small.
+
+Alternatively, we can use prefix method with full solver for both YES and NO; it uses flexible branching for feasibility. But for YES, it repeats work. Hmm.
+
+Maybe best: Use a single recursive algorithm that finds lexicographically smallest coloring but with strong branching? We need vertex order fixed for lexicographic. But we can still use MAC and maybe at each level, after assigning current vertex, run a full feasibility check on the remaining graph using a strong solver to prune dead branches. That's prefix method. It uses flexible branching for the remaining graph. This may be more robust for hard instances but repeats work.
+
+Given n=40, direct DFS with MAC likely passes. Let's maybe add a simple initial check: if graph has a vertex of degree >=4? Not helpful.
+
+Let's think about worst-case unsat for direct DFS with MAC and fixed order. Consider a graph that is a disjoint union of many copies of K4 (but K4 has 4 vertices; n=40 can have 10 K4s). Lexicographic order interleaves components. Direct DFS will quickly fail at the fourth vertex of each K4. Search small.
+
+Consider a graph that is 4-chromatic and triangle-free (Mycielski) with n=23. Direct DFS may explore many nodes. But n=40, maybe okay.
+
+Consider a graph that is random G(40, p) with p around 0.1-0.2, which is often 3-colorable or near threshold. Direct DFS with MAC can handle.
+
+I think direct DFS is acceptable.
+
+But to be safe, maybe implement a hybrid: Use direct DFS with MAC; if it takes too many recursive calls (e.g., >10^7), we could fall back to prefix method? Not needed.
+
+Alternatively, implement the prefix method with full solver but also initial full check. It uses flexible branching and avoids repeated full proofs for NO. For YES, it may repeat but each call is on a smaller constrained graph. It might be slower than direct DFS due to repeated solving, but more robust for hard YES instances? Actually direct DFS explores the lexicographic search tree; prefix method explores the same dead subtrees but from scratch. So direct DFS is likely faster.
+
+Let's maybe implement direct DFS with MAC and also include a quick check for obvious NO (e.g., K4). But solver handles.
+
+Let's decide: Implement direct DFS with MAC. It's simpler and likely fast enough.
+
+But wait, there is a concern: Direct DFS with MAC may not find lexicographically smallest if we skip colors due to immediate conflict and then later find a solution with a larger color that could have been smaller if we had chosen a different assignment for an earlier vertex? No, because we try earlier vertices' colors exhaustively in order. For vertex pos, we try color1 first; if there exists any valid coloring with vertex pos=1, DFS will eventually find it (because we recursively explore all extensions). If none, we try color2, etc. So lexicographically smallest. Good.
+
+Now, implement direct DFS with MAC. Let's write code.
+
+Potential issue: In direct DFS, when we assign vertex pos a color and propagate, the domains of future vertices are reduced. When we later backtrack to pos and try next color, we undo those reductions. Good. But what about the domains of vertices < pos? They remain singletons. Good.
+
+Now, let's think about the `propagate_from` function and changes. When we assign pos=c, we set domains[pos]=cm. We call propagate_from(domains, pos). It will process pos and any newly singleton vertices. It records changes to neighbors' domains. It does not record the change to pos (we handle separately). On backtrack, we undo changes (restore neighbors), then set domains[pos]=old (FULL or reduced from earlier levels). Good.
+
+But what if pos's domain was already reduced by earlier assignments to a value not equal to FULL? In DFS, when we backtrack from pos to pos-1, we restore pos's domain to its reduced state before pos assignment. Then when trying next color at pos, we set domains[pos]=new color. Good.
+
+Now, initial domains all FULL. At pos=0, old=FULL. After trying color1 and backtracking, domains[0]=FULL. Then try color2 etc.
+
+Now, if at pos=0 all colors fail, dfs returns False -> NO.
+
+Now, let's think about recursion depth and changes memory. Fine.
+
+Now, let's consider if we need to handle the case where `propagate_from` is called with start vertex whose domain is not singleton (shouldn't happen). In DFS, we set it. Good.
+
+Now, code:
+
+```
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it)); m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it))-1; v = int(next(it))-1
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v); adj[v].append(u)
+    FULL = 7
+    bits = [1,2,4]
+    sys.setrecursionlimit(1000000)
+
+    def propagate(domains, start):
+        changes = []
+        stack = [start]
+        while stack:
+            v = stack.pop()
+            cmask = domains[v]
+            # cmask should be singleton
+            for u in adj[v]:
+                du = domains[u]
+                if du == cmask:
+                    return False, changes
+                if du & cmask:
+                    new = du ^ cmask
+                    if new == 0:
+                        return False, changes
+                    changes.append((u, du))
+                    domains[u] = new
+                    if new.bit_count() == 1:
+                        stack.append(u)
+        return True, changes
+
+    assign = [0]*n
+    domains = [FULL]*n
+
+    def dfs(pos):
+        if pos == n:
+            return True
+        # try colors 1,2,3
+        for c in (1,2,3):
+            # immediate conflict with earlier assigned neighbors
+            conflict = False
+            for u in adj[pos]:
+                if u < pos and assign[u] == c:
+                    conflict = True
+                    break
+            if conflict:
+                continue
+            assign[pos] = c
+            old = domains[pos]
+            domains[pos] = bits[c-1]
+            ok, changes = propagate(domains, pos)
+            if ok:
+                if dfs(pos+1):
+                    return True
+            # undo
+            for u, du in reversed(changes):
+                domains[u] = du
+            domains[pos] = old
+            assign[pos] = 0
+        return False
+
+    if not dfs(0):
+        print("NO")
+        return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(' '.join(map(str, assign)))
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    solve()
+```
+
+This is clean. Let's test mentally on examples.
+
+Example1: n=4. dfs(0): try c=1, no conflict, propagate from 0 to neighbors 1,2,3 remove color1. domains: 0=1,1={2,3},2={2,3},3={2,3}. dfs(1): try c=1 conflict with neighbor0 (0<1 assign0=1) skip. c=2 no conflict, propagate from1 remove2 from neighbors 0,2,3. neighbor0 domain1 unaffected; neighbor2 {2,3}-> {3}; neighbor3 {2,3}->{3}. push 2,3. process 2: cmask=3, neighbor3 du==3 -> fail? Wait edge 2-3 exists (triangle). So propagate fails. Undo. Try c=3 for vertex1: propagate remove3 from neighbors; neighbor2 {2,3}->{2}; neighbor3 {2,3}->{2}. process 2 cmask=2, neighbor3 du==2 -> fail (edge2-3). So dfs(1) fails. Backtrack to vertex0, try c=2? Wait we tried c=1 first. At vertex0 c=1 leads to dead end? But example has solution with vertex0=1. Did we make a mistake? Let's re-evaluate.
+
+Graph edges: 1-2,1-3,2-3,1-4,2-4. Vertex indices 0-3. Vertex0 (task1) adjacent to 1,2,3. Vertex1 (task2) adjacent to 0,2,3. Vertex2 (task3) adjacent to 0,1. Vertex3 (task4) adjacent to 0,1.
+
+At vertex0=1, domains: v0=1, v1={2,3}, v2={2,3}, v3={2,3}.
+At vertex1, try c=2: propagate remove2 from v1's neighbors v0 (1), v2 ({2,3}->{3}), v3 ({2,3}->{3}). Then process v2 (singleton3): neighbor v3 domain==3 and edge v2-v3 exists -> fail. So c=2 fails.
+At vertex1, try c=3: propagate remove3 from neighbors; v2->{2}, v3->{2}. Process v2 singleton2: neighbor v3 domain==2 and edge exists -> fail. So c=3 fails. Thus vertex0=1 leads to no solution? But example says solution 1 2 3 3. Wait with vertex0=1, vertex1=2, vertex2=3, vertex3=3. Edge 2-3 (vertex1-vertex2) diff 2-3=1 ok. Edge 2-3? Let's map: tasks 2 and3 share registers (edge 1-2? Actually input includes 2 3, meaning tasks 2 and 3 share). So vertex1 (task2) and vertex2 (task3) adjacent. In solution, task2=2, task3=3, ok. Edge 1-3 (task1-task3): 1 and3 ok. Edge 2-3 tasks2-3: 2 and3 ok. Edge 1-4: 1 and3 ok. Edge2-4:2 and3 ok. So solution valid.
+
+Why did our propagation fail for vertex1=2? Let's recompute: vertex1=2. Its neighbors: vertex0=1 (ok), vertex2 (task3) domain {2,3}, vertex3 (task4) domain {2,3}. Remove color2 from vertex2 -> {3}. Remove color2 from vertex3 -> {3}. Now vertex2 and vertex3 both domain {3}. Are they adjacent? Edge 2-3 is between task2 and task3, i.e., vertex1 and vertex2, not vertex2-vertex3. Wait tasks numbered: task3 is vertex2, task4 is vertex3. Input edges: 2 3 (task2-task3) => vertex1-vertex2. 1 4 => vertex0-vertex3. 2 4 => vertex1-vertex3. There is no edge between task3 and task4 (vertex2-vertex3). So vertex2 and vertex3 are not adjacent. Thus propagation should not fail. My mistake: I thought edge 2-3 (vertex2-vertex3) but it's vertex1-vertex2. So no fail. Good.
+
+Continue: vertex2 domain {3}, vertex3 domain {3}. They are not adjacent, so both can be 3. DFS: at vertex1=2, propagate, then dfs(2): try c=1 conflict with neighbor0 (1) skip. c=2 conflict with neighbor1 (2) skip. c=3 no conflict with earlier neighbors (neighbor0=1, neighbor1=2). assign vertex2=3, propagate remove3 from neighbors vertex0 (1), vertex1 (2). No new singletons. dfs(3): try c=1 conflict with neighbor0 skip. c=2 conflict with neighbor1 skip. c=3 no conflict with neighbors0,1. assign vertex3=3. pos==n success. Output 1 2 3 3. Good.
+
+Example2 K4: dfs(0) try c=1, propagate. dfs(1) c=2 fails, c=3 fails, backtrack. dfs(0) c=2 fails similarly, c=3 fails. Return False -> NO. Good.
+
+Now, direct DFS with MAC works for examples.
+
+Now, performance. Let's think about worst-case for direct DFS. It may explore many nodes. But n=40 small.
+
+However, there is a subtle issue: Direct DFS with MAC may be slower than a solver with better branching for unsat NO cases. But if graph is NO, dfs(0) will explore the entire search tree with vertex-order branching. For n=40, could be large. But maybe still okay. Let's consider a graph that is a disjoint union of 10 K4s. Vertex order may interleave components. DFS will quickly fail at vertex 3 (fourth vertex of first K4) and backtrack through colors of earlier vertices. Search tree maybe 3^4 per K4? But MAC prunes. For K4, after assigning first 3 vertices with distinct colors, fourth vertex has no color. The search tree for K4 is small. For 10 K4s interleaved, DFS may try many combinations across components before concluding. But each component independent; DFS will explore combinations of assignments to earlier vertices of all components before reaching a K4 failure. Actually if components are interleaved, the first component's K4 failure occurs when processing its fourth vertex; before that, vertices from other components are assigned. The search may explore many assignments to those other vertices for each attempt of the K4 component. This could blow up.
+
+Example: Suppose n=40 with 10 disjoint K4s, vertices ordered such that first 4 vertices are from different K4s? Actually if vertices of each K4 are consecutive, DFS fails quickly within first K4 and doesn't explore others. But if interleaved, e.g., vertices 0,10,20,30 form K4, others form other K4s. Then DFS assigns vertex0 (component A), then vertices1-9 (other components), then vertex10 (component A) etc. The K4 constraint only forces all 4 vertices different; DFS may explore many assignments to other components before discovering conflict at vertex30. This is a weakness of fixed-order branching.
+
+But would input be adversarially interleaved? It can be any edges. So direct DFS with fixed order could be slow for NO cases with disjoint dense components interleaved. However n=40, components small. Let's estimate worst-case: 10 K4s interleaved evenly. At vertex0, try color1. Then vertices1-9 (from other K4s) each have 3 choices (subject to their own constraints). At vertex10 (same K4 as 0), it cannot be color1 (adjacent). Try color2. Then vertices11-19 etc. At vertex20, cannot be 1 or2, try color3. At vertex30, cannot be 1,2,3 -> fail. DFS backtracks at vertex30. It will try all assignments to vertices1-29? That's huge: 3^30. MAC doesn't help much because components independent. So direct DFS would be terrible for this input.
+
+But wait, are vertices1-9 in other K4s? They are adjacent among themselves within their own K4s, so their assignments are constrained but still many possibilities. The search tree could be enormous.
+
+Thus direct DFS with fixed vertex order is not safe for NO cases with independent components. We need a better approach.
+
+Prefix method with full solver also suffers? For prefix method, at i=0 c=1, it calls full solver on remaining graph with vertex0 fixed. The full solver uses flexible branching (smallest domain) and can detect the K4 component quickly, independent of vertex order. It would prove unsat quickly. Then i=0 c=2, c=3 similarly. So prefix method is robust for NO cases if the full solver uses good branching. Good.
+
+For YES case with interleaved components, direct DFS may also be slow if many components and lexicographic assignment requires exploring. But prefix method with full solver at each prefix may also be slower but each full solver handles components efficiently. However prefix method repeats work.
+
+So we should use a strong solver with flexible branching for feasibility, and prefix method for lexicographic. To avoid repeated work, maybe we can find lexicographically smallest by solving a sequence of constraints but reuse solver state? Or use a SAT solver with assumptions? Not.
+
+Given n=40, prefix method with strong solver is likely intended. The repeated work may be acceptable because each call is fast. The interleaved K4 NO case: initial full check with strong solver quickly says NO. For YES case, full solver finds colorings quickly.
+
+But for YES case with many components, prefix method at each vertex calls full solver. Could be many calls but each full solver on a graph with fixed prefix. However the fixed prefix may interleave components, making the remaining problem still have independent components. The full solver can solve them quickly. But we call it up to 120 times. Each call solves a 3-coloring problem on up to 40 vertices. If each call takes e.g., 0.01s, total 1.2s. Fine.
+
+But can we reduce repeated calls? We can use the prefix method but with a strong solver. That's our earlier plan. Let's go back to prefix method with strong solver and initial full check.
+
+However, the repeated full solving might still be heavy for YES case with many components. Let's think of a YES case: disjoint union of 13 triangles (n=39) interleaved. Lexicographically smallest assignment: each triangle's vertices get colors 1,2,3 in some order depending on vertex order. Prefix method: For each vertex, try colors. Immediate conflicts with earlier neighbors in same triangle often skip. Otherwise solver called. For a triangle, if one vertex fixed, the other two have 2! =2 colorings. Full solver finds quickly. For 13 triangles, each call solves small components. Should be fast.
+
+What about a YES graph that is a large 3-colorable random graph near threshold? Full solver per prefix may be slower. But n=40.
+
+Let's consider using a more efficient method for lexicographic smallest: We can solve the full graph once with a solver that returns a coloring. Then we can try to reduce lexicographically by fixing vertices to smaller colors and re-solving. That's prefix method. We can also use the previous coloring as a starting point and try to recolor. But complex.
+
+Given constraints, prefix method with strong solver is acceptable.
+
+Now, we need to make the strong solver as fast as possible. Use flexible branching (smallest domain, maybe max degree tie-break). Use propagation with stack. Use in-place changes/undo. Use initial full check.
+
+Let's also add component decomposition in the solver: Since graph may have independent components, solving each component separately can speed. For a prefix, the uncolored graph may split into components after removing assigned vertices. We can solve each component independently. But implementing component detection per recursive call adds overhead. However at top-level of each solver call, we can decompose the graph into connected components and solve each independently. This can greatly speed the interleaved K4 case. Let's implement this.
+
+Solver `is_colorable(domains)`:
+- First, propagate all singleton constraints.
+- Then, find connected components of the subgraph induced by vertices with non-singleton domains (or all vertices? Assigned singletons are fixed; they can be considered as part of components but their colors fixed). Actually constraints propagate from singletons to neighbors; after propagation, uncolored vertices with multi-color domains form the remaining problem. We can find connected components among all vertices (including singletons) using adjacency; components are independent. But singletons are fixed and just constrain neighbors. We can solve each component independently: for each component, check if there exists a coloring of its vertices consistent with fixed singletons in the component. If any component unsat, unsat.
+- We can recursively solve each component separately. The search tree product reduces.
+
+Implementation: After propagate, if all domains singleton -> True. Otherwise, find connected components of the graph restricted to vertices with domain size >1? Actually singletons are fixed and don't need branching, but they connect components. Two uncolored vertices in different components may share a neighbor singleton that constrains both. But since singletons are fixed, constraints from a singleton to its neighbors in different components are independent. The components of the graph after removing assigned vertices (or considering uncolored vertices) are independent. More precisely, the remaining CSP factors over connected components of the graph where assigned vertices are removed (or contracted to constraints). Because constraints only along edges; an assigned vertex connects to its neighbors, but its color is fixed, so it just removes a color from each neighbor. After propagation, those removals are applied. The remaining uncolored vertices' constraints are only among themselves within connected components. So we can find components among uncolored vertices (domain size >1). Solve each component independently with domains including fixed singletons on boundary (already propagated). If a component has no uncolored vertices, skip.
+
+Thus in solver, after propagate, if there are uncolored vertices, find connected components among them using BFS/DFS over adjacency (only traversing uncolored vertices). For each component, extract subdomains and sub-adjacency, and solve recursively. If all components sat, return True.
+
+This decomposition can drastically reduce search for disjoint components. But it adds overhead for each call. For n=40, fine.
+
+However, implementing component decomposition in the recursive solver requires passing adjacency for component. We can either create a mapping and call a recursive solver on the component. Or we can incorporate component selection in branch: choose a vertex, branch, and after propagation, if graph splits, the recursion naturally handles it because branch selection will pick vertices in one component. But fixed-order branch within full solver (smallest domain) will still explore combinations across components? Actually if we choose branch vertex in one component, recursion will solve that component before moving to next? The solver doesn't have a notion of components; it just branches on any vertex. After assigning a component fully, it will branch on next component. The search tree size is product of component search sizes, same as solving components separately. But the recursion order may interleave? It will finish one branch vertex and recurse; after component solved, it picks vertex from another component. So it doesn't explore cross-product more. However for NO case, if first component unsat, it backtracks without exploring others. So component decomposition not strictly necessary for search size, but it helps in choosing branch vertex locally and maybe caching. It also helps for initial full check: if graph has many components, solver picks vertex in one component; if unsat, returns False quickly. For interleaved K4s, the solver will pick a vertex from some component; branch will eventually fail within that component and return False. It won't explore other components. So strong solver with smallest-domain branching is robust even without explicit decomposition. Good.
+
+But wait, in the full solver, branch vertex selection is global smallest domain. For K4 component, all vertices domain size 3 initially. It picks some vertex (say index 0). Branches color1. Propagation removes color1 from its 3 neighbors (domain size2). Then picks a neighbor (domain size2), branches color2, etc. It will detect K4 unsat quickly. It won't branch on vertices from other components until this component is solved (or proven unsat). Because after first branch, all vertices in that component have reduced domains; vertices in other components still domain size3. The smallest domain is in the first component (size2), so it stays there. Thus it solves component first. Good. So explicit decomposition not needed.
+
+Thus prefix method with strong solver handles interleaved components well.
+
+Now, the main cost is repeated solver calls. Let's see if we can reduce by using the strong solver to find a full coloring for each prefix and then continue. That's exactly prefix method. We can maybe cache results for prefixes? Not.
+
+Given n=40 and time limit 2s, prefix method with strong solver should pass. Let's estimate more concretely. Suppose each solver call on average takes 0.005s (5 ms). 120 calls -> 0.6s. Fine. If some calls take 0.05s, total 6s -> TLE. But typical 3-coloring for n=40 is much faster.
+
+We can also add a small optimization: In the prefix loop, before calling solver, if the graph induced by uncolored vertices plus constraints is obviously colorable (e.g., no edges among uncolored after considering fixed colors), skip solver. But not needed.
+
+Another optimization: For each prefix, we can call solver only if immediate conflict not present and maybe if the vertex's color is not forced by a neighbor? We already skip immediate conflicts.
+
+Now, let's think about using a more efficient representation for the solver to reduce per-call time. We can precompute adjacency as list of neighbors. In solver, propagate iterates over neighbors of popped singleton. Branch selection iterates over all vertices to find smallest domain. That's O(n) per call. Fine.
+
+We can also precompute degree to break ties.
+
+Let's implement strong solver with the following features:
+- `propagate_all(domains)`: scan all vertices for singletons, propagate. Returns ok, changes.
+- `solve(domains)`: propagate; choose branch vertex with smallest domain (tie by degree); branch on colors in domain (order maybe by least constrained: color with fewest occurrences in neighbor domains? Could use heuristic). Recurse.
+- Use in-place changes/undo.
+
+For branch color order, we can try colors in any order. For feasibility, maybe try color that is least used in neighbor domains to increase chance. But computing that costs. Simpler: iterate bits. For unsat, must try all. For sat, first found. Maybe try colors in order 1,2,3. Fine.
+
+Tie-breaking for branch vertex: smallest domain, then max degree. Use precomputed degrees.
+
+Now, prefix method:
+- Initial check: if not solve([FULL]*n): print NO.
+- Else, for i in range(n): try colors 1..3; for each, build domains and if solve(domains): keep.
+- Output.
+
+But wait: If initial check returns True, we know graph is 3-colorable. Then prefix method will find lexicographically smallest. Good.
+
+Now, can we avoid building domains from scratch for each prefix by maintaining a list and using solve? We can create domains = [FULL]*n and set assigned. O(n) per call. Fine.
+
+Potential issue: `solve` modifies domains; we pass a fresh list each time. Good.
+
+Now, let's think about recursion in `solve` and Python speed. We'll implement carefully.
+
+Let's write the strong solver code.
+
+```
+def propagate(domains):
+    changes = []
+    stack = []
+    for v in range(n):
+        d = domains[v]
+        if d == 0:
+            return False, changes
+        if d.bit_count() == 1:
+            stack.append(v)
+    while stack:
+        v = stack.pop()
+        cmask = domains[v]
+        for u in adj[v]:
+            du = domains[u]
+            if du == cmask:
+                return False, changes
+            if du & cmask:
+                new = du ^ cmask
+                if new == 0:
+                    return False, changes
+                changes.append((u, du))
+                domains[u] = new
+                if new.bit_count() == 1:
+                    stack.append(u)
+    return True, changes
+
+def solve(domains):
+    ok, changes = propagate(domains)
+    if not ok:
+        return False
+    # choose branch vertex
+    v = -1
+    best = 4
+    best_deg = -1
+    for i in range(n):
+        d = domains[i]
+        pc = d.bit_count()
+        if pc > 1:
+            deg = degree[i]
+            if pc < best or (pc == best and deg > best_deg):
+                best = pc
+                v = i
+                best_deg = deg
+                if best == 2 and best_deg >= ...: # can't break because maybe same degree
+                    pass
+    if v == -1:
+        return True
+    old = domains[v]
+    d = old
+    while d:
+        color = d & -d
+        domains[v] = color
+        if solve(domains):
+            return True
+        domains[v] = old
+        d -= color
+    for u, du in reversed(changes):
+        domains[u] = du
+    return False
+```
+
+Note: `degree` list precomputed.
+
+Now, prefix loop:
+
+```
+assign = [0]*n
+for i in range(n):
+    found = False
+    for c in (1,2,3):
+        # immediate conflict
+        skip=False
+        cm = bits[c-1]
+        for u in adj[i]:
+            if u < i and assign[u] == c:
+                skip=True; break
+        if skip: continue
+        assign[i] = c
+        domains = [FULL]*n
+        for j in range(i+1):
+            if assign[j]:
+                domains[j] = bits[assign[j]-1]
+        if solve(domains):
+            found = True
+            break
+        assign[i] = 0
+    if not found:
+        print("NO"); return
+```
+
+But initial full check already ensures graph colorable. However prefix loop may still encounter no feasible color if bug. It would print NO. Fine.
+
+Now, is there any way to reduce number of solve calls? We can note that for vertex i, if color c is not used by any neighbor (earlier or later), then assigning c is always feasible if the graph without vertex i is colorable? Not exactly, because assigning c restricts neighbors, but if graph is colorable, there exists coloring with i=c if component is colorable and c not used by fixed neighbors. Since graph overall colorable, and earlier vertices fixed, there exists a coloring of remaining. If c is not used by any neighbor of i (including later), then we can take a coloring of remaining graph and if i's color in that coloring is c, fine; if not, we can possibly recolor i to c because none of its neighbors use c. But neighbors may be uncolored in the prefix; in a full coloring extending prefix, i's neighbors have colors != c. So if we have any coloring extending prefix with i=d, and no neighbor uses c, we can change i to c and keep valid. But we don't know if no neighbor uses c in some extension. However if c is not used by any neighbor in the current prefix (earlier assigned), and the graph minus i is colorable with the remaining vertices not using c on neighbors? This is getting complex.
+
+Simpler: We can skip solver call if color c is not used by any earlier neighbor and the graph remains 3-colorable? Not easy.
+
+Given n=40, skip.
+
+Now, let's think about the initial full check cost. If graph is YES, solve([FULL]*n) finds a coloring. It may take some time. Then prefix method also solves many times. Could we use the initial coloring to speed prefix? Maybe: The lexicographically smallest assignment can be found by trying to force each vertex to smaller color using the current coloring. Specifically, start with any proper coloring (from initial solve). Then for i from 0..n-1, try to recolor vertex i to a smaller color while maintaining a proper coloring (with earlier vertices fixed to their lexicographically smallest colors). This is like local search / reconfiguration. Could be done by solving a coloring problem for the component with vertex i fixed to smaller color. But that's similar to prefix method. However we can reuse the current coloring as a witness that the graph is colorable; to change vertex i to smaller color, we need find a new coloring. We can use solve with domains fixed for earlier vertices and vertex i. That's prefix method. The initial full check doesn't reduce number of calls.
+
+But maybe we can find lexicographically smallest by solving a single CSP with lexicographic objective using branch-and-bound: search for a coloring, and keep track of best prefix. But finding first coloring with vertex order branching is direct DFS. We saw direct DFS can be slow for NO with interleaved components. For YES, direct DFS finds lexicographic solution and may be faster than prefix method. The problem is NO cases. We can handle NO cases by initial full check with strong solver. If YES, use direct DFS with MAC. That combines robustness and speed.
+
+But direct DFS with MAC for YES may still be slow if the lexicographically smallest solution is deep and many dead subtrees? However for YES, it finds a solution and stops. The dead subtrees explored are those under prefixes that fail. Could be large but maybe okay.
+
+The interleaved K4 NO case is handled by initial full check. For YES interleaved components, direct DFS may explore many combinations? Let's consider disjoint triangles interleaved. Direct DFS will find lexicographically smallest quickly because each triangle forces colors; but due to vertex order, it may try colors and backtrack within each triangle. Since triangles are small, fine.
+
+Consider a YES graph consisting of disjoint copies of something where lexicographically smallest requires trying many colors. Hard.
+
+Maybe the safest robust solution is prefix method with strong solver. It handles both YES and NO (with initial check). It may be a bit slower for YES due to repeated solving, but n=40 small. Let's stick with prefix method.
+
+But we can optimize prefix method by not calling solve for colors that are immediate conflicts (skip). Also, we can maintain domains incrementally to avoid rebuilding. But building domains O(n) is minor compared to solve.
+
+Let's think about repeated solve calls more. For each prefix, solve does a full search. But many prefixes are feasible; solve finds a coloring quickly. For infeasible prefixes, solve proves unsat. The total work might be comparable to direct DFS but with stronger pruning per prefix. Actually prefix method's total work is at most O(n * cost_of_solve_per_prefix). Direct DFS's total work is the search tree. Prefix method may be larger but still manageable.
+
+Let's consider implementing a caching mechanism across prefix calls: The solver may encounter subproblems similar to previous calls. But prefixes differ by one vertex, so subproblems may overlap. We could memoize solve results keyed by domain tuple. But solve is called with different domains; memoization of satisfiability for domain states could help across calls. However the number of distinct states may be large. But we can try memoizing unsatisfiable states only, using a global set. If a state is unsat, future calls with same or more constrained state? Not same. So maybe not.
+
+Alternatively, we can use a SAT solver with assumption literals? Not.
+
+Given time, prefix method with strong solver is fine.
+
+Now, let's think about implementing the strong solver with component decomposition to be extra safe. It may add overhead but helps for disjoint components. However as argued, smallest-domain branching already handles components. But for prefix method, after fixing some vertices, the remaining graph may have components; solver picks one. Good.
+
+One more optimization: In `solve`, after propagate, if there is a vertex with domain size 2, branch on it. We already choose smallest domain. Good.
+
+Now, let's think about branch color order. For feasibility, maybe try colors in order of bits. For unsat, must try all. For sat, first branch may succeed. If we try color1 first, and the prefix is feasible, likely a coloring exists with that color? Not necessarily. But any order okay.
+
+Could use heuristic: choose color that appears least frequently in neighbor domains to maximize chance. Let's implement a simple heuristic: for each color in domain, count how many uncolored neighbors have that color in domain; choose color with smallest count. This is MRV for values. It may reduce search. But computing counts each branch costs O(degree). n small. Could help. Let's consider adding.
+
+In `solve`, after choosing v, we can order colors by a heuristic. But for speed, maybe just iterate bits. The solver is called many times; heuristic may add overhead. Let's keep simple.
+
+Now, let's think about using `d & -d` vs precomputed color bits. Fine.
+
+Now, let's consider the initial full check. If graph is colorable, `solve([FULL]*n)` returns True. It may leave `domains` fully colored. We don't use it. Good.
+
+Now, final code with prefix method and strong solver.
+
+But before final, let's think if there is an even better algorithm: Since n<=40, we can use a bitmask DP over independent sets to compute chromatic polynomial? For 3-coloring, we can use inclusion-exclusion: number of proper 3-colorings = sum_{S subset of edges} (-1)^
+</think>

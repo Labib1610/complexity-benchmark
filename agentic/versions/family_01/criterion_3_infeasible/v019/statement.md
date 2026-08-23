@@ -1,35 +1,23 @@
-# Shift Roster Audit Pipeline — Infeasibility Certificate
+# Phase 2: Audit Contradiction Extraction
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-### Description
+Our automated workforce compliance pipeline consists of three phases. In Phase 1, the system parses union regulations and safety guidelines to generate a list of pairwise incompatibilities—pairs of staff members who cannot be assigned to the same operational shift. The facility operates on exactly two shifts.
 
-An enterprise shift-management system processes employee schedules through a multi-stage validation pipeline:
+Phase 1 has already determined that the given constraints cannot be satisfied with only two shifts. Your module is responsible for Phase 2: isolating a concrete contradiction to pass along to Phase 3, the automated reporting engine. To prove that two shifts are insufficient, your module must identify a triplet of employees where every individual in the triplet is incompatible with both of the other two.
 
-1. **Ingestion Stage:** Reads employee records and lists of incompatible worker pairs.
-2. **Infeasibility Certificate Stage (Current Task):** Searches for structural proof that a two-shift roster is impossible. Specifically, it searches for a set of three distinct employees who are all mutually incompatible with one another. When such a set exists, allocating them across only two shifts is impossible because at least two of them would inevitably share a shift.
-3. **Resolution Stage:** Routes the certificate to HR coordinators to adjust worker availability.
+Because the Phase 3 reporting engine requires deterministic input, if there are multiple such triplets, you must provide the one that comes first lexicographically.
 
-You are tasked with implementing **Stage 2**. Given the worker compatibility records, find three workers $a, b, c$ (with $a < b < c$) such that every pair among them is mutually incompatible ($a$ with $b$, $a$ with $c$, and $b$ with $c$). To ensure consistent logging across pipeline runs, if there are multiple such triplets, you must select the lexicographically smallest one (the one with the smallest $a$; if tied, the smallest $b$; if still tied, the smallest $c$).
+## Input
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of employees who cannot share a shift.
+It is guaranteed that at least one triplet of mutually incompatible employees exists.
 
-It is guaranteed that at least one such triplet exists in the input data.
+## Output
+Output a single line containing three integers $a$, $b$, and $c$, representing the IDs of the employees in the extracted triplet. The IDs must be printed in ascending order ($a < b < c$). If there are multiple valid triplets, output the one that minimizes $a$; if tied, minimizes $b$; and if still tied, minimizes $c$.
 
-### Input
-
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of workers (numbered $1$ through $n$) and the number of incompatible worker pairs, respectively.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that worker $u$ and worker $v$ are mutually incompatible.
-
-It is guaranteed that at least one group of three mutually incompatible workers exists.
-
-### Output
-
-Print three space-separated integers $a$, $b$, and $c$ on a single line such that $a < b < c$, representing the lexicographically smallest triplet of mutually incompatible workers.
-
-### Example 1
-
-**Input:**
+## Example 1
+Input:
 ```
 4 5
 1 2
@@ -38,15 +26,13 @@ Print three space-separated integers $a$, $b$, and $c$ on a single line such tha
 2 4
 3 4
 ```
-
-**Output:**
+Output:
 ```
 1 2 3
 ```
 
-### Example 2
-
-**Input:**
+## Example 2
+Input:
 ```
 5 6
 1 2
@@ -56,8 +42,7 @@ Print three space-separated integers $a$, $b$, and $c$ on a single line such tha
 3 5
 4 5
 ```
-
-**Output:**
+Output:
 ```
 1 2 4
 ```

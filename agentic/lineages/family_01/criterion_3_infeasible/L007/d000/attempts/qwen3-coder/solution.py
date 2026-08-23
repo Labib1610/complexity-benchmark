@@ -1,0 +1,63 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # For each node, sort its neighbors for consistent ordering
+    for i in range(1, n + 1):
+        adj[i] = sorted(adj[i])
+    
+    # We want the lexicographically smallest triangle
+    # So we iterate through all edges and for each edge (u,v) with u<v,
+    # we look for a third node w such that w > v and w is connected to both u and v
+    
+    # To optimize, we can process nodes in order and for each node u,
+    # look at pairs of its neighbors (v,w) where v<w and check if (v,w) is an edge
+    
+    found = False
+    result = None
+    
+    # Iterate through all edges
+    for u in range(1, n + 1):
+        if found:
+            break
+        neighbors = adj[u]
+        # For each pair of neighbors of u
+        for i in range(len(neighbors)):
+            if found:
+                break
+            v = neighbors[i]
+            if v <= u:
+                continue
+            for j in range(i + 1, len(neighbors)):
+                w = neighbors[j]
+                if w <= v:
+                    continue
+                # Check if v and w are connected
+                if w in adj[v]:
+                    result = (u, v, w)
+                    found = True
+                    break
+    
+    print(result[0], result[1], result[2])
+
+if __name__ == "__main__":
+    main()

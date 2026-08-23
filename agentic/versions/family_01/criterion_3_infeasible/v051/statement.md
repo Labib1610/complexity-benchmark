@@ -1,19 +1,20 @@
-# Operational Conflict Triad
+# Problem C — Containment Instability
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A processing facility manages $n$ active materials, numbered $1$ through $n$. Operational guidelines list $m$ specific pairs of materials that trigger a critical reaction if placed together in the same containment vessel.
+In a hazardous materials storage facility, certain pairs of chemical compounds are known to be highly reactive when exposed to each other. The facility's safety protocols are designed to manage simple reactive pairs using isolated dual-containment bins. However, the safety protocols are entirely bypassed if a specific instability arises. This instability occurs when it is possible to find three distinct compounds such that the first reacts with the second, the second reacts with the third, and the third reacts with the first.
 
-An auditor needs to document an irreconcilable conflict set consisting of three distinct materials $a, b,$ and $c$ (with $a < b < c$) such that every pair among the three is subject to a critical reaction when combined.
-
-Among all valid choices of $(a, b, c)$, you must find the one that is lexicographically smallest. That is, choose the triple with the smallest index $a$; if there is a tie, the smallest index $b$; if still tied, the smallest index $c$. It is guaranteed that at least one such triple exists.
+Your task is to identify one such set of three compounds to demonstrate that the current storage protocols are insufficient. You are given a list of all reactive pairs. It is guaranteed that the inventory contains at least one such instability.
 
 ## Input
-The first line contains two space-separated integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of materials and the number of conflicting pairs, respectively.
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that a critical reaction exists between material $u$ and material $v$.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)), representing the number of compounds and the number of reactive pairs, respectively. Compounds are numbered from 1 to n.
+Each of the following m lines contains two integers u and v (1 ≤ u, v ≤ n, u ≠ v), indicating that compound u and compound v are reactive. Reactivity is mutual.
+It is guaranteed that at least one such instability exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ ($a < b < c$) on a single line representing the lexicographically smallest triple of mutually conflicting materials.
+Print three integers a, b, and c on a single line, separated by spaces, representing the identifiers of the three compounds involved in the instability. The identifiers must be printed in increasing order (a < b < c).
+If there are multiple such sets of three compounds, output the one that is lexicographically smallest. That is, minimize a; in case of a tie, minimize b; and if still tied, minimize c.
 
 ## Example 1
 Input:

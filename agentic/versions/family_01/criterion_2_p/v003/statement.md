@@ -1,18 +1,16 @@
-# Operational Mode Assignment
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A facility contains $n$ components, labeled $1$ through $n$, and $m$ pairwise interference rules. Each component must be assigned to operate in either Mode 1 or Mode 2. An interference rule between two components dictates that they cannot be assigned to the same operational mode.
-
-Determine whether a valid assignment exists. If multiple valid assignments exist, output the one that produces the lexicographically smallest sequence of modes when components are ordered from $1$ to $n$.
+The factory now runs only two shifts, labeled 1 and 2. There are $n$ workers and $m$ interaction records between pairs of workers. Assign each worker exactly one shift such that if an interaction record exists between two workers, they are placed in different shifts. If no such assignment can be made, report impossibility.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — an interference rule between component $u$ and component $v$.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers with an interaction record.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

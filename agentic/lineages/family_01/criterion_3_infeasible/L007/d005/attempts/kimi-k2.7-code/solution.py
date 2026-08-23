@@ -1,0 +1,34 @@
+import sys
+
+def solve():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n = data[0]
+    m = data[1]
+    adj = [0] * (n + 1)
+    neigh = [[] for _ in range(n + 1)]
+    p = 2
+    for _ in range(m):
+        u = data[p]
+        v = data[p + 1]
+        p += 2
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+        neigh[u].append(v)
+        neigh[v].append(u)
+    for i in range(1, n + 1):
+        neigh[i].sort()
+    for a in range(1, n + 1):
+        adja = adj[a]
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            common = adja & adj[b] & ~((1 << b) - 1)
+            if common:
+                c = (common & -common).bit_length()
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()

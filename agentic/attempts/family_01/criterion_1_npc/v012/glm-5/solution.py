@@ -1,0 +1,91 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [0] * n
+    for i in range(m):
+        u = int(input_data[2 + 2*i]) - 1
+        v = int(input_data[3 + 2*i]) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        
+    # Check if any connected component has more than 3 nodes
+    visited = 0
+    for i in range(n):
+        if not (visited >> i) & 1:
+            comp_size = 0
+            queue = [i]
+            visited |= 1 << i
+            head = 0
+            while head < len(queue):
+                u = queue[head]
+                head += 1
+                comp_size += 1
+                neigh = adj[u]
+                while neigh:
+                    v = (neigh & -neigh).bit_length() - 1
+                    neigh &= neigh - 1
+                    if not (visited >> v) & 1:
+                        visited |= 1 << v
+                        queue.append(v)
+            if comp_size > 3:
+                print("NO")
+                return
+
+    # DP to find lexicographically smallest valid assignment
+    # dp[mask] = bitmask of valid colorings for the set of nodes in mask
+    dp = [0] * (1 << n)
+    dp[0] = 1
+    
+    for mask in range(1, 1 << n):
+        valid_colorings = 0
+        for color in range(3):
+            is_valid = True
+            temp = mask
+            while temp:
+                u = (temp & -temp).bit_length() - 1
+                temp &= temp - 1
+                if adj[u] & mask:
+                    is_valid = False
+                    break
+            if is_valid:
+                valid_colorings |= 1 << color
+        dp[mask] = valid_colorings
+        
+    # Reconstruct the assignment
+    assignment = [0] * n
+    remaining = (1 << n) - 1
+    
+    for i in range(n):
+        bit_i = 1 << i
+        for color in range(3):
+            if (dp[remaining] >> color) & 1:
+                assignment[i] = color + 1
+                remaining ^= bit_i
+                # Update dp for remaining mask: remove colorings that conflict with node i
+                new_valid = 0
+                for c in range(3):
+                    if (dp[remaining] >> c) & 1:
+                        conflict = False
+                        temp = remaining
+                        while temp:
+                            u = (temp & -temp).bit_length() - 1
+                            temp &= temp - 1
+                            if (adj[u] >> i) & 1 and c == color:
+                                conflict = True
+                                break
+                        if not conflict:
+                            new_valid |= 1 << c
+                dp[remaining] = new_valid
+                break
+                
+    print("YES")
+    print(*assignment)
+
+if __name__ == '__main__':
+    solve()

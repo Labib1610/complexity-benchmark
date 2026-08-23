@@ -1,19 +1,22 @@
-# Audit of Incompatible Duty Assignments
+# Shift Allocation Audit
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A facility manages $n$ workers, numbered $1$ through $n$. Certain pairs of workers are marked as mutually incompatible, meaning they cannot be assigned to work together. Management needs to identify three distinct workers $a, b, c$ (with $1 \le a < b < c \le n$) who are all pairwise incompatible with one another.
+A manufacturing plant operates on exactly two daily shifts. A roster of worker incompatibilities has been drafted, but management suspects that it is logically impossible to divide the workforce into just two shifts without forcing incompatible workers to work together.
 
-To pass compliance auditing, the selected worker indices must satisfy the operational bound $a + b + c \le 3n$ as well as $a \cdot b \cdot c \ge 6$.
+Your task is to audit the proposed roster and provide undeniable proof of this impossibility. You do not need to attempt a full schedule. Instead, you must identify a foundational contradiction: a group of exactly three workers where every individual in the group is incompatible with both of the others. The presence of such a triad means that no two-shift allocation could ever succeed, as at least two of these three workers would be forced into the same shift.
 
-It is guaranteed that at least one such triple of pairwise incompatible workers exists. If multiple valid triples exist, output the lexicographically smallest triple $a, b, c$ (that is, minimize $a$; if tied, minimize $b$; if still tied, minimize $c$).
+It is mathematically guaranteed that the provided roster contains at least one such triad. Furthermore, it is guaranteed that the total number of logged incompatibilities $m$ is strictly less than $n^2$, and that any valid triad of workers will have identifiers summing to at most $3n-3$.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of workers and the number of incompatible pairs.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that worker $u$ and worker $v$ are incompatible. No unordered pair $(u, v)$ appears more than once.
+The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2\cdot 10^5)$), representing the number of workers (identified from $1$ to $n$) and the number of incompatible pairs.
+Each of the subsequent $m$ lines contains two integers $u$ and $v$, indicating that worker $u$ and worker $v$ cannot be assigned to the same shift.
+It is guaranteed that at least one mutually incompatible triad exists.
 
 ## Output
-Print three space-separated integers $a, b, c$ on a single line with $a < b < c$, representing the lexicographically smallest valid triple of pairwise incompatible workers.
+Output three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the identifiers of three workers who are all mutually incompatible with one another.
+The identifiers must be ordered such that $a < b < c$.
+If there are multiple such triads, you must output the one that is lexicographically smallest (i.e., minimize $a$; if tied, minimize $b$; if still tied, minimize $c$).
 
 ## Example 1
 Input:

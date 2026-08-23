@@ -1,0 +1,128 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list and constraints
+    adj = defaultdict(list)
+    constraints = []
+    
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        constraints.append((u, v))
+    
+    # For each constraint, the sum must be 3
+    # This means if one variable is 1, the other must be 2, and vice versa
+    # This is a 2-SAT problem where each variable can be 1 or 2
+    
+    # Create a graph for 2-SAT
+    # Variables: 0..n-1 for value 1, n..2n-1 for value 2
+    # For variable i: node i represents xi=1, node i+n represents xi=2
+    
+    # If xi + xj = 3, then:
+    # If xi=1 then xj=2
+    # If xi=2 then xj=1
+    # If xj=1 then xi=2
+    # If xj=2 then xi=1
+    
+    graph = defaultdict(list)
+    reverse_graph = defaultdict(list)
+    
+    for u, v in constraints:
+        # xi=1 => xj=2  (u => v+n)
+        graph[u].append(v + n)
+        reverse_graph[v + n].append(u)
+        
+        # xi=2 => xj=1  (u+n => v)
+        graph[u + n].append(v)
+        reverse_graph[v].append(u + n)
+        
+        # xj=1 => xi=2  (v => u+n)
+        graph[v].append(u + n)
+        reverse_graph[u + n].append(v)
+        
+        # xj=2 => xi=1  (v+n => u)
+        graph[v + n].append(u)
+        reverse_graph[u].append(v + n)
+    
+    # Kosaraju's algorithm to find strongly connected components
+    def dfs1(node, visited, stack):
+        visited[node] = True
+        for neighbor in graph[node]:
+            if not visited[neighbor]:
+                dfs1(neighbor, visited, stack)
+        stack.append(node)
+    
+    def dfs2(node, visited, component, reverse_graph):
+        visited[node] = True
+        component.append(node)
+        for neighbor in reverse_graph[node]:
+            if not visited[neighbor]:
+                dfs2(neighbor, visited, component, reverse_graph)
+    
+    # First DFS to get finishing order
+    visited = [False] * (2 * n)
+    stack = []
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i, visited, stack)
+    
+    # Second DFS on transpose graph to get SCCs
+    visited = [False] * (2 * n)
+    scc = {}
+    scc_id = 0
+    
+    while stack:
+        node = stack.pop()
+        if not visited[node]:
+            component = []
+            dfs2(node, visited, component, reverse_graph)
+            for v in component:
+                scc[v] = scc_id
+            scc_id += 1
+    
+    # Check if satisfiable
+    for i in range(n):
+        if scc[i] == scc[i + n]:  # xi=1 and xi=2 in same SCC
+            print("NO")
+            return
+    
+    # Assign values based on topological order of SCCs
+    # Variables in later SCCs should be assigned first
+    scc_order = {}
+    for i in range(2 * n):
+        scc_order[scc[i]] = i
+    
+    scc_sorted = sorted(scc_order.keys(), reverse=True)
+    assignment = [-1] * n
+    
+    for scc_num in scc_sorted:
+        node = scc_order[scc_num]
+        if node < n:  # This is xi=1
+            if assignment[node] == -1:
+                assignment[node] = 1
+        else:  # This is xi=2
+            var_index = node - n
+            if assignment[var_index] == -1:
+                assignment[var_index] = 2
+    
+    # Verify the assignment
+    for u, v in constraints:
+        if assignment[u] + assignment[v] != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
+
+solve()

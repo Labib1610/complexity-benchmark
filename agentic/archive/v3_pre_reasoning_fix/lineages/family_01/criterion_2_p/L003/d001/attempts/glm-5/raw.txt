@@ -1,0 +1,1103 @@
+<think>
+Let me analyze this problem:
+
+1. We have n machines, each needs voltage 1 or 2
+2. We have m bridging circuits connecting pairs of machines
+3. Each bridging circuit requires the absolute voltage difference to be exactly 1
+
+This is essentially a graph bipartition problem. If we think of voltage 1 as one partition and voltage 2 as another, then each edge must connect nodes from different partitions. This is exactly the definition of a bipartite graph.
+
+So the problem reduces to checking if the graph is bipartite, and if so, finding a valid 2-coloring.
+
+The additional constraint is to minimize the voltage of machine 1 first, then machine 2, etc. This means we want to assign voltage 1 to as many machines as possible, starting from machine 1.
+
+Let me think about this more carefully:
+- If the graph is bipartite, we can 2-color it
+- We want to minimize voltages lexicographically
+- This means we want machine 1 to have voltage 1 if possible, then machine 2 to have voltage 1 if possible, etc.
+
+For a bipartite graph, once we fix the color of one node, all other nodes in the same connected component have their colors determined (up to swapping all colors in that component).
+
+So the algorithm would be:
+1. Check if the graph is bipartite
+2. For each connected component, we have two choices: either the "first" node has voltage 1 or voltage 2
+3. We want to minimize lexicographically, so we should try to assign voltage 1 to as many early machines as possible
+
+Wait, but the choice for each connected component affects all nodes in that component. So we need to be smart about this.
+
+Let me think again:
+- For each connected component, once we decide the voltage of one node, all others are determined
+- We want to minimize lexicographically
+
+One approach:
+1. Process nodes in order from 1 to n
+2. For each unvisited node, try to assign voltage 1 to it
+3. If this leads to a contradiction (non-bipartite), report NO
+4. Otherwise, continue
+
+Actually, let me think more carefully. If we process nodes in order and always try to assign voltage 1 first, we might get the lexicographically minimum assignment.
+
+Let me trace through Example 1:
+- Nodes: 1, 2, 3, 4
+- Edges: (1,2), (2,3), (3,4), (1,4)
+
+Starting with node 1, assign voltage 1.
+- Node 1: voltage 1
+- Node 2 must have voltage 2 (connected to 1)
+- Node 3 must have voltage 1 (connected to 2)
+- Node 4 must have voltage 2 (connected to 3)
+- Check: Node 4 is connected to Node 1, voltage difference is |2-1| = 1. OK!
+
+Result: 1 2 1 2 ✓
+
+Example 2:
+- Nodes: 1, 2, 3
+- Edges: (1,2), (1,3), (2,3)
+
+Starting with node 1, assign voltage 1.
+- Node 1: voltage 1
+- Node 2 must have voltage 2 (connected to 1)
+- Node 3 must have voltage 2 (connected to 1)
+- Check: Node 2 is connected to Node 3, voltage difference is |2-2| = 0. NOT OK!
+
+Result: NO ✓
+
+So the algorithm is:
+1. Build the graph
+2. Do BFS/DFS starting from node 1, trying to assign voltage 1 to it
+3. For each edge, check if the voltage difference is 1
+4. If any contradiction, report NO
+5. Otherwise, report YES and the assignment
+
+But wait, what about disconnected components? If the graph has multiple connected components, we process each one independently, always trying to assign voltage 1 to the first unvisited node in that component.
+
+Let me code this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr])
+    ptr += 1
+    m = int(input[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input[ptr]) - 1
+        ptr += 1
+        v = int(input[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n  # 0 means unassigned, 1 or 2 for assigned
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        # Try to assign voltage 1 to start
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]  # If u is 1, v is 2; if u is 2, v is 1
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Wait, I need to double-check the lexicographic minimization. The problem says:
+"If there are multiple valid assignments, choose the one that minimizes the voltage of machine 1. If ties remain, minimize the voltage of machine 2, and continue this sequential minimization up to machine n."
+
+So we want the lexicographically smallest assignment. Since voltage 1 < voltage 2, we want to assign voltage 1 to as many early machines as possible.
+
+My algorithm processes nodes in order from 0 to n-1 (1 to n in 1-indexed), and for each unvisited node, it assigns voltage 1. This should give the lexicographically smallest assignment.
+
+Let me verify with a more complex example:
+- Suppose we have two disconnected components: {1, 2} with edge (1,2), and {3, 4} with edge (3,4)
+- My algorithm:
+  - Start with node 1, assign voltage 1
+  - Node 2 gets voltage 2
+  - Move to node 3 (unvisited), assign voltage 1
+  - Node 4 gets voltage 2
+- Result: 1 2 1 2
+
+This is indeed lexicographically minimum because:
+- Machine 1 has voltage 1 (minimum possible)
+- Machine 2 has voltage 2 (forced by edge with machine 1)
+- Machine 3 has voltage 1 (minimum possible for this component)
+- Machine 4 has voltage 2 (forced by edge with machine 3)
+
+Looks correct!
+
+Let me also handle the edge case where m = 0 (no edges). In this case, all machines can have voltage 1, which is the lexicographically minimum.
+
+My algorithm handles this correctly because each node is processed independently and assigned voltage 1.
+
+Let me also consider the case where the graph is not bipartite. My algorithm will detect this when it finds an edge connecting two nodes with the same voltage.
+
+I think the algorithm is correct. Let me refine the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n  # 0 means unassigned, 1 or 2 for assigned
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        # Try to assign voltage 1 to start
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]  # If u is 1, v is 2; if u is 2, v is 1
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Actually, I realize I should double-check the logic for lexicographic minimization more carefully.
+
+Consider a graph with two connected components:
+- Component A: nodes 1, 3 with edge (1, 3)
+- Component B: nodes 2, 4 with edge (2, 4)
+
+My algorithm processes nodes in order: 1, 2, 3, 4
+- Node 1: unvisited, assign voltage 1
+- Node 3: connected to 1, assign voltage 2
+- Node 2: unvisited, assign voltage 1
+- Node 4: connected to 2, assign voltage 2
+
+Result: 1 1 2 2
+
+Is this lexicographically minimum? Let's check alternatives:
+- If we swap component A: 2 1 1 2 (lexicographically larger because machine 1 has voltage 2)
+- If we swap component B: 1 2 2 1 (lexicographically larger because machine 2 has voltage 2)
+
+So 1 1 2 2 is indeed the lexicographically minimum. My algorithm is correct.
+
+But wait, I need to reconsider. In my algorithm, I process nodes in order, but I only start a new BFS when I encounter an unvisited node. Let me trace through again:
+
+- Node 0 (machine 1): unvisited, start BFS, assign voltage 1
+  - BFS visits node 0 and node 2 (machine 3)
+  - Node 0: voltage 1
+  - Node 2: voltage 2
+- Node 1 (machine 2): unvisited, start BFS, assign voltage 1
+  - BFS visits node 1 and node 3 (machine 4)
+  - Node 1: voltage 1
+  - Node 3: voltage 2
+- Node 2 (machine 3): already visited, skip
+- Node 3 (machine 4): already visited, skip
+
+Result: 1 1 2 2 ✓
+
+Great, the algorithm is correct.
+
+Let me also verify with Example 1:
+- Nodes: 0, 1, 2, 3 (machines 1, 2, 3, 4)
+- Edges: (0,1), (1,2), (2,3), (0,3)
+
+- Node 0: unvisited, start BFS, assign voltage 1
+  - Node 0: voltage 1
+  - Node 1: voltage 2 (connected to 0)
+  - Node 2: voltage 1 (connected to 1)
+  - Node 3: voltage 2 (connected to 2)
+  - Check edge (0,3): voltage 1 vs 2, difference is 1. OK!
+- Nodes 1, 2, 3: already visited, skip
+
+Result: 1 2 1 2 ✓
+
+And Example 2:
+- Nodes: 0, 1, 2 (machines 1, 2, 3)
+- Edges: (0,1), (0,2), (1,2)
+
+- Node 0: unvisited, start BFS, assign voltage 1
+  - Node 0: voltage 1
+  - Node 1: voltage 2 (connected to 0)
+  - Node 2: voltage 2 (connected to 0)
+  - Check edge (1,2): voltage 2 vs 2, difference is 0. NOT OK!
+
+Result: NO ✓
+
+The algorithm is correct.
+
+One more thing to check: the problem says the graph can have up to 2*10^5 nodes and 2*10^5 edges. My algorithm uses BFS which is O(n + m), so it should be efficient enough.
+
+Let me also make sure the input parsing is correct. The problem uses 1-indexed nodes, so I need to convert to 0-indexed.
+
+I think the code is ready. Let me finalize it:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Actually, I want to double-check the lexicographic minimization one more time. The problem says we want to minimize the voltage of machine 1 first, then machine 2, etc.
+
+In my algorithm, I process nodes in order from 0 to n-1. For each unvisited node, I assign voltage 1. This ensures that:
+1. Machine 1 (node 0) gets voltage 1 if possible (it's always possible since we start with it)
+2. For subsequent machines, if they're in a new connected component, they get voltage 1
+3. If they're in an already-visited component, their voltage is determined by the BFS
+
+This should give the lexicographically minimum assignment.
+
+But wait, there's a subtle issue. What if a node is visited during the BFS of an earlier node, but we would prefer it to have voltage 1?
+
+For example, consider:
+- Nodes: 1, 2, 3
+- Edges: (1, 2), (2, 3)
+
+My algorithm:
+- Node 0 (machine 1): unvisited, start BFS, assign voltage 1
+  - Node 0: voltage 1
+  - Node 1 (machine 2): voltage 2 (connected to 0)
+  - Node 2 (machine 3): voltage 1 (connected to 1)
+- Result: 1 2 1
+
+Is this lexicographically minimum? Let's check:
+- Alternative: 2 1 2 (swap all voltages)
+- Comparing: 1 2 1 vs 2 1 2
+- Machine 1: 1 < 2, so 1 2 1 is better.
+
+Yes, my algorithm gives the correct result.
+
+Another example:
+- Nodes: 1, 2, 3
+- Edges: (1, 3), (2, 3)
+
+My algorithm:
+- Node 0 (machine 1): unvisited, start BFS, assign voltage 1
+  - Node 0: voltage 1
+  - Node 2 (machine 3): voltage 2 (connected to 0)
+- Node 1 (machine 2): unvisited, start BFS, assign voltage 1
+  - Node 1: voltage 1
+  - Node 2 (machine 3): already has voltage 2, check edge (1, 2): voltage 1 vs 2, difference is 1. OK!
+- Result: 1 1 2
+
+Is this lexicographically minimum? Let's check:
+- Alternative for component {1, 3}: 2 ? 1
+- Alternative for component {2, 3}: ? 2 1
+- But wait, node 3 is in both components? No, the graph is connected: 1-3-2.
+
+Let me re-trace:
+- Node 0 (machine 1): unvisited, start BFS, assign voltage 1
+  - Node 0: voltage 1
+  - Node 2 (machine 3): voltage 2 (connected to 0)
+  - Node 1 (machine 2): voltage 1 (connected to 2)
+- Result: 1 1 2
+
+Is this lexicographically minimum?
+- Alternative: 2 2 1 (swap all)
+- Comparing: 1 1 2 vs 2 2 1
+- Machine 1: 1 < 2, so 1 1 2 is better.
+
+Yes, my algorithm is correct.
+
+Hmm, but I made a mistake in my trace. Let me redo it:
+- Edges: (1, 3), (2, 3) means (0, 2), (1, 2) in 0-indexed
+- Node 0: unvisited, start BFS, assign voltage 1
+  - Visit neighbors of 0: node 2
+  - Node 2: voltage 2
+  - Visit neighbors of 2: nodes 0 and 1
+  - Node 0: already visited
+  - Node 1: voltage 1
+- Result: 1 1 2
+
+Yes, this is correct.
+
+I think the algorithm is correct. Let me finalize the code.
+
+Actually, I realize I should use sys.stdout.write for faster output, but print should be fine for this problem size.
+
+Let me also consider using recursion for DFS, but BFS with a queue is safer to avoid stack overflow for large graphs.
+
+I think the code is ready. Let me write the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Wait, I want to reconsider the lexicographic minimization one more time.
+
+The problem says: "If there are multiple valid assignments, choose the one that minimizes the voltage of machine 1. If ties remain, minimize the voltage of machine 2, and continue this sequential minimization up to machine n."
+
+This is exactly lexicographic minimization. My algorithm processes nodes in order and assigns voltage 1 to each unvisited node. This should give the lexicographically minimum assignment.
+
+But let me think about a potential issue: what if assigning voltage 1 to a node leads to a contradiction later?
+
+Actually, this can't happen for a bipartite graph. If the graph is bipartite, any valid 2-coloring is valid, and swapping colors in a connected component gives another valid coloring. So if we start with voltage 1 for a node, we either get a valid assignment or the graph is not bipartite.
+
+So my algorithm is correct: it tries to assign voltage 1 to each unvisited node, and if this leads to a contradiction, the graph is not bipartite and we report NO.
+
+I'm confident the algorithm is correct. Let me finalize the code.
+
+Actually, I just realized there might be an issue with the way I'm reading input. Let me double-check:
+
+The input format is:
+- First line: n and m
+- Next m lines: u and v (1-indexed)
+
+My code reads all input at once and parses it. This should work correctly.
+
+Let me trace through Example 1:
+- Input: "4 4\n1 2\n2 3\n3 4\n1 4\n"
+- After split: ["4", "4", "1", "2", "2", "3", "3", "4", "1", "4"]
+- n = 4, m = 4
+- Edges: (0, 1), (1, 2), (2, 3), (0, 3)
+
+This looks correct.
+
+Let me also check Example 2:
+- Input: "3 3\n1 2\n1 3\n2 3\n"
+- After split: ["3", "3", "1", "2", "1", "3", "2", "3"]
+- n = 3, m = 3
+- Edges: (0, 1), (0, 2), (1, 2)
+
+This also looks correct.
+
+I'm confident the code is correct. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Actually, I want to use sys.stdout.write for potentially faster output, but print should be fine for this problem. Let me keep it simple with print.
+
+One more thing: I should make sure the output format is correct. The problem says:
+- If no valid configuration, print "NO"
+- Otherwise, print "YES", then a second line with n integers
+
+My code does this correctly.
+
+I'm confident the code is correct and efficient. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Hmm, I realize I should double-check the edge case where n = 1 and m = 0. In this case, the single machine should have voltage 1 (the minimum).
+
+My algorithm:
+- Node 0: unvisited, assign voltage 1
+- No edges, so BFS ends immediately
+- Result: 1
+
+This is correct.
+
+Another edge case: n = 2, m = 1, edge (1, 2).
+- Node 0: unvisited, assign voltage 1
+- Node 1: voltage 2 (connected to 0)
+- Result: 1 2
+
+This is correct and lexicographically minimum.
+
+I'm confident the code is correct. Let me finalize it.
+
+Actually, I want to reconsider the time complexity. The algorithm is O(n + m) for BFS, which should be efficient enough for n, m up to 2*10^5.
+
+The space complexity is O(n + m) for the adjacency list and O(n) for the voltage array, which should fit within the 256 MB memory limit.
+
+I'm confident the code is correct and efficient. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+Wait, I want to make sure I understand the problem correctly. Let me re-read it.
+
+"A manufacturing process involves n machines. Each machine must be supplied with an operating voltage of either 1 or 2. There are m bridging circuits. Each bridging circuit connects a specific pair of machines and requires an absolute voltage difference of exactly 1 between its two endpoints to function properly."
+
+So each machine has voltage 1 or 2, and each edge requires the two endpoints to have different voltages (since |1-2| = 1 and |1-1| = |2-2| = 0).
+
+This is exactly the bipartite graph problem. My algorithm is correct.
+
+"Determine a valid voltage for each machine so that all bridging circuits are satisfied, or report if this cannot be done."
+
+My algorithm checks if the graph is bipartite and outputs a valid assignment if it is.
+
+"If there are multiple valid assignments, choose the one that minimizes the voltage of machine 1. If ties remain, minimize the voltage of machine 2, and continue this sequential minimization up to machine n."
+
+My algorithm processes nodes in order and assigns voltage 1 to each unvisited node, which gives the lexicographically minimum assignment.
+
+I'm confident the code is correct. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+I think this is correct. Let me submit it.
+
+Actually, I want to use a simpler approach without deque for potentially faster code:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        stack = [start]
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    stack.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+This uses DFS with a stack instead of BFS with a deque. Both should work correctly.
+
+Actually, let me stick with the deque version for clarity:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+I'm confident this is correct. Let me finalize it.
+
+Actually, I realize I should use sys.stdout.write for potentially faster output, especially for large outputs. But for this problem, print should be fine.
+
+Let me also consider using a list as a queue instead of deque for potentially faster code:
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = [start]
+        idx = 0
+        while idx < len(queue):
+            u = queue[idx]
+            idx += 1
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+This uses a list as a queue with an index pointer, which is faster than deque for this use case.
+
+Actually, let me just use the deque version for clarity and correctness:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+I'm confident this is correct. Let me finalize it.
+
+Actually, I want to use sys.stdout.write for the output to ensure it's fast enough:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    sys.stdout.write("NO\n")
+                    return
+    
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, voltage)) + "\n")
+
+solve()
+```
+
+Actually, print should be fine for this problem. Let me keep it simple:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+I'm confident this is correct. Let me finalize it.
+
+Hmm, I realize I should double-check the output format. The problem says:
+- If no valid configuration, print a single line "NO".
+- Otherwise, print "YES", then a second line with n integers.
+
+My code does this correctly. The output for Example 1 is:
+```
+YES
+1 2 1 2
+```
+
+And for Example 2:
+```
+NO
+```
+
+This matches the expected output.
+
+I'm confident the code is correct. Here's the final version:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```
+
+This is my final answer.
+</think>
+```python
+import sys
+from collections import deque
+
+def solve():
+    input_data = sys.stdin.read().split()
+    ptr = 0
+    n = int(input_data[ptr])
+    ptr += 1
+    m = int(input_data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(input_data[ptr]) - 1
+        ptr += 1
+        v = int(input_data[ptr]) - 1
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    voltage = [0] * n
+    
+    for start in range(n):
+        if voltage[start] != 0:
+            continue
+        voltage[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if voltage[v] == 0:
+                    voltage[v] = 3 - voltage[u]
+                    queue.append(v)
+                elif voltage[v] == voltage[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(map(str, voltage)))
+
+solve()
+```

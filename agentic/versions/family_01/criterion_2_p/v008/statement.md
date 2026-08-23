@@ -1,18 +1,16 @@
-# Phase 2: Shift Assignment
+# Problem B — Day and Night
 
 Time limit: 1 s   Memory limit: 256 MB
 
-As part of the workforce optimization pipeline, employee scheduling is executed across three distinct phases: Phase 1 (Conflict Extraction), Phase 2 (Shift Assignment), and Phase 3 (Schedule Publishing).
-
-You are tasked with implementing Phase 2. Given $n$ workers and $m$ conflict pairs identified during Phase 1, each worker must be assigned to either shift 1 or shift 2 such that no two conflicting workers share the same shift. If multiple valid assignments are possible, select the lexicographically smallest assignment (when comparing the sequence $s_1, s_2, \dots, s_n$). If no valid shift assignment can satisfy all conflict constraints, Phase 2 fails and no roster can be generated.
+The factory planning process consists of three stages. In the first stage, human resources collects employee availability to determine exactly $n$ workers and $m$ conflict pairs. Your task is the second stage: given this data, assign each worker to one of two shifts, labeled 1 and 2, so that no conflicting pair shares a shift, or report impossibility. In the third stage, this schedule will be sent to the payroll department for final processing.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) representing a conflicting pair of workers.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a conflicting pair.
 
 ## Output
-If no valid assignment exists, print a single line `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), the lexicographically smallest valid assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

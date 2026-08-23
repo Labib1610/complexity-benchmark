@@ -1,0 +1,57 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # color[i] will be 1, 2, or 3; 0 means uncolored
+    color = [0] * n
+    
+    # Try to color vertices in order 0 to n-1
+    # For each vertex, try colors 1, 2, 3 in order
+    for i in range(n):
+        if color[i] != 0:
+            continue
+        
+        # Try colors in order 1, 2, 3
+        found = False
+        for c in [1, 2, 3]:
+            # Check if color c is valid for vertex i
+            ok = True
+            for neighbor in adj[i]:
+                if color[neighbor] == c:
+                    ok = False
+                    break
+            if ok:
+                color[i] = c
+                found = True
+                break
+        
+        if not found:
+            print("NO")
+            return
+    
+    # Verify the solution is valid (all edges have different colors)
+    for u in range(n):
+        for v in adj[u]:
+            if u < v:  # Check each edge once
+                if color[u] == color[v]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(' '.join(map(str, color)))
+
+if __name__ == "__main__":
+    solve()

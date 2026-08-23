@@ -1,0 +1,52 @@
+def solve():
+    import sys
+    from itertools import product
+    
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list for incompatibilities
+    adj = [[] for _ in range(n+1)]
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        adj[u].append(v)
+        adj[v].append(u)
+        idx += 2
+    
+    # Try all 3^n assignments, but we can do better with backtracking
+    # We'll generate assignments in lexicographical order and return the first valid one
+    
+    # Use backtracking with constraint checking
+    assignment = [0] * (n+1)  # assignment[i] is the bus for module i
+    
+    def is_valid(module, bus):
+        # Check if assigning 'bus' to 'module' conflicts with any already assigned neighbors
+        for neighbor in adj[module]:
+            if assignment[neighbor] == bus:
+                return False
+        return True
+    
+    def backtrack(module):
+        if module > n:
+            return True
+            
+        for bus in [1, 2, 3]:
+            if is_valid(module, bus):
+                assignment[module] = bus
+                if backtrack(module + 1):
+                    return True
+                assignment[module] = 0  # Backtrack
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(' '.join(map(str, assignment[1:])))
+    else:
+        print("NO")
+
+solve()

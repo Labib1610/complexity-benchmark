@@ -1,0 +1,37 @@
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * (n + 1)
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    all_mask = (1 << (n + 1)) - 2
+    masks = [0] * (n + 1)
+    for i in range(1, n + 1):
+        masks[i] = all_mask & ~((1 << (i + 1)) - 1)
+
+    write = sys.stdout.write
+    for a in range(1, n - 1):
+        bits = adj[a] & masks[a]
+        while bits:
+            lsb = bits & -bits
+            b = lsb.bit_length() - 1
+            bits ^= lsb
+            common = adj[a] & adj[b] & masks[b]
+            if common:
+                c = (common & -common).bit_length() - 1
+                write(f"{a} {b} {c}\n")
+                return
+
+if __name__ == "__main__":
+    solve()

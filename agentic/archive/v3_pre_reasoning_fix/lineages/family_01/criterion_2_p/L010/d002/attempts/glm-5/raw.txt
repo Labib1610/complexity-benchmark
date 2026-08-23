@@ -1,0 +1,627 @@
+<think>
+Let me analyze this problem:
+
+1. We have n compounds and need to assign each to either solvent 1 or solvent 2.
+2. We have m hazardous interactions, where each interaction requires the two compounds to be in different solvents.
+3. We need to find if a valid assignment exists, and if so, find the lexicographically smallest one.
+
+This is essentially a graph bipartition problem - we need to check if the graph is bipartite and find the lexicographically smallest bipartition.
+
+The graph is bipartite if and only if it contains no odd cycles. We can use BFS/DFS to check bipartiteness and assign colors.
+
+For the lexicographically smallest assignment:
+- We want to minimize the sequence f_1, f_2, ..., f_n
+- This means we want f_1 to be as small as possible (prefer 1 over 2)
+- If f_1 is fixed, we want f_2 to be as small as possible, etc.
+
+The key insight is that once we fix the solvent for one compound in a connected component, the solvents for all other compounds in that component are determined (if bipartite).
+
+So the strategy is:
+1. Build the graph
+2. For each connected component, check if it's bipartite
+3. For each connected component, we have two choices: either assign the "left" partition to solvent 1 and "right" partition to solvent 2, or vice versa.
+4. To get the lexicographically smallest assignment, we should greedily assign compounds to solvent 1 when possible.
+
+Wait, but the assignment within a connected component is constrained. Let me think more carefully.
+
+For a connected component, if we do a BFS/DFS starting from some node and assign it solvent 1, then all nodes at even distance get solvent 1 and all nodes at odd distance get solvent 2 (or vice versa).
+
+So for each connected component, we have two valid assignments:
+- Assignment A: nodes at even distance → solvent 1, nodes at odd distance → solvent 2
+- Assignment B: nodes at even distance → solvent 2, nodes at odd distance → solvent 1
+
+To get the lexicographically smallest overall assignment, we need to choose between A and B for each connected component.
+
+The greedy approach would be:
+- Process compounds in order from 1 to n
+- For each unassigned compound, start a BFS/DFS from it
+- We have two choices for this connected component
+- Choose the one that gives the lexicographically smaller assignment for this component
+
+But wait, the lexicographic order is global, not per-component. So we need to be more careful.
+
+Actually, let me think about this differently. The lexicographically smallest assignment means:
+- f_1 should be minimized first
+- Then f_2 should be minimized
+- And so on...
+
+For compound 1, if it's in a connected component by itself (no edges), we can assign it to solvent 1 (the smallest choice).
+
+If compound 1 is in a connected component with other compounds, we have two choices:
+- Choice A: compound 1 gets solvent 1
+- Choice B: compound 1 gets solvent 2
+
+Clearly, choice A is better for lexicographic order.
+
+So the algorithm should be:
+1. For each unassigned compound i (in order from 1 to n):
+   - Start a BFS/DFS from i
+   - Assign i to solvent 1 (to minimize lexicographically)
+   - Propagate the assignment through the connected component
+   - If we encounter a contradiction (same solvent for adjacent compounds), output NO
+
+Wait, but this might not give the lexicographically smallest assignment. Let me think again.
+
+Actually, I think the greedy approach works:
+- Process compounds in order from 1 to n
+- For each unassigned compound i, assign it to solvent 1 (the smallest possible)
+- Then propagate through the connected component using BFS/DFS
+
+This works because:
+- If compound i is unassigned, it means all compounds 1, 2, ..., i-1 have been assigned
+- Assigning compound i to solvent 1 is the best we can do for lexicographic order
+- The rest of the connected component is then determined
+
+Let me verify with the first example:
+- n=4, m=4
+- Edges: (1,2), (2,3), (3,4), (1,4)
+- This forms a cycle: 1-2-3-4-1
+
+Starting from compound 1:
+- Assign 1 to solvent 1
+- Compound 2 must be in solvent 2 (due to edge 1-2)
+- Compound 3 must be in solvent 1 (due to edge 2-3)
+- Compound 4 must be in solvent 2 (due to edge 3-4)
+- Check edge 1-4: compound 1 is in solvent 1, compound 4 is in solvent 2. OK!
+
+Result: 1 2 1 2
+
+This matches the expected output!
+
+Let me verify with the second example:
+- n=3, m=3
+- Edges: (1,2), (1,3), (2,3)
+- This forms a triangle: 1-2-3-1
+
+Starting from compound 1:
+- Assign 1 to solvent 1
+- Compound 2 must be in solvent 2 (due to edge 1-2)
+- Compound 3 must be in solvent 2 (due to edge 1-3)
+- Check edge 2-3: both compounds 2 and 3 are in solvent 2. Contradiction!
+
+Result: NO
+
+This also matches!
+
+So the algorithm is:
+1. Build the adjacency list
+2. Initialize an array `color` with -1 (unassigned)
+3. For each compound i from 1 to n:
+   - If unassigned, start BFS/DFS from i with color 1
+   - Propagate colors: neighbors get the opposite color
+   - If a neighbor already has the same color, output NO
+4. Output YES and the color assignments
+
+Let me code this:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr])
+    ptr += 1
+    m = int(input[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[ptr])
+        ptr += 1
+        v = int(input[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * (n + 1)  # -1: unassigned, 0: solvent 1, 1: solvent 2
+    
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS from start
+        queue = deque([start])
+        color[start] = 0  # solvent 1 (lexicographically smallest)
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i] + 1) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I need to double-check the lexicographic minimality. Let me think about a counterexample.
+
+Consider a graph with two connected components:
+- Component 1: just compound 1
+- Component 2: compounds 2 and 3 connected by an edge
+
+With my algorithm:
+- Compound 1: solvent 1
+- Compound 2: solvent 1 (start of component 2)
+- Compound 3: solvent 2 (neighbor of 2)
+
+Result: 1 1 2
+
+But what if we chose:
+- Compound 1: solvent 1
+- Compound 2: solvent 2
+- Compound 3: solvent 1
+
+Result: 1 2 1
+
+Comparing 1 1 2 vs 1 2 1:
+- Position 1: both are 1
+- Position 2: 1 < 2
+
+So 1 1 2 is lexicographically smaller. My algorithm is correct!
+
+Let me think of another case:
+- Component 1: compounds 1 and 2 connected
+- Component 2: compound 3
+
+With my algorithm:
+- Compound 1: solvent 1
+- Compound 2: solvent 2
+- Compound 3: solvent 1
+
+Result: 1 2 1
+
+Alternative:
+- Compound 1: solvent 2
+- Compound 2: solvent 1
+- Compound 3: solvent 1
+
+Result: 2 1 1
+
+Comparing 1 2 1 vs 2 1 1:
+- Position 1: 1 < 2
+
+So 1 2 1 is lexicographically smaller. My algorithm is correct!
+
+Actually, I realize there might be an issue. Let me reconsider.
+
+When we process compounds in order from 1 to n, and we encounter an unassigned compound i, we assign it to solvent 1. But what if there's a compound j < i in the same connected component that hasn't been assigned yet?
+
+Wait, that can't happen. If j < i and j is in the same connected component as i, then when we processed j, we would have assigned the entire connected component (including i). So when we reach i, it would already be assigned.
+
+So the algorithm is correct: we process compounds in order, and for each unassigned compound, we start a new BFS/DFS and assign it to solvent 1.
+
+Let me also consider the case where the graph might not be connected. The algorithm handles this correctly because we iterate through all compounds and start a new BFS for each unassigned one.
+
+Now let me also think about the time complexity:
+- Building the adjacency list: O(n + m)
+- BFS for each connected component: O(n + m) total
+- Output: O(n)
+
+Total: O(n + m), which should be efficient enough.
+
+Let me also consider the memory:
+- Adjacency list: O(n + m)
+- Color array: O(n)
+- BFS queue: O(n)
+
+Total: O(n + m), which should fit within 256 MB.
+
+I think the solution is correct. Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr])
+    ptr += 1
+    m = int(input[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(input[ptr])
+        ptr += 1
+        v = int(input[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * (n + 1)  # -1: unassigned, 0: solvent 1, 1: solvent 2
+    
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        # BFS from start
+        queue = deque([start])
+        color[start] = 0  # solvent 1 (lexicographically smallest)
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i] + 1) for i in range(1, n + 1)))
+
+solve()
+```
+
+Actually, I should use sys.stdout.write for faster output, but print should be fine for this problem size.
+
+Let me also consider edge cases:
+- n = 1, m = 0: Output YES, 1
+- n = 1, m = 1 with edge (1, 1): This is a self-loop, which would cause a contradiction. But wait, the problem says u and v are distinct compounds, so this shouldn't happen. Let me re-read the problem.
+
+The problem says "Each interaction involves exactly two specific compounds." It doesn't explicitly say they're distinct, but it's implied by the context. Let me check the constraints: "1 ≤ u, v ≤ n". This doesn't guarantee u ≠ v.
+
+Hmm, if u = v, then the compound must be in a different solvent from itself, which is impossible. So we should output NO in this case.
+
+Let me add a check for self-loops:
+
+Actually, wait. If there's a self-loop (u = v), then when we process compound u, we assign it to solvent 1. Then when we check its neighbors, we see u itself with the same color. So the algorithm would correctly output NO.
+
+Let me trace through:
+- Compound u is assigned to solvent 1 (color 0)
+- We check neighbors of u, which includes u itself
+- color[u] = 0, which equals color[u], so we output NO
+
+Great, the algorithm handles self-loops correctly!
+
+Actually, let me re-check. In the adjacency list, if we have an edge (u, u), we add u to adj[u] twice (once for each direction). So when we process u, we'll see u in its own adjacency list.
+
+When we check neighbors of u:
+- For v = u, color[v] = color[u] = 0
+- So we output NO
+
+Yes, the algorithm handles this correctly.
+
+Let me also consider the case where there are multiple edges between the same pair of compounds. This shouldn't cause any issues because the algorithm just checks the color constraint multiple times.
+
+I think the solution is complete. Let me finalize:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr])
+    ptr += 1
+    m = int(data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr])
+        ptr += 1
+        v = int(data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        queue = deque([start])
+        color[start] = 0
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i] + 1) for i in range(1, n + 1)))
+
+solve()
+```
+
+Wait, I just realized I should double-check the lexicographic minimality more carefully.
+
+The key insight is that for each connected component, we have exactly two valid colorings (if bipartite). These two colorings are complements of each other.
+
+When we process compounds in order from 1 to n:
+- For the first unassigned compound in a connected component, we assign it to solvent 1.
+- This determines the coloring for the entire component.
+
+Is this always the lexicographically smallest?
+
+Let's think about it. Suppose we have a connected component with compounds {c1, c2, ..., ck} where c1 < c2 < ... < ck.
+
+When we reach c1 (the smallest compound in this component), it's unassigned (because we process in order and this is the first compound in this component we encounter).
+
+We have two choices:
+- Choice A: c1 gets solvent 1
+- Choice B: c1 gets solvent 2
+
+For lexicographic order, choice A is better because c1 is the first position where these two choices differ.
+
+So assigning c1 to solvent 1 is optimal. And this determines the rest of the component.
+
+Therefore, the greedy algorithm is correct for lexicographic minimality.
+
+Actually, I want to be more careful. Let me think about whether there could be a case where assigning c1 to solvent 1 leads to a worse overall assignment.
+
+Consider two connected components:
+- Component A: compounds {1, 3}
+- Component B: compounds {2, 4}
+
+With edges: (1, 3) and (2, 4)
+
+With my algorithm:
+- Process compound 1: assign to solvent 1, compound 3 gets solvent 2
+- Process compound 2: assign to solvent 1, compound 4 gets solvent 2
+- Result: 1 1 2 2
+
+Is there a better assignment? Let's enumerate:
+- Assignment 1: 1→1, 3→2, 2→1, 4→2 → 1 1 2 2
+- Assignment 2: 1→1, 3→2, 2→2, 4→1 → 1 2 2 1
+- Assignment 3: 1→2, 3→1, 2→1, 4→2 → 2 1 1 2
+- Assignment 4: 1→2, 3→1, 2→2, 4→1 → 2 2 1 1
+
+Comparing lexicographically:
+- 1 1 2 2 vs 1 2 2 1: position 2, 1 < 2, so 1 1 2 2 is smaller
+- 1 1 2 2 vs 2 1 1 2: position 1, 1 < 2, so 1 1 2 2 is smaller
+- 1 1 2 2 vs 2 2 1 1: position 1, 1 < 2, so 1 1 2 2 is smaller
+
+So 1 1 2 2 is indeed the lexicographically smallest. My algorithm is correct!
+
+Let me think of another example:
+- Component A: compounds {1, 4}
+- Component B: compounds {2, 3}
+
+With edges: (1, 4) and (2, 3)
+
+With my algorithm:
+- Process compound 1: assign to solvent 1, compound 4 gets solvent 2
+- Process compound 2: assign to solvent 1, compound 3 gets solvent 2
+- Result: 1 1 2 2
+
+Is there a better assignment?
+- Assignment 1: 1→1, 4→2, 2→1, 3→2 → 1 1 2 2
+- Assignment 2: 1→1, 4→2, 2→2, 3→1 → 1 2 1 2
+- Assignment 3: 1→2, 4→1, 2→1, 3→2 → 2 1 2 1
+- Assignment 4: 1→2, 4→1, 2→2, 3→1 → 2 2 1 1
+
+Comparing lexicographically:
+- 1 1 2 2 vs 1 2 1 2: position 2, 1 < 2, so 1 1 2 2 is smaller
+- 1 1 2 2 vs 2 1 2 1: position 1, 1 < 2, so 1 1 2 2 is smaller
+- 1 1 2 2 vs 2 2 1 1: position 1, 1 < 2, so 1 1 2 2 is smaller
+
+So 1 1 2 2 is indeed the lexicographically smallest. My algorithm is correct!
+
+I'm confident the algorithm is correct. Let me finalize the code:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr])
+    ptr += 1
+    m = int(data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr])
+        ptr += 1
+        v = int(data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        queue = deque([start])
+        color[start] = 0
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i] + 1) for i in range(1, n + 1)))
+
+solve()
+```
+
+Actually, I want to use sys.stdout.write for potentially faster output, but print should be fine. Let me keep it simple with print.
+
+One more thing: I should make sure the recursion limit is not an issue if I were using DFS, but since I'm using BFS, there's no recursion.
+
+I think the solution is complete and correct. Let me submit it.
+
+Wait, I just want to double-check the output format. The problem says:
+- If no valid assignment, print "NO"
+- Otherwise, print "YES" on the first line, followed by a second line with n integers
+
+My code does this correctly.
+
+Let me also verify with the examples:
+
+Example 1:
+- n=4, m=4
+- Edges: (1,2), (2,3), (3,4), (1,4)
+- BFS from 1: color[1]=0, color[2]=1, color[3]=0, color[4]=1
+- Check: 1-2 (0-1 OK), 2-3 (1-0 OK), 3-4 (0-1 OK), 1-4 (0-1 OK)
+- Output: YES, 1 2 1 2
+
+This matches the expected output!
+
+Example 2:
+- n=3, m=3
+- Edges: (1,2), (1,3), (2,3)
+- BFS from 1: color[1]=0, color[2]=1, color[3]=1
+- Check: 1-2 (0-1 OK), 1-3 (0-1 OK), 2-3 (1-1 NOT OK)
+- Output: NO
+
+This matches the expected output!
+
+Great, the solution is correct. Let me finalize:
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr])
+    ptr += 1
+    m = int(data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr])
+        ptr += 1
+        v = int(data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        queue = deque([start])
+        color[start] = 0
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i] + 1) for i in range(1, n + 1)))
+
+solve()
+```
+
+This should be the final solution.
+</think>
+Looking at this problem, I need to:
+1. Check if the graph is bipartite (can be 2-colored such that adjacent nodes have different colors)
+2. If bipartite, find the lexicographically smallest valid assignment
+
+**Key Insight:** For each connected component, once I fix the solvent for one compound, all others in that component are determined. To get the lexicographically smallest assignment, I should greedily assign each unassigned compound to solvent 1 when I first encounter it (processing compounds in order 1 to n).
+
+**Algorithm:**
+- Process compounds from 1 to n
+- For each unassigned compound, start a BFS assigning it to solvent 1
+- Propagate colors through the connected component (neighbors get opposite color)
+- If a conflict is found (neighbor already has same color), output NO
+
+**Verification with examples:**
+
+Example 1: Graph forms a cycle 1-2-3-4-1
+- Start from 1: assign solvent 1
+- 2 gets solvent 2, 3 gets solvent 1, 4 gets solvent 2
+- Check edge (1,4): different solvents ✓
+- Output: 1 2 1 2 ✓
+
+Example 2: Triangle 1-2-3-1
+- Start from 1: assign solvent 1
+- 2 gets solvent 2, 3 gets solvent 2
+- Check edge (2,3): both solvent 2 ✗
+- Output: NO ✓
+
+```python
+import sys
+from collections import deque
+
+def solve():
+    data = sys.stdin.read().split()
+    ptr = 0
+    n = int(data[ptr])
+    ptr += 1
+    m = int(data[ptr])
+    ptr += 1
+    
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(data[ptr])
+        ptr += 1
+        v = int(data[ptr])
+        ptr += 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [-1] * (n + 1)  # -1: unassigned, 0: solvent 1, 1: solvent 2
+    
+    for start in range(1, n + 1):
+        if color[start] != -1:
+            continue
+        queue = deque([start])
+        color[start] = 0  # Assign to solvent 1 (lexicographically smallest)
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+    
+    print("YES")
+    print(" ".join(str(color[i] + 1) for i in range(1, n + 1)))
+
+solve()
+```

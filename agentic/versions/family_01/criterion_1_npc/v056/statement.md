@@ -1,27 +1,24 @@
-# Operational Shift Allocation Module
+# Problem A — Artificial Peptide Polymer
 
 Time limit: 2 s   Memory limit: 256 MB
 
-## Description
-A facility management pipeline is responsible for assigning $n$ personnel (numbered $1$ through $n$) to work shifts. There are three available shift slots, designated by the integers $1$, $2$, and $3$.
+You are engineering an artificial peptide polymer composed of $n$ distinct subunits. Each subunit must be functionalized with exactly one of three available molecular markers, which are denoted by the integers 1, 2, and 3.
 
-Due to operational safety regulations, certain pairs of personnel are prohibited from working during the same shift. An assignment is valid if every employee $i$ is given a shift $s_i \in \{1, 2, 3\}$ such that no two mutually prohibited employees share the same shift index.
+During the spatial conformation phase, certain pairs of subunits are brought into direct physical proximity. You are provided with a catalog of $m$ such proximity links. If two subunits connected by a proximity link are functionalized with the identical molecular marker, they will undergo an adverse reaction causing the polymer to experience structural collapse. Consequently, for every established proximity link, the two involved subunits must receive strictly distinct markers.
 
-To ensure consistency across downstream tracking services, the system enforces the following constraints and guidelines:
-1. **Capacity Limit**: The sum of all assigned shift values $\sum_{i=1}^n s_i$ cannot exceed $3n$.
-2. **Deterministic Selection**: If at least one valid shift configuration exists, the system must output the lexicographically smallest sequence $(s_1, s_2, \dots, s_n)$. (That is, $s_1$ is minimized first; if ties remain, $s_2$ is minimized, and so on.)
+Due to the biophysical limitations of the polymer setup, the input is guaranteed to satisfy the following structural properties:
+- The total number of proximity links $m$ across the entire polymer will never exceed 780.
+- For any proximity link between subunit $u$ and subunit $v$, the product of their identifiers ($u \times v$) will not exceed 1600.
 
-Determine whether a valid assignment can be made. If no valid assignment exists, output `NO`. Otherwise, output `YES` followed by the lexicographically smallest assignment sequence.
+Your task is to determine whether there exists a safe marker functionalization for all $n$ subunits that prevents structural collapse.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of personnel and the number of pairwise safety prohibitions.
-
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that employee $u$ and employee $v$ cannot be assigned to the same shift.
+The first line provides two integers $n$ and $m$ — the total number of subunits and the number of proximity links ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$, representing a proximity link between subunit $u$ and subunit $v$.
 
 ## Output
-If no valid shift assignment exists, print `NO` on a single line.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), representing the lexicographically smallest valid shift assignment.
+If no safe functionalization is possible, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the subsequent line, output $n$ integers $t_1, t_2, \dots, t_n$ (where each $t_i \in \{1, 2, 3\}$), representing the marker assigned to subunit $i$. If multiple safe functionalizations exist, you must output the one that is lexicographically smallest (i.e., compare the marker of subunit 1 first, then subunit 2, and so forth).
 
 ## Example 1
 Input:

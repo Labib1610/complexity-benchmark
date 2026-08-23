@@ -1,22 +1,21 @@
-# Dual Frequency Channel Allocation
+# Magnetic Resonance Equilibrium
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A communications network consists of $n$ transmitter nodes, numbered from $1$ to $n$. There are $m$ pairs of nodes that interfere with each other if they operate on the same channel.
+A particle accelerator contains $n$ magnetic containment fields. Each field features a phase switch that must be set to position 1 or position 2. 
 
-There are exactly two available channels, labeled $1$ and $2$. You must assign every node to one of these two channels such that no two interfering nodes share the same channel.
+The accelerator is equipped with $m$ phase comparators. Each comparator links two specific fields. A comparator remains stable only if it detects a phase difference between the two fields it links. Consequently, if the two linked fields are set to the same switch position, the comparator will destabilize and trigger a system halt.
 
-If multiple valid channel assignments exist, you must select the assignment that produces the lexicographically smallest sequence of channels $(s_1, s_2, \dots, s_n)$. That is, at the first index $i$ where two valid sequences differ, the chosen sequence must have $s_i = 1$ and the other $s_i = 2$.
-
-If it is impossible to assign channels without interference, report that no valid assignment exists.
+Your task is to determine whether there is a switch configuration for all $n$ fields that keeps every comparator stable. If multiple such configurations exist, the safety override protocol requires the one that is lexicographically smallest (i.e., the sequence of switch positions $s_1, s_2, \dots, s_n$ must be as small as possible when compared element by element starting from the first field).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5, 0 \le m \le 2\cdot 10^5$), representing the number of nodes and the number of interfering pairs, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), specifying an interference pair between node $u$ and node $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that a phase comparator links field $u$ and field $v$.
 
 ## Output
-If no valid channel assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1 \ s_2 \ \dots \ s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
+If no stable configuration exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \dots, s_n$ (each being 1 or 2) representing the lexicographically smallest stable switch configuration.
 
 ## Example 1
 Input:

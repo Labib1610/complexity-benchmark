@@ -1,30 +1,28 @@
-# Hazardous Triad Identification in Chemical Repositories
+# Chamber Allocation Certificate
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A chemical synthesis plant maintains $n$ numbered compounds, assigned labels from $1$ through $n$. Certain pairs of compounds undergo severe exothermal reactions when brought into proximity; a safety register documents $m$ such unstable pairwise combinations.
+You are tasked with dividing $n$ experimental samples between two thermal chambers. However, certain pairs of samples are volatile when placed in the same chamber. It is already known that the provided list of $m$ volatile pairs makes a safe two-chamber division impossible.
 
-A critical risk arises when three distinct compounds $a$, $b$, and $c$ are pairwise unstable with one another—meaning $a$ reacts with $b$, $b$ reacts with $c$, and $a$ reacts with $c$.
+Your objective is to provide a minimal counterexample to certify this impossibility. Specifically, you must identify three distinct samples that are mutually volatile with one another. Because all three cannot be separated into just two chambers, their presence alone guarantees the impossibility of the allocation.
 
-Safety protocol requires locating the highest-priority volatile group of three. For any valid set of three compounds arranged in ascending order of their labels $a < b < c$, priority is determined by comparing their labels lexicographically: a triple $(a_1, b_1, c_1)$ has higher priority than $(a_2, b_2, c_2)$ if $a_1 < a_2$, or if $a_1 = a_2$ and $b_1 < b_2$, or if $a_1 = a_2$, $b_1 = b_2$, and $c_1 < c_2$.
-
-Identify and report the highest-priority triple of compounds $a$, $b$, and $c$ with $a < b < c$ such that all three pairwise interactions $(a, b)$, $(a, c)$, and $(b, c)$ appear in the safety register. It is guaranteed that at least one such triple exists.
+To ensure the certification process is bounded, two structural guarantees are provided:
+- The total number of volatile pair involvements, summed over all samples, does not exceed $400,000$.
+- At least three samples in the dataset are guaranteed to each participate in two or more volatile pairs.
 
 ## Input
 
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), indicating the number of compounds and the number of recorded unstable pairs, respectively.
-
-Each of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), denoting an unstable pair of compounds. No pair is listed more than once.
-
-It is guaranteed that at least one valid triple exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a volatile pair.
+It is guaranteed that at least one mutually volatile triplet exists.
 
 ## Output
 
-Print three space-separated integers $a$, $b$, and $c$ on a single line, satisfying $a < b < c$, representing the lexicographically smallest valid triple.
+Print three integers $a$ $b$ $c$ on one line with $a < b < c$ such that all three pairs $a$–$b$, $a$–$c$, and $b$–$c$ are volatile. Output the lexicographically smallest such triplet (smallest $a$; ties by smallest $b$; then smallest $c$).
 
 ## Example 1
-
-Input:
+**Input:**
 ```
 4 5
 1 2
@@ -33,15 +31,13 @@ Input:
 2 4
 3 4
 ```
-
-Output:
+**Output:**
 ```
 1 2 3
 ```
 
 ## Example 2
-
-Input:
+**Input:**
 ```
 5 6
 1 2
@@ -51,8 +47,7 @@ Input:
 3 5
 4 5
 ```
-
-Output:
+**Output:**
 ```
 1 2 4
 ```

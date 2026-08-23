@@ -9,11 +9,41 @@ strategy_plan: balanced        # see strategies/PLAN.md
 seed: 7
 stop_on_gate_fail: false       # keep failed versions, mark them, review later
 
+# --- gate scoring (file 50, PART B) -----------------------------------------
+# Two-part scheme: hard constraints (H1-H5, binary/fatal) + graded criteria
+# (G1-G4, 0-5). Acceptance: all hard pass AND G1>=4 AND G2>=4 AND G3>=5 AND G4>=3.
+gate:
+  thresholds: {G1: 4, G2: 4, G3: 5, G4: 3}
+  composite_weights: {G3: 0.40, G1: 0.30, G2: 0.20, G4: 0.10}
+  solver_roundtrip:
+    # H5: writes a solution for the rewritten statement; it must pass the seed's
+    # ANCHOR tests (n<=4, trivial). A REASONING model is the wrong tool here - it
+    # burns its whole budget thinking about a 4-node graph and emits no code.
+    # Use a cheap NON-reasoning model. Must not be a student, the held-out model,
+    # the teacher, or the verifier.
+    enabled: true
+    model_id: gemini-3.1-flash-lite-solver
+    tests: anchor
+    backend: openai_compat
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    model_string: "gemini-3.1-flash-lite"
+    api_key_env: GEMINI_API_KEY
+    temperature: 0.0
+    top_p: 1.0
+    max_tokens: 4096
+    thinking: false
+
 feedback_loop:
   seed_selection: top_k        # top_k | all | explicit
   top_k: 10                    # base versions per criterion to harden
   include_random: 4            # plus this many random non-top versions, for diversity
   explicit: []                 # version ids when seed_selection: explicit
+  lineage_workers: 4           # lineages are independent -> run this many concurrently
+
+  # generate N candidate rewrites per depth, gate all, keep the highest-composite
+  # ACCEPTED one (B4 selector). This multiplies teacher + verifier + H5 calls, so
+  # 2 is the budget-conscious setting; raise to 3 for better selection if funded.
+  candidates_per_depth: 2
 
   max_depth: 6
   stop_when_all_fail: true
@@ -35,3 +65,11 @@ feedback_loop:
   # on failure at a depth, try these edit strategies in order before giving up
   fallback_ladder: [S12_primary, S12_secondary, S07, S02_aggressive]
   ladder_attempts_per_depth: 4
+
+# --- held-out transfer check (run ONCE, after the campaign) -------------------
+# Runs models.yaml:held_out over the FINAL statements of every lineage. Answers
+# "is this hard in general, or only for the panel we tuned against?"
+held_out_check:
+  enabled: true
+  scope: final_depth_only      # only each lineage's last statement
+  tiers: all

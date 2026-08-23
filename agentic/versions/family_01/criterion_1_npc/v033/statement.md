@@ -1,24 +1,16 @@
-# Task Channel Allocation
+# Problem A — Tri-cycle Operations
 
-**Time limit:** 2 s  
-**Memory limit:** 256 MB
+Time limit: 2 s   Memory limit: 256 MB
 
-## Description
-A computing cluster manages $n$ processes numbered $1$ through $n$. Each process must be assigned to one of three available execution channels, labeled $1$, $2$, and $3$.
-
-Certain pairs of processes contend for exclusive resources and cannot be assigned to the same execution channel. You are given a list of all contending process pairs.
-
-Determine whether it is possible to assign an execution channel to every process such that no pair of contending processes shares a channel. If a valid assignment exists, find the one that yields the lexicographically smallest sequence of channel assignments $(s_1, s_2, \dots, s_n)$.
+A factory runs three operational cycles labeled 1, 2, 3. There are n machines. Some pairs of machines share a power line and must not be placed on the same cycle. Assign every machine to exactly one of the three cycles so that no sharing pair shares a cycle, or report that it is impossible.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of processes and the number of pairwise contention constraints, respectively.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$) representing a contending pair of processes.
+The first line contains two integers n and m — the number of machines and the number of sharing pairs (1 ≤ n ≤ 40, 0 ≤ m ≤ n·(n−1)/2).
+Each of the next m lines contains two integers u v — a sharing pair.
 
 ## Output
-If no valid channel assignment exists, print `NO` on a single line.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2, 3\}$), where $s_i$ denotes the execution channel assigned to process $i$. Among all valid assignments, output the one that is lexicographically smallest.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES on the first line. On the second line print n integers c₁ c₂ … cₙ (each in {1,2,3}), where cᵢ is the cycle of machine i. Among all valid assignments output the lexicographically smallest sequence (compare c₁ first, then c₂, and so on).
 
 ## Example 1
 Input:

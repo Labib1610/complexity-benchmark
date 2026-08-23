@@ -1,18 +1,16 @@
-# Signal Channel Allocation
+# Problem B — Frequency Allocation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A wireless network consists of $n$ transceivers, numbered $1$ through $n$, and $m$ interference links. Each transceiver must be assigned to operate on one of two frequency channels, labeled 1 and 2. To prevent crosstalk, any pair of transceivers connected by an interference link must be assigned different channels.
-
-Determine whether it is possible to assign a channel to every transceiver satisfying all non-interference conditions. If a valid configuration exists, report the lexicographically smallest sequence of channel assignments $s_1, s_2, \dots, s_n$.
+The new broadcast network uses only two frequencies, labeled 1 and 2. With n stations and m interference pairs, assign each station a frequency so that no interfering pair shares a frequency, or report impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of transceivers and interference links, respectively.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating an interference link between transceiver $u$ and transceiver $v$.
+The first line contains two integers n and m (1 ≤ n ≤ 2·10⁵, 0 ≤ m ≤ 2·10⁵).
+Each of the next m lines contains two integers u v — an interfering pair.
 
 ## Output
-If no valid channel assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, and on the second line print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid channel assignment.
+If no valid assignment exists, print a single line NO.
+Otherwise print YES, then a second line with n integers f₁ … fₙ (each in {1,2}), the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

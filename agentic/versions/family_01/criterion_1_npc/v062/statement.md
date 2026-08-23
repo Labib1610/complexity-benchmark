@@ -1,9 +1,51 @@
-```json
-{
-  "statement": "# Sector Distribution Protocol\n\nTime limit: 2 s   Memory limit: 256 MB\n\nAn industrial facility manages $n$ hazardous items, indexed from $1$ to $n$. The facility features three distinct isolation sectors designated as $1$, $2$, and $3$.\n\nDue to safety guidelines, specified pairs of items exhibit adverse interactions when stored together. Consequently, two items that interact adversely must never be assigned to the same sector.\n\nYour task is to assign every item to exactly one sector such that no two adversely interacting items share a sector. If multiple valid sector assignments exist, you must select the one that produces the lexicographically smallest sequence of sector identifiers $s_1, s_2, \dots, s_n$. If no valid arrangement is possible, report this outcome.\n\n## Input\nThe first line contains two space-separated integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of items and the number of prohibited pair combinations, respectively.\nEach of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that item $u$ and item $v$ cannot be placed in the same sector.\n\n## Output\nIf no safe sector assignment exists, print a single line containing `NO`.\n\nOtherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1 s_2 \dots s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the assigned sector for each item from $1$ to $n$. If there are multiple valid assignments, output the one that is lexicographically smallest.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "Rephrased vault/compound language into facility items and isolation sectors while eliminating textbook graph-theoretic jargon. This forces the solver to parse constraints directly from pairwise collision rules rather than matching keywords to 3-coloring implementations.",
-  "preserved_answer": "The underlying mathematical problem remains finding a 3-partition of items avoiding listed pairwise conflicts and outputting the lexicographically smallest sector sequence, preserving all valid outputs and seed responses.",
-  "preserved_class": "The problem remains NP-complete as it is isomorphic to 3-coloring on a graph with up to 40 vertices.",
-  "risk": "none"
-}
+# Orbital Station Life-Support
+
+Time limit: 2 s   Memory limit: 256 MB
+
+An orbital station consists of $n$ habitat modules, numbered 1 through $n$. To ensure redundancy, the station provides exactly three independent life-support grids, designated as grid 1, grid 2, and grid 3. Each module must be connected to exactly one of these three grids.
+
+Certain pairs of modules share a direct ventilation corridor. If two modules sharing a corridor are connected to the same life-support grid, a pressure differential error will trigger a station-wide alarm. You are provided with a complete list of $m$ such corridors. The safety constraint is strictly local: for any corridor connecting module $u$ and module $v$, if $u$ is on grid $k$, then $v$ must be on a grid other than $k$. 
+
+In many cases, a module's assignment can be deduced directly from its surroundings. For example, if a module's neighbors operate on grid 1 and grid 2, the local exclusion principle forces the module to be assigned to grid 3. 
+
+Your task is to find a valid grid assignment for all $n$ modules. Because grid 1 is the most energy-efficient, followed by grid 2, and then grid 3, the station's automated system prioritizes lower-numbered grids. Specifically, the system evaluates the modules sequentially from 1 to $n$, always preferring the lowest possible grid number for the current module. Therefore, if multiple valid assignments exist, you must output the one that is lexicographically smallest (i.e., minimize the grid number for module 1; in the event of a tie, minimize the grid number for module 2, and so on).
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of modules and the number of ventilation corridors.
+The next $m$ lines each contain two integers $u$ and $v$, indicating that module $u$ and module $v$ share a corridor.
+
+## Output
+If no valid grid assignment exists that satisfies all local exclusion constraints, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $g_1, g_2, \dots, g_n$ (where each $g_i \in \{1, 2, 3\}$), representing the grid assigned to each module. This sequence must be the lexicographically smallest valid assignment.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

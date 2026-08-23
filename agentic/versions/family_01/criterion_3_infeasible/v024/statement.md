@@ -1,23 +1,20 @@
-# Telemetry Network Diagnostics: Primary Feedback Cluster
+# Problem C — Diagnostic Error Report
 
 Time limit: 2 s   Memory limit: 256 MB
 
-An enterprise telemetry network consists of $n$ computing units, labeled $1$ through $n$, interconnected by $m$ active bidirectional communication links. Each link directly connects two distinct units.
+You are analyzing a network of $n$ interacting modules. Certain pairs of modules are known to be mutually incompatible. 
 
-When evaluating multi-agent synchronization hazards, full system validation requires scanning candidate groups across the network. A three-unit feedback cluster consists of three distinct computing units $a$, $b$, and $c$ (with $1 \le a < b < c \le n$) such that every pair among them is directly connected by a communication link (that is, direct links exist between $a$ and $b$, between $a$ and $c$, and between $b$ and $c$).
+A subset of modules is defined as a "completely chaotic configuration" if every module in the subset is incompatible with every other module in the subset. A comprehensive system audit would require identifying the full spectrum of these configurations by evaluating all $2^n$ possible subsets of the $n$ modules. 
 
-To initialize the diagnostic sequence, you must identify the primary feedback cluster. The primary feedback cluster is defined as the valid triple $(a, b, c)$ satisfying $a < b < c$ that is lexicographically smallest (i.e., minimizing $a$; breaking ties by minimizing $b$; and breaking further ties by minimizing $c$).
-
-It is guaranteed that the network contains at least one such three-unit feedback cluster.
+For your current diagnostic task, a full audit is not requested. You only need to isolate one completely chaotic configuration that contains exactly three modules. It is guaranteed that at least one such configuration exists within the network.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of computing units and direct links, respectively.
-Each of the next $m$ lines contains two space-separated integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating a direct bidirectional link between unit $u$ and unit $v$. Each link connects two distinct units, and no link is listed more than once.
-
-It is guaranteed that at least one valid triple exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — an incompatible pair of modules.
+It is guaranteed that at least one completely chaotic configuration of size exactly 3 exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the lexicographically smallest primary feedback cluster.
+Print three integers $a$ $b$ $c$ on one line with $a < b < c$, representing the modules in the configuration. Output the lexicographically smallest such triple (smallest $a$; ties by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

@@ -1,0 +1,553 @@
+We need solve problem. Need produce Python code only. Need think thoroughly. Need solve.
+
+We have graph n up to 2e5, m 2e5. Need assign each vertex one of two colors/channels 1/2 such that adjacent vertices different. This is graph bipartiteness. If not bipartite -> NO. If bipartite, need lexicographically smallest sequence s_1..s_n in {1,2} among all proper 2-colorings. Need output.
+
+We need find lexicographically smallest 2-coloring of graph (assuming bipartite). Colors 1<2. Need minimize s1, then s2, etc. For each connected component, there are two possible colorings (swap colors). Lexicographically smallest global can be obtained by processing vertices in order? Need be careful because components independent. For each connected component, choose orientation that minimizes first vertex in that component? Since lexicographic order across all vertices: components independent but interleaved by vertex indices. Need choose per component orientation to minimize global sequence. Since colors of different components independent, and lexicographic order compares first position where differ. For each component, the earliest vertex index in that component determines orientation: choose color 1 for that earliest vertex? Is that always? Let's examine.
+
+For a connected bipartite component, exactly two proper colorings: one with root color 1, one with root color 2. If choose root color 1, sequence for vertices in component is determined. If choose root color 2, all colors flipped. For lexicographic global, components independent. The first vertex (smallest index) among all components? Actually if we process vertices 1..n, at vertex v, if its component not yet oriented, choose color 1 for v? Since v is the smallest index in its component not yet? Wait if component has earlier vertices, orientation already fixed. If v is first vertex of its component in index order, then choosing color 1 yields smaller at v than color 2, and no earlier positions affected. So yes choose color 1 for the smallest-index vertex in each connected component. Then BFS/DFS assign alternating colors. This yields lexicographically smallest? Need prove: At first vertex v where two global colorings differ, if v is first in its component? If component has earlier vertices, orientation fixed by earlier choices. If not fixed, choose 1. So yes.
+
+But wait: Is every connected bipartite graph exactly two colorings? Yes if connected. If graph has isolated vertices, component single vertex, two colorings? Actually proper coloring of isolated vertex can be 1 or 2. Connected component with one vertex has two colorings? Wait if no edges, both colors valid. But our "two colorings" by root color 1/2 yes. Lexicographically choose 1. Good.
+
+Need implement efficient.
+
+Potential issue: Graph may have self-loops? Input says u,v 1..n, not explicitly u != v. If u=v, adjacent same vertex, impossible because same channel would interfere? A vessel in close proximity with itself? Usually pairs maybe u != v but not stated. Need handle self-loop: edge from vertex to itself means cannot assign different from itself, impossible. BFS with neighbor same vertex would see color conflict if color[v] != color[v]? Need handle. We can detect if u==v -> NO. But maybe not needed. We'll include.
+
+Need output lexicographically smallest. Approach:
+
+- Build adjacency list.
+- color array initialized -1.
+- For i in 1..n:
+  if color[i] == -1:
+    color[i] = 0 (represent channel 1 maybe 0/1)
+    BFS/DFS stack [i].
+    For each neighbor:
+      if color[neighbor] == -1: color[neighbor] = color[cur]^1; push
+      elif color[neighbor] == color[cur]: bipartite false -> NO.
+- After all, output YES and colors+1.
+
+This chooses color 1 for each component's first uncolored vertex in increasing i. Is that lexicographically smallest? Let's test with component where first vertex index maybe not root? We iterate i increasing, so first uncolored vertex in component is min index. Set 1. Good.
+
+But wait: There is nuance: If graph disconnected, choosing color 1 for min index of each component is lexicographically smallest. Suppose component A has min index 5, component B has min index 2. We process i=2 set B root 1, i=5 set A root 1. Good. If a component's min index is 10, but earlier vertices in other components fixed. At vertex 10, choose 1. Good.
+
+Need ensure BFS/DFS iterative to avoid recursion depth. Use deque or list stack. n 2e5, m 2e5. Python okay.
+
+But let's think if there is any hidden requirement: "lexicographically smallest sequence of channel assignments for vessels 1 through n" among all valid assignments. For bipartite graph with multiple components, yes.
+
+Let's test examples:
+Example1 cycle 1-2-3-4-1. Process 1 color1, BFS: 2 color2, 3 color1, 4 color2. Output 1 2 1 2. Good.
+Example2 triangle: 1 color1, 2 color2, 3 neighbor 1 color1? Actually 1-3 conflict? BFS from 1: 2 color2, 3 color2? Wait adjacency: 1-2,1-3,2-3. color1=0, neighbor2=1, neighbor3=1. Then process 2 neighbor3 color1? color[3]=1, color[2]=1 conflict -> NO. Good.
+
+Need maybe optimize memory. adjacency list of lists for 2e5 edges okay. m up to 2e5, n 2e5. Use sys.stdin.buffer.read split ints. Build list of lists. For memory, list of lists with 2e5 empty lists overhead ~ 11 MB? Actually 2e5 lists ~ 11.2 MB, plus edges ints ~ 2*2e5 Python ints ~ 11 MB? Actually ints in lists references to int objects? Parsed ints are Python ints; appending u/v creates references to existing int objects? The ints from map are new; when append, list stores reference to int object. Each int object ~28 bytes, 4e5 ints ~11.2 MB, references ~3.2 MB, lists overhead ~11.2 MB, total ~25 MB plus color etc. Memory limit 256 MB okay. Could use arrays? Not necessary.
+
+Need output code block only. But before final, let's ensure no hidden issue with lexicographically smallest in bipartite graph with multiple connected components and isolated vertices. Suppose component with min index v, setting color[v]=1. But what if there is another valid coloring of same component where color[v]=1 but not all colors flipped? In connected bipartite graph, if root color fixed, all colors determined. Yes.
+
+Let's consider if graph has parallel edges. Multiple edges same pair. BFS handles; no issue. Self-loop impossible.
+
+Potential issue: If graph is not connected, but there are edges connecting? no.
+
+Let's think about proof of exactly two colorings for connected bipartite graph. If connected and bipartite, any proper 2-coloring is determined by color of one vertex because along paths colors alternate; no contradiction due to bipartite. Good.
+
+Now, maybe there is a more subtle lexicographic issue: Suppose component has min index v, but setting v=1 may force some earlier? no earlier in component none. So yes.
+
+Let's consider if there are vertices with no edges. Process i, color[i]=1. Good.
+
+Now, code:
+
+import sys
+from collections import deque
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data: return
+    it = iter(data)
+    n = next(it); m = next(it)
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = next(it)-1; v = next(it)-1
+        if u == v:
+            # self-loop impossible
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    color = [-1]*n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                cu = color[u]
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = cu ^ 1
+                        stack.append(v)
+                    elif color[v] == cu:
+                        print("NO")
+                        return
+    out = ['YES', ' '.join(str(c+1) for c in color)]
+    sys.stdout.write('\n'.join(out))
+
+if __name__ == "__main__": main()
+
+Need consider if self-loop detection before building? If u==v, print NO immediately. But if there are more input lines, no need read? We already read all data. Fine. But if self-loop, graph impossible. Good.
+
+Potential issue with using iter(data) and next; if m=0, okay. If data huge, list of ints memory maybe okay: 4e5+2 ints ~ 11 MB, plus adjacency ~ maybe 30 MB, total < 256. But list(map(int, read().split())) creates list of bytes? Actually read().split() creates list of byte strings, then map int consumes? In Python, list(map(int, sys.stdin.buffer.read().split())) first read().split() creates list of bytes objects, then map int creates ints list; the bytes list may be freed after map? Evaluation: sys.stdin.buffer.read().split() returns list; map object holds iterator over list; list(map(...)) consumes; after expression, bytes list freed. Peak memory includes bytes list + int list + adjacency maybe. Input size ~ maybe 4e5 numbers, each up to 6 chars, bytes objects overhead huge maybe 20 MB. Still okay maybe 256 MB. But to be safe, can parse via data = sys.stdin.buffer.read().split(); then iterate bytes and int. But bytes list memory maybe similar. Could implement fast int generator to reduce memory. But 2e5 edges, 4e5 ints, not huge. Python memory maybe okay. Let's estimate worst: read().split() creates 400002 bytes objects. Each bytes object overhead ~33 bytes + data, average maybe 5, ~15 MB; list refs ~3.2 MB; total ~18 MB. int list ~14 MB. adjacency: 200k empty lists 56 bytes each = 11.2 MB; edge ints: appending u/v from int list? Wait if using data list of ints, u = next(it)-1 creates new int? Actually next returns Python int object from data; u = next(it)-1 creates new int object for u (unless small cached? values up to 2e5 not cached). Then adj[u].append(v) appends v int object from data? v = next(it)-1 creates new int. So each edge endpoint stored as int object in adjacency, 4e5 int objects ~11.2 MB plus list refs ~3.2 MB plus list capacities maybe. color list refs to small ints -1,0,1 cached no int objects. Total maybe 60-80 MB. Fine.
+
+But if memory limit 256 MB, okay. Time: BFS O(n+m). Good.
+
+Let's think if there is any alternative interpretation: "two communication channels designated as channel 1 and channel 2" "If two vessels in close proximity broadcast on same channel interfere" Need assign channel to every vessel such that no two adjacent share same. Yes graph 2-coloring.
+
+Now, maybe "lexicographically smallest sequence" among all valid assignments. We choose root color 1 for each component. But let's test with a path 2-3-1? Actually min index 1 connected to 3, 3 connected to 2. Process 1 color1, 3 color2, 2 color1. Output 1 1 2? Wait path 1-3-2: colors: 1=1,3=2,2=1. Valid? Edges 1-3 diff, 3-2 diff. Lexicographically smallest? Alternative root 1 color2 gives 1=2,3=1,2=2. At vertex1, 1<2, so yes. Good.
+
+What about component min index 2, vertex1 isolated. Process 1 color1. Then component min 2 color1. Output 1 1 ... Is that lexicographically smallest? Vertex1 fixed 1; vertex2 can be 1 or 2, choose 1. yes.
+
+Now, if graph has connected component with min index 2 but vertex1 in same component? impossible min index 2 means no vertex1. Good.
+
+Potential issue: If graph is bipartite but not connected, there are 2^{components} colorings. Lexicographically smallest can be obtained by greedily assigning each vertex smallest possible color given previous assignments and constraints? Is that equivalent to root color 1 for each component? Let's verify with a component whose min index is not first uncolored? Actually if component has previous vertices? no. Greedy would at first vertex of component choose 1. Then propagate. Yes.
+
+But wait, if a component has min index v, but there is an edge from v to some earlier? no earlier in component. So no constraints. Good.
+
+Let's consider if graph has multiple connected components but a component's min index is 5, and vertex 4 in another component. At vertex 4, choose 1. At vertex 5, choose 1. Good.
+
+Now, maybe there is a nuance: The lexicographically smallest sequence among all valid assignments for a connected bipartite graph is not always root min color 1? Let's prove: Let C be component, min vertex r. Any coloring either color[r]=1 or 2. If color[r]=1, at position r value 1; if color[r]=2, value 2. Since no earlier positions in C affected, choose 1. Then rest determined. Good.
+
+Now, code output "YES" and second line. If n maybe 0? n>=1. Good.
+
+Let's think about using DFS stack vs BFS. DFS stack can be okay. But if graph has huge path, stack size n, okay. Use list.
+
+Potential issue: If self-loop, we print NO and return before reading? We already read all data. If we wanted to avoid building adjacency after self-loop, we can detect while reading and print NO. But if we return inside loop, no need process rest. But data already read. Fine. However, if we return before consuming all data, no issue. But if using iter and next, if self-loop found, print and return. Good.
+
+But if self-loop appears, graph impossible. If we don't detect, BFS: color[u] set, neighbor v=u, color[v] == color[u] -> conflict, so NO. Actually if u==v, when processing u, neighbor u, color[u] == cu, conflict. So no need explicit. But if u==v and color[u] maybe -1? In BFS, when processing u, color[u] set. So conflict. If isolated? self-loop edge means not isolated. So BFS detects. But explicit is fine. If we return early, no output? We print NO. Good.
+
+Need maybe not use recursion.
+
+Let's consider if there are duplicate edges. BFS handles. If duplicate self-loop? no.
+
+Now, final answer should be code block only. But before final, let's think if there is any hidden issue with "lexicographically smallest" and "channel assignments for vessels 1 through n" maybe they want sequence of 1/2, not 0/1. We output c+1.
+
+Let's maybe include comments? Code block can include comments, but not necessary. The instruction says output only code block. We can include code.
+
+Let's think about possible performance of ' '.join(str(c+1) for c in color) for 2e5, okay. Could use map(str, (c+1 for c in color)) but generator okay. Need output newline? Not necessary but okay. If no assignment, print NO. If YES, print YES and line. Good.
+
+Let's consider if m=0, adj all empty, color all 0, output YES and all 1. Lexicographically smallest all 1. Good.
+
+Now, maybe there is a problem with using color = [-1]*n and setting color[i]=0 for each component. If graph has multiple components, color values 0/1. Good.
+
+Let's think about if graph is bipartite but not connected and there are edges between components? by definition no.
+
+Now, maybe there is a more complex requirement: "If there are multiple valid ways to assign the channels, you must output the configuration that produces the lexicographically smallest sequence of channel assignments for vessels 1 through n." Suppose graph is bipartite but a component has no edges? Actually isolated vertex has two valid assignments, choose 1. Good.
+
+Let's think about if graph has connected component with min vertex r, but there is a valid coloring with color[r]=1 and another with color[r]=1? No, only one. Good.
+
+Now, let's consider if graph is not connected and there are multiple components, but choosing root color 1 for each component in increasing index order is equivalent to greedy. Let's test a weird case: Component A min index 2, component B min index 3. Process 2 color1, 3 color1. Suppose component A has vertex 4, component B has vertex 5. Output positions: 1 isolated color1, 2=1,3=1,4 maybe? If A edge 2-4, 4=2; B edge 3-5, 5=2. Alternative flip B: 3=2,5=1. Compare at position3: 1<2, so choose B root1. Good. Alternative flip A: 2=2,4=1; compare at position2: 1<2, so choose A root1. Good.
+
+Now, maybe if component A min index 2 and component B min index 3, but component A has vertex 3? impossible if B min 3 and A has 3, then 3 in A, B min >3. So no overlap.
+
+Now, let's think about if there is a valid assignment where a component's min vertex color 1 but due to previous vertices in other components, maybe choosing color 2 for this component could allow earlier? No, previous vertices unaffected. So no.
+
+Now, code robust.
+
+But wait, the problem statement says "A fleet of n autonomous surveying vessels must each be assigned to one of two communication channels" "If two vessels in close proximity broadcast on the same channel, their signals will interfere. You are given m records of such vessel pairs." It doesn't explicitly say graph is undirected? "pairs" yes undirected. Input u v. We add both directions. Good.
+
+Now, maybe there is a known problem "Channel Allocation" maybe from Kattis? Could be "channel" maybe "tv" no. But solution bipartite.
+
+Let's think if there is any issue with lexicographically smallest if graph has multiple connected components and we process vertices in increasing order but BFS from root may color a later vertex before an earlier uncolored vertex in another component? Wait, we process i from 0 to n-1. If color[i] == -1, we BFS entire component, coloring all vertices in that component, including vertices with index greater than i. Then continue loop. When loop reaches a vertex in that component, color not -1, skip. So components are processed in order of their minimum index. Good. But BFS from root i may color a vertex j < i? Can that happen? If j < i and same component, then when loop earlier at j, component would have been processed, so i would already be colored. Thus root i is min uncolored, no earlier uncolored in component. So no. Good.
+
+Now, maybe if graph has a component with min index i, BFS colors all vertices. If there is an edge to a vertex with index < i? impossible because then that vertex in component and min < i. Good.
+
+Now, let's consider if using stack DFS can color a vertex with index smaller than current? no.
+
+Now, maybe if graph has self-loop and we return early, but if there are multiple test cases? No.
+
+Now, final code:
+
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx+1] - 1
+        idx += 2
+        if u == v:
+            print("NO")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(str(c + 1) for c in color))
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    main()
+
+Need maybe if self-loop, we return before reading all data? We already have data list, no issue. But if we return inside loop, no need process rest. Good.
+
+Potential issue: If self-loop appears, but graph might also be impossible; print NO. Good.
+
+Now, let's think about memory of data list. Could avoid data list to reduce memory by using sys.stdin.buffer.readline. But data list okay. However, if memory limit 256 MB, okay. But let's be safe and use readline to build adjacency without storing all ints. That may reduce memory. But reading line by line 2e5 lines is okay. Use sys.stdin.buffer.readline. This avoids data list and bytes list. Let's consider code:
+
+import sys
+def main():
+    input = sys.stdin.buffer.readline
+    n, m = map(int, input().split())
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1; v -= 1
+        if u == v:
+            print("NO"); return
+        adj[u].append(v); adj[v].append(u)
+    ...
+
+This is simpler and memory lower. Time: 2e5 lines, map int per line, okay in Python? 2e5 line reads fine. Time limit 1s maybe okay? 2e5 lines with map int and list append is okay. But if input large, read().split() faster. 1s maybe tight but Python accepted? Need optimize. Use sys.stdin.buffer.read().split() is faster but memory more. 2e5 lines not huge. Both okay. To be safe for time, use read split. Memory okay. But if memory limit 256 MB, read split okay. Let's estimate more accurately: data list of ints 400002 ints ~ 11.2 MB, list refs ~3.2 MB, total 14.4 MB. But if using read().split(), bytes list peak maybe 20 MB. Adjacency: 200001 lists: each empty list 56 bytes = 11.2 MB. Edges: 400000 int objects? Actually when appending u and v, u and v are Python ints created by subtraction from data ints. data ints remain in data list until after building? If we keep data list, yes data ints remain. But adjacency stores new int objects for u/v? Let's see: u = data[idx] - 1 creates a new int object. v = data[idx+1] - 1 creates new int. adj[u].append(v) stores reference to v int object. adj[v].append(u) stores reference to u int object. So 400k int objects ~11.2 MB, plus list refs ~3.2 MB, plus list capacities maybe ~4 MB. data list ints 400k ~11.2 MB + refs 3.2. color list refs 1.6 MB. Total maybe 50-60 MB. Peak with bytes list maybe +20 = 80 MB. Fine.
+
+If using readline, no data list, but line reading maybe okay. 1s? 2e5 lines, Python can handle ~0.2-0.5s maybe. BFS ~0.2. Fine. But to be safe, use read split. Memory still okay.
+
+Let's think if there is a way to avoid storing data list after building adjacency: del data before BFS to free memory. We can do del data after building. But not necessary. Could include to reduce memory. If using data list, after building adjacency, `del data` frees int list. But bytes list already freed. Good. We can include `del data` maybe. But if we return early no matter. Let's include? It doesn't hurt. But code block only. We can write:
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+...
+# build
+del data
+...
+
+But if we use `idx` and data, after building, del data. Good.
+
+However, if we use `data = list(map(int, ...))`, the bytes list from split is temporary and freed after map? Actually list(map(int, sys.stdin.buffer.read().split())): The split list is created, map object holds iterator to it, list consumes; after list() returns, map and split list freed. So peak includes split list. Fine.
+
+Now, maybe if m=0, data length 2, loop no. Good.
+
+Let's think about if there are duplicate edges causing adjacency list large? m max 2e5, so 4e5 entries. Good.
+
+Now, let's consider if graph is bipartite but not connected, and we choose root color 1 for each component. Is there any scenario where a component's min vertex is not the first vertex processed because it was colored as neighbor from another component? Components disjoint, no. Good.
+
+Now, maybe if graph has multiple edges between same vertices, BFS still okay. If there is an edge between u and v and another edge, no issue.
+
+Now, let's think about if graph has n=2e5, m=2e5, path graph. DFS stack with list pop from end. It will color all. Good.
+
+Now, maybe if graph is dense? m max 2e5, not dense.
+
+Now, let's think about if there is a need to output "NO" if impossible, no second line. We do.
+
+Now, final answer should be code block. But before final, let's maybe consider if there is a hidden "lexicographically smallest" nuance with colors as integers 1 and 2, and "sequence of channel assignments for vessels 1 through n" maybe they want lexicographically smallest among all valid assignments, not necessarily per component root 1? We already.
+
+Let's maybe prove with greedy: At each vertex i from 1 to n, if not assigned, assign 1. Since no previous constraints? Wait, if vertex i is unassigned, it belongs to a component with no vertices < i? Actually if component had a vertex j < i, then j would have been processed and BFS would have colored i. So yes, no previous constraints. Assigning 1 is always possible? Need ensure there exists a valid coloring of the remaining component with i=1. Since graph bipartite, yes. If graph not bipartite, no. So greedy works. This is another way.
+
+Now, let's think about if graph is bipartite but a component has min vertex i, and assigning i=1 may conflict with some previous vertex? No previous vertex in component. Good.
+
+Now, maybe if graph has isolated vertex i, assigning 1 possible. Good.
+
+Now, let's consider if there is a self-loop and we return early before reading all data. If using data list, no issue. If using readline, returning early leaves unread input but program ends, okay. But if online judge expects no broken pipe? no.
+
+Now, maybe if input has extra whitespace, read split handles.
+
+Now, let's think about if there is a possibility of n=1, m=0. Output YES 1. Good. n=1, m=1 self-loop? Input 1 1, u=v=1. Output NO. Good.
+
+Now, let's think about if graph has a cycle of odd length but not connected. BFS detects conflict. Good.
+
+Now, maybe if graph has parallel edges and self-loop? no.
+
+Now, let's consider if using `color[u] ^ 1` works for 0/1. Yes.
+
+Now, maybe if we use `stack.pop()` DFS, for a large graph, stack can grow to n. Fine. But if graph has many components, stack small.
+
+Now, let's think about if there is a need to use `sys.setrecursionlimit`? No recursion.
+
+Now, final code block. But the instruction says "Return only one Python 3 code block." So final should be:
+
+```python
+import sys
+...
+```
+
+No extra text. Good.
+
+Let's maybe include a fast parser to be robust. Let's decide between read split and readline. I think read split is fine. But if memory limit 256 MB, okay. Let's maybe use read split and `del data` after building. Code:
+
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n = data[0]
+    m = data[1]
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        if u == v:
+            sys.stdout.write("NO\n")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+    # optional del data
+    color = [-1] * n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                cu = color[u]
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = cu ^ 1
+                        stack.append(v)
+                    elif color[v] == cu:
+                        sys.stdout.write("NO\n")
+                        return
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(map(str, (c + 1 for c in color))))
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    main()
+
+Potential issue: `map(str, (c + 1 for c in color))` okay. But `c + 1 for c in color` generator. Good.
+
+Could use `sys.stdout.write(" ".join(str(c + 1) for c in color))`. Fine.
+
+Now, let's think about if `data` list remains and memory. We can `del data` after building. But if we `del data`, no issue. Let's include `del data` maybe. But if we return early due to self-loop, no need. If we include after loop, okay. But if we use `data` in loop, after loop no. Let's include to reduce memory:
+
+    del data
+
+But if we return early, not executed. Fine.
+
+Now, let's think about if there is a self-loop and we return before reading all data? We already read all data. Good.
+
+Now, maybe if input has m lines but data list length less due to trailing? no.
+
+Now, let's consider if there is a problem with `n, m = data[0], data[1]` if data length 1? no.
+
+Now, let's think about if graph has n=2e5, m=2e5, and using `adj = [[] for _ in range(n)]` creates many lists. Fine.
+
+Now, maybe if there is a need to output "YES" and second line even if n=0? n>=1.
+
+Now, let's think about if there is a hidden "lexicographically smallest" among all valid assignments, but if graph is bipartite and connected, there are exactly two colorings. If graph has multiple components, 2^components. We choose root 1. Good.
+
+Let's maybe test with a small graph: n=3, edges 1-2, 2-3. Our BFS: i=0 color1=0, stack [0]; pop0, neighbor1 color1? color[1]=1, push1; pop1, neighbor0 color0, neighbor2 color0? color[2]=0, push2; pop2 neighbor1 color1. Output 1 2 1. Alternative root 1 color2: 2 1 2. Lexicographically 1 2 1. Good.
+
+n=3, edges 1-3, 2-3. Process i=0 color1=0, neighbor2 (vertex3) color1, push2; pop2 neighbor0 color0, neighbor1 color0? vertex2 color0, push1; pop1 neighbor2 color1. Output 1 1 2? Wait vertices: 1=1, 2=1, 3=2. Edges 1-3 diff, 2-3 diff. Lexicographically? Alternative root 1 color2: 2 2 1. At vertex1 1<2, so yes. But is there a coloring 1 2 2? Edges 1-3 diff (1 vs2), 2-3 same (2 vs2) invalid. So yes.
+
+Now, maybe if graph has component min vertex 2, vertex1 isolated. Process 1 color1, then 2 color1. Output 1 1 ... Good.
+
+Now, let's think about if there is a graph where choosing root color 1 for component min vertex leads to a later vertex having color 2, but maybe flipping component would make that later vertex 1 and earlier root still 1? Impossible because flipping changes root. So no.
+
+Now, maybe if graph is bipartite but not connected, and a component has min vertex i, but there is a valid coloring where color[i]=1 and some other vertex j in same component has color 1, while our BFS gives color[j]=2? No, determined by parity. If alternative with same root but different j impossible. Good.
+
+Now, let's think about if there is a need to handle "NO" if graph has odd cycle. BFS detects. Good.
+
+Now, maybe if graph has a vertex with no edges but color set 0, output 1. Good.
+
+Now, let's consider if there is a possibility of integer overflow? no.
+
+Now, final answer code block. But before final, let's think if there is any issue with using `sys.stdout.write(" ".join(map(str, (c + 1 for c in color))))` and then newline. If n=2e5, string length ~ 400k, okay. If output "NO", no newline? We include newline. Good.
+
+Now, maybe if graph is impossible, we might have already colored some vertices and then detect conflict. We print NO and return. Good.
+
+Now, let's think about if there is a self-loop and we return early before building all adjacency. If using data list, no issue. But if there is a self-loop, graph impossible regardless of other edges. Good.
+
+Now, maybe if input has u,v not 1-indexed? It says 1..n. We subtract.
+
+Now, let's think about if there is a hidden "m records of such vessel pairs" maybe pairs can repeat. no issue.
+
+Now, let's consider if there is a more efficient way to find lexicographically smallest using DSU? no.
+
+Now, maybe if graph is bipartite but not connected, and there are components with min index not processed in increasing order due to BFS from earlier component? no.
+
+Now, let's think about if there is a problem with using DFS stack and color assignment: Suppose graph has a cycle, DFS may color a vertex before checking conflict? It checks when encountering neighbor. If neighbor already colored and same, conflict. Good. If neighbor uncolored, assign opposite. Good.
+
+Now, maybe if graph has an edge to a vertex in another component? impossible.
+
+Now, let's think about if there is a need to use `deque` for BFS to avoid recursion? stack fine. DFS order doesn't matter for lexicographic? Wait, does DFS order affect colors? No, colors determined by parity from root. But if graph has multiple components, root color 1. Within component, any traversal yields same colors because bipartite. Good.
+
+Now, let's think about if graph is bipartite but not connected, and we process root i, BFS colors all vertices. If there is a vertex j > i in same component, it gets color based on parity. Later loop skips. Good.
+
+Now, maybe if graph has a component with min vertex i, but there is an edge from i to a vertex with smaller index? impossible. Good.
+
+Now, let's consider if there is a hidden "lexicographically smallest" maybe they compare strings of '1' and '2' where '1' < '2'. Yes.
+
+Now, final.
+
+But let's think about if there is any issue with "Time limit: 1s" and Python. Need optimize output and input. Use read split. BFS with list stack. Good.
+
+Potential micro-optimizations:
+- Use local variables for adj, color.
+- In BFS, `for v in adj[u]:` okay.
+- Use `stack = [i]` and `while stack: u = stack.pop()`. Good.
+- If graph is large and many components, repeated list allocation okay.
+- Could use `color_u = color[u]` to avoid list lookup. We do.
+- Could use `append = stack.append`? Not necessary.
+- Use `sys.stdout.write` once for output. Good.
+
+Now, maybe if graph is not bipartite, we might detect conflict after coloring many vertices. We print NO. Good.
+
+Now, let's think about if there is a self-loop and we return early before reading all data? If using read split, all data read. If using readline, early return leaves input unread but program exits. Fine. But if using read split, no issue.
+
+Now, maybe if there is a self-loop and we return early, but we haven't consumed all data? We consumed all data into list. Good.
+
+Now, let's consider if there is a problem with `del data` after building but before BFS. If we include, no issue. But if we return early due to self-loop, no del. Fine.
+
+Now, final code:
+
+```python
+import sys
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = data[idx] - 1
+        v = data[idx + 1] - 1
+        idx += 2
+        if u == v:
+            sys.stdout.write("NO\n")
+            return
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [-1] * n
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                cu = color[u]
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = cu ^ 1
+                        stack.append(v)
+                    elif color[v] == cu:
+                        sys.stdout.write("NO\n")
+                        return
+
+    sys.stdout.write("YES\n")
+    sys.stdout.write(" ".join(str(c + 1) for c in color))
+    sys.stdout.write("\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+Should we include `del data`? Not necessary. But if memory, maybe include after building:
+
+    del data
+
+But if we include, and then if self-loop return before del, no issue. Let's include? It might be considered unnecessary but okay. However, if we `del data` before BFS, no effect. Let's include to reduce memory. But if we use `data` in loop, after loop no. Code:
+
+    del data
+
+But if we return early due to self-loop, not executed. Fine.
+
+Now, let's think about if there is a hidden issue with `data = list(map(int, sys.stdin.buffer.read().split()))` and `n, m = data[0], data[1]` if there are extra spaces/newlines. okay.
+
+Now, maybe if m=0, data length 2, loop no, del data, BFS all isolated, output all 1. Good.
+
+Now, let's think about if graph has n=2e5, m=2e5, and using `adj = [[] for _ in range(n)]`; if we `del data`, memory lower. Good.
+
+Now, maybe if there is a self-loop and we return early, but we have already built some adjacency. Program exits, memory freed. Good.
+
+Now, let's consider if there is a problem with "Output only a single Python 3 code block and nothing else" in final. We'll output code block. Good.
+
+Let's maybe think about if there is any alternative interpretation of lexicographically smallest: They might want to minimize sequence as a string of length n, where '1' < '2'. Yes.
+
+Now, let's think about if graph is bipartite but not connected, and there is a component with min vertex i, but there is a valid coloring where color[i]=1 and another where color[i]=1? no. Good.
+
+Now, maybe if graph has a connected component with no edges? single vertex, two colorings. We choose 1. Good.
+
+Now, let's think about if there is a need to output "NO" if no assignment can prevent all interference. If graph has odd cycle, no. BFS detects. Good.
+
+Now, maybe if graph has a self-loop, BFS detects but explicit early return. Good.
+
+Now, let's think about if there is a problem with using `color[v] == cu` for self-loop if we didn't early return. If u==v, when processing u, neighbor v=u, color[v] = cu, conflict. Good. But if self-loop is the only edge and we process root, stack [u], pop u, neighbor u, color[u] == cu -> NO. Good. So explicit not necessary but okay.
+
+Now, maybe if there is a self-loop and we return early before reading all data? If using read split, no. If using readline, early return leaves input unread but program exits. Fine.
+
+Now, let's think about if there is a hidden "m records of such vessel pairs" maybe pairs are not necessarily distinct and u,v can be same? no.
+
+Now, final answer.
+
+But wait, let's revisit lexicographic smallest more formally. Suppose graph has connected component C with min vertex r. We set color[r]=1. But what if there is another valid coloring of the entire graph where color[r]=1 but some earlier vertex (not in C) has different color? Earlier vertices are in other components; their colors are fixed by our choices. If we choose root 1 for C, no earlier changes. So at position r, our value 1 is minimal. Good.
+
+Now, maybe if a component's min vertex r is not the first vertex of that component in the sequence? It is by definition. Good.
+
+Now, let's think about if there is a graph where a component has min vertex r, but there is a valid coloring with color[r]=1 and another with color[r]=1 but different colors due to disconnected? Component connected, no. Good.
+
+Now, maybe if graph is bipartite but not connected, and a component has min vertex r, but there is a valid coloring where color[r]=1 and some earlier vertex in another component has color 2 instead of 1? We choose earlier components root 1, so no. Good.
+
+Now, final.
+
+Let's consider if there is a need to use `sys.setrecursionlimit`? no.
+
+Now, maybe if there is a problem with "Memory limit: 256 MB" and using `data` list plus adjacency. Let's maybe use readline to be safer memory. But time limit 1s. Which is better? Let's benchmark mentally: 2e5 lines, `readline` + `split` + `map` is okay. 1s maybe borderline but Python can do ~1e6 lines? Actually 2e5 lines is fine. BFS 2e5 edges. Should be under 1s maybe 0.5-0.8. Read split faster. Memory okay. I'll use read split.
+
+Now, maybe if input size is 2e5 lines, `read().split()` creates 400k tokens, not huge. Good.
+
+Now, let's think about if there is a hidden issue with `data = list(map(int, sys.stdin.buffer.read().split()))` and then `n, m = data[0], data[1]`; if there are more tokens than expected due to trailing? no.
+
+Now, final code block.
+
+But let's think if there is any possibility that the lexicographically smallest coloring can be obtained by a different algorithm if graph is not connected but components interleave? We already.
+
+Now, maybe if graph has a connected component with min vertex r, but there is a valid coloring where color[r]=1 and another where color[r]=1? no. Good.
+
+Now, let's consider if there is a graph with multiple connected components and a component's min vertex r, but there is a valid coloring where color[r]=1 and some vertex s < r in another component has color 2, while our choice for that other component root 1 gives color 1. We choose root 1 for earlier component, so at s our value 1 < 2. Good.
+
+Now, final.
+
+Let's maybe include comments? Not necessary. But code block can include comments. The instruction says output only code block, comments okay. But to be concise, no comments.
+
+Now, let's think about if there is a hidden "NO" if no assignment can prevent all interference" and if graph has odd cycle, BFS detects. Good.
+
+Now, maybe if graph has a connected component with min vertex r, but there is a valid coloring where color[r]=1 and another where color[r]=1? no.
+
+Now, final answer.
+
+Wait, let's think about if there is a problem with using `color = [-1] * n` and then `color[i] = 0` for each component. If graph is bipartite, all components colored. If graph is not bipartite, we return NO. Good.
+
+Now, maybe if graph has n=2e5, m=2e5, and using `stack = [i]` for each component, if graph is a single component, stack can grow to n. Fine.
+
+Now, let's think about if there is a hidden "lexicographically smallest" but they might want to output the configuration that produces lexicographically smallest sequence of channel assignments for vessels 1 through n, and if there are multiple valid ways, choose lexicographically smallest. We do.
+
+Now, final code.
+
+But let's consider if there is a possibility of a graph with a connected component where min vertex r, but setting color[r]=1 leads to a conflict? If graph bipartite, no. If not, no valid assignment. BFS detects. Good.
+
+Now, maybe if graph has a self-loop and we return early, but if there is a self-loop, no assignment. Good.
+
+Now, final.
+
+Let's think about if there is a need to output "YES" and second line with n integers. We output newline after second line. Good.
+
+Now, final answer codeblock.

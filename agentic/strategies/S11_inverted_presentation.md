@@ -1,6 +1,7 @@
 id: S11
 summary: Reorder so the objective arrives after the constraints.
 classes: all
+perturbation_family: structural_reorder
 
 Restructure the description so the reader encounters the data model and constraints
 before learning what is being asked. This prevents matching a known problem from the

@@ -1,0 +1,46 @@
+# Problem B — Hazardous Cargo
+
+Time limit: 1 s
+Memory limit: 256 MB
+
+A maritime logistics company is preparing to transport $n$ cargo containers. The company operates two distinct cargo holds for this journey, designated as Hold 1 and Hold 2. Every container must be stowed in exactly one of these two holds.
+
+Due to strict chemical safety regulations, certain pairs of containers hold reactive materials that become unstable if subjected to the same ambient conditions. The safety manifest lists $m$ such reactive pairs. To ensure a safe voyage, the two containers in any reactive pair must be stowed in different holds.
+
+Your task is to determine whether it is possible to assign each of the $n$ containers to a hold such that no reactive pair is placed in the same hold.
+
+## Input
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$, indicating that container $u$ and container $v$ form a reactive pair.
+
+## Output
+If there is no valid way to stow the containers while satisfying all safety regulations, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1, 2\}$), representing the lexicographically smallest valid sequence of hold assignments.
+
+## Example 1
+Input:
+```
+4 4
+1 2
+2 3
+3 4
+1 4
+```
+Output:
+```
+YES
+1 2 1 2
+```
+
+## Example 2
+Input:
+```
+3 3
+1 2
+1 3
+2 3
+```
+Output:
+```
+NO
+```

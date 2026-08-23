@@ -1,18 +1,18 @@
-# Problem B — Team Allocation
+# Problem B — Machine Modes
 
 Time limit: 1 s   Memory limit: 256 MB
 
-An organization needs to partition $n$ members, indexed from $1$ to $n$, into two distinct teams labeled 1 and 2. There are $m$ pair restrictions: each restriction specifies two members who cannot be assigned to the same team.
+A manufacturing process involves $n$ machines. Each machine must be set to either mode 1 or mode 2. There are $m$ interference warnings. Each warning specifies a pair of machines that will fail if they operate in identical modes. 
 
-Determine whether it is possible to assign every member to team 1 or team 2 such that no restriction is violated. If multiple valid assignments exist, output the one that is lexicographically smallest.
+Determine a mode for each machine so that no warning is triggered, or report if this cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that member $u$ and member $v$ cannot share the same team.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of machines in an interference warning.
 
 ## Output
-If no valid team assignment exists, print `NO` on a single line.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \in \{1, 2\}$), representing the lexicographically smallest valid assignment.
+If no safe configuration exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest safe configuration.
 
 ## Example 1
 Input:

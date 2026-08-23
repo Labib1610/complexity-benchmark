@@ -28,7 +28,9 @@ import json
 import random
 import re
 import shutil
+import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,9 +52,12 @@ def _read_json(p: Path) -> dict:
         return {}
 
 
+_LOG_LOCK = threading.Lock()   # lineages may run concurrently; serialize log appends
+
+
 def _log(lineage, depth, step, status, detail=""):
     B.LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(B.LOGS_DIR / "harden_loop.log", "a") as f:
+    with _LOG_LOCK, open(B.LOGS_DIR / "harden_loop.log", "a") as f:
         f.write(f"{datetime.now(timezone.utc).isoformat()} | {lineage} | d{depth} | "
                 f"{step} | {status} | {detail}\n")
 
@@ -163,13 +168,13 @@ def run_student(student, statement, sc, tiers, scoring_tier, sys_tmpl, user_tmpl
         results = {t: None for t in _TIERS}
         verdict = {"tier_results": results, "overall_all_tiers": "RUNTIME_ERROR",
                    "driving": "RUNTIME_ERROR",
-                   "error": resp["error"] or "empty solution", "elapsed_s": resp["elapsed_s"]}
+                   "error": resp["error"] or "empty solution", **B.usage_of(resp)}
     else:
         results = score_tiers(sc, tiers, out_dir / "solution.py")
         verdict = {"tier_results": results,
                    "overall_all_tiers": overall_all_tiers(results),
                    "driving": driving_verdict(results, scoring_tier),
-                   "error": resp["error"], "elapsed_s": resp["elapsed_s"]}
+                   "error": resp["error"], **B.usage_of(resp)}
     (out_dir / "verdict.json").write_text(json.dumps(verdict, indent=2))
     return verdict
 
@@ -239,7 +244,9 @@ def _teacher_user(prompts, statement, meta, strat, intensity, shortcut, n_active
 
 def run_edit_ladder(ldir, depth, statement, shortcut, meta, s12, strat_by_id, prompts,
                     n_active, n_retired, fb_cfg, seed_stmt, sc, run_cfg, exec_cfg):
-    """Try ladder rungs until one gate-PASSes. Persist every teacher attempt + gate.
+    """Gate the fallback ladder as a SELECTOR (file 50, B4): generate up to
+    candidates_per_depth ACCEPTED rewrites, gate each, and keep the highest-composite
+    one -- not merely the first that passes. Persist every teacher attempt + gate.
     Returns (result_dict | None, stop_hint)."""
     nddir = ldir / f"d{depth + 1:03d}"
     nddir.mkdir(parents=True, exist_ok=True)
@@ -247,12 +254,14 @@ def run_edit_ladder(ldir, depth, statement, shortcut, meta, s12, strat_by_id, pr
 
     ladder = fb_cfg.get("fallback_ladder", ["S12_primary"])
     cap = fb_cfg.get("ladder_attempts_per_depth", 4)
+    want = fb_cfg.get("candidates_per_depth", 1)
     reason = ""
     attempt_i = 0
     any_parsed = False
     any_api_error = False
+    accepted = []                        # collected ACCEPTED candidates to select from
     for rung in ladder:
-        if attempt_i >= cap:
+        if attempt_i >= cap or len(accepted) >= want:
             break
         spec = _rung_spec(rung, s12, strat_by_id, shortcut)
         if spec is None:
@@ -271,29 +280,48 @@ def run_edit_ladder(ldir, depth, statement, shortcut, meta, s12, strat_by_id, pr
         (nddir / f"teacher_attempt_{attempt_i}.json").write_text(json.dumps({
             "rung": rung, "strategy": strat["id"], "intensity": inten,
             "parsed": ok, "parse_error": None if ok else "no <STATEMENT>",
-            "api_error": resp["error"], "elapsed_s": resp["elapsed_s"]}, indent=2))
+            "api_error": resp["error"], **B.usage_of(resp)}, indent=2))
         _log(ldir.name, depth, "teacher", f"{rung}:{'ok' if ok else 'noparse'}", resp["error"] or "")
         if not ok:
             reason = "previous attempt returned no <STATEMENT> tag"
             continue
         gres = GT.evaluate_statement(parsed["statement"], seed_stmt, sc, prompts["verifier"],
-                                     run_cfg, prompts["verifier_sys"], prompts["verifier_user"])
-        GV._atomic_write(nddir / "gate.json", json.dumps({**gres, "attempt": attempt_i, "rung": rung}, indent=2))
+                                     run_cfg, prompts["verifier_sys"], prompts["verifier_user"],
+                                     strategies=[strat["id"]],
+                                     s09_constraint=parsed.get("added_constraint"),
+                                     out_dir=nddir, solver_log_name=f"solver_attempt_{attempt_i}.txt")
+        GV._atomic_write(nddir / f"gate_attempt_{attempt_i}.json",
+                         json.dumps({**gres, "attempt": attempt_i, "rung": rung}, indent=2))
         _log(ldir.name, depth, "gate", gres["result"],
-             f"{rung} leakage={gres['leakage_hits']} verifier={gres['verifier'].get('overall')}")
-        if gres["result"] == "PASS":
-            GV._atomic_write(nddir / "statement.md", parsed["statement"] + "\n")
-            GV._atomic_write(nddir / "edit.json", json.dumps({
-                "version": f"{ldir.name}/d{depth+1:03d}", "source": "feedback",
-                "rung": rung, "strategies": [strat["id"]], "intensity": inten,
-                "parent": f"d{depth:03d}", "generation": depth + 1,
-                "shortcut_targeted": sc_use.get("shortcut_name"),
-                "gate_attempts": attempt_i, "teacher_id": prompts["teacher"]["id"],
-                "teacher_raw": resp["text"], "rationale": parsed.get("rationale", ""),
-                "risk": parsed.get("risk", ""),
-                "timestamp": datetime.now(timezone.utc).isoformat()}, indent=2))
-            return {"statement": parsed["statement"], "rung": rung, "gate": gres}, None
-        reason = f"gate={gres['result']}, leakage={gres['leakage_hits']}, verifier={gres['verifier'].get('overall')}"
+             f"{rung} composite={gres.get('composite')} leakage={gres['leakage_hits']}")
+        if gres["result"] == "ACCEPT":
+            accepted.append({"statement": parsed["statement"], "rung": rung, "strat": strat,
+                             "inten": inten, "sc_use": sc_use, "resp": resp, "parsed": parsed,
+                             "gres": gres, "attempt": attempt_i})
+        else:
+            reason = f"gate={gres['result']}, leakage={gres['leakage_hits']}, composite={gres.get('composite')}"
+
+    if accepted:
+        best = max(accepted, key=lambda c: (c["gres"].get("composite") or -1.0))
+        gres, parsed, resp = best["gres"], best["parsed"], best["resp"]
+        strat, inten, sc_use = best["strat"], best["inten"], best["sc_use"]
+        GV._atomic_write(nddir / "gate.json",
+                         json.dumps({**gres, "attempt": best["attempt"], "rung": best["rung"]}, indent=2))
+        GV._atomic_write(nddir / "statement.md", best["statement"] + "\n")
+        GV._atomic_write(nddir / "edit.json", json.dumps({
+            "version": f"{ldir.name}/d{depth+1:03d}", "source": "feedback",
+            "rung": best["rung"], "strategies": [strat["id"]], "intensity": inten,
+            "parent": f"d{depth:03d}", "generation": depth + 1,
+            "shortcut_targeted": sc_use.get("shortcut_name"),
+            "gate_attempts": attempt_i, "candidates_gated": len(accepted),
+            "composite": gres.get("composite"),
+            "teacher_id": prompts["teacher"]["id"],
+            "teacher_raw": resp["text"], "rationale": parsed.get("rationale", ""),
+            "risk": parsed.get("risk", ""),
+            "timestamp": datetime.now(timezone.utc).isoformat()}, indent=2))
+        _log(ldir.name, depth, "select", best["rung"],
+             f"best composite={gres.get('composite')} of {len(accepted)} accepted")
+        return {"statement": best["statement"], "rung": best["rung"], "gate": gres}, None
 
     if not any_parsed:
         return None, ("teacher_api_error" if any_api_error else "teacher_parse_failure")
@@ -440,7 +468,7 @@ def select_seeds(family, crit_dir, fb_cfg):
     vbase = B.VERSIONS_DIR / f"family_{family}" / crit_dir
 
     def is_pass_base(vid):
-        return (_read_json(vbase / vid / "gate.json").get("result") == "PASS"
+        return (_read_json(vbase / vid / "gate.json").get("result") in ("PASS", "ACCEPT")
                 and _read_json(vbase / vid / "edit.json").get("source") in ("grid", "sample", "composition"))
 
     mode = fb_cfg.get("seed_selection", "top_k")
@@ -465,6 +493,8 @@ def main():
     ap.add_argument("--reset", action="store_true")
     ap.add_argument("--max-depth", type=int, default=None)
     ap.add_argument("--only-lineage")
+    ap.add_argument("--lineage-workers", type=int, default=None,
+                    help="concurrent lineages (default: feedback_loop.lineage_workers or 4)")
     args = ap.parse_args()
 
     run_cfg = B.load_run_config()
@@ -520,15 +550,33 @@ def main():
             print(f"[harden] family={family} {crit_dir} seeds={len(chosen)} "
                   f"students={[s['id'] for s in students]}")
 
+            # Lineages are fully independent (each writes only its own L*/ dir), so run
+            # them concurrently. lineage_workers (config feedback_loop.lineage_workers,
+            # default 4; --lineage-workers overrides) is the single largest speedup.
+            tasks = []
             for i, vid in enumerate(chosen, start=1):
                 lineage_id = f"L{i:03d}"
                 if args.only_lineage and lineage_id != args.only_lineage:
                     continue
                 vdir = B.VERSIONS_DIR / f"family_{family}" / crit_dir / vid
+                tasks.append((lineage_id, vdir))
+
+            def _run(task):
+                lineage_id, vdir = task
                 run_lineage(base / lineage_id, vdir,
                             _read_json(vdir / "edit.json").get("strategies", ["?"]),
                             family, crit_dir, sc, tiers, seed_stmt, meta, s12, strat_by_id, students,
                             baseline_pass, prompts, fb_cfg, run_cfg, exec_cfg, args)
+
+            lw = args.lineage_workers if args.lineage_workers is not None \
+                else fb_cfg.get("lineage_workers", 4)
+            if lw <= 1 or len(tasks) <= 1:
+                for t in tasks:
+                    _run(t)
+            else:
+                print(f"[harden] running {len(tasks)} lineages with {lw} workers")
+                with ThreadPoolExecutor(max_workers=lw) as ex:
+                    list(ex.map(_run, tasks))
     print("[harden] done.")
 
 

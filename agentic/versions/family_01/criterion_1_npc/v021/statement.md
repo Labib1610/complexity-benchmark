@@ -1,24 +1,20 @@
-# Tier Allocation Protocol
+# Problem A — The Tri-Position Lock
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A high-security database manages $n$ digital assets labeled $1, 2, \dots, n$. To ensure system stability, each asset must be assigned to one of three isolated memory zones, designated as $1$, $2$, and $3$.
+You are attempting to open a complex mechanical vault. The locking mechanism consists of $n$ sequential dials, numbered 1 to $n$. Each dial must be rotated to lock into exactly one of three distinct positions, indicated by the numbers 1, 2, and 3.
 
-Certain pairs of assets have operational cross-interference and must not be placed into the same memory zone.
+Inside the vault door, there are $m$ rigid crossbars. Each crossbar links a specific pair of dials. Due to the shape of the crossbars, if the two dials linked by a crossbar are rotated into the exact same position, the crossbar will seize and the lock will jam. The vault will only open if every dial is assigned a position such that no crossbar seizes.
 
-Your task is to assign every asset to exactly one memory zone such that no interfering pair shares a zone. If multiple valid zone assignments exist, choose the assignment that forms the lexicographically smallest sequence of zone designations $(s_1, s_2, \dots, s_n)$. If no valid assignment is possible, report this result.
+You must determine a combination of positions for all $n$ dials that successfully opens the vault, or report that the mechanism is permanently jammed. 
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le \frac{n(n-1)}{2}$) — the number of assets and the number of interfering pairs.
-
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$) specifying that asset $u$ and asset $v$ interfere with each other.
+The first line contains two integers $n$ and $m$ — the number of dials and the number of crossbars (1 ≤ $n$ ≤ 40, 0 ≤ $m$ ≤ $n(n−1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the identifiers of two dials linked by a crossbar. Dials are identified by integers from 1 to $n$.
 
 ## Output
-If no valid assignment exists, print a single line containing `NO`.
-
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2, 3\}$), representing the memory zone assigned to asset $i$.
-
-Among all valid assignments, output the one that is lexicographically smallest (comparing $s_1$ first, then $s_2$, and so on).
+If there is no combination of dial positions that avoids jamming, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $p_1, p_2, \dots, p_n$ (each $p_i \in \{1, 2, 3\}$), where $p_i$ is the position of dial $i$. Among all combinations that open the vault, you must output the one that is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first index where their positions differ, sequence $A$ has a smaller position number than sequence $B$).
 
 ## Example 1
 Input:

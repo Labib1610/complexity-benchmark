@@ -1,22 +1,22 @@
-# Mutual Connection Audit
+# Problem C — Feedback Cascade
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A digital communications grid consists of $n$ network hubs numbered from $1$ to $n$. Exactly $m$ bidirectional communication links operate between pairs of distinct hubs.
+You are analyzing a system of $n$ signal relays. The system contains $m$ bidirectional mirroring configurations, each linking a specific pair of relays. When two relays are linked, any signal received by one is immediately mirrored to the other.
 
-A security protocol requires identifying a tight cluster of three hubs—specifically, a group of three distinct hubs where every pair within the group is directly connected by a link.
+A critical system failure known as a "feedback cascade" is triggered whenever there is a set of three distinct relays where every relay in the set is directly linked to both of the other two. This mutual mirroring traps the signal in an infinite amplification loop.
 
-It is guaranteed that at least one such group of three mutually connected hubs exists in the grid.
+System diagnostics indicate that the network is currently unstable. Your task is to certify the instability by identifying a source. It is guaranteed that at least one such set of three relays exists, proving that the system cannot operate safely.
 
-Your task is to identify one such triplet of hub labels $(a, b, c)$ satisfying $a < b < c$. If multiple such triplets exist, output the lexicographically smallest one (the one with the smallest $a$; if tied, the smallest $b$; if still tied, the smallest $c$).
+To standardize the diagnostic report, you must output the identifiers of the three relays involved in the cascade. The identifiers must be listed in ascending order. If there are multiple such sets of three relays, you must report the lexicographically smallest sequence of three identifiers (i.e., the set with the smallest first identifier; in case of a tie, the smallest second identifier; and finally the smallest third identifier).
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of hubs and the number of active links, respectively.
-
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that a bidirectional communication link exists between hub $u$ and hub $v$. No pair of hubs is connected by more than one link.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of relays configured to mirror each other.
+It is guaranteed that at least one feedback cascade exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, $c$ on a single line, representing the hub indices of the lexicographically smallest mutually connected triplet with $a < b < c$.
+Print three integers $a$ $b$ $c$ on one line with $a < b < c$ such that the pairs $a$–$b$, $a$–$c$, and $b$–$c$ are all linked in the configurations. Output the lexicographically smallest such triple (smallest $a$; ties broken by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

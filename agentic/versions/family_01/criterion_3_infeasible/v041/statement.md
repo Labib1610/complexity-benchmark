@@ -1,23 +1,19 @@
-# High-Risk Clearance Conflicts
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-A security facility tracks clearance conflicts between $n$ personnel IDs, numbered $1$ through $n$. You are given a list of $m$ distinct pairs of personnel IDs that are directly in conflict with each other.
+The shipping department has exactly two secure containers available for the upcoming transport. However, it has been determined that the current load is impossible to safely pack. Your task is to find the proof of this impossibility. 
 
-A critical security vulnerability arises whenever three personnel IDs form a mutually conflicting set. Specifically, you need to find three distinct IDs $a$, $b$, and $c$ satisfying $a < b < c$ such that:
-- $a$ and $b$ are in conflict,
-- $a$ and $c$ are in conflict, and
-- $b$ and $c$ are in conflict.
-
-It is guaranteed that at least one such set of three IDs exists in the system. If there are multiple such sets, find the lexicographically smallest triple $(a, b, c)$. That is, select the triple that minimizes $a$, breaks ties by minimizing $b$, and breaks further ties by minimizing $c$.
+You are provided a list of item pairs that interact violently and must never be placed in the same container. It is guaranteed that the manifest contains at least one group of three items where every item in the group interacts violently with both of the other two. Any such group makes it impossible to divide the items into just two containers. You must output one such group of three items.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n, u \ne v$), indicating that personnel ID $u$ and personnel ID $v$ are directly in conflict.
-It is guaranteed that at least one valid triple exists.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)), representing the total number of items and the number of violent interactions. Items are numbered from 1 to n.
+Each of the next m lines contains two integers x y — a pair of items that interact violently.
+It is guaranteed that at least one such group of three items exists.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$ ($a < b < c$) on a single line representing the lexicographically smallest set of three mutually conflicting personnel IDs.
+Print three integers a b c on one line with a < b < c such that all three pairs a–b, a–c, and b–c interact violently. Output the lexicographically smallest such group (smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

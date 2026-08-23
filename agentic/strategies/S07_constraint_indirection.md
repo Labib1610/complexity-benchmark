@@ -1,6 +1,7 @@
 id: S07
 summary: State bounds indirectly so the reader must derive them.
 classes: all
+perturbation_family: logical_equivalence
 
 Express numeric bounds through the scenario rather than as bare inequalities — a
 capacity, a headcount, a physical limit that implies the number. The derived value must

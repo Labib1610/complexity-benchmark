@@ -1,0 +1,39 @@
+import sys
+
+def solve() -> None:
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+    n, m = data[0], data[1]
+    adj = [0] * n
+    neigh = [[] for _ in range(n)]
+    p = 2
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    for lst in neigh:
+        lst.sort()
+
+    # mask[i] has bits with index > i set
+    masks = [~((1 << (i + 1)) - 1) for i in range(n)]
+
+    for a in range(n):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            common = adj[a] & adj[b]
+            if not common:
+                continue
+            masked = common & masks[b]
+            if masked:
+                c = (masked & -masked).bit_length() - 1
+                sys.stdout.write(f"{a + 1} {b + 1} {c + 1}")
+                return
+
+solve()

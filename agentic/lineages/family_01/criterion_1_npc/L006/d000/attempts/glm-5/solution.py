@@ -1,0 +1,116 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We use backtracking with constraint propagation.
+    # assignment[i] = 0, 1, or 2 (representing hoppers 1, 2, 3)
+    # -1 means unassigned.
+    assignment = [-1] * n
+    
+    # To find the lexicographically smallest assignment, we try to place
+    # ingredient i into hopper 0, then 1, then 2.
+    # We need to check if a partial assignment can be extended to a full valid 3-coloring.
+    
+    # We use a simple propagation check: for any unassigned node, if it has neighbors
+    # in two different hoppers, its hopper is determined. If neighbors in 3 hoppers, fail.
+    # We iterate this until no changes. This is a form of forward checking.
+    
+    def is_possible():
+        # Check if current partial assignment can be extended
+        # We use a queue for propagation
+        # We need to track which nodes are resolved (forced into a specific hopper)
+        # and check for contradictions.
+        
+        # Make copies to not modify the main state during the check
+        # However, since we call this inside the recursive step, we can work on a copy
+        # or just use the current assignment and propagate.
+        # Let's use a local dictionary or list for determined values.
+        
+        current_val = list(assignment)
+        queue = []
+        in_queue = [False] * n
+        
+        # Initialize queue with already assigned nodes
+        for i in range(n):
+            if current_val[i] != -1:
+                queue.append(i)
+                in_queue[i] = True
+        
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            head += 1
+            u_color = current_val[u]
+            
+            for v in adj[u]:
+                if current_val[v] == u_color:
+                    return False # Conflict
+                if current_val[v] == -1:
+                    # Check if v is forced
+                    # Collect colors of assigned neighbors
+                    forbidden = {current_val[nb] for nb in adj[v] if current_val[nb] != -1}
+                    if len(forbidden) == 3:
+                        return False
+                    if len(forbidden) == 2:
+                        # Only one color left
+                        remaining = ({0, 1, 2} - forbidden).pop()
+                        current_val[v] = remaining
+                        if not in_queue[v]:
+                            queue.append(v)
+                            in_queue[v] = True
+        
+        return True
+
+    found = False
+    result = []
+
+    def backtrack(idx):
+        nonlocal found, result
+        if found:
+            return
+        
+        if idx == n:
+            found = True
+            result = [x + 1 for x in assignment] # Convert 0,1,2 to 1,2,3
+            return
+        
+        # Try assigning ingredient idx to hopper 0, 1, 2
+        for color in range(3):
+            # Check basic constraint: no neighbor has this color
+            valid = True
+            for neighbor in adj[idx]:
+                if assignment[neighbor] == color:
+                    valid = False
+                    break
+            
+            if valid:
+                assignment[idx] = color
+                if is_possible():
+                    backtrack(idx + 1)
+                    if found:
+                        return
+                assignment[idx] = -1 # Backtrack
+
+    backtrack(0)
+    
+    if found:
+        print("YES")
+        print(*(result))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

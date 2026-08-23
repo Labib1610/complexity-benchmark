@@ -1,9 +1,52 @@
-```json
-{
-  "statement": "# Telemetry Unit Mode Allocation\n\nTime limit: 2 s   Memory limit: 256 MB\n\nA monitoring system consists of $n$ individual sensor units numbered $1$ to $n$. Each unit must be configured to run in one of three possible operating modes, denoted by $1$, $2$, and $3$.\n\nCertain pairs of sensor units are connected by direct communication links. To prevent signal collision, any two units that are directly connected by a link are forbidden from using the same operating mode.\n\nYour task is to determine whether there exists a mode configuration for all $n$ units that satisfies this constraint. If such a configuration exists, output `YES` along with the lexicographically smallest sequence of modes $s_1, s_2, \dots, s_n$ where $s_i \\in \\{1, 2, 3\\}$ represents the operating mode of unit $i$. If no valid configuration exists, output `NO`.\n\n## Input\nThe first line contains two space-separated integers $n$ and $m$ ($1 \\le n \\le 40$, $0 \\le m \\le \\frac{n(n-1)}{2}$), representing the number of sensor units and the number of communication links, respectively.\n\nEach of the following $m$ lines contains two space-separated integers $u$ and $v$ ($1 \\le u, v \\le n$, $u \\ne v$), indicating that a direct communication link connects unit $u$ and unit $v$.\n\n## Output\nIf it is impossible to configure all units without violating any link constraint, print a single line containing `NO`.\n\nOtherwise, print two lines:\n- The first line must contain `YES`.\n- The second line must contain $n$ space-separated integers $s_1, s_2, \dots, s_n$ ($s_i \\in \\{1, 2, 3\\}$), giving the mode assigned to each unit from $1$ to $n$. If multiple valid configurations exist, choose the one that is lexicographically smallest.\n\n## Example 1\nInput:\n```\n4 5\n1 2\n1 3\n2 3\n1 4\n2 4\n```\nOutput:\n```\nYES\n1 2 3 3\n```\n\n## Example 2\nInput:\n```\n4 6\n1 2\n1 3\n1 4\n2 3\n2 4\n3 4\n```\nOutput:\n```\nNO\n```",
-  "rationale": "The framing was shifted from wireless frequency allocation to telemetry operating modes, stripping textbook graph-coloring terminology while keeping the exact relational constraints and numeric choices. Models must parse the operational constraints directly from the mechanics rather than recognizing standard graph-theoretical keyword patterns.",
-  "preserved_answer": "Every valid mode assignment corresponds 1-to-1 with a valid channel assignment in the original problem, preserving the exact condition, bounds, tie-breaking rule, and output sequence.",
-  "preserved_class": "The underlying mathematical problem remains 3-colorability with a lexicographical tie-break rule on up to 40 nodes, maintaining NP-completeness.",
-  "risk": "none"
-}
+# Problem A — Shift Allocation Protocol
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+A manufacturing facility operates continuously across three sequential time periods: Shift 1, Shift 2, and Shift 3. The facility employs $n$ machinists, and management must assign each machinist to exactly one of these three shifts. 
+
+Safety incident logs indicate that certain pairs of machinists have interpersonal disputes. The conflict data is provided as a list of simple pairwise restrictions. There are no complex group constraints; every rule simply states that two specific machinists cannot be assigned to the same shift. Because there are exactly three shifts available, assigning a machinist to one shift mathematically leaves exactly two valid shift options for any conflicting colleague. 
+
+Management needs to determine if a completely safe allocation is possible, where no two machinists with a documented dispute share the same shift. 
+
+Furthermore, the payroll system requires the final schedule to be submitted as a sequence of $n$ shift numbers, corresponding to machinists 1 through $n$. To standardize reporting, the system mandates selecting the sequence of shift numbers that is lexicographically smallest. This means that among all valid schedules, you must choose the one that places machinist 1 in the earliest possible shift; in the event of ties, it must place machinist 2 in the earliest possible shift, and so forth.
+
+## Input
+The first line provides two integers $n$ and $m$ — the total number of machinists and the number of documented disputes ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$, representing a pair of machinists who have a dispute.
+
+## Output
+If there is no way to allocate the machinists safely across the three shifts, output a single line containing `NO`.
+If a safe allocation is possible, output `YES` on the first line. On the second line, output $n$ integers separated by spaces, where the $i$-th integer (which must be 1, 2, or 3) represents the shift assigned to machinist $i$. This sequence must be the lexicographically smallest among all valid safe allocations.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
 ```

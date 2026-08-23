@@ -1,0 +1,61 @@
+import sys
+from collections import defaultdict, deque
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    graph = defaultdict(list)
+    index = 2
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-indexed
+        v = int(data[index+1]) - 1
+        index += 2
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Color array: 0 means unvisited, 1 and 2 are the two colors
+    color = [0] * n
+    visited = [False] * n
+    
+    # Check if the graph is bipartite and find the lexicographically smallest coloring
+    for start in range(n):
+        if not visited[start]:
+            # BFS to color the component
+            queue = deque()
+            queue.append(start)
+            color[start] = 1  # Start with color 1
+            visited[start] = True
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                next_color = 2 if current_color == 1 else 1
+                
+                for neighbor in graph[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        color[neighbor] = next_color
+                        queue.append(neighbor)
+                    elif color[neighbor] != next_color:
+                        # Conflict found, not bipartite
+                        print("NO")
+                        return
+    
+    # If we reach here, it's bipartite
+    print("YES")
+    # We already have the lexicographically smallest coloring because we always start with color 1
+    result = []
+    for i in range(n):
+        if color[i] == 0:
+            result.append('1')  # Isolated nodes can be colored with 1
+        else:
+            result.append(str(color[i]))
+    
+    print(' '.join(result))
+
+solve()
