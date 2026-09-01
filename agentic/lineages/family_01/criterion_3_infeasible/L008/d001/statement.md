@@ -1,18 +1,25 @@
 # Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-Management is attempting to divide the factory workforce into exactly two shifts, but the proposed constraints make this impossible. Your task is to provide concrete evidence of this impossibility rather than attempting to build a schedule. 
+Management insists on dividing the workforce into exactly two non-overlapping shifts. However, the HR department knows this plan is doomed. You must provide undeniable proof of this failure.
 
-You are given a log of conflict records; each record indicates a specific pair of workers who refuse to be assigned to the same shift. The logs guarantee the existence of at least one triplet of workers where all three individuals have mutual conflicts with each other. Identifying any such triplet conclusively demonstrates that two shifts are inadequate. You must find and output one such triplet.
+You are given a list of grievances. Each grievance indicates that a specific pair of employees refuse to be assigned to the same shift. 
+
+It is a known fact that within the workforce, there exists at least one trio of employees who all mutually refuse to work with one another (meaning all three possible pairs among them have filed grievances). Such a trio mathematically guarantees that two shifts are inadequate. Your task is to identify and report one such trio to HR.
 
 ## Input
-The first line provides two integers, $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of workers and the number of conflict records, respectively. Workers are identified by integers from $1$ to $n$.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), representing a conflict between worker $u$ and worker $v$.
-It is guaranteed that the provided records contain at least one triplet of mutually conflicting workers.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)), representing the number of employees and the number of grievances, respectively. Employees are identified by integers from 1 to n.
+
+Each of the next m lines contains two integers u and v (1 ≤ u, v ≤ n, u ≠ v), representing a pair of employees who refuse to share a shift.
+
+It is guaranteed that at least one trio of mutually incompatible employees exists.
 
 ## Output
-Output three integers $a$, $b$, and $c$ on a single line, ordered such that $a < b < c$, representing a triplet of workers where the conflicts $a$–$b$, $a$–$c$, and $b$–$c$ are all present in the input. If there is more than one such triplet, you must output the one that minimizes the conflict score, defined as $a \cdot 10^8 + b \cdot 10^4 + c$.
+Print three integers a, b, and c, separated by spaces, representing the IDs of the employees in the trio. You must list them in ascending order (a < b < c).
+
+To ensure a unique valid response when multiple such trios exist, you must select the trio that minimizes the value of a. If there is a tie, minimize the value of b among the tied trios, and if a tie still persists, minimize c.
 
 ## Example 1
 Input:

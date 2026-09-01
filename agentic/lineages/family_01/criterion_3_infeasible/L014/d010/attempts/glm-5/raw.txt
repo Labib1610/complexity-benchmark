@@ -1,0 +1,132 @@
+```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # For each vertex, store sorted list of neighbors with larger id.
+    # We'll use arrays for faster intersection checks.
+    neighbors = [None] * (n + 1)
+    for i in range(1, n + 1):
+        s = adj[i]
+        # filter > i
+        lst = [x for x in s if x > i]
+        lst.sort()
+        neighbors[i] = lst
+    
+    # We want lexicographically smallest (a, b, c) with a < b < c such that
+    # all three pairs are prohibited: (a,b), (a,c), (b,c).
+    # Iterate a from 1 to n, b from a+1 to n, check if (a,b) prohibited,
+    # then find smallest c > b with (a,c) and (b,c) prohibited.
+    
+    # To speed up, for fixed a, we can iterate b in neighbors of a with b > a.
+    # Then for c, we need c > b, c in neighbors[a] and neighbors[b].
+    # Since neighbors[a] is sorted, we can iterate c candidates from neighbors[a] with c > b,
+    # and check if c in adj[b].
+    
+    # But checking c in adj[b] via set is O(1). However iterating all c in neighbors[a] with c > b
+    # could be O(deg(a)) per b, total O(sum deg(a)^2) worst case ~ (2e5)^2 too big if high degree.
+    # Need better approach.
+    
+    # Alternative: For each a, consider its neighbors with larger id: N_a.
+    # For each b in N_a, we need smallest c in N_a ∩ N_b with c > b.
+    # We can iterate b in N_a in increasing order, and maintain a set of "seen" neighbors of a that are > b?
+    # Actually, we want c > b, c in N_a and c in N_b.
+    # Since N_a is sorted, for each b, the candidates c are those in N_a with index > index(b).
+    # We can check them in order and return first that is in adj[b].
+    # To avoid O(deg(a)^2), we can use the fact that we stop at first found c.
+    # But worst-case still could be bad if many b's have no c until late.
+    
+    # Given constraints n<=2000, m<=2e5, a O(n * m) or O(m * sqrt(m)) might be okay.
+    # Let's think: sum over a of (deg(a) choose 2) could be large if one vertex has high degree.
+    # Max degree could be ~2000. deg(a) choose 2 ~ 2e6. Sum over all a could be up to ~ n * (n^2) = 8e9 worst case? No.
+    # Actually sum of deg(a) = 2m = 4e5. Sum of deg(a)^2 is maximized when degrees are skewed.
+    # If one vertex has degree 2000, deg^2 = 4e6. Others small. Sum deg^2 <= (max deg)*(sum deg) = 2000 * 4e5 = 8e8. Too big.
+    
+    # Need a better method. Use the "min over a, then b, then c" ordering.
+    # We can iterate a from 1 to n. For each a, we want the smallest b > a with (a,b) edge,
+    # and then smallest c > b with (a,c) and (b,c) edges.
+    # For fixed a, we can iterate b in increasing order over neighbors of a with b > a.
+    # For each b, we need the smallest c > b in N(a) ∩ N(b).
+    # 
+    # Key optimization: For fixed a, as b increases, the set of c candidates (N(a) with c > b) shrinks.
+    # We can iterate b in increasing order. For each b, we check c candidates in N(a) that are > b.
+    # But we can do: iterate c in N(a) in increasing order, and for each c, check if there exists b < c with b in N(a) and b in N(c).
+    # Actually we want smallest b first. So for fixed a, iterate b in N(a) increasing. For each b, iterate c in N(a) increasing with c > b, check c in N(b). Return first found.
+    # To make the inner check fast, we can precompute for each pair? No.
+    #
+    # Alternative: For fixed a, we can iterate b in N(a) increasing. We maintain a pointer or use the fact that N(b) is a set.
+    # The inner loop over c in N(a) with c > b: we can break early at first c in N(b).
+    # The total work for fixed a is sum over b in N(a) of (number of c in N(a) with c > b until first hit).
+    # In worst case where no triangle exists for this a, it's O(deg(a)^2). But we are guaranteed a triangle exists globally, and we stop at first (a,b,c) found.
+    # Since we iterate a increasing, and for each a, b increasing, and c increasing, the first triangle found is lexicographically smallest.
+    # The work before finding it: for each a' < a, we do full O(deg(a')^2) work (no triangle found). For a, we do partial work.
+    # If the answer has small a, it's fast. If a is large, we might do a lot of work for smaller a's.
+    # But sum of deg(a')^2 for a' < a could be large.
+    #
+    # Let's think of a better approach. 
+    # We can iterate over edges (u,v) with u < v. For each edge, we want to find w > v such that (u,w) and (v,w) are edges, and (u,v,w) is lexicographically smallest.
+    # But lexicographic order is by u, then v, then w. So we should iterate u from 1 to n, then v from u+1 to n, then w from v+1 to n.
+    # 
+    # Better: iterate u from 1 to n. For each u, iterate v in N(u) with v > u, in increasing order. For each v, iterate w in N(u) with w > v, in increasing order, check w in N(v).
+    # To speed up the check w in N(v), we can use bitsets. n=2000, so bitset of 2000 bits = 250 bytes. Operations are fast.
+    # We can represent N(u) as a bitset. Then N(u) & N(v) gives common neighbors. We want the smallest w > v in the intersection.
+    # 
+    # With bitsets, for fixed u, we can iterate v in N(u) increasing. common = bitset_N(u) & bitset_N(v). Then find smallest set bit > v.
+    # Finding smallest set bit > v in a bitset: we can shift or iterate.
+    # Python integers can be used as bitsets. n=2000, so each N(u) is an integer with bits set for neighbors.
+    # common = Nu & Nv. Then we need smallest bit position > v that is set in common.
+    # We can compute mask = common >> (v+1), then find lowest set bit = (mask & -mask).bit_length() + v.
+    # But (mask & -mask) gives lowest set bit. Then bit_length gives position (1-indexed). So position = (mask & -mask).bit_length() - 1 + v + 1 = (mask & -mask).bit_length() + v.
+    # Wait: if mask = common >> (v+1), then bit 0 of mask corresponds to bit v+1 of common. So if lowest set bit of mask is at position p (0-indexed), then the bit in common is at v+1+p.
+    # (mask & -mask).bit_length() - 1 gives p (0-indexed). So w = v + 1 + p.
+    # If mask is 0, no such w.
+    #
+    # This is O(1) per (u,v) pair after computing common. Total O(m) bitset ANDs. Very fast.
+    
+    # Build bitsets
+    bitset = [0] * (n + 1)
+    for i in range(1, n + 1):
+        bs = 0
+        for j in adj[i]:
+            bs |= (1 << j)
+        bitset[i] = bs
+    
+    for a in range(1, n + 1):
+        Na = bitset[a]
+        # iterate b in N(a) with b > a, increasing
+        # we can get the bits > a
+        # mask = Na >> (a+1)
+        mask_b = Na >> (a + 1)
+        while mask_b:
+            # get lowest set bit
+            low = mask_b & (-mask_b)
+            b = low.bit_length() - 1 + (a + 1)
+            # now find smallest c > b in N(a) & N(b)
+            common = Na & bitset[b]
+            mask_c = common >> (b + 1)
+            if mask_c:
+                low_c = mask_c & (-mask_c)
+                c = low_c.bit_length() - 1 + (b + 1)
+                print(a, b, c)
+                return
+            # clear lowest bit
+            mask_b ^= low
+    
+    # Should not reach here since guaranteed at least one deadlock
+    # Fallback (shouldn't happen)
+    print(-1, -1, -1)
+
+solve()
+```

@@ -1,0 +1,85 @@
+import sys
+from collections import defaultdict, deque
+
+def count_subgrids(rows, cols):
+    # For an r x c grid, number of subgrids is r*(r+1)*c*(c+1)/4
+    return rows * (rows + 1) * cols * (cols + 1) // 4
+
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # For each edge, check what combinations of capacities give exactly 3 subgrids
+    # count_subgrids(1,1)=1, count_subgrids(1,2)=3, count_subgrids(2,1)=3, count_subgrids(2,2)=9
+    # So we need (1,2) or (2,1) for each edge
+    
+    # This is a 2-SAT problem. Each node can be 1 or 2.
+    # For each edge (u,v), we need (c_u=1 and c_v=2) or (c_u=2 and c_v=1)
+    
+    # We'll use graph coloring approach. This is essentially checking if the graph is bipartite
+    # where each edge must connect a node with capacity 1 to a node with capacity 2
+    
+    # Let's build a graph where each edge in the original graph becomes a constraint
+    # that the two nodes must have different "colors" (capacities)
+    
+    color = [-1] * n  # -1: uncolored, 0: capacity 1, 1: capacity 2
+    visited = [False] * n
+    
+    # Check if the graph is bipartite
+    for i in range(n):
+        if not visited[i] and adj[i]:  # Only process nodes with edges
+            # BFS to check bipartiteness
+            queue = deque([i])
+            color[i] = 0
+            visited[i] = True
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in adj[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        color[neighbor] = 1 - current_color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # Assign capacities ensuring lexicographically smallest result
+    # For unconnected nodes, assign capacity 1 (smallest)
+    result = []
+    for i in range(n):
+        if color[i] == -1:  # Isolated node
+            result.append(1)
+        elif color[i] == 0:
+            result.append(1)
+        else:
+            result.append(2)
+    
+    # Verify the solution
+    for u, v in edges:
+        cu, cv = result[u], result[v]
+        if count_subgrids(cu, cv) != 3:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, result)))
+
+solve()

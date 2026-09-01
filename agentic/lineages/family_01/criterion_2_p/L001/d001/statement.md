@@ -1,20 +1,20 @@
-# Problem B — Pairs Trading Strategy
+# Problem B — Operational Windows
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A quantitative hedge fund is configuring an automated trading algorithm for a universe of $n$ equities, numbered 1 through $n$. The algorithm requires each equity to be assigned exactly one trading posture: posture 1 (representing a long position) or posture 2 (representing a short position).
+A manufacturing facility employs a workforce of $n$ individuals, identified by integers starting from 1 up to $n$. A roster configuration assigns each worker an operational window, which is an integer value of either 1 or 2.
 
-The fund's market analysis has identified $m$ pairs of equities that are strongly cointegrated. To maintain a market-neutral profile, the algorithm mandates that for every cointegrated pair identified, the two equities involved must be assigned different postures.
+The safety system maintains a log of $m$ incompatible pairs. To prevent hazards, the system enforces a strict separation rule for any pair of workers listed in the log: when the assigned window values of the two workers in a logged pair are added together, the resulting sum must be exactly 3.
 
-Your task is to construct such a posture assignment for all $n$ equities. If it is impossible to balance the cointegrated pairs according to this rule, you must report this failure. Should there be more than one assignment that meets all mandates, you must output the sequence of postures that is lexicographically smallest.
+Your task is to determine a valid roster configuration for all $n$ workers. If multiple valid configurations exist, you must provide the one that is lexicographically smallest. If it is impossible to satisfy the separation rule for all logged pairs simultaneously, you must report the failure.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of equities and the number of cointegrated pairs.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that equity $u$ and equity $v$ form a cointegrated pair.
+The first line provides two integers $n$ and $m$. The facility requires a minimum headcount $n$ of $1$ and has a maximum capacity of $2 \cdot 10^5$ personnel. The safety log can contain as few as $0$ entries or up to a maximum of $2 \cdot 10^5$ entries, represented by $m$.
+Each of the following $m$ lines contains two integers $u$ and $v$, identifying a pair of workers in the log. Both worker identifiers $u$ and $v$ are at least $1$ and at most $n$.
 
 ## Output
-If no valid assignment of trading postures is possible, output a single line containing `NO`.
-Otherwise, output a line containing `YES`. On the following line, output $n$ space-separated integers $p_1, p_2, \dots, p_n$ (where each $p_i \in \{1, 2\}$) representing the assigned posture for each equity. This sequence must be the lexicographically smallest among all valid assignments.
+If no valid roster configuration exists, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $s_1, s_2, \dots, s_n$ (where each $s_i \in \{1, 2\}$) representing the operational window assigned to each respective worker from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
 
 ## Example 1
 Input:

@@ -1,22 +1,22 @@
-# Hazardous Materials Storage
+# Critical Interference
 
 Time limit: 2 s
 Memory limit: 256 MB
 
-A research facility handles a catalog of $n$ volatile chemical compounds, identified by integers from 1 to $n$. Through extensive testing, the safety department has identified $m$ specific pairs of compounds that will undergo a dangerous reaction if kept in the same environment.
+A proposed communications standard attempts to allocate $n$ transceivers (labeled 1 through $n$) into a network. However, testing has revealed $m$ specific bidirectional interference links between pairs of transceivers. Each link connects two distinct transceivers, and no two links connect the same pair.
 
-The facility recently constructed exactly two specialized containment vaults to house these compounds. The site manager claims that by carefully dividing the compounds between Vault A and Vault B, all reactions can be avoided. 
+To diagnose the core issue in the network's topology, engineers analyze the interference capacity of transceiver triplets. For any chosen subset of exactly three transceivers, let's denote the subset as $U$. We consider all $8$ possible subsets $S \subseteq U$. For each $S$, let $k(S)$ be the number of interference links in the network where BOTH endpoints of the link belong to $S$. The interference capacity of the triplet $U$ is defined as the sum over all $8$ subsets $S$ of $2^{k(S)}$.
 
-The safety inspector believes this is impossible and wants to halt the operation by providing a minimal, undeniable proof of failure. The inspector must identify a set of exactly three distinct compounds which inherently cannot be stored safely. That is, no matter how these three specific compounds are distributed between the two containment vaults, at least one vault will end up holding a reactive pair.
+Your objective is to isolate a subset of exactly three transceivers $U$ whose interference capacity is exactly $18$. The existence of such a subset proves a critical flaw in the network. It is guaranteed that at least one such subset is present.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
-Each of the following $m$ lines contains two integers $u$ and $v$, representing a pair of compounds that react with each other. 
-It is guaranteed that at least one such set of three compounds exists in the catalog.
+The first line contains the transceiver count $n$ and the interference link count $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+The following $m$ lines each detail a pair of transceivers $u$ and $v$ that share a mutual interference link.
+At least one subset of three transceivers satisfying the capacity condition is guaranteed to exist.
 
 ## Output
-Output the three integer identifiers of the chosen compounds on a single line, ordered from lowest to highest. 
-If multiple such sets of three compounds exist, evaluate them by their sorted identifiers. Choose the set that minimizes the first (lowest) identifier. If there is a tie, choose the set that minimizes the second (middle) identifier. If a tie still remains, minimize the third (highest) identifier.
+Provide the labels of the three transceivers forming the subset, printed on a single line in ascending numerical order.
+In the event that several such subsets exist, you must resolve the ambiguity by selecting the subset that includes the transceiver with the absolute lowest label. Should multiple subsets share this lowest-labeled transceiver, further narrow your selection to those whose second-lowest label is as small as possible. If ambiguity still persists, choose the subset whose highest label is minimal.
 
 ## Example 1
 ### Input

@@ -1,20 +1,27 @@
-# Problem C — Flavor Harmonies
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-You are developing a new culinary algorithm using a database of $n$ distinct ingredients. Through extensive taste testing, you have compiled a list of ingredient pairs that complement each other perfectly.
+Management insists on dividing the workforce into exactly two non-overlapping shifts. However, the HR department knows this plan is doomed. You must provide undeniable proof of this failure.
 
-A "perfect harmony" is achieved by a set of exactly three distinct ingredients if each of the three ingredients complements both of the other two.
+HR has a collection of incident files, where each file lists two specific workers who cannot be placed on the same shift. 
 
-Your task is to identify a set of three ingredients that creates a perfect harmony. The provided testing data guarantees that at least one such set exists.
+Management's plan can be proven impossible if you can find a 'deadlock' in the records. A deadlock is defined as a set of exactly three incident files that, when considered together, involve exactly three distinct workers in total. 
+
+It is guaranteed that at least one such deadlock exists. Your task is to identify the three distinct workers involved in such a deadlock and report them to HR.
 
 ## Input
-The first line provides two integers, $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of ingredients and the number of complementary pairs, respectively. Ingredients are identified by integers from $1$ to $n$.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that ingredient $u$ and ingredient $v$ complement each other.
-It is guaranteed that the provided records contain at least one set of three ingredients forming a perfect harmony.
+The first line provides the workforce size n and the total incident count m. The workforce size n is bounded below by 3 and bounded above by the facility capacity of 2000. The incident count m is at least 3, and is capped by either the theoretical maximum of n·(n−1)/2 distinct combinations, or the archival capacity of 2·10⁵, whichever is smaller. Workers are identified by integers from 1 to n.
+
+Each of the next m lines contains two integers u and v (1 ≤ u, v ≤ n, u ≠ v), identifying the two workers involved in a single incident. No two incident files list the exact same pair of workers.
+
+It is guaranteed that at least one valid deadlock exists.
 
 ## Output
-Output three integers $a$, $b$, and $c$ on a single line, ordered such that $a < b < c$, representing the three ingredients that comprise the perfect harmony. If there is more than one valid set of three ingredients, you must output the one that minimizes the harmony score, calculated as $a \cdot 10^8 + b \cdot 10^4 + c$.
+Output three space-separated integers a, b, and c representing the IDs of the three workers involved. They must be printed such that a < b < c.
+
+To ensure a unique valid response when multiple such deadlocks exist, you must select the one that minimizes the value of a. If there is a tie, minimize the value of b among the tied triplets, and if a tie still persists, minimize c.
 
 ## Example 1
 Input:

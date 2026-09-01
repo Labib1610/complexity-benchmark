@@ -1,0 +1,137 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    graph = [[] for _ in range(n + 1)]
+    index = 2
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
+    
+    # The resonance score R(u,v) = c_u^c_v + c_v^c_u
+    # Let's compute possible values:
+    # If c_u=1, c_v=1: 1^1 + 1^1 = 2
+    # If c_u=1, c_v=2: 1^2 + 2^1 = 1 + 2 = 3
+    # If c_u=2, c_v=1: 2^1 + 1^2 = 2 + 1 = 3
+    # If c_u=2, c_v=2: 2^2 + 2^2 = 4 + 4 = 8
+    # So only (1,2) and (2,1) give score 3.
+    
+    # This means every edge must connect a node with channel 1 to a node with channel 2.
+    # This is equivalent to checking if the graph is bipartite.
+    
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    
+    # Check if the graph is bipartite using BFS
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            queue = deque()
+            queue.append(start)
+            color[start] = 1  # Assign color 1 to the starting node
+            
+            while queue:
+                node = queue.popleft()
+                current_color = color[node]
+                
+                for neighbor in graph[node]:
+                    if color[neighbor] == 0:
+                        color[neighbor] = 3 - current_color  # Assign opposite color
+                        queue.append(neighbor)
+                    elif color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # If bipartite, construct the lexicographically smallest assignment
+    # We want to minimize the sequence. For each component, we can choose which color is 1 or 2.
+    # To get lex smallest, for each connected component, we should assign color 1 to the smallest node.
+    
+    # Actually, since we fixed the first node we colored in each component to color 1,
+    # and the coloring is unique up to swapping colors in each component,
+    # to get the lex smallest, in each component, we check what the colors are and possibly swap.
+    
+    # But our BFS already ensures a valid 2-coloring. Now we just need to map colors to {1,2}.
+    # Since we started each component by assigning color 1, and propagated, 
+    # the coloring represents a valid assignment where color[.] is either 1 or 2.
+    # But wait, let's re-examine the color mapping.
+    
+    # In our implementation, color[i] is 1 or 2. Let's say:
+    # color[i] == 1 means c_i = 1
+    # color[i] == 2 means c_i = 2
+    
+    # But actually, we can flip the colors in each component. To get lex smallest, 
+    # in each connected component, we see what the "color" values are and decide whether to flip.
+    
+    # Let's redo the coloring to make sure we get the lex smallest result.
+    # We'll do BFS again but track components and ensure lex order.
+    
+    visited = [False] * (n + 1)
+    final_color = [0] * (n + 1)
+    
+    for start in range(1, n + 1):
+        if not visited[start]:
+            # Do BFS to find component
+            component_nodes = []
+            queue = deque()
+            queue.append(start)
+            visited[start] = True
+            component_nodes.append(start)
+            
+            while queue:
+                node = queue.popleft()
+                for neighbor in graph[node]:
+                    if not visited[neighbor]:
+                        visited[neighbor] = True
+                        queue.append(neighbor)
+                        component_nodes.append(neighbor)
+            
+            # Sort to process in order for lex smallest
+            component_nodes.sort()
+            
+            # Re-BFS the component to assign colors optimally for lex smallest
+            comp_visited = [False] * (n + 1)
+            comp_color = [0] * (n + 1)
+            queue = deque()
+            queue.append(component_nodes[0])
+            comp_visited[component_nodes[0]] = True
+            comp_color[component_nodes[0]] = 1  # Start with 1
+            
+            while queue:
+                node = queue.popleft()
+                current_col = comp_color[node]
+                opp_col = 3 - current_col
+                
+                for neighbor in graph[node]:
+                    if comp_visited[neighbor]:
+                        if comp_color[neighbor] == current_col:
+                            print("NO")
+                            return
+                    else:
+                        comp_visited[neighbor] = True
+                        comp_color[neighbor] = opp_col
+                        queue.append(neighbor)
+            
+            # Copy the component coloring to final_color
+            for node in component_nodes:
+                final_color[node] = comp_color[node]
+    
+    print("YES")
+    print(" ".join(str(final_color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    main()

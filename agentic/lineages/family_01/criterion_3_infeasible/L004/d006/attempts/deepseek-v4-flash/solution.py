@@ -1,24 +1,22 @@
-import sys
+n, m = map(int, input().split())
+adj = [set() for _ in range(n)]
+edges = []
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].add(v)
+    adj[v].add(u)
+    if u > v:
+        u, v = v, u
+    edges.append((u, v))
 
-def main():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [set() for _ in range(n + 1)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        adj[u].add(v)
-        adj[v].add(u)
-    
-    for a in range(1, n + 1):
-        for b in sorted(adj[a]):
-            if b <= a:
-                continue
-            for c in sorted(adj[a]):
-                if c <= b:
-                    continue
-                if c in adj[b]:
-                    print(a, b, c)
-                    return
+edges.sort()
 
-if __name__ == "__main__":
-    main()
+for u, v in edges:
+    # find common neighbor w > v
+    common = adj[u] & adj[v]
+    for w in sorted(common):
+        if w > v:
+            print(u+1, v+1, w+1)
+            exit()

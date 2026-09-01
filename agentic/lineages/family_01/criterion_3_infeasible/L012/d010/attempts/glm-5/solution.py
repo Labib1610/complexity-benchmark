@@ -1,0 +1,72 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Check for isolated vertex (degree 0)
+    for u in range(1, n + 1):
+        if len(adj[u]) == 0:
+            # Any triplet with u is unresolvable
+            # Find smallest v, w > u
+            for v in range(u + 1, n + 1):
+                for w in range(v + 1, n + 1):
+                    print(u, v, w)
+                    return
+    
+    # Check for vertex with degree 1
+    for u in range(1, n + 1):
+        if len(adj[u]) == 1:
+            # u has exactly one neighbor v
+            v = next(iter(adj[u]))
+            # Find smallest w > u
+            for w in range(u + 1, n + 1):
+                if w != v:
+                    a, b, c = sorted([u, v, w])
+                    print(a, b, c)
+                    return
+    
+    # Check for vertex with degree 2
+    for u in range(1, n + 1):
+        if len(adj[u]) == 2:
+            neighbors = sorted(adj[u])
+            v, w = neighbors[0], neighbors[1]
+            # Check if v and w are connected
+            if w not in adj[v]:
+                # Triplet (u, v, w) is unresolvable
+                a, b, c = sorted([u, v, w])
+                print(a, b, c)
+                return
+    
+    # Check for vertex with degree >= 3
+    # Find two neighbors v, w of u that are not connected
+    for u in range(1, n + 1):
+        if len(adj[u]) >= 3:
+            neighbors = sorted(adj[u])
+            found = False
+            for i in range(len(neighbors)):
+                for j in range(i + 1, len(neighbors)):
+                    v = neighbors[i]
+                    w = neighbors[j]
+                    if w not in adj[v]:
+                        a, b, c = sorted([u, v, w])
+                        print(a, b, c)
+                        return
+    
+    # If we reach here, all triplets are triangles (complete graph)
+    # Any triplet is unresolvable
+    print(1, 2, 3)
+
+if __name__ == "__main__":
+    solve()

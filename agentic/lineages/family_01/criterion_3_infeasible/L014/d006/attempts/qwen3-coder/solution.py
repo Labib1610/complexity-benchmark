@@ -1,5 +1,5 @@
 import sys
-from collections import defaultdict
+from itertools import combinations
 
 def main():
     import sys
@@ -9,33 +9,22 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
+    # Build adjacency list for prohibited pairs
+    adj = [set() for _ in range(n + 1)]
     index = 2
-    edges = []
-    adj = defaultdict(set)
-    
     for _ in range(m):
         u = int(data[index])
-        v = int(data[index+1])
-        index += 2
-        if u > v:
-            u, v = v, u
-        edges.append((u, v))
+        v = int(data[index + 1])
         adj[u].add(v)
         adj[v].add(u)
-    
-    # Sort edges to process in order
-    edges.sort()
-    
-    # For each edge (u,v), look for a node w such that (u,w) and (v,w) exist
-    for u, v in edges:
-        # We want u < v
-        common_neighbors = adj[u] & adj[v]
-        if common_neighbors:
-            # Find the smallest w such that w > v to maintain u < v < w
-            for w in sorted(common_neighbors):
-                if w > v:
-                    print(u, v, w)
-                    return
+        index += 2
+
+    # Check all combinations of 3 materials in lexicographical order
+    for a, b, c in combinations(range(1, n + 1), 3):
+        # Check if the three materials form a triangle (all pairs prohibited)
+        if b in adj[a] and c in adj[a] and c in adj[b]:
+            print(a, b, c)
+            return
 
 if __name__ == "__main__":
     main()

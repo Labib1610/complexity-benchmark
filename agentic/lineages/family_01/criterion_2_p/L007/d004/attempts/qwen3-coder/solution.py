@@ -1,115 +1,167 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, input().split())
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
-    adj = defaultdict(list)
     edges = []
+    adj = [[] for _ in range(n + 1)]
+    edge_indices = [[] for _ in range(n + 1)]
     
-    for _ in range(m):
-        u, v = map(int, input().split())
+    for i in range(m):
+        u = int(data[2 + 2*i])
+        v = int(data[3 + 2*i])
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
-        edges.append((u, v))
+        edge_indices[u].append(i)
+        edge_indices[v].append(i)
     
-    # The constraint is |a_u^2 - a_v^2| = 3
-    # Since a_u, a_v ∈ {1, 2}, we have squares {1, 4}
-    # So |a_u^2 - a_v^2| ∈ {|1-1|=0, |1-4|=3, |4-1|=3, |4-4|=0}
-    # So we need exactly one endpoint to have value 1 and the other to have value 2
+    # The resonance function: R(c_u, c_v) = 3(c_u + c_v) - 2 c_u c_v
+    # We want the sum over all edges to be 5m
+    # Let's compute R for all possible combinations:
+    # R(1,1) = 3(1+1) - 2*1*1 = 6 - 2 = 4
+    # R(1,2) = 3(1+2) - 2*1*2 = 9 - 4 = 5
+    # R(2,1) = 3(2+1) - 2*2*1 = 9 - 4 = 5
+    # R(2,2) = 3(2+2) - 2*2*2 = 12 - 8 = 4
+    # So we want the sum of R over all edges to be 5m.
+    # That means we want to maximize the number of edges (u,v) where c_u != c_v.
+    # Because R(1,2) = R(2,1) = 5, while R(1,1) = R(2,2) = 4.
+    # So for every edge where the colors differ, we gain 1 extra towards our target.
+    # We need the total sum to be 5m. The minimum sum is 4m (all edges have same colors).
+    # So we need exactly m edges to have different colors to get sum = 4m + m = 5m.
+    # That means ALL edges must have different colors on their endpoints.
+    # This is only possible if the graph is bipartite.
     
-    # This means the graph must be bipartite
-    # Color the graph with 2 colors, where color 0 means amplitude 1, color 1 means amplitude 2
+    # Check if the graph is bipartite. If not, return "NO".
+    # If yes, find a 2-coloring. We want the lexicographically smallest one.
+    # That means we want vertex 1 to have color 1 if possible.
     
-    color = [-1] * (n + 1)  # -1 means unvisited
+    color = [-1] * (n + 1)
     visited = [False] * (n + 1)
     
-    # Check if the graph is bipartite
     for start in range(1, n + 1):
-        if not visited[start]:
-            queue = deque([start])
-            color[start] = 0
-            visited[start] = True
-            
-            while queue:
-                node = queue.popleft()
-                current_color = color[node]
-                
-                for neighbor in adj[node]:
-                    if not visited[neighbor]:
-                        visited[neighbor] = True
-                        color[neighbor] = 1 - current_color
-                        queue.append(neighbor)
-                    elif color[neighbor] == current_color:
-                        print("NO")
-                        return
+        if visited[start]:
+            continue
+        # BFS to check bipartiteness and get a 2-coloring
+        queue = deque()
+        queue.append(start)
+        color[start] = 0  # Start with color 0
+        visited[start] = True
+        
+        is_bipartite = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                else:
+                    if color[v] == color[u]:
+                        is_bipartite = False
+                        break
+            if not is_bipartite:
+                break
+        
+        if not is_bipartite:
+            print("NO")
+            return
     
-    # Graph is bipartite, so a solution exists
-    # For lexicographically smallest, we want nodes 1,2,3,... to have value 1 if possible
-    # That means we prefer color 0 for earlier nodes
+    # The graph is bipartite. Now we need to ensure the coloring gives sum = 5m.
+    # That means every edge must have different colors on endpoints.
+    # Let's verify this.
+    total = 0
+    for u, v in edges:
+        if color[u] != color[v]:
+            total += 5
+        else:
+            total += 4
     
-    # But we already have a valid coloring. We just need to make sure it's lex smallest
-    # Let's re-color to ensure this property
+    if total != 5 * m:
+        print("NO")
+        return
     
-    result = [0] * (n + 1)
+    # Convert colors from 0,1 to 1,2
+    # We want lexicographically smallest, so if color[1] == 1 (which is 0 in our system),
+    # we keep as is. If color[1] == 0 (which is 1 in our system), we flip.
+    # Wait, let's re-think the color mapping.
+    # color[1] == 0 => we assign 1 to node 1
+    # color[1] == 1 => we assign 2 to node 1
+    # For lex smallest, we prefer 1 for node 1 if possible.
+    # So if color[1] == 0, keep as is (0->1, 1->2)
+    # If color[1] == 1, we should flip (1->1, 0->2) to make node 1 have value 1.
     
-    # For each component, decide whether to flip colors
-    visited_check = [False] * (n + 1)
+    # Actually, let's think differently.
+    # We have a valid 2-coloring. Let's call the colors 0 and 1.
+    # We can map 0->1 and 1->2, or 0->2 and 1->1.
+    # We want the final sequence to be lexicographically smallest.
+    # So for each connected component, we decide whether to flip the colors or not.
+    # For the component containing node 1, we want its color to map to 1.
+    # For other components, we also want the smaller label for the first node in that component.
+    
+    # Let's re-do the coloring with a proper handling for lex smallest.
+    color_final = [0] * (n + 1)
+    visited_final = [False] * (n + 1)
     
     for start in range(1, n + 1):
-        if not visited_check[start]:
-            # Collect all nodes in this component
-            component = []
-            queue = deque([start])
-            visited_check[start] = True
-            component.append(start)
+        if visited_final[start]:
+            continue
+        # For the component starting at 'start', we do BFS
+        # and decide whether to flip the colors to get lex smallest
+        component_nodes = []
+        queue = deque()
+        queue.append(start)
+        visited_final[start] = True
+        color_temp = [-1] * (n + 1)
+        color_temp[start] = 0
+        component_nodes.append(start)
+        
+        is_bipartite = True
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited_final[v]:
+                    visited_final[v] = True
+                    color_temp[v] = 1 - color_temp[u]
+                    queue.append(v)
+                    component_nodes.append(v)
+                else:
+                    if color_temp[v] == color_temp[u]:
+                        is_bipartite = False
+                        break
+            if not is_bipartite:
+                break
+        
+        if not is_bipartite:
+            print("NO")
+            return
             
-            while queue:
-                node = queue.popleft()
-                for neighbor in adj[node]:
-                    if not visited_check[neighbor]:
-                        visited_check[neighbor] = True
-                        component.append(neighbor)
-                        queue.append(neighbor)
-            
-            # For this component, check if flipping colors gives better lex order
-            # Try both assignments and pick the lexicographically smaller one
-            
-            # Assignment 1: color -> amplitude (0->1, 1->2)
-            assignment1 = [0] * (n + 1)
-            for node in component:
-                assignment1[node] = 1 if color[node] == 0 else 2
-                
-            # Assignment 2: flipped colors (0->2, 1->1)  
-            assignment2 = [0] * (n + 1)
-            for node in component:
-                assignment2[node] = 2 if color[node] == 0 else 1
-            
-            # Compare lexicographically
-            should_flip = False
-            for node in sorted(component):
-                if assignment2[node] < assignment1[node]:
-                    should_flip = True
-                    break
-                elif assignment2[node] > assignment1[node]:
-                    should_flip = False
-                    break
-            
-            if should_flip:
-                for node in component:
-                    color[node] = 1 - color[node]
-    
-    # Generate final result
-    for i in range(1, n + 1):
-        result[i] = 1 if color[i] == 0 else 2
+        # Decide whether to flip colors in this component
+        # We want the first node in component_nodes (which is 'start') to have color 1 in final
+        # color_temp[start] is 0 or 1
+        # If color_temp[start] == 0, map 0->1, 1->2
+        # If color_temp[start] == 1, map 1->1, 0->2 (i.e., flip)
+        flip = (color_temp[start] == 1)
+        
+        for node in component_nodes:
+            if flip:
+                color_final[node] = 2 if color_temp[node] == 0 else 1
+            else:
+                color_final[node] = 1 if color_temp[node] == 0 else 2
     
     print("YES")
-    print(" ".join(map(str, result[1:])))
+    print(" ".join(map(str, color_final[1:])))
 
-solve()
+if __name__ == "__main__":
+    main()

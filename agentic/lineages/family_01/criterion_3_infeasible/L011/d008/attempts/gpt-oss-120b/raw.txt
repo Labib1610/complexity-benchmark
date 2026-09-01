@@ -1,0 +1,214 @@
+**Solution Explanation**
+
+For three different vertices `a < b < c` let  
+
+*`E(a,b) , E(b,c) , E(c,a)`* be the three possible edges between them  
+(`E(x,y)=1` if the edge exists, otherwise `0`).
+
+For a fixed assignment of the three vertices with values `0 / 1`
+(the value `1` means *phase 180°*), the number of *interfering* pairs is  
+
+```
+I = (a&b)·E(a,b) + (b&c)·E(b,c) + (c&a)·E(c,a)
+```
+
+Only the parity of `I` matters.  
+We have to count for how many of the `2³ = 8` assignments `I` is odd.
+
+--------------------------------------------------------------------
+### 1.   How many assignments are destructive ?
+
+| number of edges `k` among the three vertices | destructive assignments |
+|----------------------------------------------|--------------------------|
+| 0                                            | 0 |
+| 1                                            | 2 |
+| 2 (a path)                                   | 2 |
+| 3 (a triangle)                               | **4** |
+
+The table is obtained by a tiny exhaustive check (8 possibilities).  
+Only a **triangle** (`k = 3`) gives exactly four destructive assignments,
+which is precisely the definition of an *unresolvable bottleneck*.
+
+Therefore the task is **equivalent to finding a triangle** in the given
+undirected graph and outputting the lexicographically smallest one.
+
+--------------------------------------------------------------------
+### 2.   Finding the lexicographically smallest triangle
+
+`n ≤ 2000`, so a bitset of length `n` fits into a Python `int`
+(2000 bits ≈ 250 bytes).  
+For every vertex `v` we store
+
+```
+adj[v]  – an integer whose i‑th bit is 1  ⇔  edge (v,i) exists
+```
+
+All vertices are numbered from `0` internally.
+
+For each edge `(u,v)` with `u < v` we compute the common neighbours
+
+```
+common = adj[u] & adj[v]          # vertices adjacent to both u and v
+```
+
+Only a vertex `c` with `c > v` can form a triangle `u < v < c`.
+Bits `0 … v` are discarded by a right shift:
+
+```
+mask = common >> (v+1)
+```
+
+If `mask` is non‑zero, the least significant set bit gives the smallest
+possible `c`.  
+Its position (0‑based) is `mask.bit_length() - 1`. Adding back the shift
+gives the original vertex index.
+
+The outer loops enumerate `u` from `0` to `n‑1` and, for each `u`,
+`v` from `u+1` to `n‑1`. The first triangle discovered is automatically the
+lexicographically smallest one, because the enumeration order follows the
+required ordering `a < b < c`.
+
+Complexities  
+
+*building the bitsets* – `O(m)`  
+*search* – each edge is processed once, all operations are O(1) on integers  
+
+```
+Time   :  O(m)          ( ≤ 2·10⁵ )
+Memory :  O(n) bits ≈ 250 KB
+```
+
+Both limits are far below the given constraints.
+
+--------------------------------------------------------------------
+### 3.   Correctness Proof  
+
+We prove that the algorithm outputs exactly the lexicographically smallest
+unresolvable bottleneck.
+
+---
+
+#### Lemma 1  
+A triple of distinct vertices is an unresolvable bottleneck **iff** the three
+edges among them are all present (i.e. they form a triangle).
+
+*Proof.*  
+From the table in Section&nbsp;1 the number of destructive assignments is
+`4` exactly when the triple contains `3` edges, and for any other number of
+edges it is different from `4`. ∎
+
+
+
+#### Lemma 2  
+When the algorithm examines an edge `(u,v)` with `u < v`,
+`mask = (adj[u] & adj[v]) >> (v+1)` is non‑zero **iff** there exists a vertex
+`c > v` such that `{u,v,c}` is a triangle.
+
+*Proof.*  
+`adj[u] & adj[v]` has a `1` at position `c` precisely when both edges
+`(u,c)` and `(v,c)` exist. Shifting right by `v+1` removes all bits `≤ v`,
+so a remaining `1` corresponds to a vertex `c > v` adjacent to both `u` and
+`v`. Conversely, any such `c` creates a `1` in the shifted mask. ∎
+
+
+
+#### Lemma 3  
+If `mask` is non‑zero, the vertex `c` obtained from the least significant set
+bit of `mask` is the smallest vertex `> v` that together with `u` and `v`
+forms a triangle.
+
+*Proof.*  
+`mask` contains exactly the bits of all common neighbours larger than `v`.
+The least significant set bit corresponds to the smallest index among them.
+Adding back the shift restores the original vertex number, which is therefore
+the minimal possible `c`. ∎
+
+
+
+#### Lemma 4  
+The first triple `(a,b,c)` output by the algorithm is the lexicographically
+smallest triangle in the whole graph.
+
+*Proof.*  
+The outer loops enumerate all ordered pairs `(a,b)` with `a<b` in increasing
+lexicographic order. For a fixed pair the algorithm (by Lemma&nbsp;3) returns
+the smallest possible `c>b` that closes a triangle, if any exists.
+Hence any triangle with a smaller `(a,b)` would have been found earlier,
+and for the same `(a,b)` a smaller `c` would have been found earlier.
+Therefore the first reported triangle is the minimal one. ∎
+
+
+
+#### Lemma 5  
+The algorithm always outputs a triangle.
+
+*Proof.*  
+The statement of the problem guarantees that at least one unresolvable
+bottleneck exists, i.e. at least one triangle exists (Lemma&nbsp;1).
+When the algorithm reaches the edge belonging to the lexicographically
+smallest triangle, Lemma&nbsp;2 ensures `mask` is non‑zero, so the algorithm
+outputs that triangle and terminates. ∎
+
+
+
+#### Theorem  
+The algorithm prints three integers `a < b < c` that form an unresolvable
+bottleneck, and among all such triples it prints the lexicographically
+smallest one.
+
+*Proof.*  
+By Lemma&nbsp;5 the algorithm outputs a triangle. By Lemma&nbsp;1 any triangle
+is an unresolvable bottleneck. Lemma&nbsp;4 shows that the triangle printed is
+the lexicographically smallest triangle, hence the smallest bottleneck. ∎
+
+
+
+--------------------------------------------------------------------
+### 4.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n          # bitset for each vertex
+    edges = []             # list of edges with u < v
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u > v:
+            u, v = v, u
+        # set bits
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        edges.append((u, v))
+
+    # sort edges to guarantee lexicographic order of (a,b)
+    edges.sort()
+
+    for u, v in edges:
+        # common neighbours of u and v
+        common = adj[u] & adj[v]
+        # keep only vertices > v
+        mask = common >> (v + 1)
+        if mask:
+            # position of least significant 1 bit
+            low = (mask & -mask).bit_length() - 1
+            c = low + v + 1
+            # output 1‑based indices
+            print(u + 1, v + 1, c + 1)
+            return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

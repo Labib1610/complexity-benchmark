@@ -10,29 +10,28 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-
-    color = [0] * n
-
-    def is_safe(node, c):
-        for nei in adj[node]:
-            if color[nei] == c:
-                return False
-        return True
-
+    
+    colors = [0] * n
+    
     def backtrack(idx):
         if idx == n:
             return True
         for c in range(1, 4):
-            if is_safe(idx, c):
-                color[idx] = c
+            ok = True
+            for nb in adj[idx]:
+                if colors[nb] == c:
+                    ok = False
+                    break
+            if ok:
+                colors[idx] = c
                 if backtrack(idx + 1):
                     return True
-                color[idx] = 0
+                colors[idx] = 0
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(map(str, colors)))
     else:
         print("NO")
 

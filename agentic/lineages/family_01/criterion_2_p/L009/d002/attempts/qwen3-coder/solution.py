@@ -9,40 +9,56 @@ def solve():
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
+    # Build graph
     graph = defaultdict(list)
+    edges = []
+    
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
         graph[u].append(v)
         graph[v].append(u)
+        edges.append((u, v))
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * (n + 1)
+    # Color each component with BFS
+    color = [-1] * n  # -1: unvisited, 0: color 1, 1: color 2
+    assignment = [1] * n
     
-    # Check if bipartite using BFS
-    for start in range(1, n + 1):
-        if color[start] == 0:
+    for start in range(n):
+        if color[start] == -1:
             queue = deque([start])
-            color[start] = 1
+            color[start] = 0
             
             while queue:
                 node = queue.popleft()
+                current_color = color[node]
                 
                 for neighbor in graph[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
                         queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
+                    elif color[neighbor] == current_color:
                         print("NO")
                         return
     
-    print("YES")
+    # Verify the solution
+    for u, v in edges:
+        # For calibration (routine 1): at least one should be color 0
+        # For production (routine 2): at least one should be color 1
+        if color[u] == 1 and color[v] == 1:  # Both in routine 2, no one for calibration
+            print("NO")
+            return
+        if color[u] == 0 and color[v] == 0:  # Both in routine 1, no one for production
+            print("NO")
+            return
+    
+    # Convert colors to routines (0 -> 1, 1 -> 2)
     result = []
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            result.append("1")
-        else:
-            result.append(str(color[i]))
+    for c in color:
+        result.append(str(c + 1))
+    
+    print("YES")
     print(" ".join(result))
 
 solve()

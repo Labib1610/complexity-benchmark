@@ -1,0 +1,103 @@
+def are_collinear(p, q, r):
+    # Check if three points are collinear using the cross product
+    # Points are (x1, y1), (x2, y2), (x3, y3)
+    # Vectors: (x2-x1, y2-y1) and (x3-x1, y3-y1)
+    # Cross product: (x2-x1)(y3-y1) - (y2-y1)(x3-x1)
+    x1, y1 = p
+    x2, y2 = q
+    x3, y3 = r
+    cross = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
+    return cross == 0
+
+def get_point(val):
+    return (val, val * val)
+
+def is_valid_pair(cu, cv):
+    # Check if points (cu, cu^2), (cv, cv^2), and (4, 16) are NOT collinear
+    p = get_point(cu)
+    q = get_point(cv)
+    r = (4, 16)
+    return not are_collinear(p, q, r)
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    constraints = []
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx]) - 1  # Convert to 0-indexed
+        v = int(data[idx + 1]) - 1
+        constraints.append((u, v))
+        idx += 2
+    
+    # Precompute valid pairs
+    valid_pairs = {}
+    for cu in [1, 2, 3]:
+        for cv in [1, 2, 3]:
+            valid_pairs[(cu, cv)] = is_valid_pair(cu, cv)
+    
+    # Try all possible assignments in lexicographical order
+    # We'll use backtracking with early termination
+    sequence = [0] * n
+    
+    def backtrack(pos):
+        if pos == n:
+            return True
+        
+        for val in [1, 2, 3]:
+            sequence[pos] = val
+            # Check all constraints involving this position
+            valid = True
+            for u, v in constraints:
+                if u == pos or v == pos:
+                    cu = sequence[u]
+                    cv = sequence[v]
+                    if cu != 0 and cv != 0:  # Both assigned
+                        if not valid_pairs[(cu, cv)]:
+                            valid = False
+                            break
+                    # If only one is assigned, we need to make sure 
+                    # there exists at least one valid assignment for the other
+                    elif cu != 0 and cv == 0:  # u is assigned, v is not
+                        found = False
+                        for cv_try in [1, 2, 3]:
+                            if valid_pairs[(cu, cv_try)]:
+                                found = True
+                                break
+                        if not found:
+                            valid = False
+                            break
+                    elif cu == 0 and cv != 0:  # v is assigned, u is not
+                        found = False
+                        for cu_try in [1, 2, 3]:
+                            if valid_pairs[(cu_try, cv)]:
+                                found = True
+                                break
+                        if not found:
+                            valid = False
+                            break
+            if valid:
+                if backtrack(pos + 1):
+                    return True
+        sequence[pos] = 0
+        return False
+    
+    # Special case: no constraints
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Check if solution exists
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, sequence)))
+    else:
+        print("NO")
+
+solve()

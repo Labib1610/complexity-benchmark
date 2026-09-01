@@ -1,48 +1,39 @@
-from collections import defaultdict
-
 def solve():
     import sys
+    from itertools import product
+    
     input = sys.stdin.read
     data = input().split()
     
     n = int(data[0])
     m = int(data[1])
     
-    # Build adjacency list for the graph
-    adj = defaultdict(list)
+    # If no incompatible pairs, assign all to period 1
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
     index = 2
     for _ in range(m):
-        u = int(data[index]) - 1  # Convert to 0-based indexing
+        u = int(data[index]) - 1  # Convert to 0-indexed
         v = int(data[index+1]) - 1
-        adj[u].append(v)
-        adj[v].append(u)
+        edges.append((u, v))
         index += 2
     
-    # Try to 3-color the graph using backtracking with lex smallest order
-    color = [-1] * n  # -1 means unassigned
+    # Try all 3^n possible assignments
+    for assignment in product([1, 2, 3], repeat=n):
+        valid = True
+        for u, v in edges:
+            if assignment[u] == assignment[v]:
+                valid = False
+                break
+        if valid:
+            print("YES")
+            print(" ".join(map(str, assignment)))
+            return
     
-    def is_safe(node, c):
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
-                return False
-        return True
-    
-    def backtrack(node):
-        if node == n:
-            return True
-        
-        for c in [1, 2, 3]:
-            if is_safe(node, c):
-                color[node] = c
-                if backtrack(node + 1):
-                    return True
-                color[node] = -1  # Backtrack
-        return False
-    
-    if not backtrack(0):
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(map(str, color)))
+    print("NO")
 
 solve()

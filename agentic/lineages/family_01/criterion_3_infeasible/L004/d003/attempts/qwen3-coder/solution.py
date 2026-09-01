@@ -1,32 +1,58 @@
 import sys
-from itertools import combinations
+from collections import defaultdict
 
-def find_minimal_conflict_set():
-    n, m = map(int, sys.stdin.readline().split())
+def find_critical_interference():
+    input = sys.stdin.read
+    data = input().split()
     
-    # Create adjacency set for quick lookup
-    conflicts = set()
-    adj = [set() for _ in range(n + 1)]
+    n = int(data[0])
+    m = int(data[1])
     
+    # Build adjacency list
+    adj = defaultdict(set)
+    edges = []
+    
+    index = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        conflicts.add((min(u, v), max(u, v)))
+        u = int(data[index])
+        v = int(data[index + 1])
         adj[u].add(v)
         adj[v].add(u)
+        edges.append((u, v))
+        index += 2
     
-    # Find all triangles in the conflict graph
-    min_triangle = None
+    # Sort vertices for consistent processing
+    vertices = sorted(adj.keys())
     
-    # Check all combinations of 3 nodes
-    for i in range(1, n - 1):
-        for j in range(i + 1, n):
-            for k in range(j + 1, n + 1):
-                # Check if all three edges exist (forming a triangle)
-                if (i, j) in conflicts and (i, k) in conflicts and (j, k) in conflicts:
-                    triangle = (i, j, k)
-                    if min_triangle is None or triangle < min_triangle:
-                        min_triangle = triangle
+    # For each edge, check if it forms a triangle with any common neighbor
+    best_cluster = None
     
-    print(min_triangle[0], min_triangle[1], min_triangle[2])
+    # Process edges in a consistent order
+    for u, v in sorted(edges):
+        # Find common neighbors of u and v
+        if u in adj and v in adj:
+            common_neighbors = adj[u] & adj[v]
+            for w in common_neighbors:
+                # Form the triangle
+                triangle = tuple(sorted([u, v, w]))
+                
+                # Check if this is better than our current best
+                if best_cluster is None:
+                    best_cluster = triangle
+                else:
+                    # Compare based on the criteria
+                    # First by smallest first element
+                    if triangle[0] < best_cluster[0]:
+                        best_cluster = triangle
+                    elif triangle[0] == best_cluster[0]:
+                        # Then by smallest second element
+                        if triangle[1] < best_cluster[1]:
+                            best_cluster = triangle
+                        elif triangle[1] == best_cluster[1]:
+                            # Then by smallest third element
+                            if triangle[2] < best_cluster[2]:
+                                best_cluster = triangle
+    
+    print(' '.join(map(str, best_cluster)))
 
-find_minimal_conflict_set()
+find_critical_interference()

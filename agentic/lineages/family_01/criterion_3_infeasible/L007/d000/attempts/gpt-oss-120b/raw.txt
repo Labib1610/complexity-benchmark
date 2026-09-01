@@ -1,0 +1,192 @@
+**Solution Explanation**
+
+For every module we store the set of modules it interferes with.
+A *fatal* selection is a triangle in this undirected graph.
+We have to output the lexicographically smallest triangle  
+`a < b < c`.
+
+`n ≤ 2000`, therefore a bitset of length `n` fits into a Python
+integer (`2000` bits ≈ 250 bytes).  
+Bit operations on Python integers are performed in C and are very fast.
+
+--------------------------------------------------------------------
+
+#### Data structures
+* `adj[i]` – integer whose `j`‑th bit (`0 ≤ j < n`) is `1`
+  iff module `i` interferes with module `j`.
+* `nbr[i]` – list of neighbours of `i` (sorted increasingly).
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+for a = 0 … n-1:
+    for each b in nbr[a] with b > a:          # edge a–b, a<b
+        common = adj[a] & adj[b]               # vertices adjacent to both
+        # we need c > b, so delete bits ≤ b
+        mask = ~((1 << (b+1)) - 1)             # bits b+1 … n-1 are 1
+        common &= mask
+        if common != 0:                        # at least one suitable c
+            # lowest set bit gives the smallest possible c
+            lowbit = common & -common
+            c = lowbit.bit_length() - 1
+            output a+1, b+1, c+1 (already a<b<c)
+            terminate
+```
+
+The outer loops enumerate edges `(a,b)` in increasing order of `a`
+and, for a fixed `a`, in increasing order of `b`.  
+For a given edge we pick the smallest possible `c > b`.  
+Consequently the first triangle we encounter is exactly the required
+lexicographically smallest one.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest
+triangle.
+
+---
+
+**Lemma 1**  
+For any pair of vertices `a<b` the expression  
+`common = adj[a] & adj[b]` contains exactly the vertices adjacent to **both**
+`a` and `b`.
+
+*Proof.* By definition `adj[a]` has a `1` at position `v` iff `a–v` is an
+edge, similarly for `adj[b]`. Bitwise AND keeps a `1` only when both
+bits are `1`. ∎
+
+
+
+**Lemma 2**  
+After masking `common` with `mask = ~((1 << (b+1)) - 1)`,
+the remaining set bits correspond precisely to vertices `c` with `c>b`
+that are adjacent to both `a` and `b`.
+
+*Proof.* The mask has `0` for bits `0 … b` and `1` for bits `b+1 … n-1`.
+AND-ing clears all bits `≤ b` and leaves higher bits unchanged. ∎
+
+
+
+**Lemma 3**  
+If `common` (after masking) is non‑zero, `c = lowbit.bit_length()-1`
+is the smallest vertex `c>b` adjacent to both `a` and `b`.
+
+*Proof.* `lowbit = common & -common` isolates the least significant `1`
+bit of `common`. Its index is exactly the smallest `c` present in the set.
+`bit_length()-1` converts the power‑of‑two value to that index. ∎
+
+
+
+**Lemma 4**  
+When the algorithm outputs a triple `(a,b,c)`, it is a triangle
+(`a<b<c` and all three edges exist).
+
+*Proof.* `b` is taken from `nbr[a]`, so edge `a–b` exists.
+By Lemma&nbsp;1 and Lemma&nbsp;2, `c` is a common neighbour of `a` and `b`,
+hence edges `a–c` and `b–c` exist. The construction guarantees `a<b<c`. ∎
+
+
+
+**Lemma 5**  
+Among all triangles, the algorithm examines them in lexicographic order
+of `(a,b,c)`.
+
+*Proof.* The outer loop increases `a`. For a fixed `a`, the inner loop
+iterates neighbours `b` in increasing order, and `b>a`.  
+For each `(a,b)` the algorithm chooses the smallest possible `c>b`
+(Lemma&nbsp;3). Therefore any triangle `(a',b',c')` is considered
+no later than any triangle with a larger `a`, or the same `a` and larger
+`b`, or the same `a,b` and larger `c`. ∎
+
+
+
+**Lemma 6**  
+The first triangle found by the algorithm is the lexicographically
+smallest triangle in the graph.
+
+*Proof.* By Lemma&nbsp;5 triangles are examined in lexicographic order.
+The first one encountered is therefore the smallest. ∎
+
+
+
+**Theorem**  
+The algorithm always outputs three distinct module numbers
+`a<b<c` forming a triangle, and this triangle is the lexicographically
+smallest among all triangles in the given graph.
+
+*Proof.* Existence of at least one triangle is guaranteed, so the
+algorithm will eventually find one. By Lemma&nbsp;4 the output is a
+valid triangle. By Lemma&nbsp;6 it is the smallest one. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building adjacency:* `O(m)`  
+*Main loops:* each edge `(a,b)` with `a<b` is processed once.
+There are `m` such edges, each step does a constant‑time bitwise AND,
+masking and a few integer operations → `O(m)`.
+
+Memory: `n` integers of at most `n` bits → `O(n)` (≈ 2000·250 B ≈ 0.5 MB).
+
+Both limits satisfy the problem constraints.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n          # bitsets
+    nbr = [[] for _ in range(n)]
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            continue
+        # store undirected edge
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        nbr[u].append(v)
+        nbr[v].append(u)
+
+    # sort neighbour lists for deterministic order
+    for i in range(n):
+        nbr[i].sort()
+
+    for a in range(n):
+        for b in nbr[a]:
+            if b <= a:
+                continue
+            common = adj[a] & adj[b]
+            # keep only vertices > b
+            mask = ~((1 << (b + 1)) - 1)
+            common &= mask
+            if common:
+                lowbit = common & -common
+                c = lowbit.bit_length() - 1
+                # a < b < c holds
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

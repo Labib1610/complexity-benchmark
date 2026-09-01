@@ -1,40 +1,62 @@
 import sys
 from itertools import combinations
 
-def find_minimal_counterexample(n, m, edges):
-    # Build adjacency list
-    adj = [set() for _ in range(n + 1)]
+def read_input():
+    n, m = map(int, sys.stdin.readline().split())
+    edges = []
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
+    return n, m, edges
+
+def build_adjacency_matrix(n, edges):
+    adj = [[0] * (n + 1) for _ in range(n + 1)]
     for u, v in edges:
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u][v] = 1
+        adj[v][u] = 1
+    return adj
+
+def determinant_3x3(matrix):
+    # For a 3x3 matrix with zero diagonal:
+    # |0 a b|
+    # |a 0 c|
+    # |b c 0|
+    # Determinant = 2abc
+    a, b, c = matrix[0][1], matrix[0][2], matrix[1][2]
+    return 2 * a * b * c
+
+def find_critical_subset(n, edges):
+    adj = build_adjacency_matrix(n, edges)
     
     # Generate all combinations of 3 nodes
-    candidates = []
-    for combo in combinations(range(1, n + 1), 3):
-        a, b, c = sorted(combo)
-        # Check if this forms a triangle (all pairs connected)
-        if b in adj[a] and c in adj[a] and c in adj[b]:
-            candidates.append((a, b, c))
+    nodes = list(range(1, n + 1))
     
-    # Sort candidates lexicographically
-    candidates.sort()
+    # We'll sort the combinations to ensure we get the lexicographically smallest
+    # combination that satisfies our condition
+    best = None
     
-    # Return the first one
-    return candidates[0]
+    for combo in combinations(nodes, 3):
+        u, v, w = sorted(combo)
+        
+        # Create the 3x3 submatrix
+        submatrix = [
+            [0, adj[u][v], adj[u][w]],
+            [adj[v][u], 0, adj[v][w]],
+            [adj[w][u], adj[w][v], 0]
+        ]
+        
+        # Check if determinant is 2
+        if determinant_3x3(submatrix) == 2:
+            # Since combinations generates in lexicographic order,
+            # the first one we find is the answer
+            return u, v, w
+            
+    return None
 
-# Read input
-input = sys.stdin.read
-data = input().split()
-n = int(data[0])
-m = int(data[1])
-edges = []
-idx = 2
-for _ in range(m):
-    u = int(data[idx])
-    v = int(data[idx + 1])
-    edges.append((u, v))
-    idx += 2
+def main():
+    n, m, edges = read_input()
+    result = find_critical_subset(n, edges)
+    print(result[0], result[1], result[2])
 
-# Find and print the result
-result = find_minimal_counterexample(n, m, edges)
-print(result[0], result[1], result[2])
+if __name__ == "__main__":
+    main()

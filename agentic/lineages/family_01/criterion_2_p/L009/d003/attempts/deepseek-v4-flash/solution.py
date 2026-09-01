@@ -13,7 +13,7 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-ok = True
+possible = True
 
 for i in range(n):
     if color[i] == -1:
@@ -26,23 +26,16 @@ for i in range(n):
                     color[v] = 1 - color[u]
                     q.append(v)
                 elif color[v] == color[u]:
-                    ok = False
+                    possible = False
                     break
-            if not ok:
+            if not possible:
                 break
-    if not ok:
+    if not possible:
         break
 
-if not ok:
+if not possible:
     print("NO")
 else:
-    # color 0 -> 1, color 1 -> 2
-    # Try both colorings and pick lexicographically smallest
-    assign1 = [1 if c == 0 else 2 for c in color]
-    assign2 = [2 if c == 0 else 1 for c in color]
-    if assign1 <= assign2:
-        print("YES")
-        print(" ".join(map(str, assign1)))
-    else:
-        print("YES")
-        print(" ".join(map(str, assign2)))
+    print("YES")
+    # color 0 -> power 1, color 1 -> power 2
+    print(' '.join(str(c + 1) for c in color))

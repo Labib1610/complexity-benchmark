@@ -1,24 +1,14 @@
-import sys
+n, m = map(int, input().split())
+adj = [set() for _ in range(n + 1)]
+for _ in range(m):
+    a, b = map(int, input().split())
+    adj[a].add(b)
+    adj[b].add(a)
 
-def main():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [set() for _ in range(n + 1)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        adj[u].add(v)
-        adj[v].add(u)
-    
-    for a in range(1, n + 1):
-        for b in range(a + 1, n + 1):
-            if b not in adj[a]:
-                continue
-            # Find smallest c > b that is connected to both a and b
-            common = adj[a] & adj[b]
-            for c in sorted(common):
-                if c > b:
-                    print(a, b, c)
-                    return
-
-if __name__ == "__main__":
-    main()
+for u in range(1, n + 1):
+    for v in range(u + 1, n + 1):
+        if v in adj[u]:
+            for w in range(v + 1, n + 1):
+                if w in adj[u] and w in adj[v]:
+                    print(u, v, w)
+                    exit()

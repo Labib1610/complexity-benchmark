@@ -1,41 +1,43 @@
 import sys
 from collections import deque
 
-def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    color = [-1] * n
-    
-    for start in range(n):
-        if color[start] != -1:
-            continue
-        color[start] = 0  # 0 will map to mode 1
-        q = deque([start])
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+possible = True
+
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 0
+        q = deque([i])
         while q:
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                    color[v] = 1 - color[u]
                     q.append(v)
                 elif color[v] == color[u]:
-                    print("NO")
-                    return
-    
-    print("YES")
-    # Output mode: color 0 -> 1, color 1 -> 2
-    print(" ".join(str(c + 1) for c in color))
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-if __name__ == "__main__":
-    solve()
+if not possible:
+    print("NO")
+else:
+    # Lexicographically smallest: prefer mode 1 (0) when possible
+    # We already have a valid coloring; but we can flip components if it makes it smaller
+    # Since we start each component with 0, it's already lexicographically smallest
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))

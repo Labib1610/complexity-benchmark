@@ -1,0 +1,55 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n)]
+    for i in range(m):
+        u = int(input_data[2 + 2*i]) - 1
+        v = int(input_data[3 + 2*i]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        
+    # Forbidden pairs: (1, 1), (2, 2), (3, 3)
+    # If two nodes are connected, they cannot have the same color.
+    # This is exactly the graph 3-coloring problem.
+    
+    best_assignment = None
+    
+    def dfs(u, assignment):
+        nonlocal best_assignment
+        
+        if best_assignment is not None:
+            return
+            
+        if u == n:
+            best_assignment = list(assignment)
+            return
+            
+        for c in range(1, 4):
+            valid = True
+            for v in adj[u]:
+                if v < u and assignment[v] == c:
+                    valid = False
+                    break
+            if valid:
+                assignment[u] = c
+                dfs(u + 1, assignment)
+                assignment[u] = 0
+                if best_assignment is not None:
+                    return
+
+    dfs(0, [0] * n)
+    
+    if best_assignment is None:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, best_assignment)))
+
+if __name__ == '__main__':
+    solve()

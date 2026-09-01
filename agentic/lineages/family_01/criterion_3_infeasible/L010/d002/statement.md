@@ -1,20 +1,20 @@
-# Signature Meal Selection
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A prestigious culinary academy is designing a new tasting menu from a repertoire of $n$ distinct recipes. Through extensive taste-testing, the academy has compiled a catalog of $m$ distinct harmonious pairings. A pairing in the catalog indicates that two specific recipes complement each other (this relationship is mutual).
+The factory still has only two shifts, 1 and 2, but the roster is known to be hopeless. Your job is not to schedule — it is to search the conflict data to certify the impossibility. 
 
-The academy's graduation requirement dictates that a student must present a "signature meal" consisting of exactly three distinct recipes. A meal is considered perfectly balanced if and only if exactly three pairings in the catalog consist exclusively of recipes included in this meal.
+A deadlock is defined as a subset of exactly three conflict records that, across their six total positions, contain exactly three distinct worker IDs. Furthermore, each of these three IDs must appear in exactly two of the three records. Such a configuration provides an undeniable certificate that two shifts cannot suffice. Finding such a deadlock can appear daunting given the sheer number of possible subsets to check.
 
-Given the sheer number of possible combinations, your task is to automate the search for a perfectly balanced signature meal. Because the provided catalogs are derived from successful past graduations, they will always contain the necessary pairings to form at least one valid signature meal.
+It is guaranteed that the conflict data contains at least one such deadlock. Output the worker IDs involved in one such deadlock.
 
 ## Input
-The first line contains two integers $n$ and $m$ (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the identifiers of two recipes that form a harmonious pairing.
-The test cases are designed such that a valid signature meal can always be found.
+The first line contains two integers n and m (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)).
+Each of the next m lines contains two integers u v — a conflict record representing a pair of workers who cannot work together.
+It is guaranteed that at least one deadlock exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ representing the identifiers of the three recipes in the signature meal. If multiple such meals can be formed, output the one that is lexicographically smallest (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print three integers a b c on one line with a < b < c representing the three distinct workers involved in the deadlock. Output the lexicographically smallest such group of workers (smallest a; ties by smallest b; then smallest c).
 
 ## Example 1
 Input:

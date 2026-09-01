@@ -1,20 +1,26 @@
-# Problem B — Kinetic Dampening System
+# Problem B — Resonant Foundations
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A heavy industrial facility utilizes $n$ oscillating dampeners, numbered 1 to $n$. To calibrate the system, each dampener must be configured with an amplitude setting of either 1 or 2.
+The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite grade for each pillar. The approved composite grades are exactly 1 and 2.
 
-The facility contains $m$ structural linkages, each connecting a specific pair of dampeners. The stress on a linkage is determined by the kinetic energy of the connected dampeners, which scales with the square of their amplitude settings. To prevent structural failure, the absolute difference between the squares of the amplitude settings of any two connected dampeners must be exactly 3.
+To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. A dampener's ability to properly distribute stress depends on the composite grades of the two pillars it connects. 
 
-You must determine if there is a valid configuration of amplitude settings for all $n$ dampeners that ensures the stability of all $m$ linkages. If a valid configuration exists, you must output it. In cases where multiple valid configurations satisfy all requirements, you must output the configuration that forms the lexicographically smallest sequence of amplitude settings.
+For any dampener connecting pillar $u$ with composite grade $c_u$ and pillar $v$ with composite grade $c_v$, its local resonance value is calculated as:
+$R(c_u, c_v) = 3(c_u + c_v) - 2 c_u c_v$
+
+The skyscraper's vibration control system is considered safe if and only if the sum of the local resonance values across all $m$ dampeners is exactly $5m$.
+
+Your task is to determine if there is a safe composite selection for all $n$ pillars. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite grades.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the numbers of two dampeners connected by a linkage.
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
 
 ## Output
-If no valid configuration exists, print a single line NO.
-Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each being 1 or 2), representing the lexicographically smallest valid sequence of amplitude settings.
+If no safe selection exists, print a single line `NO`.
+Otherwise print `YES`, then a second line with $n$ integers $c_1 \dots c_n$ (each being 1 or 2), representing the lexicographically smallest safe selection.
 
 ## Example 1
 Input:

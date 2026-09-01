@@ -1,0 +1,107 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Iterate to find the lexicographically smallest deadlock configuration
+    # A deadlock configuration is a set {a, b, c} such that for any x in {a, b, c},
+    # the other two are in R_x (adjacency set of x).
+    # This means a, b, c form a triangle in the graph.
+    # We iterate a from 1 to n, b from a+1 to n, c from b+1 to n.
+    # The first valid configuration found is the lexicographically smallest.
+    
+    for a in range(1, n + 1):
+        # To form a triangle, b must be a neighbor of a
+        neighbors_of_a = adj[a]
+        # We need to iterate neighbors in increasing order to satisfy lex order
+        # Since we iterate 'a' increasingly, we just need to ensure b > a and c > b
+        # We can filter neighbors > a and sort them.
+        # However, sorting inside the loop might be slow if degree is large.
+        # But total work is bounded by O(sum(min(deg, n))) in the worst case
+        # if we check all pairs of neighbors.
+        # Let's optimize by iterating only valid candidates.
+        
+        candidates_b = [v for v in neighbors_of_a if v > a]
+        candidates_b.sort()
+        
+        for b in candidates_b:
+            # c must be > b and neighbor of both a and b
+            neighbors_of_b = adj[b]
+            
+            # Find intersection of neighbors_of_a and neighbors_of_b that are > b
+            # Since we need the smallest c, we iterate candidates_c in order.
+            # candidates_c are in neighbors_of_a (already true since b is neighbor of a)
+            # and neighbors_of_b and > b.
+            
+            # We can iterate candidates_c from neighbors_of_b
+            # check if c > b and c in neighbors_of_a
+            
+            # To optimize intersection check:
+            # Iterate the smaller set? 
+            # Or just iterate candidates_c derived from neighbors_of_b?
+            
+            # Let's try iterating neighbors of b that are > b
+            # and check if they are in neighbors_of_a.
+            
+            # Since we need the smallest c, we should iterate c in increasing order.
+            # We can collect valid c's and take min, or sort neighbors_of_b.
+            # Sorting neighbors_of_b repeatedly is costly.
+            # Instead, we can iterate c from b+1 to n and check membership.
+            # This is O(n) per pair (a, b), total O(n * sum(deg)) which is O(n * m) potentially.
+            # Or O(n^3) worst case. n=2000, n^3 is too slow.
+            
+            # Better approach:
+            # Iterate c candidates from neighbors_of_b.
+            # Check c > b and c in neighbors_of_a.
+            # Since we want the smallest c, we need to process c in increasing order.
+            # We can sort neighbors_of_b once? No, graph is static but we query subsets.
+            
+            # Let's just iterate c from neighbors_of_b.
+            # We need the smallest c > b such that c in neighbors_of_a.
+            # We can find valid c's and pick min.
+            
+            valid_c = -1
+            # Iterate neighbors of b
+            for c in neighbors_of_b:
+                if c > b and c in neighbors_of_a:
+                    if valid_c == -1 or c < valid_c:
+                        valid_c = c
+                        # We can potentially break early if we knew we found the smallest
+                        # but we are iterating an unordered set.
+                        # However, we just need the smallest c for this (a, b).
+                        # If we find any c, we can report (a, b, c) immediately?
+                        # YES. Because we iterate a then b in increasing order.
+                        # The first c found for the first valid (a, b) pair gives the lex smallest triplet.
+                        # Wait, we need the smallest c for the current (a, b).
+                        # If we find a c, is it the smallest c for this (a, b)?
+                        # Not necessarily, because set iteration order is arbitrary.
+                        # But we only need the smallest c for the first (a, b) that has a solution.
+                        # If for a fixed (a, b), there are multiple c's, we must pick the smallest c.
+                        # If we pick a larger c, we might miss a smaller c for the same (a, b).
+                        # But since we report the first (a, b) that works, and we want the smallest c for it,
+                        # we must ensure we find the smallest c.
+                        # If we find a c, say c=10, but c=5 also exists, and we report 10,
+                        # then the answer (a, b, 10) is incorrect; it should be (a, b, 5).
+                        # So we must find the minimum c for the current (a, b).
+            
+            if valid_c != -1:
+                # We found the smallest c for the current (a, b).
+                # Since we iterate a and b in increasing order, this is the lex smallest solution.
+                print(a, b, valid_c)
+                return
+
+if __name__ == '__main__':
+    solve()

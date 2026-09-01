@@ -4,22 +4,21 @@ def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
     adj = [set() for _ in range(n + 1)]
-    edges = []
     for _ in range(m):
         u, v = map(int, input().split())
         adj[u].add(v)
         adj[v].add(u)
-        if u > v:
-            u, v = v, u
-        edges.append((u, v))
     
-    edges.sort()
-    
-    for u, v in edges:
-        for w in adj[u]:
-            if w > v and w in adj[v]:
-                print(u, v, w)
-                return
+    for a in range(1, n + 1):
+        for b in sorted(adj[a]):
+            if b <= a:
+                continue
+            for c in sorted(adj[b]):
+                if c <= b:
+                    continue
+                if c in adj[a]:
+                    print(a, b, c)
+                    return
 
 if __name__ == "__main__":
     solve()

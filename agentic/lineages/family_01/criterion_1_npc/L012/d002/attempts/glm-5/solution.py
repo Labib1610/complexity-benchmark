@@ -1,0 +1,44 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    assignment = [0] * n
+    
+    def backtrack(k):
+        if k == n:
+            return True
+        
+        for tier in [1, 2, 3]:
+            valid = True
+            for neighbor in adj[k]:
+                if neighbor < k and assignment[neighbor] == tier:
+                    valid = False
+                    break
+            if valid:
+                assignment[k] = tier
+                if backtrack(k + 1):
+                    return True
+                assignment[k] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

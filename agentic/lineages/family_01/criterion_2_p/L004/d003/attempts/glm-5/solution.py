@@ -1,49 +1,39 @@
 import sys
-from sys import setrecursionlimit
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
     
     color = [0] * (n + 1)
-    possible = True
+    is_bipartite = True
     
-    for start in range(1, n + 1):
-        if color[start] != 0:
-            continue
-        stack = [start]
-        color[start] = 1
-        while stack:
-            u = stack.pop()
-            for v in adj[u]:
-                if color[v] == 0:
-                    color[v] = 3 - color[u]
-                    stack.append(v)
-                elif color[v] == color[u]:
-                    possible = False
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            color[i] = 1
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
                     break
-            if not possible:
-                break
-        if not possible:
+        if not is_bipartite:
             break
     
-    if not possible:
-        sys.stdout.write("NO\n")
-        return
-    
-    sys.stdout.write("YES\n")
-    sys.stdout.write(" ".join(str(color[i]) for i in range(1, n + 1)) + "\n")
+    if not is_bipartite:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, color[1:])))
 
-if __name__ == "__main__":
-    solve()
+solve()

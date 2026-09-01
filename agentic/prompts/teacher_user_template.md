@@ -18,4 +18,6 @@ Intensity: {INTENSITY}
 
 {FEEDBACK_BLOCK}
 
-Produce the rewritten statement now, as a single JSON object.
+{MEMORY_BLOCK}
+
+Produce the rewritten statement now.

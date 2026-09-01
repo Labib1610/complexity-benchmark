@@ -1,57 +1,76 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, input().split())
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
+    # Build graph
     graph = defaultdict(list)
     edges = []
-    
     for _ in range(m):
-        u, v = map(int, input().split())
-        graph[u].append(v)
-        graph[v].append(u)
-        edges.append((u, v))
+        u, v = map(int, sys.stdin.readline().split())
+        edges.append((u-1, v-1))  # Convert to 0-indexed
+        graph[u-1].append(v-1)
+        graph[v-1].append(u-1)
     
-    # The constraint is that for each edge (u,v), tier[u] + tier[v] = 3
-    # This means tier[u] != tier[v] (since tiers are 1 or 2)
-    # So this is a bipartite graph check
+    # For each connected component, we'll do BFS/DFS to determine assignments
+    # State: 0 means unassigned, 1 and 2 are the two states
+    state = [0] * n
+    visited = [False] * n
     
-    color = {}
-    
-    # Check if the graph is bipartite
-    for start_node in graph:
-        if start_node not in color:
-            queue = deque([start_node])
-            color[start_node] = 1
+    # Check if bipartite for each component
+    for i in range(n):
+        if visited[i] or not graph[i]: 
+            if not visited[i] and not graph[i]:  # Isolated node
+                visited[i] = True
+            continue
             
-            while queue:
-                node = queue.popleft()
-                
-                for neighbor in graph[node]:
-                    if neighbor not in color:
-                        color[neighbor] = 3 - color[node]  # Flip between 1 and 2
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
+        # BFS to assign states
+        queue = deque()
+        queue.append(i)
+        state[i] = 1
+        visited[i] = True
+        
+        while queue:
+            u = queue.popleft()
+            for v in graph[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    # Assign opposite state scaled to 1 or 2
+                    if state[u] == 1:
+                        state[v] = 2
+                    else:
+                        state[v] = 1
+                    queue.append(v)
+                else:
+                    # Check consistency
+                    ratio1 = state[u] / state[v]
+                    if ratio1 not in [0.5, 2.0]:
                         print("NO")
                         return
     
-    # If bipartite, construct the lexicographically smallest solution
-    # We want nodes not in the graph to be 1 (lexicographically smallest)
-    result = []
-    for i in range(1, n + 1):
-        if i in color:
-            result.append(str(color[i]))
-        else:
-            result.append("1")
-    
+    # Now verify all edges satisfy the balance condition
+    for u, v in edges:
+        ratio = state[u] / state[v]
+        if ratio not in [0.5, 2.0]:
+            print("NO")
+            return
+            
+    # Assign state 1 to any remaining unassigned nodes
+    for i in range(n):
+        if state[i] == 0:
+            state[i] = 1
+            
     print("YES")
-    print(" ".join(result))
+    print(" ".join(map(str, state)))
 
-solve()
+if __name__ == "__main__":
+    main()

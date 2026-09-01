@@ -1,0 +1,50 @@
+# Reactive Material Storage
+
+**Time limit:** 2 s  
+**Memory limit:** 256 MB  
+
+You are tasked with safely storing an inventory of $n$ distinct materials, sequentially numbered from $1$ to $n$. Every material must be placed into exactly one isolation chamber. There are three available chambers, which are identified by the integers $1$, $2$, and $3$.
+
+You are provided with a list of $m$ safety protocols. Each protocol specifies a pair of materials, $(u, v)$, that are highly reactive with each other. To prevent an incident, for every protocol, material $u$ and material $v$ must be placed into strictly different chambers. All $m$ safety protocols must be satisfied simultaneously.
+
+Your objective is to determine whether it is possible to assign all $n$ materials to the three chambers without violating any of the safety protocols.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), representing the total number of materials and the total number of safety protocols.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of materials that must not share the same chamber.
+
+## Output
+If there is no safe way to store the materials, output `NO` on a single line.
+If a valid placement exists, output `YES` on the first line. On the second line, output a sequence of $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$), representing the chamber assignment for each material from $1$ to $n$. If multiple valid sequences exist, output the lexicographically smallest sequence (comparing the chamber for material $1$ first, then material $2$, and so on).
+
+## Example 1
+**Input:**
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+**Output:**
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+**Input:**
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+**Output:**
+```
+NO
+```

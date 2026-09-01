@@ -1,21 +1,24 @@
-# Problem C — Habitat Allocation Veto
+# Problem C — Mechanical Jam
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A conservation park is preparing to house $n$ rescued animal species, numbered 1 through $n$. The veterinary team has compiled a list of $m$ specific pairs of species that exhibit severe territorial aggression. If two species appear together as a pair on this list, they are forbidden from sharing the same habitat enclosure. 
+A clockwork mechanism consists of $n$ cogs, numbered 1 through $n$. The design specifies $m$ direct mechanical links, where the teeth of two specific cogs interlock. Whenever two cogs interlock, they are forced to rotate in opposite directions.
 
-The park management initially proposed constructing exactly two large enclosures to house all the species. However, this proposal is fundamentally unworkable. The behavioral data guarantees the existence of a structural contradiction: a subset of exactly three species that inherently requires at least three enclosures. This occurs because the veterinary list explicitly forbids sharing an enclosure for every possible pair formed from this subset.
+The designers intended for the entire mechanism to rotate continuously. However, the prototype is completely seized. An inspection reveals a fatal structural flaw: a localized parity conflict. Specifically, there exists at least one set of three distinct cogs where every component in the set interlocks with both of the other two. In this arrangement, rotation is physically impossible, as the alternating rotation directions cannot be simultaneously satisfied among all three.
 
-To finalize the veto of the two-enclosure proposal, you must provide a formal certificate of its failure by identifying one such subset of three species.
+To authorize a redesign, the lead engineer requires a formal defect report identifying the components involved in one of these minimal conflicting sets. Your task is to find three cogs that form this exact configuration.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing a pair of species that are forbidden from sharing an enclosure. Each pair is listed at most once.
-It is guaranteed that at least one such subset of three species exists.
+The first line provides the total component count $n$ and the total coupling count $m$. The workshop limits dictate a minimum component count of 3 and a maximum capacity of 2000. The coupling count $m$ requires a minimum of 3 links and is capped at $2 \cdot 10^5$, or the theoretical maximum of $n(n-1)/2$ pairs, whichever is smaller.
+
+The following $m$ lines each contain two integers $u$ and $v$, representing that cog $u$ and cog $v$ interlock. Valid IDs range from 1 to $n$, and a cog cannot interlock with itself ($u \ne v$). Each pair is listed at most once. 
+
+It is guaranteed that at least one such set of three mutually interlocking cogs exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the numbers of the three species in the subset. The numbers must be printed in ascending order ($a < b < c$).
-If there are multiple such subsets, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the IDs of three cogs that form the described configuration. The IDs must be printed in ascending order ($a < b < c$).
+
+If there are multiple such combinations, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
 
 ## Example 1
 Input:

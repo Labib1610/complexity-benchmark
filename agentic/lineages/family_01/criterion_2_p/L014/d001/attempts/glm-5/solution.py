@@ -1,4 +1,5 @@
 import sys
+from collections import deque
 
 def solve():
     input_data = sys.stdin.buffer.read().split()
@@ -7,87 +8,79 @@ def solve():
     it = iter(input_data)
     n = int(next(it))
     m = int(next(it))
-    
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
-    
+
     color = [0] * (n + 1)
     possible = True
-    
+
     for start in range(1, n + 1):
         if color[start] != 0:
             continue
-        # Try to color this component with start as 1
+        # BFS to find the connected component
+        comp = []
+        q = deque()
         color[start] = 1
-        stack = [start]
-        ok = True
-        while stack:
-            u = stack.pop()
-            cu = color[u]
+        q.append(start)
+        comp.append(start)
+        while q:
+            u = q.popleft()
             for v in adj[u]:
                 if color[v] == 0:
-                    color[v] = 3 - cu
-                    stack.append(v)
-                elif color[v] == cu:
-                    ok = False
-        if not ok:
-            possible = False
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+        if not possible:
             break
-    
+        # Determine the lexicographically smallest assignment for this component
+        # We need to check both colorings and pick the lex smaller one
+        # Current coloring: color[u] in {1,2}
+        # Alternative: flip all colors in the component
+        # Compare the two assignments lexicographically over the component
+        # Since we process components in increasing order of their minimum node,
+        # and we want the global lex smallest, we need to pick the lex smallest
+        # assignment for each component independently.
+        # However, the component's nodes are not necessarily contiguous,
+        # but since components are disjoint, the lex smallest global assignment
+        # is obtained by making each component's assignment lex smallest.
+        # But wait: the lex order is over the sequence x_1..x_n.
+        # Since components are disjoint and we process in order of first uncolored node,
+        # the first node of the component is the smallest index in that component.
+        # To make the global sequence lex smallest, we should make the assignment
+        # for this component such that the sequence restricted to this component
+        # is lex smallest. But since the component's nodes are scattered,
+        # we need to compare the two colorings over all nodes in the component
+        # in increasing order of node index.
+        # So we sort the component's nodes and compare.
+        comp.sort()
+        # Current assignment
+        cur = [color[u] for u in comp]
+        # Flipped assignment
+        flip = [3 - c for c in cur]
+        # Compare cur and flip lexicographically
+        use_flip = False
+        for a, b in zip(cur, flip):
+            if a < b:
+                use_flip = False
+                break
+            elif a > b:
+                use_flip = True
+                break
+        if use_flip:
+            for u in comp:
+                color[u] = 3 - color[u]
+
     if not possible:
         sys.stdout.write("NO\n")
-        return
-    
-    # Now we have a valid coloring. We need the lexicographically smallest.
-    # For each component, we can flip colors. We want as many leading 1's as possible.
-    # Process components in order of their first vertex.
-    visited = [False] * (n + 1)
-    comp_first = []
-    comp_vertices = []
-    
-    for i in range(1, n + 1):
-        if not visited[i]:
-            comp_first.append(i)
-            comp = []
-            stack = [i]
-            visited[i] = True
-            while stack:
-                u = stack.pop()
-                comp.append(u)
-                for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        stack.append(v)
-            comp_vertices.append(comp)
-    
-    # For each component, decide orientation.
-    # We want the first vertex of the component to be 1 if possible.
-    # Since color[i] is already 1 for the first vertex of each component (by our BFS/DFS above),
-    # we just need to check if flipping would make it 1. But it's already 1.
-    # Wait, the initial coloring already set color[start]=1 for each component's first vertex.
-    # So the current coloring is already the lexicographically smallest? 
-    # Let's verify: for each component, the first vertex (smallest index in that component) is colored 1.
-    # Any valid coloring of the component must assign either 1 or 2 to this first vertex.
-    # To make the sequence lexicographically smallest, we want this first vertex to be 1.
-    # Since our coloring already does that, and the rest of the component is determined by this choice,
-    # our coloring is optimal for each component.
-    # But wait: the first vertex of a component might not be the globally smallest uncolored vertex
-    # at the time we process it. Actually, we process vertices in order 1..n, so the first vertex
-    # of each component IS the smallest vertex in that component. And we set it to 1.
-    # So yes, this is lexicographically smallest.
-    
-    # However, there's a subtlety: what if a component's first vertex is already forced to be 2
-    # by some previous component? No, components are independent.
-    
-    # Actually, let me double-check. The initial coloring sets color[start]=1 for the smallest
-    # vertex in each component. This is exactly what we want for lexicographically smallest.
-    
-    result = [str(color[i]) for i in range(1, n + 1)]
-    sys.stdout.write("YES\n")
-    sys.stdout.write(" ".join(result) + "\n")
+    else:
+        sys.stdout.write("YES\n")
+        sys.stdout.write(" ".join(str(color[i]) for i in range(1, n + 1)))
+        sys.stdout.write("\n")
 
 solve()

@@ -19,29 +19,43 @@ def solve():
         deg[u] += 1
         deg[v] += 1
     
-    # Sort vertices by degree
-    vertices = list(range(1, n + 1))
-    vertices.sort(key=lambda x: deg[x])
-    
-    # Iterate over vertices in order of degree
-    for u in vertices:
-        # Collect neighbors of u
-        neighbors = []
-        for v in range(1, n + 1):
-            if adj[u][v]:
-                neighbors.append(v)
-        
-        # Check all pairs of neighbors
-        k = len(neighbors)
-        for i in range(k):
-            for j in range(i + 1, k):
-                v = neighbors[i]
+    # Try to find a triangle (clique of size 3)
+    # A triangle is a certificate because max independent set size is 1
+    for u in range(1, n + 1):
+        # Get neighbors of u
+        neighbors = [v for v in range(1, n + 1) if adj[u][v]]
+        for i in range(len(neighbors)):
+            v = neighbors[i]
+            if v <= u:
+                continue
+            for j in range(i + 1, len(neighbors)):
                 w = neighbors[j]
+                if w <= v:
+                    continue
                 if adj[v][w]:
-                    # Found a triangle (u, v, w)
-                    res = sorted([u, v, w])
-                    print(res[0], res[1], res[2])
+                    print(u, v, w)
                     return
+    
+    # If no triangle, find a vertex with degree n-1 (connected to all others)
+    # Then find two non-adjacent vertices among the remaining
+    for u in range(1, n + 1):
+        if deg[u] == n - 1:
+            # u is connected to all other vertices
+            # Find two vertices v, w that are not connected to each other
+            for v in range(1, n + 1):
+                if v == u:
+                    continue
+                for w in range(v + 1, n + 1):
+                    if w == u:
+                        continue
+                    if not adj[v][w]:
+                        # u, v, w form a certificate
+                        # u is connected to both v and w
+                        # v and w are not connected
+                        # So max independent set size is 1
+                        result = sorted([u, v, w])
+                        print(result[0], result[1], result[2])
+                        return
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     solve()

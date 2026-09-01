@@ -1,40 +1,57 @@
 import sys
 
 def solve():
-    data = sys.stdin.buffer.read().split()
+    data = sys.stdin.read().split()
     if not data:
         return
-    n = int(data[0])
-    m = int(data[1])
-    idx = 2
-    adj = [0] * (n + 1)
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    edges = []
+    
     for _ in range(m):
-        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        u = int(next(it))
+        v = int(next(it))
         if u > v:
             u, v = v, u
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    full = (1 << (n + 1)) - 1
-    for a in range(1, n - 1):
-        adj_a = adj[a]
-        if adj_a == 0:
-            continue
-        # candidates b > a with edge a-b
-        candidates = []
-        b = a + 1
-        while b <= n:
-            if (adj_a >> b) & 1:
-                candidates.append(b)
-            b += 1
-        for b in candidates:
-            common = adj_a & adj[b]
-            # keep only bits > b
-            common &= full & ~((1 << (b + 1)) - 1)
-            if common:
-                c = (common & -common).bit_length() - 1
-                print(a, b, c)
+    # Sort edges lexicographically to process in order
+    edges.sort()
+    
+    # For each edge (u, v), check if there exists w such that
+    # w is connected to both u and v, and w > v (to ensure u < v < w)
+    for u, v in edges:
+        # We need to find w in adj[u] ∩ adj[v] where w > v
+        # Iterate through the smaller set for efficiency
+        if len(adj[u]) > len(adj[v]):
+            u, v = v, u
+        
+        for w in adj[u]:
+            if w > v and w in adj[v]:
+                print(u, v, w)
                 return
+    
+    # If not found with w > v constraint, search for any triangle
+    # This handles cases where the lexicographically smallest triangle
+    # might not satisfy w > v for the edge order we processed
+    for u in range(1, n + 1):
+        neighbors = sorted(adj[u])
+        for i in range(len(neighbors)):
+            v = neighbors[i]
+            if v <= u:
+                continue
+            for j in range(i + 1, len(neighbors)):
+                w = neighbors[j]
+                if w <= v:
+                    continue
+                if w in adj[v]:
+                    print(u, v, w)
+                    return
 
 if __name__ == "__main__":
     solve()

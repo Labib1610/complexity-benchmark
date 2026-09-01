@@ -1,20 +1,20 @@
-# Fragrance Formulation
+# Calibration Valves
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A master perfumer is processing a batch of $n$ essential extracts, labeled from 1 to $n$. The perfumer has identified $m$ volatile interactions between specific pairs of extracts. Whenever an interaction exists between two extracts, they must be processed using different stabilization methods to prevent neutralization.
+A fluid transport network contains $n$ calibration valves, numbered $1$ through $n$. You must configure each valve to operate at a pressure setting of either $1$ or $2$.
 
-The laboratory equipment is configured to supply exactly two stabilization methods, represented by the identifiers 1 and 2. Each extract must receive exactly one of these methods. You must determine if there is a valid configuration that satisfies all interaction constraints using only the available methods.
+The system's safety is monitored by $m$ diagnostic sensors. Each sensor connects a specific pair of valves and features a reference diaphragm calibrated to a strict threshold of 3 units. For a sensor to function correctly and yield a valid reading, the total combined pressure from the two valves it connects must exactly match this threshold. If the combined pressure is lower or higher, the diaphragm fails to engage, resulting in an invalid state.
 
-When multiple valid configurations exist, they are compared by concatenating the method identifiers $f_1, f_2, \dots, f_n$ into a single $n$-digit integer (where each $f_i \in \{1, 2\}$). You must find the configuration that results in the smallest possible integer. If no valid configuration exists, the batch is ruined.
+Your task is to assign a pressure setting to each of the $n$ valves so that every diagnostic sensor in the network operates correctly. If multiple valid assignments are possible, you must output the lexicographically smallest one (assigning pressure setting $1$ to lower-numbered valves whenever possible). If no such assignment is possible, you must report that it cannot be done.
 
 ## Input
 The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The next $m$ lines each contain two integers $u$ and $v$ — a pair of extracts that have a volatile interaction and must receive different methods.
+The following $m$ lines each contain two integers $u$ and $v$, representing the indices of a pair of valves connected by a diagnostic sensor.
 
 ## Output
-If no valid configuration exists, output a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2\}$) representing the method assigned to each extract in the configuration that minimizes the $n$-digit integer described above.
+If it is impossible to configure the valves to satisfy all sensors, output a single line with NO.
+If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

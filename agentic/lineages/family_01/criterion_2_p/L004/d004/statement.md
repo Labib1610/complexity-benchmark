@@ -1,24 +1,24 @@
-# Problem B — Amplification Factors
+# Problem B — Zone Isolation
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-You are tasked with tuning a network of $n$ signal relays. The system includes $m$ critical connections, each bridging a pair of relays.
+A data center contains $n$ servers. You must assign each server to an operational zone. The only permitted zones are 1 and 2.
 
-To prevent signal distortion, you must assign a digital gain setting to every relay in the network. The only permitted settings are $1$ and $2$. However, the network must satisfy a strict interference constraint: whenever two relays are joined by a critical connection, the bitwise AND of their assigned gain settings must evaluate to $0$.
+The system has $m$ active interference links. Each link connects a specific pair of servers. To prevent cascading failures, you must ensure that no interference link connects two servers assigned to the same zone.
 
-Your objective is to find a network-wide assignment of gain settings that satisfies this requirement, or to determine that no such assignment is possible.
+Determine if it is possible to assign a valid zone to all $n$ servers such that every interference link connects servers in different zones.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), representing the number of relays and the number of critical connections, respectively.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), specifying that a critical connection bridges relay $u$ and relay $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of a pair of servers connected by an interference link.
 
 ## Output
-If no valid assignment of gain settings exists, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $z_1, z_2, \dots, z_n$, where each $z_i \in \{1, 2\}$ represents the gain setting for relay $i$. If multiple valid assignments exist, you must output the one that is lexicographically smallest.
+If no valid zone assignment is possible, print a single line NO.
+Otherwise, print YES on the first line. On the second line, print $n$ integers $z_1 \dots z_n$ (where each $z_i \in \{1,2\}$) representing the valid assignment. If multiple valid assignments exist, output the lexicographically smallest sequence $z_1 \dots z_n$.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 4
 1 2
@@ -26,21 +26,21 @@ Otherwise, output `YES` on the first line. On the second line, output $n$ space-
 3 4
 1 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 1 2
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 3 3
 1 2
 1 3
 2 3
 ```
-**Output:**
+Output:
 ```
 NO
 ```

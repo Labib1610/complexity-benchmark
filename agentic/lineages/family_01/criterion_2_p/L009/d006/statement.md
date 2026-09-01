@@ -1,20 +1,32 @@
-# Differential Lighting
+# Problem B — Harmonic Stability
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are responsible for calibrating a system of $n$ lighting fixtures, indexed from 1 to $n$. To complete the setup, you must assign a discrete operating mode to each fixture $i$. The operating mode is denoted by an integer $c_i$, which must be chosen from the set $\{1, 2\}$.
+You are configuring $n$ resonance crystals in a laboratory. Each crystal $i$ must be tuned to a frequency multiplier $p_i$ of either 1 or 2.
 
-The installation also features $m$ differential sensors. Each sensor takes readings from a specified pair of fixtures $u$ and $v$. Because of layout irregularities, a sensor may occasionally take both readings from the same fixture. A sensor will only register a valid reading if the operating modes of its two targeted fixtures satisfy the algebraic condition $c_u + c_v = 3$.
+To determine how the crystals interact, we define two base configurations:
+- $A_1 = [1, 2, 3]$
+- $A_2 = [2, 1, 3]$
 
-You need to determine if it is possible to assign an operating mode to every fixture in a way that allows all $m$ sensors to register valid readings at the same time.
+For each crystal $i$, assigning it a frequency multiplier $p_i$ gives it the configuration array $V_i = A_{p_i}$. 
+
+The setup contains $m$ harmonic bridges. Each bridge connects exactly two specific crystals. 
+When a bridge connects crystal $u$ and crystal $v$, their configurations interact to form a combined array $C$ of length 3, defined by:
+$C[k] = V_u[V_v[k]]$ for each index $k \in \{1, 2, 3\}$.
+(Note that the arrays are 1-indexed, so $V_v[k]$ is a value in $\{1, 2, 3\}$ which is then used as an index into $V_u$).
+
+To maintain structural stability, the array $C$ for every single bridge in the setup must contain exactly one inversion. An inversion in an array $X$ is a pair of indices $(i, j)$ such that $1 \le i < j \le 3$ and $X[i] > X[j]$.
+
+You must assign a frequency multiplier to each of the $n$ crystals so that the entire setup is perfectly stable. If no such assignment is possible, you must report it.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating the indices of the fixtures from which a sensor takes its readings.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the two crystals connected by a single harmonic bridge.
 
 ## Output
-If no such assignment is possible, output a single line with the word `NO`.
-If a valid arrangement exists, output `YES` on the first line. On the second line, output $n$ integers $c_1, \dots, c_n$, where $c_i$ is the operating mode assigned to fixture $i$. If more than one valid assignment satisfies all sensors, you must output the assignment that minimizes the value of $c_1$. In the event of a tie, minimize $c_2$ among the tied assignments, and proceed in this sequential manner for all subsequent fixtures up to $c_n$.
+If no valid tuning assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $p_1, \dots, p_n$ (each $p_i \in \{1, 2\}$), where $p_i$ is the frequency multiplier assigned to crystal $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

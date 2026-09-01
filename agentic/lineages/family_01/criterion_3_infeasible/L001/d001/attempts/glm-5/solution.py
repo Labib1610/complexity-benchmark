@@ -9,44 +9,38 @@ def solve():
     m = int(next(it))
     
     adj = [set() for _ in range(n + 1)]
-    edges = []
+    
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
-        if u > v:
-            u, v = v, u
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
     
-    # Sort edges to process in order (u, v) lexicographically
-    edges.sort()
+    # Sort adjacency lists for deterministic iteration order
+    adj_list = [sorted(s) for s in adj]
     
-    # For each edge (u, v), check if there exists w such that
-    # w is connected to both u and v, and w > v (to ensure u < v < w)
-    for u, v in edges:
-        # We need w > v to maintain u < v < w
-        # Check intersection of adj[u] and adj[v] for elements > v
-        # Iterate through the smaller set for efficiency
-        if len(adj[u]) > len(adj[v]):
-            u, v = v, u
-        
-        for w in adj[u]:
-            if w > v and w in adj[v]:
-                print(u, v, w)
-                return
+    # Sort vertices by degree (heuristic for finding triangles faster)
+    vertices = list(range(1, n + 1))
+    vertices.sort(key=lambda x: len(adj[x]))
     
-    # If not found with w > v constraint, search without constraint
-    # This handles cases where the triangle might not satisfy u < v < w naturally
-    # but we need to output in increasing order
-    for u, v in edges:
-        if len(adj[u]) > len(adj[v]):
-            u, v = v, u
-        for w in adj[u]:
-            if w in adj[v]:
-                result = sorted([u, v, w])
-                print(result[0], result[1], result[2])
-                return
+    for u in vertices:
+        neighbors_u = adj_list[u]
+        # We need to find v and w such that u < v < w and both are neighbors of u
+        # and v and w are connected.
+        # Iterate through pairs of neighbors (v, w) where v < w and both > u
+        len_u = len(neighbors_u)
+        for i in range(len_u):
+            v = neighbors_u[i]
+            if v <= u:
+                continue
+            for j in range(i + 1, len_u):
+                w = neighbors_u[j]
+                if w <= u:
+                    continue
+                # Check if v and w are connected
+                if w in adj[v]:
+                    print(u, v, w)
+                    return
 
 if __name__ == "__main__":
     solve()

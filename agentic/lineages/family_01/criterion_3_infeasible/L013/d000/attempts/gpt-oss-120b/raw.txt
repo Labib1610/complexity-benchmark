@@ -1,0 +1,196 @@
+**Solution Explanation**
+
+For every employee we store the set of his incompatible partners.
+`n ≤ 2000`, therefore a whole set fits into one 2000‑bit integer.
+Bit operations on Python integers are fast (`O(number of machine words)`).
+
+For a triangle `{a,b,c}` (`a<b<c`) we need the three edges  
+`a–b , a–c , b–c`.  
+If we already know the edge `a–b`, the third vertex `c` must be a common
+neighbour of `a` and `b`.
+
+```
+common(a,b) = neighbours[a]  AND  neighbours[b]
+```
+
+The smallest possible triangle is obtained by scanning the vertices in
+lexicographic order:
+
+```
+for a = 1 … n
+    for every b > a with edge a–b
+        c = smallest vertex > b contained in common(a,b)
+        if such c exists → answer = (a,b,c)
+```
+
+The first triangle found this way is exactly the lexicographically smallest
+one, because we increase `a` first, then `b`, then the smallest possible `c`.
+
+Finding the smallest `c` :
+
+* `common` is an integer whose bit `i` (0‑based) is set iff vertex `i+1`
+  is a common neighbour.
+* Bits `0 … b` must be ignored – we shift right by `b+1`.
+* If the shifted value is non‑zero, its lowest set bit is the wanted `c`.
+
+The position of the lowest set bit of a positive integer `x` is
+
+```
+low = x & -x                # isolates the lowest 1‑bit
+idx = low.bit_length() - 1  # zero‑based index of that bit
+```
+
+Finally `c = idx + (b+1)` (undo the shift).
+
+The whole algorithm works in  
+
+*`O(m)`* to read the graph and build the bitsets, plus  
+
+*`O( Σ deg(a) ) = O(m)`* for the double loop, each iteration doing only a
+few integer operations.  
+Memory consumption is `n` integers → at most `2000 * 2000 / 8 ≈ 0.5 MiB`.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triangle.
+
+---
+
+**Lemma 1**  
+For any vertices `a<b`, `common = neighbours[a] & neighbours[b]`
+contains exactly the vertices adjacent to both `a` and `b`.
+
+*Proof.* By definition `neighbours[x]` has a 1‑bit for each vertex adjacent to
+`x`. The bitwise AND keeps a 1‑bit only if it is present in both operands,
+i.e. only for vertices adjacent to both `a` and `b`. ∎
+
+
+
+**Lemma 2**  
+After shifting `common` right by `b+1`, the lowest set bit (if any) corresponds
+to the smallest vertex `c` such that `c>b` and `c` is adjacent to both `a`
+and `b`.
+
+*Proof.* Shifting discards bits `0 … b`. All remaining bits represent vertices
+`>b`. The lowest remaining 1‑bit is therefore the smallest such vertex. ∎
+
+
+
+**Lemma 3**  
+When the algorithm reaches a pair `(a,b)` (`a<b`) it finds the smallest
+`c>b` that together with `a,b` forms a triangle, if such `c` exists.
+
+*Proof.* By Lemma&nbsp;1 `common` holds all common neighbours.
+By Lemma&nbsp;2 the procedure extracts the smallest `c>b` among them.
+If none exists the shifted value is zero and the algorithm proceeds. ∎
+
+
+
+**Lemma 4**  
+If the algorithm outputs a triple `(a,b,c)`, it is a triangle.
+
+*Proof.* The outer loops guarantee `a<b` and that edge `a–b` exists.
+Lemma&nbsp;3 ensures that `c` is a common neighbour of `a` and `b`,
+hence edges `a–c` and `b–c` exist. ∎
+
+
+
+**Lemma 5**  
+The first triangle output by the algorithm is the lexicographically smallest
+triangle in the graph.
+
+*Proof.* The outermost loop enumerates `a` in increasing order.
+For a fixed `a`, the inner loop enumerates `b>a` in increasing order.
+For each such pair the algorithm (Lemma&nbsp;3) chooses the smallest possible
+`c>b`. Therefore any triangle with a smaller `a` would have been examined
+earlier; if `a` is equal, any triangle with a smaller `b` would have been
+examined earlier; and for equal `a,b` the smallest possible `c` is taken.
+Thus the first found triangle is lexicographically minimal. ∎
+
+
+
+**Theorem**  
+The algorithm always prints three integers `a<b<c` that form a mutually
+incompatible triad, and among all such triads it prints the lexicographically
+smallest one.
+
+*Proof.* Existence of at least one triangle is guaranteed by the statement.
+During the enumeration the algorithm will eventually consider the pair
+`(a,b)` belonging to the lexicographically smallest triangle.
+By Lemma&nbsp;3 it will then find its `c` and output the triple.
+By Lemma&nbsp;4 the output is indeed a triangle, and by Lemma&nbsp;5 it is the
+lexicographically smallest possible. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building adjacency bitsets* : `O(m)` time, `O(n)` memory.  
+*Scanning pairs* : each edge `(a,b)` is examined once, total `O(m)` time.  
+All operations inside the loops are constant‑time integer bit operations.
+
+Overall  
+
+* **Time** `O(m)`  ( ≤ 2·10⁵, easily under the limit)  
+* **Memory** `O(n)` integers (`≈ 0.5 MiB` for `n=2000`)
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    # adjacency as bitsets, 0‑based vertices
+    adj = [0] * n
+    # also store adjacency lists for ordered iteration
+    neigh = [[] for _ in range(n)]
+
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        # set bits
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        # store for later iteration (keep sorted)
+        if u < v:
+            neigh[u].append(v)
+        else:
+            neigh[v].append(u)
+
+    # ensure each list is sorted (they already are because we added in input order,
+    # but sorting is cheap and guarantees order)
+    for lst in neigh:
+        lst.sort()
+
+    for a in range(n):
+        for b in neigh[a]:          # b > a and edge a–b exists
+            common = adj[a] & adj[b]
+            # discard vertices <= b
+            shifted = common >> (b + 1)
+            if shifted:
+                low = shifted & -shifted
+                idx = low.bit_length() - 1   # position inside shifted
+                c = idx + b + 1
+                # output 1‑based, sorted
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

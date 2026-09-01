@@ -6,54 +6,63 @@ def main():
     input = sys.stdin.read
     data = input().split()
     
-    n, m = int(data[0]), int(data[1])
+    n = int(data[0])
+    m = int(data[1])
+    
     edges = []
     adj = [set() for _ in range(n + 1)]
     
-    index = 2
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
-        index += 2
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
         edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
     
-    # Create adjacency list as sets for fast lookup
-    # We need to find a triangle in the complement graph
-    # But actually, we are looking for a triangle in the original graph
-    # No, re-reading: we want three nodes where each pair is connected (a triangle in original graph)
-    # Because if u and v are connected, they cannot be in the same phase
-    # So for three nodes to force a contradiction, each pair must be connected
+    # We need to find a triangle in the graph (three nodes all connected to each other)
+    # That represents three sensors pairwise constrained => impossible to assign to two phases
     
-    # So we look for a triangle in the given graph
-    # Enumerate all triangles and pick the lexicographically smallest
+    # To get the lexicographically smallest, we iterate through all triplets (i,j,k) with i<j<k
+    # But doing that naively is too slow. Instead, for each edge (u,v), we look for a node w
+    # such that (u,w) and (v,w) are also edges, forming a triangle.
     
-    # To efficiently find triangles:
-    # For each edge (u,v), check common neighbors
+    # To optimize, we can sort adjacency lists and use two pointers or intersection,
+    # but since n <= 2000, a reasonably optimized O(m*sqrt(m)) or similar approach works.
     
-    # First, sort adjacency lists to help with ordering
+    # Let's build a list of neighbors for each node as sorted lists for easier intersection
     for i in range(1, n+1):
-        adj[i] = sorted(adj[i])
+        adj[i] = list(adj[i])
+        adj[i].sort()
     
     best = None
     
-    # Iterate through all edges
+    # For each edge (u,v), find common neighbor w
     for u, v in edges:
         if u > v:
-            continue
-        # Check common neighbors
-        # Iterate through neighbors of u and see if they are also neighbors of v
-        nu = set(adj[u])
-        nv = set(adj[v])
-        common = nu & nv
-        for w in common:
-            if v < w:
-                triple = (u, v, w)
-                if best is None or triple < best:
-                    best = triple
+            continue  # Ensure we process each edge only once in a consistent direction
+        
+        # Find intersection of adj[u] and adj[v]
+        # Since lists are sorted, we can do this efficiently
+        i, j = 0, 0
+        while i < len(adj[u]) and j < len(adj[v]):
+            if adj[u][i] == adj[v][j]:
+                w = adj[u][i]
+                # Found triangle u-v-w
+                # Check if it's better than current best
+                a, b, c = sorted([u, v, w])
+                if best is None or (a, b, c) < best:
+                    best = (a, b, c)
+                i += 1
+                j += 1
+            elif adj[u][i] < adj[v][j]:
+                i += 1
+            else:
+                j += 1
     
-    print(best[0], best[1], best[2])
+    if best:
+        print(best[0], best[1], best[2])
 
 if __name__ == "__main__":
     main()

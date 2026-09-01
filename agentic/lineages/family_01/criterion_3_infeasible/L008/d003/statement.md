@@ -1,20 +1,25 @@
-# Problem C — Ternary Reaction Hazard
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-You are analyzing a laboratory protocol involving $n$ distinct chemical reagents. Through preliminary testing, you have compiled a list of two-reagent mixtures that produce a precipitate. 
+Management insists on dividing the workforce into exactly two non-overlapping shifts. However, the HR department knows this plan is doomed. You must provide undeniable proof of this failure.
 
-A specific reaction hazard, known as a ternary complex, is triggered when a precipitate-forming pair of reagents is mixed with a third distinct reagent, under the condition that this third reagent is also recorded in your testing data as producing a precipitate with each of the first two reagents individually.
+HR has a collection of incident files, where each file lists two specific workers who cannot be placed on the same shift. 
 
-Your task is to identify three reagents that create this hazard. The provided testing data guarantees that at least one such ternary complex can be formed.
+It is a known fact that the archives contain a set of exactly three distinct incident files which, when the workers listed in these three files are pooled together, feature exactly three distinct workers in total. The existence of such a configuration mathematically guarantees that two shifts are inadequate. Your task is to identify the three workers involved in one such configuration and report them to HR.
 
 ## Input
-The first line provides two integers, $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of reagents and the number of documented precipitate reactions, respectively. Reagents are identified by integers from $1$ to $n$.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that reagent $u$ and reagent $v$ produce a precipitate when mixed.
-It is guaranteed that the provided records contain at least one ternary complex.
+The first line of the log provides the workforce size n and the total incident count m. The workforce size n is bounded below by 3 and bounded above by the facility capacity of 2000. The incident count m is at least 3, and is capped by either the theoretical maximum of n·(n−1)/2 distinct combinations, or the archival capacity of 2·10⁵, whichever is smaller. Workers are identified by integers from 1 to n.
+
+Each of the next m lines contains two integers u and v (1 ≤ u, v ≤ n, u ≠ v), identifying the two workers involved in a single incident. No two incident files list the exact same pair of workers.
+
+It is guaranteed that at least one valid configuration of three workers exists.
 
 ## Output
-Output three integers $a$, $b$, and $c$ on a single line, ordered such that $a < b < c$, representing the three reagents that comprise the ternary complex. If there is more than one valid set of three reagents, you must output the one that minimizes the hazard score, calculated as $a \cdot 10^8 + b \cdot 10^4 + c$.
+Output three space-separated integers a, b, and c representing the IDs of the three workers involved. They must be printed such that a < b < c.
+
+To ensure a unique valid response when multiple such triplets of workers exist, you must select the triplet that minimizes the value of a. If there is a tie, minimize the value of b among the tied triplets, and if a tie still persists, minimize c.
 
 ## Example 1
 Input:

@@ -7,8 +7,7 @@ def solve():
     n = int(input_data[0])
     m = int(input_data[1])
     
-    adj = [set() for _ in range(n + 1)]
-    
+    adj = [0] * (n + 1)
     idx = 2
     for _ in range(m):
         u = int(input_data[idx])
@@ -16,19 +15,31 @@ def solve():
         idx += 2
         if u > v:
             u, v = v, u
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u] |= 1 << v
         
     for a in range(1, n - 1):
-        for b in adj[a]:
-            if b <= a:
+        for b in range(a + 1, n):
+            if not (adj[a] & (1 << b)):
                 continue
-            for c in adj[b]:
-                if c <= b:
-                    continue
-                if c in adj[a]:
+            common = adj[a] & adj[b]
+            while common:
+                c = common.bit_length() - 1
+                if c > b:
                     print(a, b, c)
                     return
+                common &= ~(1 << c)
+                
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            if adj[a] & (1 << b):
+                continue
+            common = adj[a] & adj[b]
+            while common:
+                c = common.bit_length() - 1
+                if c > b:
+                    print(a, b, c)
+                    return
+                common &= ~(1 << c)
 
 if __name__ == '__main__':
     solve()

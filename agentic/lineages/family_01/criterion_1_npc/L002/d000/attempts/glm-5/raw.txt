@@ -2,178 +2,55 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    adj = [0] * n
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * (n + 1)
+    idx = 2
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
+        u = int(data[idx]); v = int(data[idx+1]); idx += 2
         adj[u] |= 1 << v
         adj[v] |= 1 << u
-
-    # Precompute for each vertex the set of vertices at distance <= 2
-    dist2 = [0] * n
-    for i in range(n):
-        s = 1 << i
-        s |= adj[i]
-        for j in range(n):
-            if adj[i] & (1 << j):
-                s |= adj[j]
-        dist2[i] = s
-
-    # Precompute for each vertex the set of vertices at distance exactly 1 or 2
-    d12 = [0] * n
-    for i in range(n):
-        d12[i] = dist2[i] & ~(1 << i)
-
-    # Precompute for each vertex the set of vertices at distance exactly 2
-    d2 = [0] * n
-    for i in range(n):
-        d2[i] = d12[i] & ~adj[i]
-
-    # Precompute for each vertex the set of vertices at distance exactly 1
-    d1 = adj[:]
-
-    # Precompute for each vertex the set of vertices at distance >= 3
-    far = [0] * n
-    for i in range(n):
-        far[i] = ((1 << n) - 1) & ~dist2[i]
-
-    # Precompute for each vertex the set of vertices at distance exactly 3
-    d3 = [0] * n
-    for i in range(n):
-        d3[i] = far[i] & ~d12[i]
-
-    # Precompute for each vertex the set of vertices at distance >= 4
-    d4plus = [0] * n
-    for i in range(n):
-        d4plus[i] = far[i] & ~d3[i]
-
-    # Precompute for each vertex the set of vertices at distance exactly 4
-    d4 = [0] * n
-    for i in range(n):
-        d4[i] = d4plus[i] & ~d4plus[i]  # placeholder, will compute below
-
-    # Actually compute d4 correctly
-    for i in range(n):
-        s = 0
-        for j in range(n):
-            if d4plus[i] & (1 << j):
-                # distance from i to j is >=4
-                # check if distance is exactly 4
-                # distance is exactly 4 if there's a path of length 4 but no shorter
-                # Since we know dist >=4, we need to check if dist <=4
-                # dist <=4 iff (dist2[i] | dist2[j]) covers all? No.
-                # Actually, dist(i,j) <= 4 iff (dist2[i] & dist2[j]) is non-empty OR dist(i,j)<=2
-                # But we know dist(i,j) >= 4, so dist(i,j) <= 4 iff dist2[i] & dist2[j] is non-empty
-                if dist2[i] & dist2[j]:
-                    s |= 1 << j
-        d4[i] = s
-
-    # Precompute for each vertex the set of vertices at distance >= 5
-    d5plus = [0] * n
-    for i in range(n):
-        d5plus[i] = d4plus[i] & ~d4[i]
-
-    # Now we have enough distance information for n <= 40
-    # The key insight: if the graph has a vertex with degree >= 3, we can use a specific structure
-    # Otherwise, max degree <= 2, and the graph is a collection of paths and cycles
-
-    # Let's think about the structure of a valid 3-coloring where adjacent vertices have different colors
-    # This is just a proper 3-coloring of the graph
-    # Wait, re-reading the problem: "error flag if and only if the two modules are programmed with the exact same state value"
-    # So we need: for every edge (u,v), color[u] != color[v]
-    # This is exactly a proper 3-coloring!
-
-    # So the problem reduces to: find the lexicographically smallest proper 3-coloring of the graph
-    # or determine that none exists
-
-    # For n <= 40, we can use backtracking with pruning
-    # But we need to be careful about worst case (e.g., a complete graph on 40 vertices would be NO quickly)
-    # A path on 40 vertices would be easy
-    # The hard case is something like a graph that's 3-colorable but hard to find
-
-    # Let's use a simple backtracking approach with forward checking and degree-based ordering
-    # Actually, for lexicographically smallest, we should try vertices in order 0, 1, 2, ..., n-1
-    # and for each vertex try colors 1, 2, 3 in order
-
-    # With forward checking and some pruning, this should work for n <= 40
-
-    color = [0] * n
-
-    # For efficiency, let's use bitmasks for available colors
-    # available[i] = bitmask of colors available for vertex i
-    # color 1 = bit 0, color 2 = bit 1, color 3 = bit 2
-    ALL_COLORS = 0b111
-
-    available = [ALL_COLORS] * n
-
-    # Order vertices by degree (highest first) for better pruning
-    # But we need lexicographically smallest, so we still assign in order 0, 1, 2, ...
-    # Actually, we can use a different strategy: assign vertices in order 0, 1, 2, ...
-    # but use forward checking to prune
-
-    # Let's try a simple recursive backtracking
-    def backtrack(v):
-        if v == n:
+    
+    # forbidden[u] = bitmask of modules that cannot share the same state as u
+    forbidden = [0] * (n + 1)
+    for u in range(1, n + 1):
+        forbidden[u] = adj[u]
+    
+    # We need to assign states 1,2,3 such that adjacent modules differ.
+    # This is 3-coloring. Find lexicographically smallest.
+    
+    # Greedy with backtracking might be needed, but n <= 40.
+    # Let's try a smarter approach: since it's 3-coloring, we can use the structure.
+    # Actually, let's just do backtracking with pruning.
+    
+    color = [0] * (n + 1)  # 0 = unassigned, 1/2/3 = colors
+    
+    def backtrack(u):
+        if u > n:
             return True
-
-        # Try colors in order 1, 2, 3
-        for c in range(3):
-            if available[v] & (1 << c):
-                # Assign color c+1 to vertex v
-                color[v] = c + 1
-
-                # Save state
-                changed = []
-                valid = True
-                for u in range(n):
-                    if adj[v] & (1 << u) and u > v and not (available[u] & (1 << c)):
-                        # This neighbor can't take this color, but it's already assigned
-                        pass
-                    if adj[v] & (1 << u) and not (available[u] & (1 << c)):
-                        # neighbor u can't take color c, but that's fine if u is already colored
-                        if color[u] == 0:
-                            # u is not colored yet, remove color c from u's available
-                            pass
-
-                # Actually, let's simplify: just check if any neighbor already has this color
-                conflict = False
-                for u in range(n):
-                    if adj[v] & (1 << u) and color[u] == c + 1:
-                        conflict = True
-                        break
-
-                if not conflict:
-                    # Forward check: remove this color from uncolored neighbors
-                    removed = []
-                    for u in range(n):
-                        if adj[v] & (1 << u) and u > v and (available[u] & (1 << c)):
-                            available[u] &= ~(1 << c)
-                            removed.append(u)
-                            if available[u] == 0:
-                                conflict = True
-                                break
-
-                    if not conflict:
-                        if backtrack(v + 1):
-                            return True
-
-                    # Restore
-                    for u in removed:
-                        available[u] |= (1 << c)
-
-                color[v] = 0
-
+        # Determine available colors
+        used = 0
+        v = adj[u]
+        while v:
+            low = v & (-v)
+            idx_v = low.bit_length() - 1
+            if color[idx_v]:
+                used |= 1 << color[idx_v]
+            v ^= low
+        for c in range(1, 4):
+            if not (used & (1 << c)):
+                color[u] = c
+                if backtrack(u + 1):
+                    return True
+                color[u] = 0
         return False
-
-    if backtrack(0):
+    
+    if backtrack(1):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(str(color[i]) for i in range(1, n + 1)))
     else:
         print("NO")
 

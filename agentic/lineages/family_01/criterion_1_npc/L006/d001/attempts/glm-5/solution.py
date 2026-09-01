@@ -4,255 +4,74 @@ def solve():
     data = sys.stdin.read().split()
     if not data:
         return
-    n = int(data[0])
-    m = int(data[1])
-    adj = [0] * n
-    idx = 2
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
     for _ in range(m):
-        u = int(data[idx]) - 1
-        v = int(data[idx+1]) - 1
-        idx += 2
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        u = int(next(it))
+        v = int(next(it))
+        adj[u][v] = True
+        adj[v][u] = True
     
-    # Precompute connected components of the conflict graph
-    comp_id = [-1] * n
-    comp_nodes = []
-    for i in range(n):
-        if comp_id[i] == -1:
-            comp = []
-            stack = [i]
-            comp_id[i] = len(comp_nodes)
-            while stack:
-                v = stack.pop()
-                comp.append(v)
-                w = adj[v]
-                while w:
-                    b = w & (-w)
-                    u = b.bit_length() - 1
-                    if comp_id[u] == -1:
-                        comp_id[u] = len(comp_nodes)
-                        stack.append(u)
-                    w ^= b
-            comp_nodes.append(comp)
+    # We use backtracking with constraint propagation.
+    # Colors are 1, 2, 3.
+    # We assign colors to vertices 1..n in order.
+    # To find the lexicographically smallest valid coloring.
     
-    # For each component, precompute list of (node, neighbors_mask_in_comp)
-    comp_info = []
-    for comp in comp_nodes:
-        info = []
-        for v in comp:
-            mask = 0
-            w = adj[v]
-            while w:
-                b = w & (-w)
-                u = b.bit_length() - 1
-                if comp_id[u] == comp_id[v]:
-                    mask |= 1 << u
-                w ^= b
-            info.append((v, mask))
-        comp_info.append(info)
+    color = [0] * (n + 1)
     
-    # For each component, find all valid 3-colorings (as dict: frozenset of color assignments)
-    # But we need to track which node gets which color
-    # Store as list of tuples: (coloring_tuple, color_masks)
-    # coloring_tuple[i] = color of comp_nodes[comp][i]
-    # color_masks = (mask of nodes with color 0, color 1, color 2)
+    # Precompute neighbors for faster access
+    neighbors = [[] for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, n + 1):
+            if adj[i][j]:
+                neighbors[i].append(j)
     
-    comp_colorings = []
-    for comp_idx, comp in enumerate(comp_nodes):
-        info = comp_info[comp_idx]
-        size = len(comp)
-        colorings = []
-        
-        # Try all 3^size colorings (size <= 40 but usually small)
-        # Use recursive backtracking
-        # Order nodes by degree for better pruning
-        order = sorted(range(size), key=lambda i: -bin(info[i][1]).count('1'))
-        
-        # Reorder info
-        ordered_info = [info[order[i]] for i in range(size)]
-        # Map from ordered index to original position in comp
-        # We need to output colors in original order
-        
-        # masks[i] = neighbors mask in comp (using original comp indices)
-        # We'll work with ordered indices
-        # Convert neighbor masks to ordered indices
-        orig_to_order = [0] * size
-        for i in range(size):
-            orig_to_order[order[i]] = i
-        
-        ordered_masks = []
-        for i in range(size):
-            v, mask = ordered_info[i]
-            new_mask = 0
-            w = mask
-            while w:
-                b = w & (-w)
-                u = b.bit_length() - 1
-                # Find ordered index of u
-                new_mask |= 1 << orig_to_order[u]
-                w ^= b
-            ordered_masks.append(new_mask)
-        
-        colors = [0] * size
-        
-        def backtrack(pos):
-            if pos == size:
-                # Valid coloring found
-                # Convert to original order
-                coloring = [0] * size
-                for i in range(size):
-                    coloring[order[i]] = colors[i]
-                colorings.append(tuple(coloring))
-                return
-            mask = ordered_masks[pos]
-            used = 0
-            w = mask
-            while w:
-                b = w & (-w)
-                u = b.bit_length() - 1
-                if u < pos:
-                    used |= 1 << colors[u]
-                w ^= b
-            for c in range(3):
-                if not (used & (1 << c)):
-                    colors[pos] = c
-                    backtrack(pos + 1)
-        
-        backtrack(0)
-        comp_colorings.append(colorings)
-    
-    # Now do DP to find lexicographically smallest assignment
-    # Process components in order of their first node
-    comp_order = sorted(range(len(comp_nodes)), key=lambda c: min(comp_nodes[c]))
-    
-    # For each component, we need to track:
-    # - For each coloring, the set of colors used (as bitmask)
-    # - The actual coloring (to reconstruct)
-    
-    # DP state: after processing first k components, what's the min assignment
-    # We need to track which colors are "available" globally
-    # Actually, since components are independent, we just need to ensure
-    # that across all components, all 3 colors are used
-    
-    # Let's track: for each subset of colors used so far, the best assignment
-    # But "best" means lexicographically smallest, which depends on the actual assignment
-    
-    # Since n <= 40, and we need lexicographically smallest, we can do greedy:
-    # For each node in order 0..n-1, try color 0, then 1, then 2
-    # Check if there's a valid completion
-    
-    # But checking valid completion requires knowing if remaining nodes can be colored
-    # such that all 3 colors are used
-    
-    # Let's precompute for each component the set of color-sets used by each coloring
-    comp_color_sets = []
-    for comp_idx in range(len(comp_nodes)):
-        color_sets = set()
-        for coloring in comp_colorings[comp_idx]:
-            cs = 0
-            for c in coloring:
-                cs |= 1 << c
-            color_sets.add(cs)
-        comp_color_sets.append(color_sets)
-    
-    # Check if it's possible at all
-    # We need to select one coloring per component such that union of color sets = {0,1,2}
-    # This is a set cover / DP problem
-    
-    num_comps = len(comp_nodes)
-    
-    # DP: dp[mask] = True if we can achieve color set mask using first i components
-    # Process in comp_order
-    dp = [False] * 8
-    dp[0] = True
-    for i in range(num_comps):
-        c = comp_order[i]
-        new_dp = [False] * 8
-        for mask in range(8):
-            if dp[mask]:
-                for cs in comp_color_sets[c]:
-                    new_dp[mask | cs] = True
-        dp = new_dp
-    
-    if not dp[7]:
-        print("NO")
-        return
-    
-    # Now greedily assign colors
-    # For each node, try colors 0, 1, 2 and check if valid completion exists
-    
-    # We need a function to check if, given partial assignment, there's a valid completion
-    # that uses all 3 colors
-    
-    # Group nodes by component, in order of appearance
-    # For each component, we have a list of valid colorings
-    
-    # Let's think differently: process components in comp_order
-    # For each component, we choose a coloring
-    # We want lexicographically smallest overall assignment
-    
-    # Since components are processed in order of their first node,
-    # and within a component nodes are in order, we can do:
-    # For each component in comp_order, try colorings in lexicographic order
-    # and check if the remaining components can cover the remaining colors
-    
-    # Precompute suffix DP: can components i..end cover color set 'needed'?
-    # suffix[i][mask] = set of achievable color masks using components i..end
-    
-    suffix = [None] * (num_comps + 1)
-    suffix[num_comps] = {0}
-    for i in range(num_comps - 1, -1, -1):
-        c = comp_order[i]
-        s = set()
-        for mask in suffix[i+1]:
-            for cs in comp_color_sets[c]:
-                s.add(mask | cs)
-        suffix[i] = s
-    
-    # Now greedily choose
-    result = [0] * n
-    used_colors = 0
-    
-    for i in range(num_comps):
-        c = comp_order[i]
-        # Sort colorings lexicographically
-        colorings = sorted(comp_colorings[c])
-        chosen = None
-        for coloring in colorings:
-            cs = 0
-            for col in coloring:
-                cs |= 1 << col
-            new_used = used_colors | cs
-            # Check if remaining components can cover the rest
-            needed = 7 & ~new_used
-            if needed == 0:
-                # Already have all colors
-                if 7 in suffix[i+1] or new_used == 7:
-                    chosen = coloring
-                    used_colors = new_used
-                    break
-            else:
-                # Check if suffix[i+1] can provide 'needed'
-                # We need: exists mask in suffix[i+1] such that (new_used | mask) == 7
-                # i.e., mask must include 'needed'
-                found = False
-                for mask in suffix[i+1]:
-                    if (mask & needed) == needed:
-                        found = True
-                        break
-                if found:
-                    chosen = coloring
-                    used_colors = new_used
-                    break
-        if chosen is None:
-            # Shouldn't happen
-            print("NO")
-            return
-        for j, v in enumerate(comp_nodes[c]):
-            result[v] = chosen[j] + 1
-    
-    print("YES")
-    print(' '.join(map(str, result)))
+    def is_possible():
+        # Check if any uncolored vertex has all 3 colors used by colored neighbors
+        for u in range(1, n + 1):
+            if color[u] == 0:
+                used = 0
+                for v in neighbors[u]:
+                    if color[v] != 0:
+                        used |= (1 << color[v])
+                if used == 0b1110: # colors 1, 2, 3 all used
+                    return False
+        return True
 
-solve()
+    def backtrack(idx):
+        if idx > n:
+            return True
+        
+        # Try colors 1, 2, 3 in order
+        for c in range(1, 4):
+            # Check if color c is valid for vertex idx
+            ok = True
+            for v in neighbors[idx]:
+                if color[v] == c:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            
+            color[idx] = c
+            
+            # Propagation: check for any immediate impossibility
+            if is_possible():
+                if backtrack(idx + 1):
+                    return True
+            
+            color[idx] = 0
+        
+        return False
+
+    if backtrack(1):
+        print("YES")
+        print(" ".join(map(str, color[1:n+1])))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

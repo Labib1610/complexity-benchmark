@@ -1,0 +1,53 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+
+    # colors: 0 = unassigned, 1,2,3 for sealants
+    color = [0] * n
+    # We'll store for each node a bitmask of colors already forbidden by colored neighbors.
+    # But easier: we can just check neighbors on each assignment.
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        # Try colors 1,2,3 in order for lexicographic minimality
+        for c in (1, 2, 3):
+            ok = True
+            # Check neighbors
+            mask = adj[i]
+            j = 0
+            while mask:
+                if mask & 1:
+                    if color[j] == c:
+                        ok = False
+                        break
+                mask >>= 1
+                j += 1
+            if ok:
+                color[i] = c
+                if backtrack(i + 1):
+                    return True
+                color[i] = 0
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, color)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

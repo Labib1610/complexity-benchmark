@@ -1,18 +1,20 @@
-# Problem B — Molecular Assembly
+# Problem B — Module Configuration
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A synthetic biology lab is designing a complex molecular structure using $n$ distinct protein building blocks. Each block must be folded into exactly one of two chiral states, designated as 1 and 2. There are $m$ structural interfaces between pairs of blocks. 
+You are configuring a system of $n$ modules. Each module must be assigned a power state of either $1$ or $2$. 
 
-For the assembly to remain stable, any two blocks that share a structural interface must interlock, which requires them to be folded into different chiral states. Assign each building block exactly one chiral state such that if an interface exists between two blocks, they are placed in different states. If no such assignment can be made, report impossibility.
+The system has $m$ interference links, each connecting a pair of modules. To prevent system failure, any two modules connected by an interference link must have their power states configured such that the product of their states is exactly $2$. 
+
+You must assign a power state to every module. If it is impossible to configure the system to satisfy the product requirement for all interference links, report impossibility.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of blocks that share a structural interface.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 200000$, $0 \le m \le 200000$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of modules connected by an interference link.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), the lexicographically smallest valid assignment.
+If no valid configuration exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$, each equal to 1 or 2, representing the power states of the modules. If multiple valid configurations exist, output the lexicographically smallest one.
 
 ## Example 1
 Input:

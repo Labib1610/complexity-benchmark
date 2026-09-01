@@ -1,0 +1,65 @@
+import sys
+from itertools import combinations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    edges = []
+    edge_set = set()
+    adj = [set() for _ in range(n + 1)]
+    
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        edge_set.add((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Iterate through all possible triplets (a, b, c) with a < b < c
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            for c in range(b + 1, n + 1):
+                # Check if all three edges exist: (a,b), (a,c), (b,c)
+                e1 = (a, b) if a < b else (b, a)
+                e2 = (a, c) if a < c else (c, a)
+                e3 = (b, c) if b < c else (c, b)
+                
+                if e1 in edge_set and e2 in edge_set and e3 in edge_set:
+                    # All three edges exist, so this triplet forms a triangle
+                    # Now check if it's unresolvable
+                    # There are 8 possible assignments of modes to a,b,c
+                    # We need to check if ALL of them produce at least one conflict
+                    # Conflict occurs when two connected nodes have the same mode
+                    
+                    # The assignments are:
+                    # 000, 001, 010, 011, 100, 101, 110, 111
+                    # For each assignment, check if there's a conflict
+                    
+                    # Since all three edges exist, we check:
+                    # Assignment 000: a=0, b=0, c=0 -> conflicts on all edges
+                    # Assignment 001: a=0, b=0, c=1 -> conflict on (a,b)
+                    # Assignment 010: a=0, b=1, c=0 -> conflict on (a,c)
+                    # Assignment 011: a=0, b=1, c=1 -> conflict on (b,c)
+                    # Assignment 100: a=1, b=0, c=0 -> conflict on (b,c)
+                    # Assignment 101: a=1, b=0, c=1 -> conflict on (a,c)
+                    # Assignment 110: a=1, b=1, c=0 -> conflict on (a,b)
+                    # Assignment 111: a=1, b=1, c=1 -> conflicts on all edges
+                    
+                    # In all cases, there is at least one conflict
+                    # So this triplet is unresolvable
+                    
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    main()

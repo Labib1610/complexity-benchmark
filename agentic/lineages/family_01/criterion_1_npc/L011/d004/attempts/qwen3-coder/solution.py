@@ -1,0 +1,43 @@
+from itertools import product
+import sys
+
+def energy(cu, cv):
+    diff = cu - cv
+    return 5 * diff**2 - diff**4
+
+def is_stable(config, edges):
+    total = 0
+    for u, v in edges:
+        total += energy(config[u-1], config[v-1])
+    return total == 4 * len(edges)
+
+def solve():
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        edges.append((u, v))
+        idx += 2
+    
+    # Generate all possible configurations in lexicographical order
+    for config in product([1, 2, 3], repeat=n):
+        if is_stable(config, edges):
+            print("YES")
+            print(" ".join(map(str, config)))
+            return
+    
+    print("NO")
+
+solve()

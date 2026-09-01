@@ -1,20 +1,24 @@
-# Fragrance Formulation
+# Calibration Valves
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A master perfumer is creating two distinct signature fragrances, Formulation 1 and Formulation 2. The laboratory contains $n$ essential extracts, labeled from 1 to $n$. Every extract must be utilized in exactly one of the two formulations.
+A fluid transport network contains $n$ calibration valves, numbered $1$ to $n$. Each valve must be configured to an operating pressure level of either $1$ or $2$.
 
-Because of chemical volatility, certain extracts will neutralize each other if they are combined in the same fragrance. The perfumer has documented $m$ such volatile pairs that cannot be placed in the same formulation.
+The network is monitored by $m$ differential sensors. Each sensor bridges a specific pair of valves. When a sensor bridges two valves configured to pressure levels $x$ and $y$, it yields a valid reading if and only if the combination is authorized by the hardware calibration lookup table. The table defines the validity for each possible pair of assigned pressure levels $(x, y)$ as follows:
+- $(1, 1)$ : Invalid
+- $(1, 2)$ : Valid
+- $(2, 1)$ : Valid
+- $(2, 2)$ : Invalid
 
-You must determine whether it is possible to separate the extracts into the two formulations without combining any volatile pair. In cases where more than one valid separation exists, the laboratory evaluates the assignment by concatenating the sequence of choices $f_1, f_2, \dots, f_n$ to form a single $n$-digit integer (where each digit $f_i$ is either 1 or 2). Your objective is to find the valid assignment that minimizes the value of this integer. If it is impossible to separate the extracts safely, the entire batch must be discarded.
+You must determine a pressure level for each of the $n$ valves such that every sensor in the network yields a valid reading. If there are multiple valid configurations, you must output the one that is lexicographically smallest (assigning pressure level $1$ to lower-numbered valves whenever possible). If no valid configuration exists, report impossibility.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-The next $m$ lines each contain two integers $u$ and $v$ — a volatile pair of extracts that must be kept in separate formulations.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of a pair of valves bridged by a sensor.
 
 ## Output
-If no valid separation exists, output a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2\}$) representing the formulation assigned to each extract in the separation that minimizes the $n$-digit integer described above.
+If no valid configuration exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $p_1 \dots p_n$ (each in $\{1,2\}$), representing the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

@@ -10,31 +10,29 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-    
-    colors = [0] * n  # 0 = unassigned, 1,2,3 = tiers
-    
-    # Check if assigning color c to node idx is valid
-    def is_valid(idx, c):
-        for nb in adj[idx]:
-            if colors[nb] == c:
+
+    color = [0] * n
+
+    def is_safe(node, c):
+        for nei in adj[node]:
+            if color[nei] == c:
                 return False
         return True
-    
-    # Backtracking to find lexicographically smallest assignment
+
     def backtrack(idx):
         if idx == n:
             return True
         for c in range(1, 4):
-            if is_valid(idx, c):
-                colors[idx] = c
+            if is_safe(idx, c):
+                color[idx] = c
                 if backtrack(idx + 1):
                     return True
-                colors[idx] = 0
+                color[idx] = 0
         return False
-    
+
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, colors)))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 

@@ -1,0 +1,79 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # possible colors bitmask: bit 0 for color1, bit1 for color2, bit2 for color3
+    poss = [(1 << 3) - 1] * n
+    color = [0] * n  # 0 = unassigned, else 1..3
+
+    # stack for backtracking changes: (vertex, previous_mask)
+    changes = []
+
+    def assign(v: int, col: int) -> bool:
+        """assign color col (1..3) to vertex v, propagate constraints.
+        return False if conflict arises."""
+        mask = 1 << (col - 1)
+        if not (poss[v] & mask):
+            return False
+        # set exact mask
+        changes.append((v, poss[v]))
+        poss[v] = mask
+        color[v] = col
+        # propagate to neighbors
+        for nb in adj[v]:
+            if color[nb]:
+                if color[nb] == col:
+                    return False
+                continue
+            if poss[nb] & mask:
+                newmask = poss[nb] & ~mask
+                if newmask == 0:
+                    return False
+                changes.append((nb, poss[nb]))
+                poss[nb] = newmask
+        return True
+
+    def undo(to_len: int) -> None:
+        while len(changes) > to_len:
+            v, prev = changes.pop()
+            poss[v] = prev
+            if prev != (1 << 3) - 1 and (prev & (prev - 1)) == 0:
+                # was a single color before, keep it
+                color[v] = (prev.bit_length())
+            else:
+                color[v] = 0
+
+    def dfs(idx: int) -> bool:
+        if idx == n:
+            return True
+        # try colors 1..3 for vertex idx
+        for c in (1, 2, 3):
+            snap = len(changes)
+            if assign(idx, c):
+                if dfs(idx + 1):
+                    return True
+            undo(snap)
+        return False
+
+    if dfs(0):
+        print("YES")
+        print(' '.join(map(str, color)))
+    else:
+        print("NO")
+
+if __name__ == "__main__":
+    solve()

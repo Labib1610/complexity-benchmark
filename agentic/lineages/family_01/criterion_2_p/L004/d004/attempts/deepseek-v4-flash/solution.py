@@ -13,21 +13,28 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-color[0] = 1  # start with 1 for lexicographically smallest
+possible = True
 
-for start in range(n):
-    if color[start] == -1:
-        color[start] = 1
-    q = deque([start])
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
-                q.append(v)
-            elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 0
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(" ".join(str(c) for c in color))
+if not possible:
+    print("NO")
+else:
+    print("YES")
+    print(" ".join(str(c + 1) for c in color))

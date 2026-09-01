@@ -1,5 +1,5 @@
-from collections import deque
 import sys
+from collections import deque
 
 input = sys.stdin.readline
 
@@ -12,61 +12,60 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n
-
-def bfs(start):
-    q = deque([start])
-    color[start] = 0
-    while q:
+def try_assign(start_color):
+    color = [-1] * n
+    color[0] = start_color
+    q = deque([0])
+    ok = True
+    while q and ok:
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = color[u] ^ 1
+                color[v] = 1 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
-                return False
-    return True
-
-# First check bipartiteness
-for i in range(n):
-    if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
-
-# Now we have a valid bipartition, but we want lexicographically smallest.
-# We can try to flip colors in each component to make early nodes 1.
-# We'll do BFS again, but with priority to assign 1 if possible.
-
-color = [-1] * n
-for i in range(n):
-    if color[i] == -1:
-        # Try assigning 0 (meaning opacity 1) to start node
-        color[i] = 0
-        q = deque([i])
-        ok = True
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    q.append(v)
-                elif color[v] == color[u]:
-                    ok = False
-        if not ok:
-            # If conflict, flip this component
-            color[i] = 1
+                ok = False
+                break
+    if not ok:
+        return None
+    # Check for disconnected components
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
             q = deque([i])
             while q:
                 u = q.popleft()
                 for v in adj[u]:
                     if color[v] == -1:
-                        color[v] = color[u] ^ 1
+                        color[v] = 1 - color[u]
                         q.append(v)
                     elif color[v] == color[u]:
-                        pass  # shouldn't happen if bipartite
+                        return None
+    return color
 
-# Convert to 1/2
-res = [1 if c == 0 else 2 for c in color]
-print("YES")
-print(" ".join(map(str, res)))
+# Try both starting colors for node 0
+res1 = try_assign(0)
+res2 = try_assign(1)
+
+if res1 is None and res2 is None:
+    print("NO")
+else:
+    # Choose the one with smaller weight
+    def weight(arr):
+        w = 0
+        for val in arr:
+            w = w * 3 + (val + 1)  # since codes are 1 or 2
+        return w
+
+    if res1 is not None and res2 is not None:
+        if weight(res1) <= weight(res2):
+            best = res1
+        else:
+            best = res2
+    elif res1 is not None:
+        best = res1
+    else:
+        best = res2
+
+    print("YES")
+    print(" ".join(str(x + 1) for x in best))

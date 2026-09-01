@@ -1,57 +1,75 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
     import sys
-    input = sys.stdin.read
-    data = input().split()
+    sys.setrecursionlimit(1 << 25)
     
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
+    adj = defaultdict(list)
     edges = []
-    graph = defaultdict(list)
-    index = 2
+    
     for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
         edges.append((u, v))
-        graph[u].append(v)
-        graph[v].append(u)
-        index += 2
     
-    # Color the graph with 2 colors (1 and 2). If not bipartite, return NO.
-    color = [-1] * n
+    # We need XOR of configurations to be 3
+    # Since configurations are 1 or 2:
+    # 1 XOR 2 = 3 (in binary: 01 XOR 10 = 11 which is 3)
+    # 1 XOR 1 = 0
+    # 2 XOR 2 = 0
+    # So adjacent nodes must have different configurations
     
-    for i in range(n):
+    # This is a 2-coloring problem (Bipartite checking)
+    color = [-1] * (n + 1)
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1  # Assign color 1 to start node
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            next_color = 2 if current_color == 1 else 1
+            
+            for neighbor in adj[node]:
+                if color[neighbor] == -1:
+                    color[neighbor] = next_color
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
+                    return False  # Not bipartite
+        return True
+    
+    # Check if graph is bipartite
+    for i in range(1, n + 1):
         if color[i] == -1:
-            queue = deque()
-            queue.append(i)
-            color[i] = 1
-            while queue:
-                node = queue.popleft()
-                for neighbor in graph[node]:
-                    if color[neighbor] == -1:
-                        color[neighbor] = 3 - color[node]
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+            if not bfs(i):
+                print("NO")
+                return
     
-    # If bipartite, construct the result with minimal lexicographical order
+    # If bipartite, construct the lexicographically smallest solution
+    # In our case, we want configuration 1 for lower-numbered relays when possible
+    # Since color 1 -> config 1, color 2 -> config 2
+    # We already ensured that color 1 is assigned first in BFS starting from low numbers
+    
     result = []
-    for i in range(n):
-        if color[i] == 1:
-            result.append("1")
+    for i in range(1, n + 1):
+        if color[i] == -1:
+            result.append('1')  # Isolated vertex, assign 1
         else:
-            result.append("2")
+            result.append(str(color[i]))
     
     print("YES")
     print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

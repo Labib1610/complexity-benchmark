@@ -1,0 +1,67 @@
+from math import gcd
+from functools import lru_cache
+
+def lcm(a, b):
+    return a * b // gcd(a, b)
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Precompute valid pairs: pairs (a,b) where gcd(a,b) < lcm(a,b)
+    valid_pairs = set()
+    for a in [1, 2, 3]:
+        for b in [1, 2, 3]:
+            if gcd(a, b) < lcm(a, b):
+                valid_pairs.add((a, b))
+    
+    # If no constraints, just return all 1s
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Try all 3^n combinations in lexicographical order
+    # We'll use backtracking for efficiency
+    def is_valid(u, v, val_u, val_v):
+        return (val_u, val_v) in valid_pairs
+    
+    # Check if assignment is valid so far
+    def check_partial(assignment):
+        for u, v in edges:
+            if assignment[u-1] != 0 and assignment[v-1] != 0:
+                if not is_valid(u, v, assignment[u-1], assignment[v-1]):
+                    return False
+        return True
+    
+    # Backtracking function
+    def backtrack(index, assignment):
+        if index == n:
+            return True
+            
+        for value in [1, 2, 3]:
+            assignment[index] = value
+            if check_partial(assignment):
+                if backtrack(index + 1, assignment):
+                    return True
+            assignment[index] = 0
+        return False
+    
+    # Initialize assignment array
+    assignment = [0] * n
+    
+    if backtrack(0, assignment):
+        print("YES")
+        print(" ".join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()

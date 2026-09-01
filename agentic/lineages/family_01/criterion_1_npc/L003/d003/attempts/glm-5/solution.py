@@ -1,0 +1,184 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+    
+    # Check if graph is 3-colorable using meet-in-the-middle
+    half = n // 2
+    
+    # Precompute connected components for left half
+    visited_left = [False] * half
+    comps_left = []
+    for i in range(half):
+        if not visited_left[i]:
+            comp = []
+            stack = [i]
+            visited_left[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(half):
+                    if not visited_left[v] and (adj[u] >> v) & 1:
+                        visited_left[v] = True
+                        stack.append(v)
+            comps_left.append(comp)
+    
+    # Precompute connected components for right half
+    visited_right = [False] * (n - half)
+    comps_right = []
+    for i in range(n - half):
+        if not visited_right[i]:
+            comp = []
+            stack = [i]
+            visited_right[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in range(n - half):
+                    if not visited_right[v] and (adj[u + half] >> (v + half)) & 1:
+                        visited_right[v] = True
+                        stack.append(v)
+            comps_right.append(comp)
+    
+    # Generate all valid colorings for left half
+    left_colorings = []
+    
+    def gen_left(comp_idx, coloring):
+        if comp_idx == len(comps_left):
+            left_colorings.append(coloring)
+            return
+        comp = comps_left[comp_idx]
+        # Try all 3^|comp| colorings for this component
+        for colors in range(3 ** len(comp)):
+            valid = True
+            new_coloring = coloring
+            for i, u in enumerate(comp):
+                c = (colors // (3 ** i)) % 3
+                new_coloring |= c << (2 * u)
+            # Check edges within this component
+            for i, u in enumerate(comp):
+                cu = (colors // (3 ** i)) % 3
+                for j, v in enumerate(comp):
+                    if u < v and (adj[u] >> v) & 1:
+                        cv = (colors // (3 ** j)) % 3
+                        if cu == cv:
+                            valid = False
+                            break
+                if not valid:
+                    break
+            if valid:
+                gen_left(comp_idx + 1, new_coloring)
+    
+    gen_left(0, 0)
+    
+    # For each left coloring, compute forbidden colors for right half
+    # and check if valid right coloring exists
+    
+    # Precompute for each node in right half, which colors are forbidden
+    # by each left coloring
+    
+    best_right = None
+    
+    for left_color in left_colorings:
+        # Compute forbidden mask for each right node
+        # forbidden[i] = bitmask of forbidden colors (bit 0 = color 1, etc.)
+        forbidden = [0] * (n - half)
+        for i in range(n - half):
+            node = i + half
+            for c in range(3):
+                # Check if any neighbor in left half has color c
+                neighbor_has_c = False
+                for j in range(half):
+                    if (adj[node] >> j) & 1:
+                        lc = (left_color >> (2 * j)) & 3
+                        if lc == c:
+                            neighbor_has_c = True
+                            break
+                if neighbor_has_c:
+                    forbidden[i] |= 1 << c
+        
+        # Check if valid coloring exists for right half
+        right_color = 0
+        valid = True
+        
+        for comp in comps_right:
+            # Find valid coloring for this component
+            found = False
+            for colors in range(3 ** len(comp)):
+                ok = True
+                for i, u in enumerate(comp):
+                    c = (colors // (3 ** i)) % 3
+                    if (forbidden[u] >> c) & 1:
+                        ok = False
+                        break
+                if not ok:
+                    continue
+                # Check edges within component
+                for i, u in enumerate(comp):
+                    cu = (colors // (3 ** i)) % 3
+                    for j, v in enumerate(comp):
+                        if u < v and (adj[u + half] >> (v + half)) & 1:
+                            cv = (colors // (3 ** j)) % 3
+                            if cu == cv:
+                                ok = False
+                                break
+                    if not ok:
+                        break
+                if ok:
+                    # Update right_color and forbidden for other components
+                    for i, u in enumerate(comp):
+                        c = (colors // (3 ** i)) % 3
+                        right_color |= c << (2 * u)
+                    # Update forbidden for remaining nodes
+                    for i, u in enumerate(comp):
+                        cu = (colors // (3 ** i)) % 3
+                        for v in range(n - half):
+                            if v not in comp and (adj[u + half] >> (v + half)) & 1:
+                                forbidden[v] |= 1 << cu
+                    found = True
+                    break
+            if not found:
+                valid = False
+                break
+        
+        if valid:
+            if best_right is None:
+                best_right = right_color
+            else:
+                # Compare and keep minimum
+                for i in range(n - half):
+                    old_c = (best_right >> (2 * i)) & 3
+                    new_c = (right_color >> (2 * i)) & 3
+                    if new_c < old_c:
+                        best_right = right_color
+                        break
+                    elif new_c > old_c:
+                        break
+    
+    if best_right is None:
+        print("NO")
+        return
+    
+    print("YES")
+    result = []
+    for i in range(half):
+        c = (left_color >> (2 * i)) & 3
+        result.append(c + 1)
+    for i in range(n - half):
+        c = (best_right >> (2 * i)) & 3
+        result.append(c + 1)
+    print(' '.join(map(str, result)))
+
+solve()

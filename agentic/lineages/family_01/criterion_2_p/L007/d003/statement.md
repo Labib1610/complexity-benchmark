@@ -1,20 +1,26 @@
-# Problem B — Facility Maintenance Tiers
+# Problem B — Resonant Foundations
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-A logistics facility operates $n$ automated delivery vehicles, numbered 1 to $n$. Each vehicle must be assigned exactly one maintenance tier, which must be either 1 or 2.
+The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite grade for each pillar. The approved composite grades are exactly 1 and 2.
 
-The facility features $m$ shared charging bays. Each bay is utilized exclusively by a specific pair of vehicles. To prevent power grid overloads, the maintenance tiers of the two vehicles sharing any single bay must be properly staggered. Specifically, for the two vehicles sharing a charging bay, the maximum of their assigned maintenance tiers must be exactly twice the minimum of their assigned maintenance tiers.
+To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. A dampener's ability to properly distribute stress depends entirely on the composite grades of the two pillars it connects. According to the manufacturer's stress-distribution matrix, the outcome for a dampener based on the grades of its connected pillars is as follows:
 
-You must determine if there is a valid assignment of maintenance tiers to all $n$ vehicles that satisfies the requirements of all $m$ charging bays. If a valid assignment exists, you must output it. In cases where multiple valid assignments satisfy all requirements, you must output the assignment that forms the lexicographically smallest sequence of tiers.
+*   Grade 1 connected to Grade 1: Shatters under heavy winds
+*   Grade 1 connected to Grade 2: Safely distributes stress
+*   Grade 2 connected to Grade 1: Safely distributes stress
+*   Grade 2 connected to Grade 2: Shatters under heavy winds
+
+Your task is to determine if there is a safe composite selection for all $n$ pillars such that no dampener shatters. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite grades.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the numbers of two vehicles that share a charging bay.
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
 
 ## Output
-If no valid assignment exists, print a single line NO.
-Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each being 1 or 2), representing the lexicographically smallest valid sequence of maintenance tiers.
+If no safe selection exists, print a single line `NO`.
+Otherwise print `YES`, then a second line with $n$ integers $c_1 \dots c_n$ (each being 1 or 2), representing the lexicographically smallest safe selection.
 
 ## Example 1
 Input:

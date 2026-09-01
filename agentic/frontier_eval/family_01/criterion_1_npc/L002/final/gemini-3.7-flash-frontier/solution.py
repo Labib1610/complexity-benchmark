@@ -1,0 +1,215 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+
+    def solve_2sat(domains, fixed_assignment):
+        # Map each vertex u to a variable index if |domains[u]| == 2
+        # Variable for u: True means domains[u][1], False means domains[u][0]
+        # If |domains[u]| == 1, it's fixed.
+        num_vars = n
+        # Literals: for variable i:
+        # positive literal: 2 * i (means True -> domains[i][1])
+        # negative literal: 2 * i + 1 (means False -> domains[i][0])
+
+        clauses = []
+
+        for u in range(n):
+            du = domains[u]
+            if len(du) == 0:
+                return None
+            if len(du) == 1:
+                # du[0] is chosen. If du originally had 2 choices, enforce du[0]
+                # But here domains[u] has only 1 element, so we can just enforce it
+                pass
+
+        # Build 2-SAT clauses
+        # For each edge (u, v):
+        for u in range(n):
+            for v in adj[u]:
+                if u >= v:
+                    continue
+                du = domains[u]
+                dv = domains[v]
+                # For each pair of colors cu in du, cv in dv:
+                # if cu == cv, we cannot have (color(u) == cu and color(v) == cv)
+                for iu, cu in enumerate(du):
+                    for iv, cv in enumerate(dv):
+                        if cu == cv:
+                            # Not (u == cu and v == cv) -> (u != cu or v != cv)
+                            # In boolean:
+                            # if len(du) == 1, u is always cu, so we must have v != cv.
+                            # if len(dv) == 1, v is always cv, so we must have u != cu.
+                            if len(du) == 1 and len(dv) == 1:
+                                return None
+                            elif len(du) == 1:
+                                # v cannot be cv
+                                # if iv == 0, v must be dv[1] (literal 2*v)
+                                # if iv == 1, v must be dv[0] (literal 2*v + 1)
+                                lit_v = 2 * v if iv == 0 else 2 * v + 1
+                                clauses.append((lit_v, lit_v))
+                            elif len(dv) == 1:
+                                lit_u = 2 * u if iu == 0 else 2 * u + 1
+                                clauses.append((lit_u, lit_u))
+                            else:
+                                # both have size 2
+                                lit_u = 2 * u if iu == 0 else 2 * u + 1
+                                lit_v = 2 * v if iv == 0 else 2 * v + 1
+                                clauses.append((lit_u, lit_v))
+
+        # Check satisfiability and find lex-smallest assignment
+        def is_sat(extra_clauses=[]):
+            N = 2 * num_vars
+            graph = [[] for _ in range(N)]
+            all_c = clauses + extra_clauses
+            for l1, l2 in all_c:
+                # (l1 or l2) -> (~l1 -> l2) and (~l2 -> l1)
+                graph[l1 ^ 1].append(l2)
+                graph[l2 ^ 1].append(l1)
+
+            # Tarjan's SCC
+            dfn = [-1] * N
+            low = [-1] * N
+            scc = [-1] * N
+            st = []
+            in_st = [False] * N
+            timer = 0
+            scc_cnt = 0
+
+            for i in range(N):
+                if dfn[i] != -1:
+                    continue
+                call_st = [(i, 0)]
+                while call_st:
+                    curr, edge_idx = call_st.pop()
+                    if edge_idx == 0:
+                        timer += 1
+                        dfn[curr] = low[curr] = timer
+                        st.append(curr)
+                        in_st[curr] = True
+
+                    advanced = False
+                    for j in range(edge_idx, len(graph[curr])):
+                        nxt = graph[curr][j]
+                        if dfn[nxt] == -1:
+                            call_st.append((curr, j + 1))
+                            call_st.append((nxt, 0))
+                            advanced = True
+                            break
+                        elif in_st[nxt]:
+                            low[curr] = min(low[curr], dfn[nxt])
+
+                    if advanced:
+                        continue
+
+                    if low[curr] == dfn[curr]:
+                        while True:
+                            node = st.pop()
+                            in_st[node] = False
+                            scc[node] = scc_cnt
+                            if node == curr:
+                                break
+                        scc_cnt += 1
+
+                    if call_st:
+                        p = call_st[-1][0]
+                        low[p] = min(low[p], low[curr])
+
+            for i in range(num_vars):
+                if scc[2 * i] == scc[2 * i + 1] and scc[2 * i] != -1:
+                    return False, None
+            return True, scc
+
+        sat, scc = is_sat()
+        if not sat:
+            return None
+
+        # Determine lexicographically smallest colors
+        ans = [0] * n
+        extra = []
+        for u in range(n):
+            du = domains[u]
+            if len(du) == 1:
+                ans[u] = du[0]
+            else:
+                # Try setting to du[0] first (du[0] < du[1])
+                # du[0] corresponds to negative literal: 2*u + 1
+                lit = 2 * u + 1
+                test_extra = extra + [(lit, lit)]
+                sat_res, _ = is_sat(test_extra)
+                if sat_res:
+                    extra.append((lit, lit))
+                    ans[u] = du[0]
+                else:
+                    lit_other = 2 * u
+                    extra.append((lit_other, lit_other))
+                    ans[u] = du[1]
+        return ans
+
+    # Backtracking search
+    def search(domains):
+        # Check if any domain is empty
+        for d in domains:
+            if not d:
+                return None
+
+        # Check if all domains have size <= 2
+        all_le_2 = True
+        first_3 = -1
+        for i in range(n):
+            if len(domains[i]) == 3:
+                all_le_2 = False
+                first_3 = i
+                break
+
+        if all_le_2:
+            return solve_2sat(domains, None)
+
+        # Pick vertex with domain size 3 (lexicographically first)
+        u = first_3
+        for c in domains[u]:
+            new_domains = [list(d) for d in domains]
+            new_domains[u] = [c]
+            # Propagate to neighbors
+            valid = True
+            for v in adj[u]:
+                if c in new_domains[v]:
+                    new_domains[v].remove(c)
+                    if not new_domains[v]:
+                        valid = False
+                        break
+            if valid:
+                res = search(new_domains)
+                if res is not None:
+                    return res
+        return None
+
+    init_domains = [[1, 2, 3] for _ in range(n)]
+    res = search(init_domains)
+
+    if res is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*(res[i] for i in range(n)))
+
+
+if __name__ == "__main__":
+    solve()

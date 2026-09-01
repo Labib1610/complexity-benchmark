@@ -1,20 +1,25 @@
-# Problem B — Micro-Robotic Assembly
+# Problem B — Polymer Resonance Tuning
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are orchestrating a swarm of $n$ micro-machines, labeled from 1 to $n$, to build a linear framework. Each machine must be deployed to either position 1 or position 2 along a microscopic rail. Multiple machines can share the same position without interference.
+A synthetic polymer consists of $n$ monomers, indexed from 1 to $n$. A tuning configuration assigns each monomer a resonance level, which must be chosen as either 1 or 2.
 
-The framework requires $m$ rigid struts to be installed. Each strut links a specific pair of machines, $u$ and $v$. To maintain the necessary mechanical tension across the strut, the combined sum of the positions of these two linked machines must be exactly 3.
+The laboratory maintains a record of $m$ covalent bonds between these monomers. To ensure molecular stability, the entire polymer must satisfy a global kinetic constraint. Specifically, the total energy of the configuration, defined as the sum of the squared differences of the resonance levels across all $m$ recorded bonds, must be exactly equal to $m$. That is, a valid configuration must satisfy:
 
-Your task is to determine whether all machines can be deployed such that every strut's tension requirement is met. If no such configuration exists, you must indicate this failure. If several valid configurations exist, the deployment protocol demands the sequence of positions (from machine 1 to $n$) that forms the numerically smallest $n$-digit integer when the positions are written in order.
+$$ \sum_{i=1}^{m} (r_{u_i} - r_{v_i})^2 = m $$
+
+where $r_{u_i}$ and $r_{v_i}$ are the resonance levels assigned to the two monomers connected by the $i$-th recorded bond.
+
+Your task is to determine a valid tuning configuration for all $n$ monomers. If multiple valid configurations exist, you must output the sequence of resonance levels that is lexicographically smallest. This means the configuration must prioritize assigning level 1 to monomer 1 if any valid configuration allows it; then, among those valid configurations, prioritize assigning level 1 to monomer 2, and so on sequentially up to monomer $n$. If no configuration can achieve a total energy of exactly $m$, you must report the failure.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of machines and the number of struts.
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that a strut must link machine $u$ and machine $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+Each of the following $m$ lines contains two integers $u$ and $v$, identifying a bonded pair of monomers in the record. Both monomer identifiers $u$ and $v$ are at least 1 and at most $n$.
 
 ## Output
-If no valid deployment is possible, output a single line containing `NO`.
-Otherwise, output a line containing `YES`. On the following line, output $n$ space-separated integers $x_1, x_2, \dots, x_n$ (where each $x_i \in \{1, 2\}$) representing the assigned position for each machine. This sequence must be the one that forms the smallest $n$-digit integer among all valid deployments.
+If no tuning configuration can satisfy the energy constraint, output `NO` on a single line.
+Otherwise, output `YES` on the first line. On the second line, output $n$ space-separated integers $r_1, r_2, \dots, r_n$ (where each $r_i \in \{1, 2\}$) representing the resonance level assigned to each respective monomer from 1 to $n$. This sequence must be the lexicographically smallest possible valid sequence.
 
 ## Example 1
 Input:

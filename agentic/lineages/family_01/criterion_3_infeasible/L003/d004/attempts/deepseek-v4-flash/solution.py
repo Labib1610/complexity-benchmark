@@ -13,7 +13,6 @@ def main():
         for b in range(a + 1, n + 1):
             if b not in adj[a]:
                 continue
-            # find smallest c > b such that a-c and b-c exist
             for c in range(b + 1, n + 1):
                 if c in adj[a] and c in adj[b]:
                     print(a, b, c)

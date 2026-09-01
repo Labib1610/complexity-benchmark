@@ -1,19 +1,21 @@
-# Vessel Calibration
+# Sensor Polarity Configuration
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-A fleet of $n$ autonomous surveying vessels must each be assigned a calibration state, represented by an integer $s_i \in \{1, 2\}$. During the survey, certain pairs of vessels will operate in close proximity. To successfully merge their data streams, any two vessels in close proximity must have calibration states that sum to exactly 3. You are given $m$ records of such vessel pairs.
+You are configuring a network of $n$ sensors. Each sensor must be assigned an operating state, represented by an integer $s_i \in \{1, 2\}$.
 
-Your task is to determine a valid calibration state for every vessel, or report if it is impossible. If there are multiple valid configurations, you must output the configuration that produces the lexicographically smallest sequence of states for vessels 1 through $n$.
+There are $m$ critical pairs of sensors. For each critical pair $(u, v)$, the system requires that their assigned states satisfy the equation $s_u \times s_v = 2$ to maintain equilibrium.
+
+Your task is to determine whether there exists a valid state assignment for all $n$ sensors that satisfies this equation for every critical pair. If multiple valid assignments exist, you must find the one where the sequence $(s_1, s_2, \dots, s_n)$ is lexicographically smallest. (A sequence $A$ is lexicographically smaller than sequence $B$ if, at the first position where they differ, the value in $A$ is smaller than the value in $B$.)
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of vessels and the number of proximity records.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that vessel $u$ and vessel $v$ will operate in close proximity.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of sensors and the number of critical pairs.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that sensors $u$ and $v$ form a critical pair.
 
 ## Output
-If no valid configuration exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid sequence of calibration states.
+If no valid state assignment can satisfy all conditions, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, \ldots, s_n$ (each $s_i \in \{1, 2\}$), representing the lexicographically smallest valid state assignment.
 
 ## Example 1
 Input:

@@ -1,47 +1,31 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().split()
+    input_data = sys.stdin.buffer.read().split()
     if not input_data:
         return
-    iterator = iter(input_data)
-    n = int(next(iterator))
-    m = int(next(iterator))
+    n = int(input_data[0])
+    m = int(input_data[1])
     
-    adj = [[False] * (n + 1) for _ in range(n + 1)]
-    deg = [0] * (n + 1)
-    
+    adj = [set() for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u = int(next(iterator))
-        v = int(next(iterator))
-        adj[u][v] = True
-        adj[v][u] = True
-        deg[u] += 1
-        deg[v] += 1
+        u = int(input_data[idx]); v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].add(v)
+        adj[v].add(u)
     
-    # We look for a triangle (a, b, c) with a < b < c that is lexicographically smallest.
-    # A triangle exists iff for some edge (u, v), there is a common neighbor w.
-    # To find the lexicographically smallest triangle, we iterate u from 1 to n.
-    # For each u, we iterate v from u+1 to n. If edge (u, v) exists, we check for w.
-    # The candidate w must be > v to satisfy a < b < c ordering.
-    # Among all such w, the smallest w gives the lexicographically smallest triangle for this (u, v).
-    # Since we process u and v in increasing order, the first valid triangle found is the answer.
-    
-    for u in range(1, n + 1):
-        # Optimization: if u cannot be the smallest node of a triangle, skip.
-        # u needs at least 2 neighbors v, w such that v > u and w > u.
-        # This requires degree of u minus neighbors <= u to be >= 2.
-        # A simpler bound: if deg[u] < 2, skip.
-        if deg[u] < 2:
-            continue
-            
-        for v in range(u + 1, n + 1):
-            if adj[u][v]:
-                # Check for common neighbor w where w > v
-                for w in range(v + 1, n + 1):
-                    if adj[u][w] and adj[v][w]:
-                        print(u, v, w)
+    # Find lexicographically smallest triangle
+    for a in range(1, n + 1):
+        adj_a = adj[a]
+        # Iterate over neighbors b > a
+        for b in adj_a:
+            if b > a:
+                # For each neighbor c of b with c > b, check if c is adjacent to a
+                for c in adj[b]:
+                    if c > b and c in adj_a:
+                        sys.stdout.write(f"{a} {b} {c}\n")
                         return
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     solve()

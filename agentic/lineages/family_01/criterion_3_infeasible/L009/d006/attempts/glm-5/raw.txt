@@ -2,77 +2,644 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().split()
-    if not data:
+    input_data = sys.stdin.read().split()
+    if not input_data:
         return
-    it = iter(data)
+    it = iter(input_data)
     n = int(next(it))
     m = int(next(it))
     
-    adj = [set() for _ in range(n + 1)]
-    edges = []
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    deg = [0] * (n + 1)
     
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
-        if u > v:
-            u, v = v, u
-        adj[u].add(v)
-        adj[v].add(u)
-        edges.append((u, v))
+        adj[u][v] = True
+        adj[v][u] = True
+        deg[u] += 1
+        deg[v] += 1
     
-    # Sort edges to process in order (u, v)
-    edges.sort()
-    
-    # Strategy:
-    # 1. Check for a triangle (u, v, w) where all three edges exist.
-    #    This forms a valid panel with languages {u, v, w}.
-    # 2. If no triangle, look for a path u-v-w where u < v < w,
-    #    edges (u,v) and (v,w) exist, but (u,w) does not.
-    #    This forms a valid panel with languages {u, v, w}.
-    #    The interpreters are (u,v), (v,w), and some third interpreter
-    #    involving u or w with a language outside {u,v,w}.
-    #    We iterate edges in sorted order and check for this pattern.
-    
-    # Check for triangles
-    # To optimize, we check for each edge (u, v) if there exists w such that
-    # (u, w) and (v, w) exist. We iterate w from u+1 to n.
-    # Since we want the lexicographically smallest result, we check edges in order.
-    
-    # We can iterate through edges (u, v) in sorted order.
-    # For each edge, check for w in intersection of adj[u] and adj[v] where w > v.
-    # The first such w found gives us the smallest triangle.
-    
-    for u, v in edges:
-        # We want w > v to ensure u < v < w
-        # Iterate through neighbors of u that are > v
-        # and check if they are also neighbors of v
-        # To optimize, iterate through the smaller set
-        if len(adj[u]) < len(adj[v]):
-            smaller = adj[u]
-            other = adj[v]
-        else:
-            smaller = adj[v]
-            other = adj[u]
+    # Check for a triangle (Type 1)
+    # Iterate u < v < w to find lexicographically smallest first
+    for u in range(1, n + 1):
+        # To find v > u such that u-v exists
+        # We can iterate v from u+1 to n
+        # But checking adj[u][v] is O(1)
+        # Then checking w requires iterating w from v+1 to n
+        # This is O(n^3) worst case, too slow for n=2000.
+        # Optimization: only iterate neighbors of u.
+        # Since we want lexicographical order, we must check candidates in order.
+        # However, if a triangle exists, it involves u.
+        # We can iterate v in neighbors of u where v > u.
+        # Then iterate w in neighbors of u where w > v.
+        # Check if v-w is an edge.
         
-        for w in smaller:
-            if w > v and w in other:
-                print(u, v, w)
-                return
+        # To iterate neighbors in sorted order:
+        # Building explicit neighbor lists takes O(m) memory and time, acceptable.
+        pass
+        
+    # Let's build neighbor lists for efficient iteration
+    neighbors = [[] for _ in range(n + 1)]
+    for u in range(1, n + 1):
+        for v in range(1, n + 1):
+            if adj[u][v]:
+                neighbors[u].append(v)
     
-    # If no triangle found, look for path pattern
-    # We need edge (u, v) and (v, w) with u < v < w and no edge (u, w)
-    # We iterate edges (u, v) in sorted order.
-    # For each edge, we look for w in adj[v] such that w > v and (u, w) is not an edge.
-    # The first such w found gives us the lexicographically smallest result.
+    # Search for Type 1 (Triangle)
+    # We iterate u from 1 to n.
+    # For each u, we iterate its neighbors v such that v > u.
+    # For each such v, we iterate neighbors w of u such that w > v.
+    # Check if v and w are connected.
+    # This respects the lexicographical order a < b < c.
     
-    for u, v in edges:
-        # Check neighbors of v that are > v
-        for w in adj[v]:
-            if w > v and w not in adj[u]:
-                print(u, v, w)
-                return
+    for u in range(1, n + 1):
+        # We need neighbors of u sorted to iterate in order
+        # The neighbors list constructed by iterating v from 1 to n is already sorted
+        for v in neighbors[u]:
+            if v <= u:
+                continue
+            for w in neighbors[u]:
+                if w <= v:
+                    continue
+                if adj[v][w]:
+                    print(u, v, w)
+                    return
+    
+    # Search for Type 2 (Star graph)
+    # We need a center node u connected to v and w, where v and w are not connected.
+    # Order: u < v < w or v < u < w or v < w < u.
+    # We iterate u from 1 to n.
+    # If deg[u] >= 2:
+    #   Iterate neighbors v, w of u such that v < w.
+    #   Check if v and w are NOT connected.
+    #   This gives a valid certificate.
+    #   We need to output the lexicographically smallest triplet {u, v, w}.
+    #   The triplet is {min(u,v,w), mid, max}.
+    #   We iterate u in increasing order.
+    #   For a fixed u, we iterate neighbors v, w (v < w).
+    #   This generates candidates. We must find the smallest triplet.
+    #   Since we iterate u in increasing order, the first found triplet might not be
+    #   lexicographically smallest if u is not the smallest element of the triplet.
+    #   Example: u=3, v=1, w=2. Triplet is {1, 2, 3}.
+    #   If we process u=3 before u=1 finds something, we might output {1, 2, 3}.
+    #   But if u=1 has a solution {1, 4, 5}, {1, 2, 3} is smaller.
+    #   So we must be careful.
+    
+    # Correct approach for Type 2:
+    # Iterate u from 1 to n.
+    # If deg[u] >= 2:
+    #   Iterate neighbors v of u.
+    #   Iterate neighbors w of u.
+    #   If v < w and not adj[v][w]:
+    #     We found a certificate {u, v, w}.
+    #     Let the sorted triplet be (a, b, c).
+    #     We want the lexicographically smallest.
+    #     Since we iterate u from 1 to n, any triplet starting with 1 will be found
+    #     when its smallest element is processed or when u is processed.
+    #     Actually, if the triplet is {1, 2, 3}, u could be 2 (connected to 1,3).
+    #     When u=2, we find v=1, w=3. Triplet {1, 2, 3}.
+    #     If we simply take the first found, is it correct?
+    #     Suppose we have solutions {1, 2, 3} and {1, 2, 4}.
+    #     {1, 2, 3} is smaller.
+    #     If we iterate u=1, we might find {1, 2, 4}.
+    #     If we iterate u=2, we find {1, 2, 3}.
+    #     If we iterate u=1 first, we output {1, 2, 4} which is wrong.
+    #     So we must collect all candidates or ensure order.
+    #     
+    #     However, notice that for Type 2, the center u has degree >= 2.
+    #     The triplet is {u, v, w}.
+    #     The smallest element of the triplet could be u, v, or w.
+    #     
+    #     Let's refine the iteration to guarantee order.
+    #     We iterate u from 1 to n.
+    #     For each u, we iterate neighbors v, w (v < w) such that no edge v-w.
+    #     This gives a set of triplets. We want the min.
+    #     
+    #     Optimization: We want the smallest a.
+    #     If we find a triplet with smallest element a, we can stop searching for any
+    #     triplet with smallest element > a.
+    #     
+    #     Let's iterate u from 1 to n.
+    #     For each u, we look for non-edges in its neighborhood.
+    #     If we find a non-edge (v, w), we form a triplet.
+    #     We keep track of the best triplet found so far.
+    #     Since n is small (2000), and deg can be large, we need to be careful.
+    #     But sum of degrees is 2m.
+    #     Iterating pairs of neighbors is sum of deg[u]^2.
+    #     In worst case (complete graph), this is slow, but complete graph has Type 1.
+    #     Type 2 exists only if graph is not complete or has specific structure.
+    #     Actually, if Type 1 doesn't exist, the graph is triangle-free.
+    #     In a triangle-free graph, max edges is approx n^2/4 (bipartite).
+    #     Max degree is O(n).
+    #     Sum of deg^2 can be large.
+    #     However, we only need to find ONE non-edge in the neighborhood of u.
+    #     If deg[u] > 2, and neighbors of u don't form a clique, there is a non-edge.
+    #     Wait, if neighbors of u form a clique, we have a triangle (u, v, w).
+    #     Since we are in Type 2 (no triangles), neighbors of u CANNOT form a clique
+    #     of size >= 2.
+    #     Actually, if deg[u] >= 2, and no triangle, then there MUST be a non-edge
+    #     between neighbors of u.
+    #     Proof: If all pairs of neighbors of u are connected, then for any v, w in
+    #     neighbors, (u, v, w) is a triangle. Contradiction.
+    #     So, for Type 2, we just need to find ANY node u with deg[u] >= 2.
+    #     Then find any two neighbors v, w of u that are not connected.
+    #     
+    #     To find the lexicographically smallest triplet:
+    #     We iterate u from 1 to n.
+    #     If deg[u] >= 2:
+    #       We want to form the smallest triplet involving u.
+    #       The triplet is {u, v, w}. Sorted: a, b, c.
+    #       We iterate v in neighbors[u] (v < w).
+    #       We iterate w in neighbors[u].
+    #       If not adj[v][w]:
+    #         form triplet, update min.
+    #         
+    #     Can we stop early?
+    #     If we find a triplet starting with 1, can we stop?
+    #     Yes, because we want smallest a.
+    #     If we find a triplet {1, b, c}, we only need to check if there's a smaller
+    #     one starting with 1.
+    #     So we can iterate u, but we only care about triplets starting with current
+    #     best 'a'.
+    #     
+    #     Actually, simpler:
+    #     Iterate u from 1 to n.
+    #     If we find a valid triplet, we know its smallest element is at least u
+    #     (since we iterate u in increasing order, and u is part of the triplet).
+    #     Wait, u is part of the triplet, but u might not be the smallest.
+    #     Example: u=3, v=1, w=2. Triplet {1, 2, 3}. Smallest is 1.
+    #     If we are at u=3, we might find a triplet starting with 1.
+    #     If we already found a triplet starting with 1 (e.g. from u=1 or u=2),
+    #     we should have stopped or kept the best.
+    #     
+    #     Let's just collect the best triplet.
+    #     Initialize best = (inf, inf, inf).
+    #     Iterate u from 1 to n.
+    #       Iterate v in neighbors[u].
+    #         Iterate w in neighbors[u].
+    #           if v < w and not adj[v][w]:
+    #             current = sorted((u, v, w))
+    #             if current < best:
+    #               best = current
+    #     
+    #     Is this efficient enough?
+    #     We iterate pairs of neighbors.
+    #     If deg[u] is large, this is slow.
+    #     But we can optimize:
+    #     We only need to find the FIRST non-edge in neighbors[u].
+    #     Actually, to get the best triplet for a fixed u, we need the smallest v, w
+    #     that are not connected.
+    #     
+    #     Let's optimize the inner loop.
+    #     For a fixed u, we iterate v from smallest neighbor to largest.
+    #     For each v, we iterate w > v.
+    #     Check if adj[v][w].
+    #     The first pair (v, w) that is NOT connected gives a triplet.
+    #     Is this triplet the smallest for this u?
+    #     The triplet is {u, v, w}. Sorted: min(u,v,w), mid, max.
+    #     We want the lexicographically smallest.
+    #     This corresponds to minimizing the sorted tuple.
+    #     
+    #     Let's trace:
+    #     If we iterate v in increasing order, and w in increasing order.
+    #     The first non-edge (v, w) gives a candidate.
+    #     Does this give the smallest triplet for this u?
+    #     Not necessarily.
+    #     Example: u=5. Neighbors: 1, 2, 3, 4.
+    #     Edges: (1,2), (1,3), (2,3), (2,4). (1,4) is non-edge.
+    #     Pairs in order: (1,2) edge, (1,3) edge, (1,4) non-edge.
+    #     Triplet: {1, 4, 5} -> {1, 4, 5}.
+    #     Is there a smaller one?
+    #     Check (2,3) edge. (2,4) edge.
+    #     So {1, 4, 5} is the only one?
+    #     Wait, (3,4) might be non-edge. Triplet {3, 4, 5} -> {3, 4, 5}.
+    #     {1, 4, 5} is smaller.
+    #     
+    #     What if u=3. Neighbors 1, 2, 4.
+    #     Edges (1,2). Non-edges (1,4), (2,4).
+    #     Pairs: (1,2) edge. (1,4) non-edge. Triplet {1, 3, 4}.
+    #     Next (2,4) non-edge. Triplet {2, 3, 4}.
+    #     {1, 3, 4} is smaller.
+    #     So iterating v, w in order and taking the first non-edge works for a fixed u?
+    #     Yes, because we want to minimize the sorted tuple.
+    #     The sorted tuple depends on min(u, v, w).
+    #     
+    #     Case 1: u < v < w. Triplet (u, v, w).
+    #       We want smallest v, then smallest w.
+    #       Iterating v then w in order finds this first.
+    #     Case 2: v < u < w. Triplet (v, u, w).
+    #       We want smallest v, then smallest w.
+    #       Iterating v then w finds this.
+    #       Note: v is a neighbor, so v < u is possible.
+    #     Case 3: v < w < u. Triplet (v, w, u).
+    #       We want smallest v, then smallest w.
+    #       Iterating v then w finds this.
+    #       
+    #     So for a fixed u, the first non-edge (v, w) found by iterating v in sorted
+    #     neighbors, and w in sorted neighbors (w > v), gives the optimal triplet
+    #     involving u.
+    #     
+    #     We maintain a global `best` triplet.
+    #     We iterate u from 1 to n.
+    #     For each u, find the optimal triplet involving u.
+    #     Update `best`.
+    #     If `best` starts with u, we can potentially stop?
+    #     No, because a later u might find a triplet starting with a smaller value?
+    #     Impossible, since we iterate u increasing.
+    #     If `best` is (a, b, c), then a <= u.
+    #     If a < u, we won't find a better one.
+    #     If a == u, we might find a better one with same a but smaller b.
+    #     But we just found the optimal for this u.
+    #     So if `best` starts with u, we are done with u.
+    #     
+    #     Actually, if we find a triplet starting with 1, we only need to check if
+    #     there's a better triplet starting with 1.
+    #     Once we move to u=2, we can't find a triplet starting with 1.
+    #     So if `best` starts with 1, and we are at u=2, we can stop.
+    #     Generally, if `best` starts with `k`, and we are iterating `u > k`, stop.
+    #     
+    #     Wait, is it possible that for u=2, we find a triplet {1, 2, 3}?
+    #     Yes. If u=2, v=1, w=3.
+    #     If we are at u=2, and `best` starts with 1 (found from u=1), then {1, 2, 3}
+    #     is a candidate. We must check if it's better than current `best`.
+    #     So we can't stop just because u > best[0].
+    #     We can stop if u > best[0] AND we have checked all nodes <= best[0].
+    #     Since we iterate u increasing, once u > best[0], we won't find any triplet
+    #     starting with best[0] or smaller.
+    #     So if u > best[0], we can break.
+    #     
+    #     Algorithm:
+    #     best = (inf, inf, inf)
+    #     for u in 1..n:
+    #       if u > best[0]: break
+    #       find optimal triplet for u.
+    #       if found and triplet < best:
+    #         best = triplet
+    #     
+    #     Complexity:
+    #     For each u, we iterate neighbors.
+    #     In worst case, we iterate all u.
+    #     Inner loop: sum of deg[u]^2.
+    #     If graph is dense, deg[u] is large.
+    #     But dense graph has triangles (Type 1), handled earlier.
+    #     So this part runs only if no triangles.
+    #     Triangle-free graph has O(n^2) edges? No, O(n^{3/2}) or similar?
+    #     Actually, Turan's theorem: max edges without K3 is floor(n^2/4).
+    #     So deg[u] can be O(n).
+    #     Sum of deg[u]^2 can be O(n * n^2) = O(n^3)?
+    #     Wait. Sum of deg[u] = 2m.
+    #     Sum of deg[u]^2 is maximized when degrees are uneven.
+    #     If one node has degree n-1, others have degree 1.
+    #     Sum = (n-1)^2 + (n-1)*1 = O(n^2).
+    #     If degrees are balanced (n/2), sum = n * (n/2)^2 = n^3/4.
+    #     So O(n^3) is possible?
+    #     Wait, if degrees are n/2, we have n * n/2 / 2 = n^2/4 edges.
+    #     This is a balanced bipartite graph.
+    #     In a balanced bipartite graph, we have no triangles.
+    #     So we run the Type 2 check.
+    #     We iterate u from 1 to n.
+    #     For each u, we iterate pairs of neighbors.
+    #     If deg[u] = n/2, this takes O((n/2)^2) = O(n^2).
+    #     Total time O(n^3).
+    #     With n=2000, n^3 = 8 * 10^9. Too slow.
+    #     
+    #     We need a faster way to find a non-edge in neighbors[u].
+    #     We don't need to check all pairs.
+    #     We just need to find v, w in neighbors[u] such that not adj[v][w].
+    #     
+    #     Optimization:
+    #     Pick any v in neighbors[u].
+    #     We need w in neighbors[u] such that w != v and not adj[v][w].
+    #     If such w exists, we found a pair.
+    #     We want the lexicographically smallest pair.
+    #     
+    #     For a fixed u:
+    #       Iterate v in neighbors[u] (sorted).
+    #         We want to find the smallest w in neighbors[u] (w > v) such that not adj[v][w].
+    #         Actually, we want smallest triplet.
+    #         
+    #         Let's try to find ANY non-edge first.
+    #         If we find (v, w), we get a triplet.
+    #         
+    #         To optimize:
+    #         Iterate v in neighbors[u].
+    #           Count connections from v to neighbors[u].
+    #           If v is not connected to ALL other neighbors of u, then there exists w.
+    #           
+    #           How to find the smallest such w efficiently?
+    #           Iterate w in neighbors[u]. If w != v and not adj[v][w]:
+    #             Candidate triplet found.
+    #             
+    #           This is still O(deg[u]).
+    #           Total O(sum deg[u]^2).
+    #           
+    #     Is there a way to avoid O(n^3)?
+    #     We only need the LEXICOGRAPHICALLY smallest triplet.
+    #     
+    #     Let's reconsider the constraints.
+    #     We iterate u from 1 to n.
+    #     We want to find the smallest triplet starting with u (or containing u).
+    #     
+    #     Let's try the "pick a v" strategy.
+    #     For a fixed u, pick the smallest neighbor v.
+    #     Check if v is connected to all other neighbors of u.
+    #     If not, find the smallest w in neighbors[u] (w > v) not connected to v.
+    #     This gives a candidate triplet.
+    #     
+    #     Is this the smallest triplet for u?
+    #     Triplet is {u, v, w}.
+    #     If v is the smallest neighbor, and we pick smallest w, this minimizes the triplet.
+    #     
+    #     Does this cover all cases?
+    #     What if the smallest triplet for u involves v' > v?
+    #     Example: u=5. Neighbors: 1, 2, 3, 4.
+    #     v=1. 1 is connected to 2, 3. Not connected to 4.
+    #     Triplet {1, 4, 5}.
+    #     What if there is {2, 3, 5}? (2 not connected to 3).
+    #     {1, 4, 5} vs {2, 3, 5}.
+    #     {1, 4, 5} is smaller.
+    #     
+    #     What if v=1 is connected to ALL neighbors?
+    #     Then we must pick v=2.
+    #     
+    #     So the strategy:
+    #     For a fixed u:
+    #       Iterate v in neighbors[u] (sorted).
+    #         Iterate w in neighbors[u] (sorted).
+    #           if v < w and not adj[v][w]:
+    #             This is the smallest pair (v, w) for this u.
+    #             Form triplet, update best, break inner loops.
+    #             
+    #     This is still O(deg[u]^2) in worst case.
+    #     BUT, we only do this if v is connected to ALL previous w's.
+    #     
+    #     Let's analyze the complexity again.
+    #     We iterate v. For each v, we scan w.
+    #     If we find a non-edge, we stop.
+    #     
+    #     Worst case: Complete bipartite graph.
+    #     u is in one partition. Neighbors are in the other.
+    #     All neighbors of u are connected to each other?
+    #     No, in bipartite graph, nodes in the same partition are NOT connected.
+    #     So for ANY u, neighbors[u] is an independent set.
+    #     So the first pair of neighbors (v, w) is a non-edge.
+    #     We check adj[v][w]. It is False.
+    #     We find the triplet immediately.
+    #     Cost: O(deg[u]) to iterate w.
+    #     Total cost: O(sum deg[u]) = O(m).
+    #     
+    #     When is it slow?
+    #     When neighbors[u] form a dense subgraph.
+    #     i.e., many edges between neighbors.
+    #     But if neighbors[u] form a clique, we have a triangle (Type 1).
+    #     We already handled Type 1.
+    #     So neighbors[u] is NOT a clique.
+    #     
+    #     However, neighbors[u] can be "almost" a clique.
+    #     Example: neighbors[u] has k nodes. Edges: k(k-1)/2 - 1.
+    #     Only 1 non-edge.
+    #     We have to scan many pairs to find it.
+    #     
+    #     Can we have many such u?
+    #     If neighbors[u] is almost a clique, then u is part of many triangles.
+    #     But we checked Type 1 (triangles) exhaustively?
+    #     No, we stopped at the first triangle.
+    #     
+    #     Ah! If a triangle exists, we output it and exit.
+    #     The slow case (Type 2) only runs if NO triangles exist.
+    #     If no triangles exist, then for every u, neighbors[u] is an independent set?
+    #     No. neighbors[u] can have edges, just not forming a triangle with u?
+    #     Wait. Triangle (u, v, w) means u-v, u-w, v-w.
+    #     If v-w exists, and u-v, u-w exist, it IS a triangle.
+    #     So, if NO triangles exist, then for any u, there are NO EDGES between
+    #     neighbors of u.
+    #     Proof: If edge v-w exists where v, w in neighbors[u], then (u, v, w) is a triangle.
+    #     
+    #     Conclusion:
+    #     If Type 1 check fails (no triangles), then for every u, neighbors[u] is an
+    #     independent set (no edges between any pair of neighbors).
+    #     
+    #     In this case, for Type 2:
+    #     For any u with deg[u] >= 2:
+    #       Pick the first two neighbors v, w.
+    #       Since no edge v-w, this forms a valid certificate.
+    #       
+    #     So, if no triangles, finding a Type 2 certificate is trivial:
+    #     Iterate u from 1 to n.
+    #     If deg[u] >= 2:
+    #       v = neighbors[u][0]
+    #       w = neighbors[u][1]
+    #       Triplet is {u, v, w}.
+    #       
+    #     To find the LEXICOGRAPHICALLY smallest:
+    #     We iterate u from 1 to n.
+    #     If deg[u] >= 2:
+    #       We need the smallest triplet formed by u and two neighbors.
+    #       Since neighbors are independent, ANY pair works.
+    #       We want the smallest pair (v, w) from neighbors[u].
+    #       Since neighbors are sorted, just pick neighbors[u][0] and neighbors[u][1].
+    #       
+    #       Wait. We want smallest triplet {u, v, w}.
+    #       If we pick v=neighbors[u][0] and w=neighbors[u][1], is it optimal for this u?
+    #       Yes, because we want smallest v, then smallest w.
+    #       
+    #       So for each u, we form one candidate triplet.
+    #       We take the minimum over all u.
+    #       
+    #       Complexity: O(n) to iterate u. O(1) to pick neighbors.
+    #       Total O(n).
+    #       
+    #     This is extremely fast.
+    #     
+    #     So the algorithm is:
+    #     1. Search for Type 1 (Triangle).
+    #        If found, output and exit.
+    #     2. If no Type 1, then graph is triangle-free.
+    #        Iterate u from 1 to n.
+    #        If deg[u] >= 2:
+    #          v = neighbors[u][0]
+    #          w = neighbors[u][1]
+    #          Form triplet {u, v, w}.
+    #          Keep track of the minimum triplet.
+    #        Output the minimum triplet.
+    #        
+    #     Wait, is it guaranteed that deg[u] >= 2 for some u?
+    #     Problem statement: "It is guaranteed that the provided registry contains at least one such certificate."
+    #     If no triangles, there must be a Type 2 certificate.
+    #     Type 2 requires a node with degree >= 2.
+    #     So yes, such a node exists.
+    #     
+    #     Let's double check the Type 1 search complexity.
+    #     We iterate u. For each u, iterate neighbors v, w.
+    #     Check adj[v][w].
+    #     This is O(sum over u of deg[u]^2).
+    #     In worst case (dense graph), this is O(n^3).
+    #     With n=2000, this is 8*10^9 operations.
+    #     Python might be slow.
+    #     
+    #     Can we optimize Type 1 search?
+    #     We want the lexicographically smallest triangle.
+    #     Iterate u from 1 to n.
+    #     For each u, we want to know if there's a triangle (u, v, w) with v, w > u.
+    #     If yes, we want the smallest such v, then w.
+    #     
+    #     For a fixed u:
+    #       Iterate v in neighbors[u] where v > u.
+    #         Iterate w in neighbors[u] where w > v.
+    #           Check adj[v][w].
+    #           
+    #     This is still O(deg[u]^2).
+    #     
+    #     Is there a faster way?
+    #     Matrix multiplication? No.
+    #     
+    #     Let's check the constraints again.
+    #     m <= 2 * 10^5.
+    #     Sum of deg[u] = 2m <= 4 * 10^5.
+    #     Sum of deg[u]^2 is bounded by (max deg) * (sum deg) = D * 2m.
+    #     Or by (sum deg)^2 / n.
+    #     
+    #     Worst case for sum deg^2:
+    #     One node connected to all others. deg = n-1.
+    #     Others deg = 1.
+    #     Sum = (n-1)^2 + (n-1) = O(n^2).
+    #     This is fast.
+    #     
+    #     What if degrees are balanced?
+    #     deg = 2m/n.
+    #     Sum deg^2 = n * (2m/n)^2 = 4m^2/n.
+    #     With m = 2*10^5, n = 2000.
+    #     Sum = 4 * 4e10 / 2000 = 8e7.
+    #     This is acceptable for Python (approx 1-2 seconds).
+    #     
+    #     So the O(sum deg^2) approach for Type 1 is likely fast enough given m constraint.
+    #     
+    #     Let's refine the Type 1 search.
+    #     We want smallest (u, v, w).
+    #     Iterate u from 1 to n.
+    #       Iterate v in neighbors[u] (v > u).
+    #         Iterate w in neighbors[u] (w > v).
+    #           If adj[v][w]:
+    #             print u, v, w and return.
+    #             
+    #     This finds the smallest u.
+    #     For a fixed u, it finds smallest v, then smallest w.
+    #     So it finds the lexicographically smallest triangle.
+    #     
+    #     Correctness of Type 2 logic:
+    #     If no triangle found, graph is triangle-free.
+    #     For Type 2, we need {u, v, w} where u is connected to v, w, and v not connected to w.
+    #     Since triangle-free, ANY pair of neighbors of u is not connected.
+    #     So we just need deg[u] >= 2.
+    #     We want smallest triplet.
+    #     Iterate u from 1 to n.
+    #       If deg[u] >= 2:
+    #         v = neighbors[u][0]
+    #         w = neighbors[u][1]
+    #         Candidate = sorted((u, v, w)).
+    #         Update best.
+    #         
+    #     Is it sufficient to check neighbors[u][0] and neighbors[u][1]?
+    #     We want the smallest triplet for this u.
+    #     The triplet is {u, v, w}.
+    #     We want to minimize the sorted tuple.
+    #     This means we want smallest elements.
+    #     neighbors[u] is sorted.
+    #     So neighbors[u][0] and neighbors[u][1] are the two smallest neighbors.
+    #     This minimizes v and w.
+    #     Does this minimize the triplet?
+    #     Triplet elements are u, v, w.
+    #     If u is fixed, we want smallest v and w.
+    #     Yes.
+    #     
+    #     But wait, we iterate u.
+    #     The triplet {u, v, w} might not start with u.
+    #     Example u=5, v=1, w=2. Triplet {1, 2, 5}.
+    #     If we iterate u=1, we might find {1, 3, 4}.
+    #     {1, 2, 5} is smaller than {1, 3, 4}.
+    #     So for a fixed u, picking smallest neighbors is correct to find the best triplet involving u.
+    #     Then we take min over all u.
+    #     
+    #     One detail: neighbors[u] might contain elements smaller than u.
+    #     neighbors[u] is sorted.
+    #     neighbors[u][0] is the smallest neighbor.
+    #     neighbors[u][1] is the second smallest.
+    #     This is correct.
+    
+    # Implementation details:
+    # adj matrix for O(1) edge check.
+    # neighbors list for iteration.
+    
+    # Type 1 search
+    for u in range(1, n + 1):
+        # We iterate v, w from neighbors[u]
+        # To ensure v < w and avoid duplicates/checking both (v,w) and (w,v)
+        # and to find lex smallest, we iterate in order.
+        # neighbors[u] is sorted.
+        # We only care about v, w such that u < v < w to form a candidate (u, v, w).
+        # BUT, a triangle could be {1, 2, 3} where u=2, v=1, w=3.
+        # If we iterate u=1, we check neighbors 2, 3. adj[2][3]?
+        # If adj[2][3] is true, we output 1 2 3.
+        # This is correct.
+        # If we iterate u=2, we check neighbors 1, 3. adj[1][3]?
+        # If we found it at u=1, we would have outputted already.
+        # So we only need to find triangles where u is the smallest node?
+        # Yes, because we iterate u from 1 to n.
+        # If a triangle {a, b, c} exists with a < b < c, it will be found when u=a.
+        # We check neighbors b, c. adj[b][c] will be true.
+        # So we only need to check pairs v, w in neighbors[u] such that u < v < w.
+        # Wait, if we restrict to u < v < w, we might miss triangles?
+        # No. If triangle is {a, b, c} with a < b < c.
+        # When u=a, neighbors include b, c. We check pair (b, c). adj[b][c] is true. Found.
+        # When u=b, neighbors include a, c. We check pair (a, c)? No, a < b.
+        # If we only check v, w > u, then at u=b we check nothing (a < b, c > b).
+        # So we only check pairs where both are greater than u.
+        # This is sufficient to find the triangle exactly once with u being the smallest vertex.
+        # And it guarantees u < v < w.
+        
+        # Optimization: filter neighbors greater than u
+        greater_neighbors = [v for v in neighbors[u] if v > u]
+        len_g = len(greater_neighbors)
+        for i in range(len_g):
+            v = greater_neighbors[i]
+            for j in range(i + 1, len_g):
+                w = greater_neighbors[j]
+                if adj[v][w]:
+                    print(u, v, w)
+                    return
+    
+    # Type 2 search
+    # Graph is triangle-free.
+    best = (n + 1, n + 1, n + 1)
+    
+    for u in range(1, n + 1):
+        if deg[u] >= 2:
+            # neighbors[u] is sorted
+            v = neighbors[u][0]
+            w = neighbors[u][1]
+            # Form triplet
+            # Since we want lex smallest, we sort the triplet
+            # But we know v < w.
+            # We need to place u.
+            # u could be < v, between v and w, or > w.
+            # Actually, we can just use tuple(sorted((u, v, w)))
+            # Optimization: manual sort to avoid function call overhead if needed, 
+            # but Python's sorted is fast.
+            
+            # Manual sort for speed
+            if u < v:
+                current = (u, v, w)
+            elif u < w:
+                current = (v, u, w)
+            else:
+                current = (v, w, u)
+            
+            if current < best:
+                best = current
+                
+    print(best[0], best[1], best[2])
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     solve()
 ```

@@ -1,0 +1,309 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    degree = [0] * n
+    
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        degree[u] += 1
+        degree[v] += 1
+    
+    # Precompute collaborative load for agency pair (a, b)
+    # Formula: a^2 + b^2 + 2(a-b)^4 - 10(a-b)^2 + 8
+    collab_load = [[0] * 4 for _ in range(4)]
+    for a in range(1, 4):
+        for b in range(1, 4):
+            d = a - b
+            d2 = d * d
+            d4 = d2 * d2
+            collab_load[a][b] = a*a + b*b + 2*d4 - 10*d2 + 8
+    
+    # We use backtracking with pruning.
+    # For each department i, we track:
+    # - sum_risk: sum of f_j^2 * deg(j) for assigned departments j
+    # - sum_load: sum of collaborative loads for edges where both endpoints are assigned
+    # - pending_load: sum of collaborative loads for edges where one endpoint is assigned and the other is pending
+    # The invariant is: sum_load + pending_load <= sum_risk
+    # When all departments are assigned, we need sum_load == sum_risk.
+    
+    # To speed up, we precompute for each department i and agency f:
+    # - risk_contrib[i][f] = f^2 * degree[i]
+    # - load_contrib[i][f][j] = collaborative load for edge (i, j) if j is assigned agency f_j
+    # But since we don't know f_j in advance, we compute on the fly.
+    
+    # We'll use a recursive function with memoization or just backtracking with pruning.
+    # Given n <= 40, we need efficient pruning.
+    
+    # Let's define the state:
+    # - assigned: list of agencies for departments 0..i-1 (or a mask)
+    # - sum_risk, sum_load, pending_load
+    
+    # We can use a greedy approach: assign departments in order, and for each department,
+    # try agencies 1, 2, 3 in order (to get lexicographically smallest).
+    # For each assignment, update the state and check the invariant.
+    
+    # To speed up, we can precompute for each department i:
+    # - neighbors: list of neighbors
+    # - for each neighbor j, the index of j in the neighbor list (for quick lookup)
+    
+    # We'll use a recursive function with parameters:
+    # - i: current department to assign
+    # - sum_risk, sum_load, pending_load
+    # - assigned: list of length n, with 0 for unassigned, or agency 1-3 for assigned
+    
+    # But passing lists is slow. We can use a tuple or bitmask for assigned.
+    # Since n <= 40, we can use a bitmask for assigned status (40 bits fit in Python int).
+    # But we also need to store the agency for each assigned department.
+    # We can use a separate array for that, or encode agency in the bitmask (2 bits per department).
+    # Let's use a list for simplicity, and see if it's fast enough.
+    
+    # Optimization: precompute for each department i and agency f:
+    # - risk_contrib[i][f] = f^2 * degree[i]
+    # - For each neighbor j, the load contribution if j is assigned agency g: load_contrib[i][f][j][g]
+    # But this is 40 * 3 * 40 * 3 = 14400 entries, which is fine.
+    
+    # Actually, we can compute load contribution on the fly using collab_load[f][g].
+    
+    # Let's implement the backtracking with pruning.
+    
+    assigned = [0] * n
+    best_assignment = None
+    
+    # We'll use a recursive function with early termination.
+    # To make it faster, we can use iterative deepening or BFS.
+    
+    # Let's try a simple recursive backtracking with pruning.
+    
+    # We need to track:
+    # - sum_risk: sum of f_j^2 * deg(j) for assigned j
+    # - sum_load: sum of collaborative loads for edges where both endpoints are assigned
+    # - pending_load: sum of collaborative loads for edges where one endpoint is assigned and the other is pending
+    
+    # The invariant: sum_load + pending_load <= sum_risk
+    # When all departments are assigned, pending_load = 0, so we need sum_load == sum_risk.
+    
+    # We'll process departments in order 0..n-1.
+    
+    # Precompute for each department i:
+    # - neighbors: list of neighbors
+    # - degree[i]
+    
+    # We'll use a recursive function with parameters:
+    # - i: current department to assign
+    # - sum_risk, sum_load, pending_load
+    
+    # For each department i, we try agencies 1, 2, 3 in order.
+    # For each agency f:
+    # - Update sum_risk += f^2 * degree[i]
+    # - For each neighbor j:
+    #   - If j is assigned (assigned[j] > 0):
+    #     - sum_load += collab_load[f][assigned[j]]
+    #     - pending_load -= collab_load[assigned[j]][f] (since this edge was pending)
+    #   - Else (j is not assigned):
+    #     - pending_load += collab_load[f][assigned[j]] (but assigned[j] is 0, so we need to handle this)
+    # Wait, this is tricky. We need to track pending edges.
+    
+    # Alternative: for each edge (u, v), if both are assigned, add to sum_load.
+    # If exactly one is assigned, add to pending_load.
+    # If none are assigned, do nothing.
+    
+    # So when we assign department i with agency f:
+    # - For each neighbor j:
+    #   - If j is assigned:
+    #     - sum_load += collab_load[f][assigned[j]]
+    #     - pending_load -= collab_load[assigned[j]][f] (since this edge was pending)
+    #   - Else:
+    #     - pending_load += collab_load[f][assigned[j]] (but assigned[j] is 0, so we need to handle this)
+    # Wait, we need to know the agency of j to compute collab_load[f][assigned[j]].
+    # But if j is not assigned, we don't know its agency yet.
+    # So we cannot compute the load contribution for pending edges.
+    
+    # This suggests that we cannot use pending_load in this way.
+    # We need a different approach.
+    
+    # Let's think differently. The condition is:
+    # sum_{edges (u,v)} collab_load(f_u, f_v) == sum_{i} f_i^2 * degree[i]
+    # 
+    # Let's expand collab_load(f_u, f_v):
+    # collab_load(f_u, f_v) = f_u^2 + f_v^2 + 2(f_u - f_v)^4 - 10(f_u - f_v)^2 + 8
+    # 
+    # So the total sum is:
+    # sum_{edges (u,v)} [f_u^2 + f_v^2 + 2(f_u - f_v)^4 - 10(f_u - f_v)^2 + 8]
+    # 
+    # The right side is:
+    # sum_{i} f_i^2 * degree[i]
+    # 
+    # Notice that sum_{edges (u,v)} (f_u^2 + f_v^2) = sum_{i} f_i^2 * degree[i]
+    # because each department i appears in degree[i] edges.
+    # 
+    # So the condition simplifies to:
+    # sum_{edges (u,v)} [2(f_u - f_v)^4 - 10(f_u - f_v)^2 + 8] == 0
+    # 
+    # Let d = f_u - f_v. Then the term is:
+    # 2d^4 - 10d^2 + 8
+    # 
+    # Let's compute this for d = -2, -1, 0, 1, 2:
+    # d = 0: 2*0 - 10*0 + 8 = 8
+    # d = 1 or -1: 2*1 - 10*1 + 8 = 2 - 10 + 8 = 0
+    # d = 2 or -2: 2*16 - 10*4 + 8 = 32 - 40 + 8 = 0
+    # 
+    # So the term is 0 for |d| = 1 or 2, and 8 for d = 0.
+    # 
+    # Therefore, the condition is:
+    # sum_{edges (u,v)} [8 if f_u == f_v else 0] == 0
+    # 
+    # Which means: for every edge (u, v), f_u != f_v.
+    # 
+    # So the problem reduces to checking if the graph is 3-colorable (with colors 1, 2, 3),
+    # and finding the lexicographically smallest coloring.
+    
+    # This is a classic graph 3-coloring problem, which is NP-complete.
+    # But n <= 40, so we can use backtracking with pruning.
+    
+    # We'll use a recursive backtracking approach.
+    # For each department i, we try colors 1, 2, 3 in order.
+    # We check if the color is valid (no neighbor has the same color).
+    # If valid, we proceed to the next department.
+    
+    # To speed up, we can use:
+    # - Forward checking: keep track of available colors for each unassigned department.
+    # - Constraint propagation: if a department has only one available color, assign it.
+    # - Most constrained variable: choose the department with the fewest available colors.
+    
+    # But for n <= 40, a simple backtracking might be too slow.
+    # We need more optimizations.
+    
+    # Let's use bitmask to represent available colors for each department.
+    # We'll use a list 'available' where available[i] is a bitmask of available colors for department i.
+    # Initially, available[i] = 0b111 (colors 1, 2, 3).
+    
+    # We'll also use a list 'order' to determine the order of assigning departments.
+    # We can use the degree order (highest degree first) to reduce branching.
+    
+    # Let's implement this.
+    
+    # Reorder departments by degree (highest first)
+    order = sorted(range(n), key=lambda x: -degree[x])
+    pos = [0] * n
+    for idx, node in enumerate(order):
+        pos[node] = idx
+    
+    # Reorder adjacency list
+    new_adj = [[] for _ in range(n)]
+    for i in range(n):
+        for j in adj[i]:
+            new_adj[pos[i]].append(pos[j])
+    adj = new_adj
+    
+    # Now departments are indexed 0..n-1 in the new order.
+    # We'll assign colors in this order.
+    
+    color = [0] * n
+    available = [0b111] * n  # bit 0: color 1, bit 1: color 2, bit 2: color 3
+    
+    # We'll use a recursive function with parameters:
+    # - i: current department to assign
+    # - color: list of colors assigned so far
+    # - available: list of available colors for each department
+    
+    # We'll use a stack for iterative backtracking.
+    
+    # We'll try to assign colors in order 1, 2, 3.
+    
+    # We'll use a simple recursive function with pruning.
+    
+    # Let's implement it.
+    
+    # We'll use a function to check if assigning color c to department i is valid.
+    # It's valid if no neighbor has color c.
+    
+    # We'll use a function to update available colors for neighbors.
+    
+    # We'll use a function to restore available colors.
+    
+    # We'll use a stack for backtracking.
+    
+    # Let's implement it.
+    
+    # We'll use a recursive function with parameters:
+    # - i: current department to assign
+    # - color: list of colors assigned so far
+    # - available: list of available colors for each department
+    
+    # We'll try colors 1, 2, 3 in order.
+    
+    # We'll use a function to check if assigning color c to department i is valid.
+    # It's valid if no neighbor has color c.
+    
+    # We'll use a function to update available colors for neighbors.
+    
+    # We'll use a function to restore available colors.
+    
+    # We'll use a stack for backtracking.
+    
+    # Let's implement it.
+    
+    # We'll use a simple recursive function with pruning.
+    
+    def backtrack(i):
+        if i == n:
+            return True
+        # Try colors 1, 2, 3 in order
+        for c in range(1, 4):
+            if (available[i] >> (c - 1)) & 1:
+                # Check if color c is valid
+                valid = True
+                for j in adj[i]:
+                    if color[j] == c:
+                        valid = False
+                        break
+                if valid:
+                    color[i] = c
+                    # Update available colors for neighbors
+                    saved_available = []
+                    for j in adj[i]:
+                        if color[j] == 0:
+                            saved_available.append(available[j])
+                            available[j] &= ~(1 << (c - 1))
+                            if available[j] == 0:
+                                # No color available for j, backtrack
+                                for k in adj[i]:
+                                    if color[k] == 0 and k != j:
+                                        available[k] = saved_available.pop()
+                                color[i] = 0
+                                valid = False
+                                break
+                    if valid:
+                        if backtrack(i + 1):
+                            return True
+                    # Restore available colors
+                    for j in adj[i]:
+                        if color[j] == 0:
+                            available[j] = saved_available.pop()
+                    color[i] = 0
+        return False
+    
+    if backtrack(0):
+        # Convert back to original order
+        original_color = [0] * n
+        for i in range(n):
+            original_color[order[i]] = color[i]
+        print("YES")
+        print(' '.join(map(str, original_color)))
+    else:
+        print("NO")
+
+solve()
+```

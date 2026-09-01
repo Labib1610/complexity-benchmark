@@ -4,27 +4,21 @@ def main():
     input = sys.stdin.readline
     n, m = map(int, input().split())
     adj = [set() for _ in range(n + 1)]
-    edges = []
     for _ in range(m):
         u, v = map(int, input().split())
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
-
-    best = None
-    best_fp = float('inf')
-
-    for u, v in edges:
-        # Find common neighbors of u and v
-        common = adj[u] & adj[v]
-        for w in common:
-            a, b, c = sorted((u, v, w))
-            fp = a * 10**8 + b * 10**4 + c
-            if fp < best_fp:
-                best_fp = fp
-                best = (a, b, c)
-
-    print(*best)
+    
+    for a in range(1, n + 1):
+        for b in sorted(adj[a]):
+            if b <= a:
+                continue
+            for c in sorted(adj[a]):
+                if c <= b:
+                    continue
+                if c in adj[b]:
+                    print(a, b, c)
+                    return
 
 if __name__ == "__main__":
     main()

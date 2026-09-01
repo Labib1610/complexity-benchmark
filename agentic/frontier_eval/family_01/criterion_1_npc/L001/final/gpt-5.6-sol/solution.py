@@ -1,0 +1,151 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    adj = [0] * n
+
+    p = 2
+    for _ in range(m):
+        u = data[p] - 1
+        v = data[p + 1] - 1
+        p += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    full = (1 << n) - 1
+    degrees = [a.bit_count() for a in adj]
+
+    def feasible(fixed):
+        colors = [0, 0, 0]
+
+        for v, c in enumerate(fixed):
+            bit = 1 << v
+            if adj[v] & colors[c]:
+                return None
+            colors[c] |= bit
+
+        assigned = colors[0] | colors[1] | colors[2]
+        unassigned = full ^ assigned
+
+        def dfs(c0, c1, c2, un):
+            cs = [c0, c1, c2]
+
+            while un:
+                x = un
+                forced_vertex = -1
+                forced_color = -1
+
+                best_vertex = -1
+                best_available = 0
+                best_score = (-1, -1, -1, 0)
+
+                while x:
+                    bit = x & -x
+                    x ^= bit
+                    v = bit.bit_length() - 1
+                    av = adj[v]
+
+                    forbidden = 0
+                    if av & cs[0]:
+                        forbidden |= 1
+                    if av & cs[1]:
+                        forbidden |= 2
+                    if av & cs[2]:
+                        forbidden |= 4
+
+                    if forbidden == 7:
+                        return None
+
+                    saturation = forbidden.bit_count()
+                    if saturation == 2:
+                        forced_vertex = v
+                        forced_color = (7 ^ forbidden).bit_length() - 1
+                        break
+
+                    score = (
+                        saturation,
+                        (av & un).bit_count(),
+                        degrees[v],
+                        -v
+                    )
+                    if score > best_score:
+                        best_score = score
+                        best_vertex = v
+                        best_available = 7 ^ forbidden
+
+                if forced_vertex != -1:
+                    bit = 1 << forced_vertex
+                    cs[forced_color] |= bit
+                    un ^= bit
+                    continue
+
+                if best_vertex == -1:
+                    return tuple(cs)
+
+                bit = 1 << best_vertex
+                used_empty_color = False
+
+                for c in range(3):
+                    if not (best_available & (1 << c)):
+                        continue
+
+                    if cs[c] == 0:
+                        if used_empty_color:
+                            continue
+                        used_empty_color = True
+
+                    nc = cs.copy()
+                    nc[c] |= bit
+                    result = dfs(nc[0], nc[1], nc[2], un ^ bit)
+                    if result is not None:
+                        return result
+
+                return None
+
+            return tuple(cs)
+
+        result = dfs(colors[0], colors[1], colors[2], unassigned)
+        if result is None:
+            return None
+
+        answer = [0] * n
+        for c in range(3):
+            x = result[c]
+            while x:
+                bit = x & -x
+                x ^= bit
+                answer[bit.bit_length() - 1] = c
+        return answer
+
+    # In every colorable graph, colors can be permuted so vertex 1 has color 1.
+    witness = feasible([0])
+    if witness is None:
+        print("NO")
+        return
+
+    prefix = [0]
+
+    for i in range(1, n):
+        current = witness[i]
+
+        for candidate in range(current):
+            trial = prefix + [candidate]
+            new_witness = feasible(trial)
+            if new_witness is not None:
+                witness = new_witness
+                current = candidate
+                break
+
+        prefix.append(current)
+
+    print("YES")
+    print(*[c + 1 for c in prefix])
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,95 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Forbidden pairs: (1,1), (2,2), (3,3), (1,3)
+    # Allowed pairs: (1,2), (2,1), (2,3), (3,2)
+    # This is a 2-coloring problem on the graph.
+    # We need to check if the graph is bipartite.
+    # If yes, find the lexicographically smallest valid assignment.
+    
+    color = [-1] * n
+    is_bipartite = True
+    
+    # Process components in order to ensure lexicographically smallest result
+    for start in range(n):
+        if color[start] != -1:
+            continue
+        
+        # BFS for this component
+        queue = [start]
+        color[start] = 0
+        component_nodes = []
+        
+        head = 0
+        while head < len(queue):
+            u = queue[head]
+            component_nodes.append(u)
+            head += 1
+            
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    is_bipartite = False
+        
+        if not is_bipartite:
+            print("NO")
+            return
+        
+        # Check if flipping colors gives a lexicographically smaller assignment
+        # Current assignment: color 0 -> 1, color 1 -> 2
+        # Flipped assignment: color 0 -> 2, color 1 -> 1
+        # We want to minimize the sequence s_1, s_2, ..., s_n
+        
+        # Calculate potential improvement by flipping
+        # For each node in component, if we flip, its value changes
+        # color 0: 1 -> 2 (increase, bad)
+        # color 1: 2 -> 1 (decrease, good)
+        
+        # We flip only if the first node in component (by index) has color 1
+        # Because that's the first position where we can potentially get a smaller value
+        # Since component_nodes are added in BFS order, the first one is `start`
+        
+        # Actually, let's just compare the two assignments for the component
+        # Assignment A: color 0 -> 1, color 1 -> 2
+        # Assignment B: color 0 -> 2, color 1 -> 1
+        
+        # We prefer B if the first node in component (sorted by index) gets a smaller value
+        # Since we iterate start from 0 to n-1, `start` is the smallest index in this component
+        
+        if color[start] == 1:
+            # Flipping would give value 1 instead of 2 at position `start`
+            # This is better
+            for node in component_nodes:
+                color[node] = 1 - color[node]
+    
+    # Construct result
+    # color 0 -> value 1
+    # color 1 -> value 2
+    result = []
+    for i in range(n):
+        if color[i] == 0:
+            result.append(1)
+        else:
+            result.append(2)
+    
+    print("YES")
+    print(*(result))
+
+if __name__ == '__main__':
+    solve()

@@ -9,45 +9,63 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    # Build adjacency list and edge set for O(1) lookup
-    adj = defaultdict(set)
-    edges = set()
+    edges = []
+    edge_map = {}
+    degree = [0] * (n + 1)
     
     index = 2
     for _ in range(m):
         u = int(data[index])
-        v = int(data[index+1])
+        v = int(data[index + 1])
         index += 2
         if u > v:
             u, v = v, u
-        adj[u].add(v)
-        adj[v].add(u)
-        edges.add((u, v))
+        edges.append((u, v))
+        edge_map[(u, v)] = len(edges) - 1
+        degree[u] += 1
+        degree[v] += 1
     
-    # Convert adjacency lists to sorted lists for deterministic iteration
-    for u in adj:
-        adj[u] = sorted(adj[u])
+    # Build adjacency list
+    adj = [[] for _ in range(n + 1)]
+    for i, (u, v) in enumerate(edges):
+        adj[u].append(i)
+        adj[v].append(i)
     
-    # Iterate through all possible triplets (a,b,c) with a<b<c
-    # We'll iterate a from 1 to n, b from neighbors of a, c from common neighbors of a and b
-    found = False
-    result = None
-    
-    for a in range(1, n+1):
-        if a not in adj:
+    # For each node, check pairs of its incident edges
+    triplets = []
+    for node in range(1, n + 1):
+        if degree[node] < 2:
             continue
-        for b in adj[a]:
-            if b <= a:
-                continue
-            # Find common neighbors of a and b for candidate c
-            if a in adj and b in adj:
-                for c in adj[a]:
-                    if c <= b:
-                        continue
-                    # Check if b-c is an edge and a-c is an edge
-                    if c in adj[b]:
-                        print(a, b, c)
-                        return
+        incident_edges = adj[node]
+        for i in range(len(incident_edges)):
+            for j in range(i + 1, len(incident_edges)):
+                e1_idx = incident_edges[i]
+                e2_idx = incident_edges[j]
+                e1 = edges[e1_idx]
+                e2 = edges[e2_idx]
+                
+                # Get the other endpoints
+                if e1[0] == node:
+                    a = e1[1]
+                else:
+                    a = e1[0]
+                    
+                if e2[0] == node:
+                    b = e2[1]
+                else:
+                    b = e2[0]
+                
+                if a > b:
+                    a, b = b, a
+                
+                # Check if edge (a,b) exists
+                if (a, b) in edge_map:
+                    triplets.append(tuple(sorted([node, a, b])))
+    
+    # Find the lexicographically smallest triplet
+    if triplets:
+        result = min(triplets)
+        print(result[0], result[1], result[2])
 
 if __name__ == "__main__":
     main()

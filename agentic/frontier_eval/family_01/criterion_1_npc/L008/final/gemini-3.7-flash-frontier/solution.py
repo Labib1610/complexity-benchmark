@@ -1,0 +1,241 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [0] * n
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        if u != v:
+            adj[u] |= 1 << v
+            adj[v] |= 1 << u
+
+    # Check for self-loops (impossible to 3-color if self-loop exists, but problem says simple pairs)
+    # 2-SAT solver for instances where all domains have size <= 2
+    def solve_2sat(domains, active_mask):
+        # Map active vertices to boolean variables
+        # For vertex u, domain has 1 or 2 colors.
+        # Let colors be c0 (False) and c1 (True). If only 1 color c0, forced to False.
+        var_map = {}
+        colors = {}
+        num_vars = 0
+        for u in range(n):
+            if not (active_mask & (1 << u)):
+                continue
+            dom = domains[u]
+            if dom == 0:
+                return False
+            c_list = []
+            for c in (1, 2, 4):
+                if dom & c:
+                    c_list.append(c)
+            colors[u] = c_list
+            var_map[u] = num_vars
+            num_vars += 1
+
+        # 2-SAT with num_vars variables: literal x_i is 2*i, not x_i is 2*i + 1
+        n_lit = 2 * num_vars
+        sat_adj = [[] for _ in range(n_lit)]
+
+        def add_clause(lit1, lit2):
+            # (lit1 or lit2) => (~lit1 -> lit2) and (~lit2 -> lit1)
+            sat_adj[lit1 ^ 1].append(lit2)
+            sat_adj[lit2 ^ 1].append(lit1)
+
+        for u in range(n):
+            if not (active_mask & (1 << u)):
+                continue
+            u_var = var_map[u]
+            u_cols = colors[u]
+            if len(u_cols) == 1:
+                # Must be False (c0)
+                add_clause(2 * u_var + 1, 2 * u_var + 1)
+
+            # Check edges with other active vertices v > u
+            neighbors = adj[u] & active_mask
+            # Iterate neighbors
+            while neighbors:
+                v = (neighbors & -neighbors).bit_length() - 1
+                neighbors &= neighbors - 1
+                if v <= u:
+                    continue
+                v_var = var_map[v]
+                v_cols = colors[v]
+                # For each common color, u and v cannot both have it
+                for c in (1, 2, 4):
+                    if (domains[u] & c) and (domains[v] & c):
+                        # u == c is a literal, v == c is a literal
+                        u_lit = (
+                            (2 * u_var + 1)
+                            if (len(u_cols) == 1 or u_cols[0] == c)
+                            else (2 * u_var)
+                        )
+                        v_lit = (
+                            (2 * v_var + 1)
+                            if (len(v_cols) == 1 or v_cols[0] == c)
+                            else (2 * v_var)
+                        )
+                        # not (u==c and v==c) => (u!=c or v!=c) => (~u_lit or ~v_lit)
+                        add_clause(u_lit ^ 1, v_lit ^ 1)
+
+        # Tarjan's SCC
+        dfn = [-1] * n_lit
+        low = [-1] * n_lit
+        scc = [-1] * n_lit
+        stack = []
+        on_stack = [False] * n_lit
+        timer = 0
+        scc_cnt = 0
+
+        for i in range(n_lit):
+            if dfn[i] != -1:
+                continue
+            call_stack = [(i, 0)]
+            while call_stack:
+                u_node, edge_idx = call_stack.pop()
+                if edge_idx == 0:
+                    dfn[u_node] = low[u_node] = timer
+                    timer += 1
+                    stack.append(u_node)
+                    on_stack[u_node] = True
+
+                has_next = False
+                for j in range(edge_idx, len(sat_adj[u_node])):
+                    to = sat_adj[u_node][j]
+                    if dfn[to] == -1:
+                        call_stack.append((u_node, j + 1))
+                        call_stack.append((to, 0))
+                        has_next = True
+                        break
+                    elif on_stack[to]:
+                        if dfn[to] < low[u_node]:
+                            low[u_node] = dfn[to]
+
+                if has_next:
+                    continue
+
+                if low[u_node] == dfn[u_node]:
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        scc[w] = scc_cnt
+                        if w == u_node:
+                            break
+                    scc_cnt += 1
+
+                if call_stack:
+                    parent, _ = call_stack[-1]
+                    if low[u_node] < low[parent]:
+                        low[parent] = low[u_node]
+
+        for i in range(num_vars):
+            if scc[2 * i] == scc[2 * i + 1]:
+                return False
+        return True
+
+    def is_satisfiable(domains):
+        # Domain propagation and simplification
+        dom = list(domains)
+        active_mask = (1 << n) - 1
+
+        # Propagation / reduction loop
+        while True:
+            changed = False
+            # Check 0 domains
+            for u in range(n):
+                if active_mask & (1 << u):
+                    if dom[u] == 0:
+                        return False
+                    # Degree reduction: if active degree < popcount(dom[u]), u can always be satisfied
+                    deg = (adj[u] & active_mask).bit_count()
+                    c_count = (
+                        (1 if dom[u] & 1 else 0)
+                        + (1 if dom[u] & 2 else 0)
+                        + (1 if dom[u] & 4 else 0)
+                    )
+                    if c_count > deg:
+                        active_mask &= ~(1 << u)
+                        changed = True
+
+            if changed:
+                continue
+            break
+
+        # Check if all remaining have domain size <= 2
+        has_size_3 = -1
+        max_deg = -1
+        for u in range(n):
+            if active_mask & (1 << u):
+                if dom[u] == 7:  # size 3
+                    deg = (adj[u] & active_mask).bit_count()
+                    if deg > max_deg:
+                        max_deg = deg
+                        has_size_3 = u
+
+        if has_size_3 == -1:
+            return solve_2sat(dom, active_mask)
+
+        # Branch on vertex with size 3
+        u = has_size_3
+        for c in (1, 2, 4):
+            dom[u] = c
+            # Propagate to neighbors
+            new_dom = list(dom)
+            neighbors = adj[u] & active_mask
+            while neighbors:
+                v = (neighbors & -neighbors).bit_length() - 1
+                neighbors &= neighbors - 1
+                new_dom[v] &= ~c
+            if is_satisfiable(new_dom):
+                return True
+
+        return False
+
+    # Check if a 3-coloring exists at all
+    init_dom = [7] * n
+    # If any self loop
+    for u in range(n):
+        if adj[u] & (1 << u):
+            print("NO")
+            return
+
+    if not is_satisfiable(init_dom):
+        print("NO")
+        return
+
+    # Find lexicographically smallest coloring
+    current_dom = [7] * n
+    res = [0] * n
+
+    for u in range(n):
+        for color_val, color_mask in [(1, 1), (2, 2), (3, 4)]:
+            if not (current_dom[u] & color_mask):
+                continue
+            test_dom = list(current_dom)
+            test_dom[u] = color_mask
+            # Propagate to all neighbors
+            neighbors = adj[u]
+            while neighbors:
+                v = (neighbors & -neighbors).bit_length() - 1
+                neighbors &= neighbors - 1
+                test_dom[v] &= ~color_mask
+
+            if is_satisfiable(test_dom):
+                res[u] = color_val
+                current_dom = test_dom
+                break
+
+    print("YES")
+    print(*(res[i] for i in range(n)))
+
+
+if __name__ == "__main__":
+    solve()

@@ -1,35 +1,166 @@
+Looking at this problem, I need to find three vertices $a, b, c$ such that every pair among them forms an edge. This is a triangle in the graph.
+
+The certificate condition states: for any one of the three materials placed in the primary chamber, the remaining two in the secondary chamber must form a volatile pair. This means all three pairs $(a,b)$, $(a,c)$, $(b,c)$ must be edges — i.e., a triangle.
+
+I need to find the lexicographically smallest triangle.
+
+**Approach:** For each vertex $v$ in order, I check if there's a triangle containing $v$ as the smallest vertex. For vertex $v$, I look at all pairs of neighbors $u, w$ (both $> v$) and check if $(u,w)$ is an edge. To make this efficient, I iterate over neighbors and for each pair, check edge existence using a hash set.
+
+The key optimization: once I find vertex $v$ that's part of any triangle as the smallest member, I find the lexicographically smallest pair $(u, w)$ with $v < u < w$ forming a triangle with $v$.
+
+To avoid checking all pairs of neighbors (which could be $O(n^2)$ per vertex), I use the standard triangle-finding trick: for each edge $(u, w)$ where both are neighbors of $v$, check if it's an edge. But I can optimize by only considering edges where both endpoints are neighbors of $v$.
+
+A better approach: iterate through edges, and for each edge $(u,w)$ with $u < w$, check if there exists $v < u$ that's a common neighbor. But finding common neighbors efficiently requires adjacency sets.
+
+Let me use the approach: for each vertex $v$ (smallest in triangle), mark all its neighbors. Then for each neighbor $u > v$, for each neighbor $w > u$ of $v$, check if $(u,w)$ is an edge. To optimize, I iterate over edges incident to neighbors of $v$.
+
+Actually, the cleanest efficient approach: for each vertex $v$ from 1 to n, get its neighbor set. For each pair of neighbors $u < w$ (both $> v$), check if edge exists. Use the optimization where we iterate over the smaller-degree vertex's adjacency when checking.
+
+Given constraints ($n \le 2000$, $m \le 2 \times 10^5$), checking all pairs of neighbors per vertex could be expensive. But with the degree-based optimization (iterate over neighbors of the smaller-degree endpoint), this is the standard $O(m^{3/2})$ triangle finding.
+
+Let me implement: for each $v$ from 1 to n, for each pair of neighbors $u, w$ of $v$ with $v < u < w$, check if $(u,w)$ is an edge. Return first found (lexicographically smallest since we process $v$ in order, and for each $v$, process $u$ then $w$ in order).
+
+To optimize the inner check, I'll use adjacency sets and iterate carefully.
+
 ```python
 import sys
 
 def solve():
-    data = sys.stdin.read().split()
-    if not data:
-        return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
     
     adj = [set() for _ in range(n + 1)]
-    
+    edges = []
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
+    
+    for v in range(1, n + 1):
+        neighbors = sorted(x for x in adj[v] if x > v)
+        for i in range(len(neighbors)):
+            u = neighbors[i]
+            for j in range(i + 1, len(neighbors)):
+                w = neighbors[j]
+                if w in adj[u]:
+                    print(f"{v} {u} {w}")
+                    return
+    
+solve()
+```
+
+Wait, this could be $O(n \cdot d^2)$ where $d$ is max degree, which could be $O(n^3)$ in worst case. With $n = 2000$, that's $8 \times 10^9$ — too slow.
+
+Better approach using the $O(m^{3/2})$ method: orient edges from lower degree to higher degree (break ties by vertex number). Then for each vertex $v$, for each outgoing edge $(v, u)$, mark $u$. Then for each outgoing edge $(v, w)$, check common marked neighbors. Actually the standard method: for each vertex $v$, for each out-neighbor $u$, for each out-neighbor $w$ of $u$, check if $w$ is an in-neighbor of $v$ (i.e., $v \to w$ exists).
+
+But we need lexicographically smallest. Let me think... The oriented graph has max out-degree $O(\sqrt{m})$, so total work is $O(m \sqrt{m})$.
+
+But finding lex smallest triangle requires care. Let me just try the direct approach but with early termination and hope it's fast enough, or use the oriented approach and track the best triangle.
+
+Let me use the oriented approach and track the lexicographically smallest triangle found.
+
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    
+    deg = [0] * (n + 1)
+    edge_list = []
+    for _ in range(m):
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        edge_list.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    for u, v in edge_list:
         adj[u].add(v)
         adj[v].add(u)
     
-    # Sort adjacency lists for consistent ordering
-    adj_list = [sorted(s) for s in adj]
+    # Orient edges: lower (degree, vertex) -> higher (degree, vertex)
+    out_adj = [set() for _ in range(n + 1)]
+    for u, v in edge_list:
+        if (deg[u], u) < (deg[v], v):
+            out_adj[u].add(v)
+        else:
+            out_adj[v].add(u)
     
-    # Iterate over all triples in lexicographical order
-    for a in range(1, n - 1):
-        for b in range(a + 1, n):
-            if b not in adj[a]:
-                continue
-            for c in range(b + 1, n + 1):
-                if c in adj[a] and c in adj[b]:
-                    print(a, b, c)
-                    return
+    best = None
+    for v in range(1, n + 1):
+        # Mark out-neighbors of v
+        marked = set()
+        for u in out_adj[v]:
+            marked.add(u)
+        # For each out-neighbor u, check out-neighbors of u that are also marked
+        for u in out_adj[v]:
+            for w in out_adj[u]:
+                if w in marked:
+                    tri = tuple(sorted([v, u, w]))
+                    if best is None or tri < best:
+                        best = tri
+    
+    print(f"{best[0]} {best[1]} {best[2]}")
 
-if __name__ == "__main__":
-    solve()
+solve()
+```
+
+This finds all triangles in $O(m^{3/2})$ and tracks the lex smallest. This should work within time limits.```python
+import sys
+
+def solve():
+    data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(data[idx]); idx += 1
+    m = int(data[idx]); idx += 1
+    
+    deg = [0] * (n + 1)
+    edge_list = []
+    for _ in range(m):
+        u = int(data[idx]); idx += 1
+        v = int(data[idx]); idx += 1
+        edge_list.append((u, v))
+        deg[u] += 1
+        deg[v] += 1
+    
+    adj = [set() for _ in range(n + 1)]
+    for u, v in edge_list:
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Orient edges from lower (degree, vertex) to higher
+    out_adj = [set() for _ in range(n + 1)]
+    for u, v in edge_list:
+        if (deg[u], u) < (deg[v], v):
+            out_adj[u].add(v)
+        else:
+            out_adj[v].add(u)
+    
+    best = None
+    for v in range(1, n + 1):
+        marked = out_adj[v]
+        if len(marked) < 2:
+            continue
+        for u in out_adj[v]:
+            for w in out_adj[u]:
+                if w in marked:
+                    a, b, c = v, u, w
+                    if a > b: a, b = b, a
+                    if b > c: b, c = c, b
+                    if a > b: a, b = b, a
+                    tri = (a, b, c)
+                    if best is None or tri < best:
+                        best = tri
+    
+    print(f"{best[0]} {best[1]} {best[2]}")
+
+solve()
 ```

@@ -1,0 +1,213 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx + 1]) - 1
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+
+    # 2-SAT Solver for vertices with domain size <= 2
+    # Returns a valid assignment if satisfiable, else None
+    def solve_2sat(domains, fixed_prefix):
+        # domains: list of sets for each vertex
+        # fixed_prefix: dict of vertex -> color (fixed)
+
+        # Variables: for vertex u with domain of size 2, say {c1, c2} with c1 < c2:
+        # boolean var u: False -> c1, True -> c2.
+        # If domain size 1 {c1}: var u is forced.
+        # If domain size 0: unsatisfiable.
+
+        # We construct 2-SAT with 2*n literals:
+        # Literal 2*u is +u (True -> c2), 2*u + 1 is -u (False -> c1)
+
+        # To support 2-SAT, let's map each vertex:
+        # dom[u] will be sorted list of available colors.
+        dom = [sorted(list(domains[u])) for u in range(n)]
+        for u in range(n):
+            if len(dom[u]) == 0:
+                return None
+
+        # Build 2-SAT instance
+        # Clauses are pairs of literals (lit1, lit2)
+        clauses = []
+
+        for u in range(n):
+            if len(dom[u]) == 1:
+                # Forced to dom[u][0]
+                # If we map: True -> dom[u][1] if len==2 else dummy
+                # For len == 1, let True -> impossible, False -> dom[u][0]
+                # So u must be False: clause (~u or ~u) -> (2*u + 1, 2*u + 1)
+                clauses.append((2 * u + 1, 2 * u + 1))
+
+        for u in range(n):
+            for v in adj[u]:
+                if u < v:
+                    # For each color c in dom[u] and dom[v], they cannot both be c
+                    for cu_idx, cu in enumerate(dom[u]):
+                        for cv_idx, cv in enumerate(dom[v]):
+                            if cu == cv:
+                                # u cannot be cu AND v cannot be cv
+                                # lit_u: if cu_idx == 0 -> (False is cu, so lit is +u -> 2*u to mean NOT(cu))
+                                # Actually:
+                                # if cu_idx == 0: cu is False, so "u == cu" is ~u (2*u+1).
+                                # "NOT (u == cu)" is u (2*u).
+                                # if cu_idx == 1: cu is True, so "u == cu" is u (2*u).
+                                # "NOT (u == cu)" is ~u (2*u+1).
+                                lit_u = 2 * u if cu_idx == 0 else 2 * u + 1
+                                lit_v = 2 * v if cv_idx == 0 else 2 * v + 1
+                                clauses.append((lit_u, lit_v))
+
+        # Check satisfiability of a 2-SAT system given fixed clauses and optional extra clauses
+        def check_sat(extra_clauses=[]):
+            # 2*n variables -> 4*n nodes
+            N = 4 * n
+            g = [[] for _ in range(N)]
+            rg = [[] for _ in range(N)]
+
+            def add_clause(l1, l2):
+                # l1 or l2: ~l1 => l2, ~l2 => l1
+                nl1 = l1 ^ 1
+                nl2 = l2 ^ 1
+                g[nl1].append(l2)
+                g[nl2].append(l1)
+                rg[l2].append(nl1)
+                rg[l1].append(nl2)
+
+            for l1, l2 in clauses:
+                add_clause(l1, l2)
+            for l1, l2 in extra_clauses:
+                add_clause(l1, l2)
+
+            # Kosaraju SCC
+            order = []
+            visited = [False] * N
+
+            for i in range(N):
+                if not visited[i]:
+                    stack = [(i, 0)]
+                    visited[i] = True
+                    while stack:
+                        node, state = stack.pop()
+                        if state == 0:
+                            stack.append((node, 1))
+                            for nxt in g[node]:
+                                if not visited[nxt]:
+                                    visited[nxt] = True
+                                    stack.append((nxt, 0))
+                        else:
+                            order.append(node)
+
+            scc = [-1] * N
+            comp = 0
+            for node in reversed(order):
+                if scc[node] == -1:
+                    stack = [node]
+                    scc[node] = comp
+                    while stack:
+                        curr = stack.pop()
+                        for prev in rg[curr]:
+                            if scc[prev] == -1:
+                                scc[prev] = comp
+                                stack.append(prev)
+                    comp += 1
+
+            for i in range(2 * n):
+                if scc[2 * i] == scc[2 * i + 1]:
+                    return False
+            return True
+
+        if not check_sat():
+            return None
+
+        # Now find the lexicographically smallest completion
+        extra = []
+        assignment = [0] * n
+        for u in range(n):
+            # Try colors in increasing order
+            found = False
+            for c_idx, c in enumerate(dom[u]):
+                # Force u to take color c
+                # u taking dom[u][0] means ~u (lit 2*u+1), so clause (2*u+1, 2*u+1)
+                # u taking dom[u][1] means u (lit 2*u), so clause (2*u, 2*u)
+                lit = 2 * u + 1 if c_idx == 0 else 2 * u
+                test_extra = extra + [(lit, lit)]
+                if check_sat(test_extra):
+                    extra.append((lit, lit))
+                    assignment[u] = c
+                    found = True
+                    break
+            if not found:
+                return None
+        return assignment
+
+    # Backtracking for vertices with domain size 3
+    # State: current assignment array (0 for unassigned)
+    assignment = [0] * n
+
+    # We maintain domains for each vertex as sets
+    initial_domains = [set([1, 2, 3]) for _ in range(n)]
+
+    def backtrack(domains):
+        # Find first unassigned vertex
+        # Check if all remaining domains have size <= 2
+        all_le_2 = True
+        first_unassigned = -1
+        for i in range(n):
+            if assignment[i] == 0:
+                if first_unassigned == -1:
+                    first_unassigned = i
+                if len(domains[i]) > 2:
+                    all_le_2 = False
+
+        if first_unassigned == -1:
+            return list(assignment)
+
+        if all_le_2:
+            sol = solve_2sat(domains, assignment)
+            if sol is not None:
+                return sol
+            return None
+
+        u = first_unassigned
+        for c in sorted(list(domains[u])):
+            assignment[u] = c
+            # Create new domains
+            new_domains = [set(d) for d in domains]
+            new_domains[u] = {c}
+            valid = True
+            for v in adj[u]:
+                if assignment[v] == 0:
+                    new_domains[v].discard(c)
+                    if len(new_domains[v]) == 0:
+                        valid = False
+                        break
+            if valid:
+                res = backtrack(new_domains)
+                if res is not None:
+                    return res
+            assignment[u] = 0
+
+        return None
+
+    result = backtrack(initial_domains)
+    if result is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*(result))
+
+
+if __name__ == "__main__":
+    solve()

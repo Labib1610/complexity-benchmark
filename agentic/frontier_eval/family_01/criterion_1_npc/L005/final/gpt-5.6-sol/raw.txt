@@ -1,0 +1,193 @@
+```python
+import sys
+
+
+def solve_component(vertices, graph):
+    k = len(vertices)
+    index = {v: i for i, v in enumerate(vertices)}
+    neighbors = [[] for _ in range(k)]
+
+    for i, v in enumerate(vertices):
+        neighbors[i] = [index[u] for u in graph[v] if u in index]
+
+    degrees = [len(x) for x in neighbors]
+
+    def find_coloring(fixed):
+        domains = [7] * k
+        done = [False] * k
+
+        for i, color in enumerate(fixed):
+            domains[i] = 1 << (color - 1)
+
+        trail = []
+
+        def undo(checkpoint):
+            while len(trail) > checkpoint:
+                typ, v, old = trail.pop()
+                if typ == 0:
+                    domains[v] = old
+                else:
+                    done[v] = False
+
+        def propagate(queue):
+            while queue:
+                v = queue.pop()
+                if done[v]:
+                    continue
+
+                bit = domains[v]
+                if bit == 0 or bit & (bit - 1):
+                    continue
+
+                trail.append((1, v, 0))
+                done[v] = True
+
+                for u in neighbors[v]:
+                    if done[u]:
+                        if domains[u] == bit:
+                            return False
+                    elif domains[u] & bit:
+                        old = domains[u]
+                        new = old & ~bit
+                        trail.append((0, u, old))
+                        domains[u] = new
+
+                        if new == 0:
+                            return False
+                        if new & (new - 1) == 0:
+                            queue.append(u)
+            return True
+
+        initial_queue = list(range(len(fixed)))
+        if not propagate(initial_queue):
+            return None
+        trail.clear()
+
+        bad_states = set()
+        cache_limit = 50000
+
+        def dfs():
+            best = -1
+            best_key = None
+
+            for v in range(k):
+                if not done[v]:
+                    size = domains[v].bit_count()
+                    key = (-size, degrees[v])
+                    if best == -1 or key > best_key:
+                        best = v
+                        best_key = key
+
+            if best == -1:
+                return [domains[i].bit_length() for i in range(k)]
+
+            state = tuple(domains)
+            if state in bad_states:
+                return None
+
+            mask = domains[best]
+            bits = []
+            while mask:
+                bit = mask & -mask
+                bits.append(bit)
+                mask -= bit
+
+            for bit in bits:
+                checkpoint = len(trail)
+                old = domains[best]
+                if old != bit:
+                    trail.append((0, best, old))
+                    domains[best] = bit
+
+                if propagate([best]):
+                    result = dfs()
+                    if result is not None:
+                        return result
+
+                undo(checkpoint)
+
+            if len(bad_states) < cache_limit:
+                bad_states.add(state)
+            return None
+
+        return dfs()
+
+    # In the lexicographically smallest coloring, the first vertex of each
+    # connected component can always be assigned color 1.
+    fixed = [1]
+    coloring = find_coloring(fixed)
+    if coloring is None:
+        return None
+
+    for i in range(1, k):
+        current = coloring[i]
+        chosen_coloring = coloring
+
+        for color in range(1, current):
+            candidate = find_coloring(fixed + [color])
+            if candidate is not None:
+                current = color
+                chosen_coloring = candidate
+                break
+
+        fixed.append(current)
+        coloring = chosen_coloring
+
+    return coloring
+
+
+def main():
+    data = list(map(int, sys.stdin.buffer.read().split()))
+    if not data:
+        return
+
+    n, m = data[0], data[1]
+    graph = [[] for _ in range(n)]
+
+    pos = 2
+    for _ in range(m):
+        u = data[pos] - 1
+        v = data[pos + 1] - 1
+        pos += 2
+        graph[u].append(v)
+        graph[v].append(u)
+
+    visited = [False] * n
+    components = []
+
+    for start in range(n):
+        if visited[start]:
+            continue
+        stack = [start]
+        visited[start] = True
+        component = []
+
+        while stack:
+            v = stack.pop()
+            component.append(v)
+            for u in graph[v]:
+                if not visited[u]:
+                    visited[u] = True
+                    stack.append(u)
+
+        component.sort()
+        components.append(component)
+
+    answer = [0] * n
+
+    for component in components:
+        coloring = solve_component(component, graph)
+        if coloring is None:
+            print("NO")
+            return
+
+        for v, color in zip(component, coloring):
+            answer[v] = color
+
+    print("YES")
+    print(*answer)
+
+
+if __name__ == "__main__":
+    main()
+```

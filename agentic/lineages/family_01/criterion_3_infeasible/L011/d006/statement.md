@@ -1,22 +1,22 @@
-# Synthetic Cell Compartmentalization
+# Production Line Diagnostics
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A synthetic biology lab is engineering a cell that contains $n$ distinct proteins. The cell features exactly two isolated compartments: the nucleus and the cytosol. Due to strong binding affinities, certain pairs of proteins will aggregate into inactive clusters if they are placed in the same compartment. Consequently, any two proteins that share a binding affinity must be strictly separated.
+A manufacturing facility operates continuously using exactly two production lines, Line A and Line B. Certain pairs of manufacturing steps require a shared specialized calibration tool. A tool collision occurs if both steps of such a pair are assigned to the same production line. Currently, the entire batch of manufacturing steps cannot be distributed across the two lines without causing at least one tool collision.
 
-The current cell design is failing because of a structural deadlock. A deadlock occurs when a group of exactly three proteins is mutually incompatible—meaning every possible pair within this group shares a binding affinity. It is therefore impossible to distribute these three proteins across only two compartments without causing aggregation.
+Your diagnostic software must isolate a root cause of this allocation failure by identifying a group of exactly three steps that form an unresolvable bottleneck. 
 
-You need to find the three proteins that form a structural deadlock. If there is more than one such group, you must select the one that yields the smallest sequence trace. To determine a group's sequence trace, take its three protein IDs and assign them to the variables $x, y,$ and $z$ in whichever permutation minimizes the value of $x \cdot 10^8 + y \cdot 10^4 + z$. This minimum achievable value is the sequence trace for that deadlock.
+Consider any group of three distinct steps. There are exactly $2^3 = 8$ theoretical ways to assign just these three steps to Line A and Line B. A group of three steps is classified as an unresolvable bottleneck if every single one of these 8 possible assignments results in at least one tool collision where both of the colliding steps belong to this group. 
 
 ## Input
-The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of engineered proteins and the number of documented binding affinities. The proteins are labeled with integers from $1$ to $n$.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of manufacturing steps and the number of tool collision pairs. Steps are numbered from $1$ to $n$.
 
-Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that protein $u$ and protein $v$ share a binding affinity. 
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that step $u$ and step $v$ require a shared calibration tool.
 
-It is guaranteed that the provided data contains at least one structural deadlock.
+It is guaranteed that at least one unresolvable bottleneck exists in the provided data.
 
 ## Output
-Output a single line containing three space-separated integers representing the IDs of the three proteins that form the deadlock. These three integers must be printed in ascending order. You must output the group that produces the minimum sequence trace as defined above.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three steps. Output the combination that is sequentially lowest (the smallest possible value for $a$; in case of a tie, the smallest possible value for $b$; and finally the smallest possible value for $c$).
 
 ## Example 1
 Input:

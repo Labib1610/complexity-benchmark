@@ -1,22 +1,24 @@
-# Entanglement Initialization
+# Orbital Reflection Synchrony
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A quantum register consists of $n$ qubits, sequentially labeled from 1 to $n$. You are tasked with initializing this register by assigning a configuration code to each qubit. Each configuration code must be chosen from the set {1, 2}.
+A satellite network consists of $n$ orbital modules, numbered $1$ through $n$. You must assign each module an operating mode, represented by the integer $1$ or $2$.
 
-The register's architecture includes $m$ hardware entanglement links, each connecting a specific pair of qubits. The system requires operational stability across all these connections. Specifically, an entanglement link is stable if and only if the product of the configuration codes assigned to its two endpoints evaluates to exactly 2.
+The modes determine how a module transforms incoming telemetry coordinates $(x, y)$:
+- Mode 1 applies a horizontal reflection: $(x, y)$ becomes $(-x, y)$.
+- Mode 2 applies a vertical reflection: $(x, y)$ becomes $(x, -y)$.
 
-Your objective is to find an assignment of configuration codes for all $n$ qubits such that every single entanglement link in the circuit is stable.
+The network's synchronization is governed by $m$ telemetry channels. Each channel connects a specific pair of modules. For a channel to function correctly, the combined effect of the two modules' transformations must be exactly a point reflection through the origin. That is, if you take any coordinate $(x, y)$, apply the transformation for the mode assigned to one module, and then apply the transformation for the mode assigned to the other module, the final coordinate must always be $(-x, -y)$. If the combined transformations yield any other result, the channel fails.
 
-In cases where multiple valid assignments exist, the compiler applies a deterministic tie-breaker. It forms an $n$-digit integer by concatenating the sequence of configuration codes $c_1, c_2, \dots, c_n$. The compiler will always choose the valid assignment that produces the minimum possible value for this $n$-digit integer. If it is impossible to stabilize all links simultaneously, the compilation process aborts.
+Your task is to assign an operating mode ($1$ or $2$) to each of the $n$ modules so that every telemetry channel functions correctly. If multiple valid assignments are possible, you must output the lexicographically smallest valid sequence of modes. If no such assignment is possible, you must report that it cannot be done.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of qubits and the number of entanglement links.
-Each of the subsequent $m$ lines provides two integers $u$ and $v$, specifying that an entanglement link connects qubit $u$ and qubit $v$.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of a pair of modules connected by a telemetry channel.
 
 ## Output
-If the register cannot be fully stabilized, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ space-separated integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2\}$). These integers must represent the configuration codes of the assignment that minimizes the concatenated $n$-digit integer described above.
+If it is impossible to configure the modules to satisfy all channels, output a single line with NO.
+If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid sequence of modes.
 
 ## Example 1
 Input:

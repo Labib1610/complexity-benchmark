@@ -1,38 +1,30 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().split()
-    if not data:
-        return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
     
-    adj = [set() for _ in range(n + 1)]
-    edges = []
+    adj = [set() for _ in range(n+1)]
+    edges = set()
     
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        if u > v:
-            u, v = v, u
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
+        edges.add((u, v) if u < v else (v, u))
     
-    best_a, best_b, best_c = n + 1, n + 1, n + 1
-    
-    # Iterate over edges (u, v) where u < v
-    for u, v in edges:
-        # Find common neighbors w such that w > v to ensure u < v < w
-        # This guarantees unique ordered triplets
-        common = adj[u] & adj[v]
-        for w in common:
-            if w > v:
-                if u < best_a or (u == best_a and v < best_b) or (u == best_a and v == best_b and w < best_c):
-                    best_a, best_b, best_c = u, v, w
-    
-    print(best_a, best_b, best_c)
+    for a in range(1, n+1):
+        neighbors_a = sorted([x for x in adj[a] if x > a])
+        if len(neighbors_a) < 2:
+            continue
+        neighbor_set = set(neighbors_a)
+        for b in neighbors_a:
+            for c in adj[b]:
+                if c > b and c in neighbor_set:
+                    print(f"{a} {b} {c}")
+                    return
 
-if __name__ == "__main__":
-    solve()
+solve()

@@ -1,20 +1,18 @@
-# Problem C — Volatile Mixtures
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A chemical plant stores $n$ reactive compounds, numbered 1 through $n$. Certain pairs of compounds are highly volatile when mixed and must be kept strictly separated.
+The laboratory protocol requires isolating reactive materials by assigning them to two separate storage units so that neither unit contains a mutually volatile pair. However, the provided registry of mutually volatile pairs indicates that such a safe allocation might not always be possible.
 
-The safety inspector is looking for a specific hazard: a set of three compounds where every possible pair among the three is volatile. If such a trio is accidentally stored together, any accidental contact will create a cascading chain reaction. 
-
-You are given the list of all volatile pairs. Your task is to identify one such trio of compounds.
+Your task is to identify a minimal certificate of this instability. A certificate consists of exactly three materials with the following property: there is no way to assign each of these three materials to one of two separate storage units such that both units remain completely free of mutually volatile pairs. It is guaranteed that the provided registry contains at least one such certificate.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of compounds that are volatile when mixed.
-It is guaranteed that at least one trio of mutually volatile compounds exists.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a mutually volatile pair.
+It is guaranteed that a certificate of three materials exists.
 
 ## Output
-Print three integers $a$ $b$ $c$ on one line with $a < b < c$ such that the pairs $a$-$b$, $a$-$c$, and $b$-$c$ are all listed as volatile. Output the lexicographically smallest such trio (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ representing the materials of a minimal certificate. Output the lexicographically smallest such certificate (smallest $a$; ties by smallest $b$; then smallest $c$).
 
 ## Example 1
 Input:

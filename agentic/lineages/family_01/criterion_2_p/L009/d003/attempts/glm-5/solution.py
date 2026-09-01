@@ -9,31 +9,39 @@ def solve():
     n = int(next(it))
     m = int(next(it))
     
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * (n + 1)
+    color = [0] * n
+    possible = True
     
-    for i in range(1, n + 1):
+    for i in range(n):
         if color[i] == 0:
-            q = deque([i])
+            queue = deque([i])
             color[i] = 1
-            while q:
-                u = q.popleft()
+            while queue:
+                u = queue.popleft()
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
-                        q.append(v)
+                        queue.append(v)
                     elif color[v] == color[u]:
-                        print("NO")
-                        return
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
     
-    print("YES")
-    print(' '.join(map(str, color[1:])))
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, color)))
 
 if __name__ == "__main__":
     solve()

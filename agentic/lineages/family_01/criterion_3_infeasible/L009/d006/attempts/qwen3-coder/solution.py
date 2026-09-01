@@ -1,5 +1,5 @@
 import sys
-from itertools import combinations
+from collections import defaultdict
 
 def main():
     import sys
@@ -21,35 +21,40 @@ def main():
         adj[u].add(v)
         adj[v].add(u)
     
-    # Generate all possible triangles by checking all combinations of 3 edges
-    # But more efficiently: for each node, look at its neighbors and see if any pair of neighbors are connected
+    # We need to find a triangle (three nodes all connected to each other)
+    # That satisfies the reactive symmetry property.
+    # In a triangle, every node is connected to the other two,
+    # so the reactive symmetry is automatically satisfied.
+    # So we just need to find any triangle.
     
-    min_triangle = None
+    # To find the lexicographically smallest triangle:
+    # We can iterate through all edges and for each edge (u,v),
+    # look for a common neighbor w such that u < v < w.
     
-    # For each edge, check if it's part of a triangle
+    # First, let's sort adjacency lists for consistent iteration
+    for i in range(1, n + 1):
+        adj[i] = sorted(list(adj[i]))
+    
+    best = None
+    
+    # Iterate through all edges
     for u, v in edges:
-        common_neighbors = adj[u] & adj[v]
-        for w in common_neighbors:
-            if w <= u or w <= v:
-                continue
-            triangle = tuple(sorted([u, v, w]))
-            if min_triangle is None or triangle < min_triangle:
-                min_triangle = triangle
+        if u >= v:
+            continue
+        # Look for a common neighbor w such that v < w
+        # Convert to sets for fast intersection
+        neighbors_u = set(adj[u])
+        neighbors_v = set(adj[v])
+        common_neighbors = neighbors_u & neighbors_v
+        
+        for w in sorted(common_neighbors):
+            if v < w:
+                candidate = (u, v, w)
+                if best is None or candidate < best:
+                    best = candidate
     
-    # Alternative approach: for each vertex, check pairs of its neighbors
-    for node in range(1, n + 1):
-        neighbors = list(adj[node])
-        for i in range(len(neighbors)):
-            for j in range(i + 1, len(neighbors)):
-                u = neighbors[i]
-                v = neighbors[j]
-                if u in adj[v]:  # Triangle found
-                    langs = sorted([node, u, v])
-                    triangle = tuple(langs)
-                    if min_triangle is None or triangle < min_triangle:
-                        min_triangle = triangle
-    
-    print(min_triangle[0], min_triangle[1], min_triangle[2])
+    if best:
+        print(best[0], best[1], best[2])
 
 if __name__ == "__main__":
     main()

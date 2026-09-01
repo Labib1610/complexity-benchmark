@@ -2,7 +2,7 @@ import sys
 from collections import defaultdict, deque
 
 def solve():
-    n, m = map(int, sys.stdin.readline().split())
+    n, m = map(int, input().split())
     
     if m == 0:
         print("YES")
@@ -10,53 +10,41 @@ def solve():
         return
     
     # Build adjacency list
-    graph = defaultdict(list)
-    edges = []
-    
+    adj = defaultdict(list)
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        u -= 1  # Convert to 0-indexed
-        v -= 1
-        graph[u].append(v)
-        graph[v].append(u)
-        edges.append((u, v))
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # For the constraint max(a, b) = 2 * min(a, b), 
-    # we have two possibilities:
-    # 1. a=1, b=2 (since max(1,2)=2 and 2*min(1,2)=2*1=2)
-    # 2. a=2, b=1 (same reasoning)
-    # So adjacent nodes must have different values.
-    # This is a bipartite graph check.
+    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
+    color = [0] * (n + 1)
     
-    color = [-1] * n  # -1: unvisited, 0: tier 1, 1: tier 2
-    
-    # Check if graph is bipartite
-    for start in range(n):
-        if color[start] == -1:
+    # Check if bipartite (2-colorable)
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            # BFS to color component
             queue = deque([start])
-            color[start] = 0
+            color[start] = 1
             
             while queue:
                 node = queue.popleft()
                 
-                for neighbor in graph[node]:
-                    if color[neighbor] == -1:
-                        color[neighbor] = 1 - color[node]
+                for neighbor in adj[node]:
+                    if color[neighbor] == 0:
+                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
                         queue.append(neighbor)
                     elif color[neighbor] == color[node]:
                         print("NO")
                         return
     
-    # If bipartite, construct the lexicographically smallest solution
-    # We want tier 1 (color 0) as much as possible at the beginning
-    result = []
-    for i in range(n):
-        if color[i] == -1:
-            result.append(1)  # Isolated vertex, assign 1
-        else:
-            result.append(color[i] + 1)  # Convert 0->1, 1->2
-    
+    # If we get here, it's bipartite
     print("YES")
-    print(" ".join(map(str, result)))
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 1:
+            result.append("1")
+        else:
+            result.append("2")
+    print(" ".join(result))
 
 solve()

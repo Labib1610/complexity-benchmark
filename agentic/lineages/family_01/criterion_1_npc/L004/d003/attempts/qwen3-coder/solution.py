@@ -1,0 +1,56 @@
+from collections import defaultdict
+
+def solve():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print("1 " * n)
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    index = 2
+    edges = []
+    for _ in range(m):
+        u = int(data[index]) - 1  # Convert to 0-based indexing
+        v = int(data[index+1]) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+        index += 2
+    
+    # Try all possible assignments using backtracking with constraint propagation
+    assignment = [0] * n  # 0 means unassigned
+    
+    def is_valid(node, color):
+        for neighbor in adj[node]:
+            if assignment[neighbor] != 0 and abs(assignment[neighbor] - color) < 1:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        for color in [1, 2, 3]:
+            if is_valid(node, color):
+                assignment[node] = color
+                if backtrack(node + 1):
+                    return True
+                assignment[node] = 0
+        return False
+    
+    # Check if graph is 3-colorable with distance constraints
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()

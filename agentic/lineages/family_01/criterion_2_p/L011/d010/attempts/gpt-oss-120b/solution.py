@@ -1,0 +1,62 @@
+import sys
+sys.setrecursionlimit(1 << 25)
+
+def solve() -> None:
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n)]
+    has_loop = False
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        if u == v:
+            has_loop = True
+        else:
+            adj[u].append(v)
+            adj[v].append(u)
+    if has_loop:
+        print("NO")
+        return
+
+    color = [-1] * n
+    comp_id = [-1] * n
+    comps = []
+    from collections import deque
+    for i in range(n):
+        if color[i] != -1:
+            continue
+        q = deque([i])
+        color[i] = 0
+        comp_vertices = [i]
+        comp_id[i] = len(comps)
+        ok = True
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = color[u] ^ 1
+                    comp_id[v] = comp_id[u]
+                    comp_vertices.append(v)
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+        comps.append(comp_vertices)
+
+    # flip components to make lexicographically smallest
+    for comp in comps:
+        min_v = min(comp)
+        if color[min_v] == 1:  # currently 2, flip to make it 1
+            for v in comp:
+                color[v] ^= 1
+
+    ans = [str(1 if c == 0 else 2) for c in color]
+    print("YES")
+    print(" ".join(ans))
+
+if __name__ == "__main__":
+    solve()

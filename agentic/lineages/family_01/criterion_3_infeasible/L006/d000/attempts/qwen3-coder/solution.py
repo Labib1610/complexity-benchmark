@@ -9,66 +9,29 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    edges = []
+    # Build adjacency list using sets for fast lookup
     adj = [set() for _ in range(n + 1)]
-    
-    idx = 2
+    index = 2
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
-        idx += 2
-        edges.append((u, v))
+        u = int(data[index])
+        v = int(data[index + 1])
         adj[u].add(v)
         adj[v].add(u)
-    
-    # For each edge (u,v), check if there exists a node w such that 
-    # w is connected to both u and v => triangle {u,v,w}
-    # We want the lexicographically smallest such triangle
-    
-    # To find the lex smallest triangle efficiently:
-    # Iterate through all edges (u,v) with u < v
-    # For each such edge, look for the smallest w > max(u,v) 
-    # such that w is adjacent to both u and v
-    
-    # But to ensure we get the overall lex smallest triangle,
-    # we should iterate through potential triangles in lex order
-    
-    # Better approach:
-    # Enumerate triangles by checking for each node u,
-    # its neighbors v,w where v<w and both are neighbors of u
-    
-    found = False
-    result = None
-    
-    # For each node u, look at its neighbors
-    # For every pair of neighbors (v,w) where v < w
-    # Check if v and w are also connected
-    # That forms triangle u-v-w
-    
-    for u in range(1, n + 1):
-        neighbors = sorted(list(adj[u]))
-        for i in range(len(neighbors)):
-            v = neighbors[i]
-            if v <= u:
+        index += 2
+
+    # Iterate through all triplets (i, j, k) in lexicographical order
+    for i in range(1, n - 1):
+        for j in range(i + 1, n):
+            if j not in adj[i]:
                 continue
-            for j in range(i + 1, len(neighbors)):
-                w = neighbors[j]
-                if w <= u:
+            for k in range(j + 1, n + 1):
+                if k not in adj[i]:
                     continue
-                # Now we have u < v < w
-                # Check if v and w are connected
-                if w in adj[v]:
-                    # Triangle found: u - v - w
-                    current = (u, v, w)
-                    if not found or current < result:
-                        result = current
-                        found = True
-    
-    if found:
-        print(result[0], result[1], result[2])
-    else:
-        # Should not happen as per problem statement
-        pass
+                if k not in adj[j]:
+                    continue
+                # Found a triangle
+                print(i, j, k)
+                return
 
 if __name__ == "__main__":
     main()

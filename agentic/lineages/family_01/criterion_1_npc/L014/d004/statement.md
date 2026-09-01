@@ -1,0 +1,59 @@
+# Problem A — Independent Audits
+
+Time limit: 2 s   Memory limit: 256 MB
+
+You are coordinating the annual compliance review for $n$ corporate departments. Each department must be assigned to exactly one of three external auditing firms, which are identified by the integers 1, 2, and 3.
+
+To prevent conflicts of interest, the review must account for internal dependencies. There are $m$ known joint ventures, each involving a specific pair of departments. 
+
+For every joint venture, the compliance board runs a simulated adversarial audit between the two departments involved. This simulation is modeled as a token game:
+- Two simulated auditors take turns.
+- There are two independent pools of audit tokens. The two pools start with token counts exactly equal to the firm identifiers assigned to the two participating departments.
+- On their turn, an auditor must choose exactly one of the two pools and remove any positive number of tokens from it. They may not remove tokens from both pools in the same turn.
+- The auditor who removes the very last token from the simulation wins.
+
+A joint venture is considered 'compliant' if and only if the FIRST auditor to move has a guaranteed winning strategy, assuming perfect play from both sides. All $m$ joint ventures must be compliant simultaneously.
+
+Be aware that the test suite contains arbitrary, dense compliance networks, and the joint ventures may be presented in an adversarial sequence.
+
+Determine if there is a valid firm assignment for all $n$ departments that satisfies these compliance rules.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of departments and the number of joint ventures ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of departments involved in a joint venture. Departments are numbered 1 through $n$.
+
+## Output
+If no valid assignment exists, print a single line `NO`.
+Otherwise print `YES` on the first line. On the second line print $n$ integers $f_1, f_2, \dots, f_n$ (each in $\{1, 2, 3\}$), where $f_i$ is the auditing firm assigned to department $i$. Among all valid assignments, output the one that is lexicographically smallest (compare $f_1$ first, then $f_2$, and so on).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

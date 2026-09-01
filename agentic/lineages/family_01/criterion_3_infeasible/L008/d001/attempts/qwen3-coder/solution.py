@@ -10,44 +10,48 @@ def main():
     m = int(data[1])
     
     edges = []
-    adj = defaultdict(set)
+    adj = [set() for _ in range(n + 1)]
     
-    index = 2
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        index += 2
-        if u > v:
-            u, v = v, u
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
         edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
     
-    # Sort edges to process in order
-    edges.sort()
+    # To find the lexicographically smallest triangle:
+    # We iterate through all edges and for each edge (u,v), we look for a node w
+    # such that (u,w) and (v,w) are also edges.
+    # To maintain the order a < b < c, for each edge (u,v) where u < v,
+    # we search for w > v such that both (u,w) and (v,w) exist.
     
-    # For each edge (u,v), look for a common neighbor w
-    min_score = float('inf')
-    result = None
+    # First, let's sort adjacency lists for consistent processing
+    for i in range(1, n+1):
+        adj[i] = sorted(adj[i])
     
+    best = None
+    
+    # Iterate over all edges
     for u, v in edges:
-        if u >= n:
-            continue
-        # Get neighbors of u and v
-        neighbors_u = adj[u]
-        neighbors_v = adj[v]
-        
-        # Find common neighbors
-        common = neighbors_u & neighbors_v
-        for w in common:
-            if u < v < w:
-                score = u * 100000000 + v * 10000 + w
-                if score < min_score:
-                    min_score = score
-                    result = (u, v, w)
+        if u > v:
+            u, v = v, u
+        # Now u < v
+        # Find common neighbors of u and v that are greater than v
+        # Convert to sets for intersection
+        neigh_u = set(adj[u])
+        neigh_v = set(adj[v])
+        common = neigh_u & neigh_v
+        candidates = [w for w in common if w > v]
+        if candidates:
+            w = min(candidates)
+            trio = tuple(sorted([u, v, w]))
+            if best is None or trio < best:
+                best = trio
     
-    if result:
-        print(result[0], result[1], result[2])
+    if best:
+        print(best[0], best[1], best[2])
 
 if __name__ == "__main__":
     main()

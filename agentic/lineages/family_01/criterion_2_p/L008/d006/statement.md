@@ -1,21 +1,25 @@
-# Render Contrast
+# Problem B — Harmonic Resonance
 
-Time limit: 1 s
-Memory limit: 256 MB
+Time limit: 1 s   Memory limit: 256 MB
 
-A digital rendering pipeline manages a complex scene composed of $n$ separate material layers. These layers are numbered from 1 to $n$. To configure the pipeline, each individual layer must be assigned a fixed opacity level, which is restricted to being either the integer 1 or the integer 2.
+A factory employs $n$ workers, with $m$ synchronization links established among them. You must assign a shift code $s_i \in \{1, 2\}$ to each worker $i$. 
 
-The scene configuration includes $m$ interference constraints designed to prevent visual artifacts. Each constraint connects a specific pair of layers. A constraint is considered satisfied if and only if the absolute difference between the opacity levels assigned to the two connected layers is exactly 1. 
+To maintain proper timing, the machines of connected workers must resonate at compatible frequencies. We define two resonance matrices:
+$$A_1 = \begin{pmatrix} 1 & 2 \\ 0 & 1 \end{pmatrix} \quad \text{and} \quad A_2 = \begin{pmatrix} 1 & 0 \\ 2 & 1 \end{pmatrix}$$
 
-Your task is to determine whether there is a valid configuration of opacity levels for all $n$ layers that satisfies every interference constraint simultaneously.
+A synchronization link between two workers $u$ and $v$ is stable if and only if the trace of the matrix product $A_{s_u} A_{s_v}$ is exactly $6$. 
+
+Additionally, to prevent harmonic buildup, any valid assignment must ensure that in every simple cycle within the factory's synchronization network, the number of workers assigned shift code 1 is exactly equal to the number of workers assigned shift code 2.
+
+Determine if there is a valid assignment of shift codes for all workers such that every synchronization link is stable and the harmonic buildup condition is satisfied.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), representing the number of material layers and the number of interference constraints, respectively.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), indicating that an interference constraint exists between layer $u$ and layer $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of workers connected by a synchronization link.
 
 ## Output
-If no valid configuration exists that satisfies all constraints, print `NO` on a single line.
-If a valid configuration is possible, print `YES` on the first line. On the second line, output $n$ integers representing the lexicographically smallest sequence of opacity levels for layers 1 through $n$.
+If no valid assignment exists, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \ldots, s_n$ (each in $\{1,2\}$) representing the valid assignment. If there are multiple valid assignments, output the one that minimizes the structural weight of the sequence, defined as $\sum_{i=1}^n s_i \cdot 3^{n-i}$. Print this assignment as a full sequence of $n$ integers.
 
 ## Example 1
 Input:

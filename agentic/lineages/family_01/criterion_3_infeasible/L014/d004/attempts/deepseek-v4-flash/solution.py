@@ -1,30 +1,22 @@
 import sys
 
-def solve():
+def main():
     input = sys.stdin.readline
     n, m = map(int, input().split())
     adj = [set() for _ in range(n + 1)]
-    edges = []
     for _ in range(m):
         u, v = map(int, input().split())
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
-
-    # Try each possible smallest vertex a
+    
     for a in range(1, n + 1):
-        # Check neighbors of a in increasing order
-        neighbors = sorted(adj[a])
-        for b in neighbors:
-            if b <= a:
-                continue
-            # Find smallest c > b that is connected to both a and b
-            for c in neighbors:
-                if c <= b:
-                    continue
-                if c in adj[b]:
-                    print(a, b, c)
-                    return
+        for b in range(a + 1, n + 1):
+            if b in adj[a]:
+                common = adj[a] & adj[b]
+                for c in sorted(common):
+                    if c > b:
+                        print(a, b, c)
+                        return
 
 if __name__ == "__main__":
-    solve()
+    main()

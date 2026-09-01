@@ -1,44 +1,51 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    input_data = sys.stdin.buffer.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
     
-    adj = [set() for _ in range(n + 1)]
+    adj = [0] * (n + 1)
+    edges = []
     
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u].add(v)
-        adj[v].add(u)
+        u = int(input_data[idx]); idx += 1
+        v = int(input_data[idx]); idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+        if u < v:
+            edges.append((u, v))
+        else:
+            edges.append((v, u))
     
-    best_a, best_b, best_c = n + 1, n + 1, n + 1
+    # Sort edges by (u, v)
+    edges.sort()
     
-    # Iterate over all pairs (a, b) with a < b
-    for a in range(1, n + 1):
-        for b in adj[a]:
-            if b <= a:
-                continue
-            # Find common neighbors c such that c > b
-            # Iterate over the smaller set for efficiency
-            if len(adj[a]) < len(adj[b]):
-                common = adj[a]
-            else:
-                common = adj[b]
-            
-            for c in common:
-                if c > b:
-                    # Check if c is connected to both a and b
-                    # Since c is in common, it's connected to both
-                    # We found a triangle (a, b, c)
-                    if c < best_c or (c == best_c and (a < best_a or (a == best_a and b < best_b))):
-                        best_a, best_b, best_c = a, b, c
+    best = None
     
-    print(best_a, best_b, best_c)
+    for u, v in edges:
+        # Find common neighbors > v
+        common = adj[u] & adj[v]
+        # Mask out vertices <= v
+        mask = ~((1 << (v + 1)) - 1)
+        common &= mask
+        
+        if common:
+            # Find lowest set bit
+            c = (common & -common).bit_length() - 1
+            candidate = (u, v, c)
+            if best is None or candidate < best:
+                best = candidate
+                # Since edges are sorted, first found is smallest (u,v)
+                # But c might not be smallest possible for this (u,v)... 
+                # Actually we want smallest c > v, which is what we found
+                # And since we process edges in order, first triangle is answer
+                print(f"{u} {v} {c}")
+                return
+    
+    # Shouldn't reach here per problem statement
+    if best:
+        print(f"{best[0]} {best[1]} {best[2]}")
 
-if __name__ == "__main__":
-    solve()
+solve()

@@ -1,68 +1,208 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
     
-    adj = [0] * (n + 1)
+    adj = [0] * n
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u] |= 1 << (v - 1)
-        adj[v] |= 1 << (u - 1)
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
     
-    # Check if graph is 3-colorable using backtracking with pruning
-    # Since n <= 40, we use a recursive approach with bitmask representation
+    # Precompute connected components
+    visited = [False] * n
+    components = []
     
-    color = [0] * (n + 1)  # 0: uncolored, 1, 2, 3: colors
+    for i in range(n):
+        if not visited[i]:
+            comp_nodes = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp_nodes.append(u)
+                neigh_mask = adj[u]
+                v = 0
+                while neigh_mask:
+                    if neigh_mask & 1:
+                        if not visited[v]:
+                            visited[v] = True
+                            stack.append(v)
+                    v += 1
+                    neigh_mask >>= 1
+            components.append(comp_nodes)
     
-    # Precompute neighbors for each node
-    neighbors = [[] for _ in range(n + 1)]
-    for i in range(1, n + 1):
-        for j in range(1, n + 1):
-            if adj[i] & (1 << (j - 1)):
-                neighbors[i].append(j)
+    # For each component, find all valid colorings
+    # A coloring is valid if no adjacent nodes share the same color
+    # We need to find the lexicographically smallest global coloring
     
-    # Order nodes by degree (heuristic for faster pruning)
-    order = list(range(1, n + 1))
-    order.sort(key=lambda x: -len(neighbors[x]))
+    # Process components in order of their smallest node index
+    # This ensures we build the solution in lexicographic order
     
-    # Map from position in order to node number
-    pos_to_node = order
+    # Sort components by their minimum node index
+    components.sort(key=lambda x: min(x))
     
-    def dfs(pos):
-        if pos == n:
-            return True
+    # For each component, enumerate valid colorings
+    # Since n <= 40, components could be up to 40 nodes
+    # But for 3-coloring, we can use backtracking with pruning
+    
+    # We'll use a global assignment array and backtrack component by component
+    assignment = [0] * n
+    
+    def is_bipartite(comp_nodes):
+        # Check if the subgraph induced by comp_nodes is bipartite
+        # If bipartite, we can use colors 1,2 for one part and 3 for the other
+        # This gives more flexibility for lexicographic ordering
+        color = {}
+        for start in comp_nodes:
+            if start not in color:
+                color[start] = 0
+                stack = [start]
+                while stack:
+                    u = stack.pop()
+                    for v in comp_nodes:
+                        if (adj[u] >> v) & 1:
+                            if v in color:
+                                if color[v] == color[u]:
+                                    return None
+                            else:
+                                color[v] = 1 - color[u]
+                                stack.append(v)
+        return color
+    
+    def get_colorings(comp_nodes):
+        # Enumerate all valid 3-colorings for this component
+        # Return list of (coloring_dict, sorted_nodes)
+        # For efficiency, we'll use backtracking with constraint propagation
         
-        u = pos_to_node[pos]
+        nodes = sorted(comp_nodes)
+        k = len(nodes)
+        node_to_idx = {nodes[i]: i for i in range(k)}
         
-        # Determine available colors
-        used = 0
-        for v in neighbors[u]:
-            if color[v] != 0:
-                used |= 1 << (color[v] - 1)
+        # Build adjacency for this component
+        comp_adj = [[] for _ in range(k)]
+        for i, u in enumerate(nodes):
+            for j, v in enumerate(nodes):
+                if i < j and ((adj[u] >> v) & 1):
+                    comp_adj[i].append(j)
+                    comp_adj[j].append(i)
         
-        for c in range(1, 4):
-            if not (used & (1 << (c - 1))):
-                color[u] = c
-                if dfs(pos + 1):
-                    return True
-                color[u] = 0
+        colorings = []
+        colors = [0] * k
         
-        return False
+        def backtrack(idx):
+            if idx == k:
+                coloring = {}
+                for i, node in enumerate(nodes):
+                    coloring[node] = colors[i]
+                colorings.append(coloring)
+                return
+            
+            u = nodes[idx]
+            for c in range(1, 4):
+                valid = True
+                for j in comp_adj[idx]:
+                    if j < idx and colors[j] == c:
+                        valid = False
+                        break
+                if valid:
+                    colors[idx] = c
+                    backtrack(idx + 1)
+                    colors[idx] = 0
+        
+        backtrack(0)
+        return colorings, nodes
     
-    if dfs(0):
-        print("YES")
-        result = [0] * n
-        for i in range(n):
-            result[i] = color[pos_to_node[i]]
-        print(' '.join(map(str, result)))
-    else:
+    # Global backtracking over components
+    # We need to find the lexicographically smallest valid assignment
+    
+    comp_colorings = []
+    comp_nodes_list = []
+    
+    for comp_nodes in components:
+        colorings, nodes = get_colorings(comp_nodes)
+        if not colorings:
+            print("NO")
+            return
+        comp_colorings.append(colorings)
+        comp_nodes_list.append(nodes)
+    
+    # Now we need to find the lexicographically smallest combination
+    # Since components are sorted by min node, we can greedily choose colorings
+    
+    # But we need to be careful: the lexicographic order depends on the
+    # actual node indices, not component order
+    
+    # Let's build the assignment greedily
+    # For each position i from 0 to n-1, we try to assign the smallest valid color
+    
+    # We'll use a different approach: try all combinations but prune early
+    # based on lexicographic comparison
+    
+    best_assignment = None
+    
+    def search_comp(comp_idx, current_assignment):
+        nonlocal best_assignment
+        
+        if comp_idx == len(comp_colorings):
+            # Check if this is better than best
+            if best_assignment is None:
+                best_assignment = current_assignment[:]
+            else:
+                for i in range(n):
+                    if current_assignment[i] < best_assignment[i]:
+                        best_assignment = current_assignment[:]
+                        break
+                    elif current_assignment[i] > best_assignment[i]:
+                        break
+            return
+        
+        nodes = comp_nodes_list[comp_idx]
+        colorings = comp_colorings[comp_idx]
+        
+        # Sort colorings by their values on nodes (for lexicographic order)
+        # We want to try colorings that give smaller values first
+        def coloring_key(col):
+            return tuple(col[node] for node in sorted(nodes))
+        
+        sorted_colorings = sorted(colorings, key=coloring_key)
+        
+        for col in sorted_colorings:
+            # Apply this coloring
+            valid = True
+            for node in nodes:
+                current_assignment[node] = col[node]
+            
+            # Check if this prefix is already worse than best
+            if best_assignment is not None:
+                worse = False
+                for i in range(n):
+                    if current_assignment[i] > best_assignment[i]:
+                        # Check if all nodes up to i are assigned
+                        # We need to be careful here
+                        # For simplicity, we'll just continue
+                        break
+                    elif current_assignment[i] < best_assignment[i]:
+                        break
+            
+            search_comp(comp_idx + 1, current_assignment)
+            
+            # Undo coloring
+            for node in nodes:
+                current_assignment[node] = 0
+    
+    search_comp(0, [0] * n)
+    
+    if best_assignment is None:
         print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, best_assignment)))
 
-if __name__ == "__main__":
-    solve()
+solve()

@@ -1,97 +1,38 @@
 import sys
-import sys
-sys.setrecursionlimit(10000)
 
 def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [0] * n
+    adj = [[] for _ in range(n)]
     for _ in range(m):
         u, v = map(int, input().split())
         u -= 1
         v -= 1
-        adj[u] |= (1 << v)
-        adj[v] |= (1 << u)
+        adj[u].append(v)
+        adj[v].append(u)
 
-    color = [0] * n
-    # Precompute possible colors for each vertex
-    possible = [0] * n
-    for i in range(n):
-        possible[i] = 0b111  # bits 0,1,2 represent colors 1,2,3
+    assignment = [0] * n
+    used = [False] * n
 
-    # Forward checking: remove colors that conflict with neighbors
-    def propagate():
-        changed = True
-        while changed:
-            changed = False
-            for v in range(n):
-                if color[v] != 0:
-                    continue
-                # Try to find a color for v
-                opts = possible[v]
-                # If no options, fail
-                if opts == 0:
-                    return False
-                # If only one option, assign it
-                if opts & (opts - 1) == 0:
-                    c = (opts & -opts).bit_length() - 1
-                    color[v] = c + 1
-                    # Remove this color from neighbors
-                    mask = adj[v]
-                    for u in range(n):
-                        if mask & (1 << u):
-                            if possible[u] & (1 << c):
-                                possible[u] &= ~(1 << c)
-                                changed = True
-                                if possible[u] == 0:
-                                    return False
-        return True
-
-    # Backtracking
     def backtrack(idx):
         if idx == n:
             return True
-        # Choose vertex with minimum remaining values
-        best = -1
-        best_count = 4
-        for i in range(n):
-            if color[i] == 0:
-                cnt = bin(possible[i]).count('1')
-                if cnt < best_count:
-                    best_count = cnt
-                    best = i
-                    if cnt == 1:
-                        break
-        v = best
-        # Try colors in increasing order for lexicographical order
-        for c in range(3):
-            if possible[v] & (1 << c):
-                # Save state
-                old_color = color[:]
-                old_possible = [row for row in possible]
-                color[v] = c + 1
-                # Remove color from neighbors
-                mask = adj[v]
-                ok = True
-                for u in range(n):
-                    if mask & (1 << u):
-                        if possible[u] & (1 << c):
-                            possible[u] &= ~(1 << c)
-                            if possible[u] == 0:
-                                ok = False
-                                break
-                if ok:
-                    if propagate() and backtrack(idx + 1):
-                        return True
-                # Restore state
-                color[:] = old_color
-                for i in range(n):
-                    possible[i] = old_possible[i]
+        for bus in (1, 2, 3):
+            ok = True
+            for nb in adj[idx]:
+                if assignment[nb] == bus:
+                    ok = False
+                    break
+            if ok:
+                assignment[idx] = bus
+                if backtrack(idx + 1):
+                    return True
+                assignment[idx] = -1
         return False
 
-    if propagate() and backtrack(0):
+    if backtrack(0):
         print("YES")
-        print(' '.join(map(str, color)))
+        print(" ".join(map(str, assignment)))
     else:
         print("NO")
 

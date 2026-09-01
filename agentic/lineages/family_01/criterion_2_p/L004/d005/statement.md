@@ -1,24 +1,26 @@
-# Problem B — Amplification Factors
+# Problem B — Microservice Capacity Scaling
 
 Time limit: 1 s
 Memory limit: 256 MB
 
-You are configuring a communication grid consisting of $n$ signal relays. Within this grid, there are $m$ sensitive links, each connecting a specific pair of relays.
+A backend architecture consists of $n$ microservices. You must assign each microservice a replication factor of either 1 or 2.
 
-Every relay must be configured with a discrete amplification factor, which can only be set to either $1$ or $2$. To ensure signal integrity, you must adhere to a strict non-interference rule: for any two relays joined by a sensitive link, the bitwise AND of their amplification factors must equal $0$.
+The system processes $m$ synchronous workflows. Each workflow depends on a specific pair of microservices. The total capacity of a workflow is calculated as the product of the replication factors of the two microservices involved.
 
-Your goal is to determine if there is a valid configuration for the entire grid. If multiple valid configurations are possible, you must select the one that minimizes the amplification factor of relay 1. If there are still multiple valid configurations, you must minimize the factor of relay 2, and so forth, proceeding in ascending order of the relay indices.
+To meet strict latency requirements without causing resource contention, every workflow must have a total capacity of exactly 2.
+
+Determine if it is possible to assign a valid replication factor to all $n$ microservices such that all $m$ workflows have a capacity of exactly 2.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$), denoting the number of relays and the number of sensitive links.
-The next $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), indicating a sensitive link between relay $u$ and relay $v$.
+The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two microservices that a workflow depends on.
 
 ## Output
-If there is no way to configure the grid without violating the non-interference rule, output `NO` on a single line.
-If a valid configuration exists, output `YES` on the first line. On the second line, print $n$ space-separated integers $z_1, z_2, \dots, z_n$, where $z_i \in \{1, 2\}$ is the amplification factor for the $i$-th relay. If there are multiple valid configurations, output the unique one that satisfies the minimization rule described above.
+If no valid assignment is possible, print a single line `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $z_1 \dots z_n$ (where each $z_i \in \{1,2\}$) representing the valid assignment. If multiple valid assignments exist, output the lexicographically smallest sequence $z_1 \dots z_n$.
 
 ## Example 1
-**Input:**
+Input:
 ```
 4 4
 1 2
@@ -26,21 +28,21 @@ If a valid configuration exists, output `YES` on the first line. On the second l
 3 4
 1 4
 ```
-**Output:**
+Output:
 ```
 YES
 1 2 1 2
 ```
 
 ## Example 2
-**Input:**
+Input:
 ```
 3 3
 1 2
 1 3
 2 3
 ```
-**Output:**
+Output:
 ```
 NO
 ```

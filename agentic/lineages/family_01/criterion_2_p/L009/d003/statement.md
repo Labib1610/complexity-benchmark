@@ -1,20 +1,21 @@
-# Problem B — Flux Channels
+# Problem B — Signal Balancing
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-An experimental fusion reactor contains $n$ magnetic coils. Each coil $i$ must be tuned to an operating frequency multiplier $c_i$, which must be chosen from the set $\{1, 2\}$.
+You are configuring $n$ signal transmitters. Each transmitter must be assigned a power level of either 1 or 2.
 
-The reactor's design includes $m$ delicate flux channels, each connecting a specific pair of coils. To maintain a stable magnetic field and prevent the channel from saturating, the sum of the frequency multipliers of the two coils connected by any flux channel must be exactly 3.
+The network contains $m$ receivers. Each receiver listens to exactly two specific transmitters. To decode the transmission correctly, each receiver must detect a combined total power level of exactly 3 from the two transmitters it listens to. 
 
-You need to determine if there is a valid tuning for all $n$ coils that keeps every flux channel stable, or report that no such configuration is possible.
+You must assign a power level to each of the $n$ transmitters so that all $m$ receivers detect a combined power level of exactly 3. If no such configuration is possible, you must report it.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pair of coils connected by a flux channel.
+Each of the next $m$ lines contains two integers $u$ and $v$ — the two transmitters that a single receiver listens to.
 
 ## Output
-If no valid tuning exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $c_1, \dots, c_n$, where $c_i$ is the frequency multiplier assigned to coil $i$. If there are multiple valid sequences of multipliers, choose the sequence that minimizes $c_1$. If there is still a tie, minimize $c_2$ among the remaining valid sequences, and continue this process up to $c_n$.
+If no valid power level assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $p_1, \dots, p_n$ (each $p_i \in \{1, 2\}$), where $p_i$ is the power level assigned to transmitter $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

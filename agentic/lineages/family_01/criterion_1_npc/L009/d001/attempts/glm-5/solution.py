@@ -1,0 +1,175 @@
+import sys
+sys.setrecursionlimit(1000000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    color = [0] * n
+    
+    def dfs(u, c):
+        color[u] = c
+        for v in adj[u]:
+            if color[v] == 0:
+                if not dfs(v, 3 - c):
+                    return False
+            elif color[v] == c:
+                return False
+        return True
+    
+    # Find all connected components and check bipartiteness
+    components = []
+    for i in range(n):
+        if color[i] == 0:
+            if not dfs(i, 1):
+                print("NO")
+                return
+            # Collect component
+            comp = []
+            for j in range(n):
+                if color[j] != 0:
+                    comp.append(j)
+            # Mark as visited (set to -1 to avoid re-adding)
+            for j in comp:
+                color[j] = -1
+            components.append(comp)
+    
+    # Now color is all -1, reset
+    color = [0] * n
+    
+    # For each component, we need to decide which bipartition gets 1,2 vs 2,1
+    # We use DP to find lexicographically smallest assignment
+    
+    # dp[i][j] = True if we can achieve j ones using first i components
+    # We want to minimize the number of 1s (for lexicographically smallest)
+    
+    # First, recompute bipartitions properly
+    comps = []
+    for i in range(n):
+        if color[i] == 0:
+            # BFS to find component and bipartition
+            part = [[], []]
+            stack = [(i, 0)]
+            color[i] = 1
+            while stack:
+                u, p = stack.pop()
+                part[p].append(u)
+                for v in adj[u]:
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
+                        stack.append((v, 1 - p))
+                    elif color[v] == color[u]:
+                        print("NO")
+                        return
+            comps.append(part)
+    
+    k = len(comps)
+    # dp[j] = True if achievable with j ones
+    # We want minimum j
+    dp = [False] * (n + 1)
+    dp[0] = True
+    # choice[i] = 0 or 1, meaning we chose part[0] or part[1] to be color 1
+    # We track backtracking info
+    choice = [[-1] * (n + 1) for _ in range(k)]
+    
+    for i, part in enumerate(comps):
+        new_dp = [False] * (n + 1)
+        for j in range(n + 1):
+            if dp[j]:
+                # Choose part[0] to be color 1
+                nj = j + len(part[0])
+                if nj <= n:
+                    new_dp[nj] = True
+                    choice[i][nj] = 0
+                # Choose part[1] to be color 1
+                nj = j + len(part[1])
+                if nj <= n:
+                    new_dp[nj] = True
+                    choice[i][nj] = 1
+        dp = new_dp
+    
+    # Find minimum j where dp[j] is True
+    min_ones = -1
+    for j in range(n + 1):
+        if dp[j]:
+            min_ones = j
+            break
+    
+    if min_ones == -1:
+        print("NO")
+        return
+    
+    # Backtrack to find choices
+    choices = [0] * k
+    remaining = min_ones
+    for i in range(k - 1, -1, -1):
+        c = choice[i][remaining]
+        choices[i] = c
+        remaining -= len(comps[i][c])
+    
+    # Assign colors
+    result = [0] * n
+    for i, part in enumerate(comps):
+        c = choices[i]
+        # part[c] gets color 1, part[1-c] gets color 2
+        for u in part[c]:
+            result[u] = 1
+        for u in part[1 - c]:
+            result[u] = 2
+    
+    # Now we need to assign color 3 to some vertices
+    # For lexicographically smallest, we want to use color 3 as late as possible
+    # But we need to check if current assignment is valid
+    # If valid, we're done (colors 1 and 2 only)
+    # If not valid, we need to use color 3
+    
+    # Check validity
+    valid = True
+    for u in range(n):
+        for v in adj[u]:
+            if result[u] == result[v]:
+                valid = False
+                break
+        if not valid:
+            break
+    
+    if valid:
+        print("YES")
+        print(' '.join(map(str, result)))
+        return
+    
+    # Need to use color 3
+    # Greedy approach: try to assign color 1, then 2, then 3
+    result = [0] * n
+    for u in range(n):
+        used = set()
+        for v in adj[u]:
+            if result[v] != 0:
+                used.add(result[v])
+        for c in [1, 2, 3]:
+            if c not in used:
+                result[u] = c
+                break
+    
+    # Verify
+    for u in range(n):
+        for v in adj[u]:
+            if result[u] == result[v]:
+                print("NO")
+                return
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()

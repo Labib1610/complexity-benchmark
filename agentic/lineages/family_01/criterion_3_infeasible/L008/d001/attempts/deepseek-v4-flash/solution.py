@@ -3,25 +3,21 @@ import sys
 def main():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [set() for _ in range(n + 1)]
-    edges = []
+    adj = [set() for _ in range(n)]
     for _ in range(m):
         u, v = map(int, input().split())
+        u -= 1
+        v -= 1
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
     
-    # Sort edges by (u, v) to ensure we find the smallest triplet
-    edges.sort()
-    
-    for u, v in edges:
-        # Find common neighbors of u and v
-        common = adj[u] & adj[v]
-        if common:
-            w = min(common)
-            a, b, c = sorted((u, v, w))
-            print(a, b, c)
-            return
+    for a in range(n):
+        for b in adj[a]:
+            if b > a:
+                for c in adj[b]:
+                    if c > b and c in adj[a]:
+                        print(a+1, b+1, c+1)
+                        return
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,227 @@
+import sys
+
+sys.setrecursionlimit(10000)
+
+data = list(map(int, sys.stdin.buffer.read().split()))
+if not data:
+    sys.exit()
+
+n, m = data[0], data[1]
+adj_global = [0] * n
+
+p = 2
+for _ in range(m):
+    u = data[p] - 1
+    v = data[p + 1] - 1
+    p += 2
+    if u != v:
+        adj_global[u] |= 1 << v
+        adj_global[v] |= 1 << u
+
+# Find connected components.
+components = []
+unseen = (1 << n) - 1
+
+while unseen:
+    start = unseen & -unseen
+    unseen ^= start
+    comp_mask = 0
+    queue = start
+
+    while queue:
+        bit = queue & -queue
+        queue ^= bit
+        v = bit.bit_length() - 1
+        comp_mask |= bit
+
+        new_vertices = adj_global[v] & unseen
+        unseen ^= new_vertices
+        queue |= new_vertices
+
+    vertices = []
+    x = comp_mask
+    while x:
+        bit = x & -x
+        x ^= bit
+        vertices.append(bit.bit_length() - 1)
+    components.append(vertices)
+
+answer = [0] * n
+
+
+def solve_component(vertices):
+    k = len(vertices)
+    if k == 1:
+        return [1]
+
+    index = {v: i for i, v in enumerate(vertices)}
+    all_mask = (1 << k) - 1
+    adj = [0] * k
+
+    for i, v in enumerate(vertices):
+        neighbors = adj_global[v]
+        mask = 0
+        while neighbors:
+            bit = neighbors & -neighbors
+            neighbors ^= bit
+            w = bit.bit_length() - 1
+            j = index.get(w)
+            if j is not None:
+                mask |= 1 << j
+        adj[i] = mask
+
+    compatible = [all_mask ^ (1 << i) ^ adj[i] for i in range(k)]
+
+    def bipartite(mask):
+        unseen_local = mask
+        side_a = 0
+        side_b = 0
+
+        while unseen_local:
+            start = unseen_local & -unseen_local
+            unseen_local ^= start
+            side_a |= start
+            queue = start
+
+            while queue:
+                bit = queue & -queue
+                queue ^= bit
+                v = bit.bit_length() - 1
+                neighbors = adj[v] & mask
+
+                if side_a & bit:
+                    if neighbors & side_a:
+                        return False, 0, 0
+                    new_vertices = neighbors & unseen_local
+                    unseen_local ^= new_vertices
+                    side_b |= new_vertices
+                else:
+                    if neighbors & side_b:
+                        return False, 0, 0
+                    new_vertices = neighbors & unseen_local
+                    unseen_local ^= new_vertices
+                    side_a |= new_vertices
+
+                queue |= new_vertices
+
+        return True, side_a, side_b
+
+    # Lexicographically largest independent-set indicator.
+    greedy = 0
+    for i in range(k):
+        if not (adj[i] & greedy):
+            greedy |= 1 << i
+
+    ok, side_a, side_b = bipartite(all_mask ^ greedy)
+    if ok:
+        colors = [0] * k
+        for i in range(k):
+            bit = 1 << i
+            if greedy & bit:
+                colors[i] = 1
+            elif side_a & bit:
+                colors[i] = 2
+            else:
+                colors[i] = 3
+        return colors
+
+    best_set = None
+    best_a = 0
+    best_b = 0
+
+    def can_improve(upper):
+        if best_set is None:
+            return True
+        diff = upper ^ best_set
+        if diff == 0:
+            return False
+        first = diff & -diff
+        return bool(upper & first)
+
+    def is_better(candidate):
+        if best_set is None:
+            return True
+        diff = candidate ^ best_set
+        if diff == 0:
+            return False
+        first = diff & -diff
+        return bool(candidate & first)
+
+    def bron_kerbosch(chosen, possible, excluded):
+        nonlocal best_set, best_a, best_b
+
+        if not can_improve(chosen | possible):
+            return
+
+        fixed_outside = all_mask ^ (chosen | possible)
+        ok_fixed, fixed_a, fixed_b = bipartite(fixed_outside)
+        if not ok_fixed:
+            return
+
+        if possible == 0:
+            if excluded == 0 and is_better(chosen):
+                best_set = chosen
+                best_a = fixed_a
+                best_b = fixed_b
+            return
+
+        union = possible | excluded
+        pivot = -1
+        max_count = -1
+        temp = union
+
+        while temp:
+            bit = temp & -temp
+            temp ^= bit
+            u = bit.bit_length() - 1
+            count = (possible & compatible[u]).bit_count()
+            if count > max_count:
+                max_count = count
+                pivot = u
+
+        candidates = possible if pivot < 0 else possible & ~compatible[pivot]
+
+        while candidates:
+            bit = candidates & -candidates
+            candidates ^= bit
+            v = bit.bit_length() - 1
+
+            bron_kerbosch(
+                chosen | bit,
+                possible & compatible[v],
+                excluded & compatible[v]
+            )
+
+            possible ^= bit
+            excluded |= bit
+
+            if not can_improve(chosen | possible):
+                break
+
+    bron_kerbosch(0, all_mask, 0)
+
+    if best_set is None:
+        return None
+
+    colors = [0] * k
+    for i in range(k):
+        bit = 1 << i
+        if best_set & bit:
+            colors[i] = 1
+        elif best_a & bit:
+            colors[i] = 2
+        else:
+            colors[i] = 3
+    return colors
+
+
+for component in components:
+    colors = solve_component(component)
+    if colors is None:
+        print("NO")
+        sys.exit()
+    for vertex, color in zip(component, colors):
+        answer[vertex] = color
+
+print("YES")
+print(*answer)

@@ -1,0 +1,64 @@
+import sys
+from collections import defaultdict, deque
+
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
+    n, m = map(int, sys.stdin.readline().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # For two circles with radii r1 and r2 and distance d=3 between centers,
+    # they are externally tangent iff |r1 - r2| = d or r1 + r2 = d.
+    # Since d=3 and r1,r2 in {1,2}, the only way they are externally tangent is r1 + r2 = 3.
+    # So for every edge (u,v), we must have c[u] + c[v] = 3.
+    # That means if c[u] = 1, then c[v] = 2, and vice versa.
+    # This is equivalent to a 2-coloring problem: color each node with 1 or 2 such that
+    # adjacent nodes have different colors.
+    
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        while queue:
+            u = queue.popleft()
+            c_u = color[u]
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - c_u  # flip color: 1->2, 2->1
+                    queue.append(v)
+                elif color[v] == c_u:
+                    return False  # conflict: adjacent nodes have same color
+        return True
+    
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            if not bfs(i):
+                print("NO")
+                return
+    
+    # If we reach here, a valid coloring exists.
+    # We want the lexicographically smallest assignment.
+    # Since we start BFS from node 1 and go up, and always assign color 1 to the starting node,
+    # this already ensures lexicographical minimality.
+    
+    print("YES")
+    print(" ".join(str(color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    main()

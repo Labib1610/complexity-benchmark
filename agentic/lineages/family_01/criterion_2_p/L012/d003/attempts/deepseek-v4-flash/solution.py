@@ -13,37 +13,27 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-ok = True
+possible = True
 
 for i in range(n):
     if color[i] == -1:
-        color[i] = 0
+        color[i] = 1
         q = deque([i])
         while q:
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                    color[v] = 3 - color[u]
                     q.append(v)
                 elif color[v] == color[u]:
-                    ok = False
+                    possible = False
+                    q.clear()
                     break
-            if not ok:
-                break
-    if not ok:
-        break
+        if not possible:
+            break
 
-if not ok:
+if not possible:
     print("NO")
 else:
-    # color is 0/1, we can map 0->1, 1->2 or 0->2, 1->1
-    # We want lexicographically smaller sequence
-    assign1 = [1 if c == 0 else 2 for c in color]
-    assign2 = [2 if c == 0 else 1 for c in color]
-    # Compare lexicographically
-    if assign1 < assign2:
-        best = assign1
-    else:
-        best = assign2
     print("YES")
-    print(" ".join(map(str, best)))
+    print(" ".join(str(c) for c in color))

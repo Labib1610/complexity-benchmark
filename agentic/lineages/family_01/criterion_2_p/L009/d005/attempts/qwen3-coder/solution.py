@@ -1,54 +1,194 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, sys.stdin.readline().split())
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
     
     if m == 0:
+        # No bridges, all S_i = 0, equation becomes 0 + 3*0*p_i = 7*0 => 0 = 0, satisfied for any p_i
+        # Lexicographically smallest is all 1s
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    # Build adjacency list
-    adj = defaultdict(list)
     edges = []
+    adj = defaultdict(list)
+    degree = [0] * (n + 1)
     
+    idx = 2
     for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
         edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
+        degree[u] += 1
+        degree[v] += 1
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * (n + 1)
+    # For each node i, the equation is:
+    # S_i + 3 * d_i * p_i = 7 * d_i
+    # Where S_i = sum of squares of p_j for all neighbors j of i
+    # If d_i = 0, then S_i = 0, equation becomes 0 = 0, always satisfied. We can set p_i = 1 (lex smallest)
     
-    # Check if graph is bipartite using BFS
+    # If d_i > 0, we have:
+    # S_i = 7*d_i - 3*d_i*p_i = d_i*(7 - 3*p_i)
+    # So S_i = d_i * (7 - 3*p_i)
+    # Since p_i is either 1 or 2:
+    #   if p_i = 1: S_i = d_i * (7 - 3) = 4*d_i
+    #   if p_i = 2: S_i = d_i * (7 - 6) = 1*d_i = d_i
+    
+    # Also, S_i = sum_{j neighbor of i} p_j^2
+    # So for each node i:
+    #   if p_i = 1: sum_{j~i} p_j^2 = 4*d_i
+    #   if p_i = 2: sum_{j~i} p_j^2 = d_i
+    
+    # This gives us constraints. Let's see if we can model this as a 2-SAT problem.
+    # For each node i, we have two possibilities: p_i = 1 or p_i = 2.
+    # For each possibility, we compute what sum_{j~i} p_j^2 should be.
+    # Then we check whether the actual sum matches.
+    
+    # However, since each p_j is either 1 or 2, p_j^2 is either 1 or 4.
+    # So sum_{j~i} p_j^2 is between d_i and 4*d_i.
+    
+    # Let's think differently. 
+    # For node i with degree d_i > 0:
+    # If p_i = 1: required sum of squares of neighbors = 4*d_i
+    # If p_i = 2: required sum of squares of neighbors = d_i
+    
+    # Now, for the neighbors of i, suppose k of them have p=2 (so contribute 4 each) and (d_i - k) have p=1 (contribute 1 each)
+    # Then sum = 4*k + 1*(d_i - k) = 3*k + d_i
+    # We want this to equal:
+    #   4*d_i if p_i = 1 => 3*k + d_i = 4*d_i => 3*k = 3*d_i => k = d_i
+    #   d_i   if p_i = 2 => 3*k + d_i = d_i => 3*k = 0 => k = 0
+    
+    # So:
+    # If p_i = 1, then ALL neighbors must have p_j = 2 (k = d_i)
+    # If p_i = 2, then ALL neighbors must have p_j = 1 (k = 0)
+    
+    # This means for any edge (u,v):
+    # If p_u = 1 => p_v = 2
+    # If p_v = 1 => p_u = 2
+    # If p_u = 2 => p_v = 1
+    # If p_v = 2 => p_u = 1
+    
+    # This is equivalent to: p_u != p_v (they must be different)
+    # But wait, let's double-check:
+    # Suppose p_u = 1, then we need sum_{j~u} p_j^2 = 4*d_u
+    # Neighbor v contributes p_v^2. Others contribute according to their values.
+    # Actually, let's re-examine the constraint carefully.
+    
+    # Let’s fix node i. Its equation is:
+    # sum_{j~i} p_j^2 + 3*d_i*p_i = 7*d_i
+    # => sum_{j~i} p_j^2 = d_i*(7 - 3*p_i)
+    # If p_i=1: sum = d_i*(7-3)=4*d_i
+    # If p_i=2: sum = d_i*(7-6)=d_i
+    
+    # Now, for the neighbors of i, each contributes either 1 (if p_j=1) or 4 (if p_j=2).
+    # Let k = number of neighbors j with p_j=2. Then sum = 4*k + (d_i - k)*1 = 3*k + d_i
+    # We want:
+    #   If p_i=1: 3*k + d_i = 4*d_i => k = d_i (all neighbors have p_j=2)
+    #   If p_i=2: 3*k + d_i = d_i => k = 0 (all neighbors have p_j=1)
+    
+    # Therefore, for each node i with d_i > 0:
+    #   p_i = 1 => all neighbors j have p_j = 2
+    #   p_i = 2 => all neighbors j have p_j = 1
+    
+    # This gives implications:
+    # For each edge (u,v):
+    #   p_u = 1 => p_v = 2
+    #   p_v = 1 => p_u = 2
+    #   p_u = 2 => p_v = 1
+    #   p_v = 2 => p_u = 1
+    
+    # This is equivalent to saying p_u != p_v for every edge.
+    # That means the graph must be bipartite, and we color it with two colors 1 and 2.
+    # If not bipartite, return "NO".
+    # If bipartite, we choose the coloring that is lexicographically smallest.
+    
+    # Handle isolated nodes separately: they can be set to 1.
+    
+    # Check if the graph is bipartite
+    color = [-1] * (n + 1)
+    visited = [False] * (n + 1)
+    
     for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
+        if degree[start] > 0 and not visited[start]:
+            queue = deque()
+            queue.append(start)
             color[start] = 1
+            visited[start] = True
             
             while queue:
-                node = queue.popleft()
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+                u = queue.popleft()
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        color[v] = 3 - color[u]  # Flip color: 1->2, 2->1
+                        queue.append(v)
+                    else:
+                        if color[v] == color[u]:
+                            print("NO")
+                            return
     
-    # If we get here, the graph is bipartite
-    # Assign colors to minimize lexicographically
-    result = []
+    # If bipartite, construct the lexicographically smallest solution
+    # We want to minimize p_1, then p_2, ..., so we prefer p_i = 1 when possible
+    # In a bipartite graph, we can assign one side to 1 and the other to 2
+    # To get lex smallest, try assigning color 1 to 1 and color 2 to 2, but check if swapping gives smaller lex order
+    
+    result = [0] * (n + 1)
+    
+    # For isolated vertices, just set to 1
     for i in range(1, n + 1):
-        if color[i] == 0:
-            result.append("1")
-        else:
-            result.append(str(color[i]))
+        if degree[i] == 0:
+            result[i] = 1
     
+    # For components, determine which color gets 1 and which gets 2 for lex smallest
+    visited_check = [False] * (n + 1)
+    
+    for i in range(1, n + 1):
+        if degree[i] > 0 and not visited_check[i]:
+            # Find the first vertex in this component
+            # BFS to find the first node (smallest index)
+            component_nodes = []
+            queue = deque()
+            queue.append(i)
+            visited_check[i] = True
+            component_nodes.append(i)
+            
+            while queue:
+                u = queue.popleft()
+                for v in adj[u]:
+                    if not visited_check[v]:
+                        visited_check[v] = True
+                        component_nodes.append(v)
+                        queue.append(v)
+            
+            component_nodes.sort()
+            first_node = component_nodes[0]
+            c1 = color[first_node]
+            
+            # Assign colors: we want the first node to be 1 if possible
+            # Try both assignments and pick the lex smaller one
+            option1 = {c1: 1, 3 - c1: 2}
+            option2 = {c1: 2, 3 - c1: 1}
+            
+            # Determine which option is better by checking first differing position
+            # But since we're building the full assignment, we can just compare based on first node
+            # We prefer the option that assigns 1 to the color of the first node
+            chosen_option = option1 if option1[c1] == 1 else option2
+            
+            for u in component_nodes:
+                result[u] = chosen_option[color[u]]
+    
+    # All nodes processed
     print("YES")
-    print(" ".join(result))
+    print(" ".join(map(str, result[1:])))
 
-solve()
+if __name__ == "__main__":
+    main()

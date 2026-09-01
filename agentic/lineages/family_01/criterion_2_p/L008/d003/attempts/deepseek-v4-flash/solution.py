@@ -12,26 +12,21 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 = uncolored, 0 = dosage 1, 1 = dosage 2
-
-def bfs(start):
-    q = deque([start])
-    color[start] = 0  # try to assign 1
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
+color = [-1] * n
 
 for i in range(n):
     if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+        color[i] = 1
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
 
 print("YES")
-print(" ".join(str(color[i] + 1) for i in range(n)))
+print(" ".join(str(color[i]) for i in range(n)))

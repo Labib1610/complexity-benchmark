@@ -1,0 +1,197 @@
+```python
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Check if graph is bipartite (2-colorable)
+    # If it is, we can always assign shifts (use colors 1,2 and put remaining in 3)
+    # If not, we need to check if 3-coloring is possible
+    
+    color = [-1] * n
+    is_bipartite = True
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            stack = [i]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        stack.append(v)
+                    elif color[v] == color[u]:
+                        is_bipartite = False
+                        break
+                if not is_bipartite:
+                    break
+        if not is_bipartite:
+            break
+    
+    if is_bipartite:
+        # Lexicographically smallest: use colors 1 and 2
+        # color[i] = 0 -> shift 1, color[i] = 1 -> shift 2
+        res = [1 if c == 0 else 2 for c in color]
+        print("YES")
+        print(' '.join(map(str, res)))
+        return
+    
+    # Graph is not bipartite, need to check 3-colorability
+    # Since n <= 40, we can use meet-in-the-middle
+    
+    # Find connected components
+    visited = [False] * n
+    components = []
+    
+    for i in range(n):
+        if not visited[i]:
+            comp = []
+            stack = [i]
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                for v in adj[u]:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            components.append(comp)
+    
+    # Sort components by minimum vertex index for lexicographic order
+    components.sort(key=lambda x: min(x))
+    
+    # Reindex vertices within each component
+    # For each component, we'll try all valid 3-colorings
+    
+    result = [-1] * n
+    
+    for comp in components:
+        k = len(comp)
+        if k == 1:
+            result[comp[0]] = 1
+            continue
+        
+        # Create local adjacency list
+        local_adj = [[] for _ in range(k)]
+        idx_map = {v: i for i, v in enumerate(comp)}
+        
+        for i, u in enumerate(comp):
+            for v in adj[u]:
+                local_adj[i].append(idx_map[v])
+        
+        # Check if component is bipartite
+        local_color = [-1] * k
+        local_bipartite = True
+        for i in range(k):
+            if local_color[i] == -1:
+                local_color[i] = 0
+                stack = [i]
+                while stack:
+                    u = stack.pop()
+                    for v in local_adj[u]:
+                        if local_color[v] == -1:
+                            local_color[v] = 1 - local_color[u]
+                            stack.append(v)
+                        elif local_color[v] == local_color[u]:
+                            local_bipartite = False
+                            break
+                    if not local_bipartite:
+                        break
+            if not local_bipartite:
+                break
+        
+        if local_bipartite:
+            # Use colors 1 and 2 for lexicographically smallest
+            for i, v in enumerate(comp):
+                result[v] = 1 if local_color[i] == 0 else 2
+            continue
+        
+        # Component is not bipartite, need 3-coloring
+        # Use meet-in-the-middle
+        half = k // 2
+        
+        # First half: enumerate all valid colorings
+        first_colorings = []
+        
+        def enumerate_first(pos, coloring):
+            if pos == half:
+                first_colorings.append(coloring[:])
+                return
+            for c in range(3):
+                valid = True
+                for i in range(pos):
+                    if i in local_adj[pos] and coloring[i] == c:
+                        valid = False
+                        break
+                if valid:
+                    coloring[pos] = c
+                    enumerate_first(pos + 1, coloring)
+        
+        enumerate_first(0, [-1] * half)
+        
+        if not first_colorings:
+            print("NO")
+            return
+        
+        # For each first half coloring, find best second half
+        best_coloring = None
+        best_second = None
+        
+        for first in first_colorings:
+            # Enumerate second half
+            second_colorings = []
+            
+            def enumerate_second(pos, coloring):
+                if pos == k:
+                    second_colorings.append(coloring[:])
+                    return
+                for c in range(3):
+                    valid = True
+                    # Check against first half
+                    for i in range(half):
+                        if i in local_adj[pos] and first[i] == c:
+                            valid = False
+                            break
+                    if valid:
+                        # Check against earlier in second half
+                        for i in range(half, pos):
+                            if i in local_adj[pos] and coloring[i - half] == c:
+                                valid = False
+                                break
+                    if valid:
+                        coloring[pos - half] = c
+                        enumerate_second(pos + 1, coloring)
+            
+            enumerate_second(half, [-1] * (k - half))
+            
+            if second_colorings:
+                # Find lexicographically smallest combination
+                for second in second_colorings:
+                    full = first + second
+                    if best_coloring is None or full < best_coloring:
+                        best_coloring = full
+        
+        if best_coloring is None:
+            print("NO")
+            return
+        
+        for i, v in enumerate(comp):
+            result[v] = best_coloring[i] + 1
+    
+    print("YES")
+    print(' '.join(map(str, result)))
+
+solve()
+```

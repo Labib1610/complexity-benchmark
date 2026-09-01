@@ -14,19 +14,24 @@ for _ in range(m):
 
 color = [-1] * n
 
+def bfs(start):
+    q = deque([start])
+    color[start] = 1  # try 1 first
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 3 - color[u]  # alternate 1 <-> 2
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
 for i in range(n):
     if color[i] == -1:
-        color[i] = 1
-        q = deque([i])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
-                    q.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    sys.exit()
+        if not bfs(i):
+            print("NO")
+            sys.exit()
 
 print("YES")
 print(" ".join(str(color[i]) for i in range(n)))

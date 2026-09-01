@@ -2,70 +2,44 @@ import sys
 from collections import deque
 
 def solve():
-    # Read all input at once for efficiency
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
+    input = sys.stdin.read().split()
+    ptr = 0
+    n, m = map(int, input[ptr:ptr+2])
+    ptr +=2
     
-    iterator = iter(input_data)
-    try:
-        n = int(next(iterator))
-        m = int(next(iterator))
-    except StopIteration:
-        return
-    
-    # Build adjacency list for the graph
-    adj = [[] for _ in range(n + 1)]
-    
+    adj = [[] for _ in range(n+1)]
     for _ in range(m):
-        try:
-            u = int(next(iterator))
-            v = int(next(iterator))
-            adj[u].append(v)
-            adj[v].append(u)
-        except StopIteration:
-            break
+        u, v = map(int, input[ptr:ptr+2])
+        ptr +=2
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Initialize assignment array: 0 means unassigned, 1 or 2 means assigned to that window
-    assignment = [0] * (n + 1)
+    color = [0]*(n+1)
+    possible = True
     
-    # Process each connected component
-    for i in range(1, n + 1):
-        if assignment[i] == 0:
-            # Start BFS for this component
-            # We use a queue for BFS traversal
+    for i in range(1, n+1):
+        if color[i] == 0:
             queue = deque()
             queue.append(i)
-            assignment[i] = 1  # Assign the smallest valid value (1) to the first node
-            
-            is_bipartite = True
-            
-            while queue and is_bipartite:
+            color[i] = 1
+            while queue and possible:
                 u = queue.popleft()
-                
                 for v in adj[u]:
-                    if assignment[v] == 0:
-                        # Assign the opposite value to maintain bipartite property
-                        assignment[v] = 3 - assignment[u]
+                    if color[v] == 0:
+                        color[v] = 3 - color[u]
                         queue.append(v)
-                    elif assignment[v] == assignment[u]:
-                        # Conflict found: adjacent nodes have the same assignment
-                        is_bipartite = False
+                    elif color[v] == color[u]:
+                        possible = False
                         break
-                
-                if not is_bipartite:
+                if not possible:
                     break
-            
-            if not is_bipartite:
-                print("NO")
-                return
+        if not possible:
+            break
     
-    # If we reach here, a valid configuration exists
-    # The BFS approach naturally produces the lexicographically smallest configuration
-    # because we assign 1 to the first node of each component and process in order
-    print("YES")
-    result = [str(assignment[i]) for i in range(1, n + 1)]
-    print(" ".join(result))
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(map(str, color[1:n+1])))
 
-if __name__ == "__main__":
-    solve()
+solve()

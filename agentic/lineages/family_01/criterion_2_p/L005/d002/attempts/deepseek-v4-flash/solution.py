@@ -38,5 +38,4 @@ if not possible:
 else:
     print("YES")
     # color 0 -> 1, color 1 -> 2
-    res = [1 if c == 0 else 2 for c in color]
-    print(" ".join(map(str, res)))
+    print(' '.join('1' if c == 0 else '2' for c in color))

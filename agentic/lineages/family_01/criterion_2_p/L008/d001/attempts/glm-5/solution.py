@@ -5,14 +5,14 @@ def solve():
     input_data = sys.stdin.buffer.read().split()
     if not input_data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    n = int(input_data[0])
+    m = int(input_data[1])
     
     adj = [[] for _ in range(n + 1)]
+    idx = 2
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(input_data[idx]); v = int(input_data[idx+1])
+        idx += 2
         adj[u].append(v)
         adj[v].append(u)
     
@@ -21,15 +21,18 @@ def solve():
     for start in range(1, n + 1):
         if color[start] != 0:
             continue
+        # Try to assign color 1 to start (lexicographically smallest)
         color[start] = 1
-        queue = deque([start])
-        while queue:
-            u = queue.popleft()
+        q = deque([start])
+        while q:
+            u = q.popleft()
+            cu = color[u]
+            cv = 3 - cu
             for v in adj[u]:
                 if color[v] == 0:
-                    color[v] = 3 - color[u]
-                    queue.append(v)
-                elif color[v] == color[u]:
+                    color[v] = cv
+                    q.append(v)
+                elif color[v] != cv:
                     print("NO")
                     return
     

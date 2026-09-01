@@ -1,20 +1,22 @@
-# Environment Allocation
+# Critical Interference
 
 Time limit: 2 s
 Memory limit: 256 MB
 
-A system administrator is trying to partition $n$ software modules (numbered 1 through $n$) into two isolated virtual environments. The system's compatibility registry contains $m$ records of module pairs. If both modules from a record are placed in the same environment, they will trigger a critical system panic.
+A proposed communications standard attempts to allocate $n$ transceivers (labeled 1 through $n$) into exactly two distinct frequency bands. However, testing has revealed $m$ specific bidirectional interference links between pairs of transceivers. If two linked transceivers operate on the same frequency band, the signal degrades entirely.
 
-The administrator needs to formally justify provisioning a third environment by demonstrating that a two-environment deployment is impossible. You must provide a minimal configuration that proves this: a collection of exactly three distinct modules which inherently cannot be distributed across two environments without triggering a panic. In other words, no matter how you assign each of these three modules to either the first or the second environment, at least two modules assigned to the same environment will form a pair that appears in the registry.
+The standard's allocation constraints are fundamentally impossible to satisfy. Your objective is to isolate the root cause of this failure. Specifically, you must locate a subset of exactly three transceivers which, in isolation, cannot be validly assigned to the two frequency bands. That is, no matter how you assign each of these three specific transceivers to one of the two bands, at least one band will always end up containing a pair of transceivers that share an interference link.
+
+The existence of such a subset proves that two frequency bands are not enough. It is guaranteed that at least one such subset is present in the network.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
-Each of the subsequent $m$ lines contains two integers $u$ and $v$, representing a pair of modules that cannot share an environment. 
-It is guaranteed that the registry contains at least one such collection of three modules.
+The first line contains the transceiver count $n$ and the interference link count $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+The following $m$ lines each detail a pair of transceivers $u$ and $v$ that mutually interfere.
+At least one subset of three transceivers satisfying the impossibility condition is guaranteed to exist.
 
 ## Output
-Output the three integer identifiers of your chosen collection on a single line, ordered from lowest to highest. 
-If more than one such collection exists, evaluate them by their sorted identifiers. Choose the collection that minimizes the first (lowest) identifier. If there is a tie, choose the one that minimizes the second (middle) identifier. If a tie still remains, minimize the third (highest) identifier.
+Provide the labels of the three transceivers forming the subset, printed on a single line in ascending numerical order.
+In the event that several such subsets exist, you must resolve the ambiguity by selecting the subset that includes the transceiver with the absolute lowest label. Should multiple subsets share this lowest-labeled transceiver, further narrow your selection to those whose second-lowest label is as small as possible. If ambiguity still persists, choose the subset whose highest label is minimal.
 
 ## Example 1
 ### Input

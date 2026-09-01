@@ -1,21 +1,25 @@
 import sys
 
-def main():
+def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [set() for _ in range(n + 1)]
+    adj = [set() for _ in range(n)]
+    edges = []
     for _ in range(m):
         u, v = map(int, input().split())
+        u -= 1
+        v -= 1
         adj[u].add(v)
         adj[v].add(u)
-
-    for a in range(1, n + 1):
-        for b in sorted(adj[a]):
-            if b > a:
-                for c in sorted(adj[a]):
-                    if c > b and c in adj[b]:
-                        print(a, b, c)
-                        return
+        edges.append((u, v))
+    
+    for u, v in edges:
+        common = adj[u] & adj[v]
+        if common:
+            w = min(common)
+            a, b, c = sorted([u+1, v+1, w+1])
+            print(a, b, c)
+            return
 
 if __name__ == "__main__":
-    main()
+    solve()

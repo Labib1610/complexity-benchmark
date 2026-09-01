@@ -1,22 +1,22 @@
-# Dual-Core Scheduling Conflict
+# Production Line Diagnostics
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A software system contains $n$ concurrent processes. You need to map these processes onto a dual-core processor (Core 0 and Core 1). Certain pairs of processes are resource-incompatible and cannot execute on the same core.
+A manufacturing facility operates continuously using exactly two production lines. Certain pairs of manufacturing steps require a shared specialized calibration tool and therefore cannot be assigned to the same production line. The current batch of manufacturing steps cannot be distributed across the two lines without causing at least one tool collision.
 
-The system is currently failing to schedule because a complete separation into two cores is impossible. Diagnostics indicate this failure is driven by a "concurrency deadlock": a specific configuration of exactly three processes where each process is resource-incompatible with both of the other two. Because all three are mutually incompatible, no matter how you place them on the two available cores, at least two will inevitably end up on the same core.
+Your diagnostic software must isolate a root cause of this allocation failure by identifying a group of exactly three steps that form an unresolvable bottleneck. This bottleneck occurs because assigning any step from the group to a production line restricts the remaining two steps in the group to the opposite line, where they immediately conflict because they also cannot be assigned to the same production line.
 
-Your task is to isolate a concurrency deadlock. If there are multiple such configurations, you must isolate the one with the lowest hardware trace. For a deadlock consisting of process IDs $a, b,$ and $c$ (ordered so that $a < b < c$), the hardware trace is defined by the formula: $a \cdot 10^8 + b \cdot 10^4 + c$.
+To ensure deterministic logging, if multiple such groups exist, the system must output the one whose step identifiers are sequentially lowest.
 
 ## Input
-The first line of the input contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of processes and the number of recorded resource incompatibilities. The processes are assigned integer IDs from $1$ to $n$.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of manufacturing steps and the number of tool collision pairs. Steps are numbered from $1$ to $n$.
 
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that process $u$ and process $v$ are resource-incompatible. 
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that step $u$ and step $v$ cannot be assigned to the same production line.
 
-The provided records are guaranteed to contain at least one concurrency deadlock (a set of three processes where every pair within the set is incompatible).
+It is guaranteed that at least one such group of three steps exists in the provided data.
 
 ## Output
-Output a single line containing three space-separated integers $a$, $b$, and $c$ ($a < b < c$) representing the IDs of the three processes in the concurrency deadlock. You must output the configuration that yields the minimum hardware trace as described.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three steps. Output the combination that is sequentially lowest (the smallest possible value for $a$; in case of a tie, the smallest possible value for $b$; and finally the smallest possible value for $c$).
 
 ## Example 1
 Input:

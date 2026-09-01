@@ -10,16 +10,16 @@ def solve():
         v -= 1
         adj[u].add(v)
         adj[v].add(u)
-
+    
     for a in range(n):
         for b in adj[a]:
-            if b < a:
-                continue
-            common = adj[a].intersection(adj[b])
-            for c in common:
-                if c > b:
-                    print(a + 1, b + 1, c + 1)
-                    return
+            if b > a:
+                common = adj[a] & adj[b]
+                if common:
+                    c = min(common)
+                    if c > b:
+                        print(a + 1, b + 1, c + 1)
+                        return
 
 if __name__ == "__main__":
     solve()

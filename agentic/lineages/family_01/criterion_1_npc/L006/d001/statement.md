@@ -1,23 +1,23 @@
-# Problem A — Stabilizer Allocation
+# Problem A — Clearance Protocol
 
 Time limit: 2 s
 Memory limit: 256 MB
 
-An automated dispensing system processes $n$ distinct pharmaceutical ingredients. Every ingredient must be combined with a stabilizing agent. The system provides three distinct stabilizing agents, which are identified by the codes 1, 2, and 3.
+A secure facility manages $n$ classified dossiers. Each dossier must be assigned a security clearance tier. There are exactly three operational tiers available, designated as Tier 1, Tier 2, and Tier 3.
 
-Certain pairs of ingredients exhibit a chemical resonance conflict. If two ingredients with a resonance conflict are combined with the identical stabilizing agent, the resulting mixture will degrade. You must determine a valid stabilizing agent for each ingredient such that no resonance-conflicting pair is assigned the same agent code.
+To prevent compartmentalization failures, specific pairs of dossiers are subject to cross-referencing restrictions. If two dossiers are flagged as a restricted pair, they cannot be assigned the identical clearance tier. You must assign a tier to every dossier such that all cross-referencing restrictions are respected.
 
-To ensure uniformity across multiple facilities, the system requires the chosen configuration to follow a strict priority rule. The valid configuration must be the one where the sequence of agent codes assigned to ingredients $1$ through $n$ is lexicographically minimized. This means the system prioritizes assigning the lowest-numbered agent code to ingredient 1, then the lowest-numbered agent code to ingredient 2, and so forth, while maintaining a completely safe arrangement for all ingredients.
+The facility's automated indexing system requires a standardized assignment order. The configuration must be generated such that the sequence of tiers assigned to dossiers $1$ through $n$ is lexicographically minimized. This means the system prioritizes assigning dossier 1 to the lowest-numbered tier possible, then dossier 2 to the lowest-numbered tier possible, and so forth, while still ensuring a completely compliant arrangement for all dossiers.
 
-If no safe configuration exists for the given ingredients and resonance conflicts, the system must reject the batch.
+If it is impossible to assign tiers to all dossiers without violating the restrictions, the assignment process must be aborted.
 
 ## Input
-The first line contains two integers $n$ and $m$ — the number of ingredients and the number of resonance conflicts ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of ingredients that exhibit a resonance conflict.
+The first line contains two integers $n$ and $m$ — the number of dossiers and the number of cross-referencing restrictions ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the following $m$ lines contains two integers $u$ and $v$ — a pair of dossiers that are heavily restricted and must receive distinct clearance tiers.
 
 ## Output
-If no safe agent assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (each in $\{1, 2, 3\}$), where $c_i$ is the agent code assigned to ingredient $i$. This sequence must be the lexicographically smallest valid configuration.
+If no valid tier assignment exists, output a single line containing `NO`.
+Otherwise, output `YES` on the first line. On the second line, output $n$ integers $t_1, t_2, \dots, t_n$ (each in $\{1, 2, 3\}$), where $t_i$ is the tier assigned to dossier $i$. This sequence must be the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

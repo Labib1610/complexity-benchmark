@@ -2,7 +2,7 @@ import sys
 from collections import defaultdict, deque
 
 def solve():
-    n, m = map(int, input().split())
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
@@ -10,34 +10,68 @@ def solve():
         return
     
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
+    edges = []
+    
     for _ in range(m):
-        u, v = map(int, input().split())
-        graph[u].append(v)
-        graph[v].append(u)
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
     
-    # Color nodes with BFS (2-coloring / bipartite check)
-    color = [0] * (n + 1)  # 0: uncolored, 1: color 1, 2: color 2
+    # Color nodes with BFS to check bipartiteness
+    color = {}
     
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
-            color[start] = 1
+    for start_node in range(1, n + 1):
+        if start_node not in color:
+            queue = deque([start_node])
+            color[start_node] = 0
             
             while queue:
                 node = queue.popleft()
                 
-                for neighbor in graph[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
+                for neighbor in adj[node]:
+                    if neighbor not in color:
+                        color[neighbor] = 1 - color[node]
                         queue.append(neighbor)
                     elif color[neighbor] == color[node]:
                         print("NO")
                         return
     
-    # If we get here, a valid 2-coloring exists
-    print("YES")
-    result = [str(color[i]) if color[i] != 0 else "1" for i in range(1, n + 1)]
-    print(" ".join(result))
+    # If bipartite, construct solution
+    # Assign 1 to color 0, 2 to color 1 for lexicographically smallest
+    result = [0] * (n + 1)
+    
+    # Check which coloring gives lexicographically smaller sequence
+    # We want to minimize the first position where they differ
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            result[i] = 1
+        else:
+            result[i] = 2
+    
+    # Verify this satisfies all constraints
+    for u, v in edges:
+        if result[u] * result[v] != 2:
+            # Try the other coloring
+            for i in range(1, n + 1):
+                if color[i] == 0:
+                    result[i] = 2
+                else:
+                    result[i] = 1
+            break
+    
+    # Final verification
+    valid = True
+    for u, v in edges:
+        if result[u] * result[v] != 2:
+            valid = False
+            break
+    
+    if not valid:
+        print("NO")
+    else:
+        print("YES")
+        print(" ".join(map(str, result[1:])))
 
 solve()

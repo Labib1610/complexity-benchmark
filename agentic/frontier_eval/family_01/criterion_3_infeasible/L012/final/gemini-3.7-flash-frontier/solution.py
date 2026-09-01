@@ -1,0 +1,40 @@
+import sys
+
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [0] * (n + 1)
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(1, n + 1):
+        mask_a = adj[a]
+        # Iterate over neighbors b of a such that b > a
+        b_mask = mask_a >> (a + 1)
+        while b_mask:
+            lsb_b = b_mask & -b_mask
+            b = (a + 1) + lsb_b.bit_length() - 1
+            b_mask ^= lsb_b
+
+            common = mask_a & adj[b]
+            valid = common >> (b + 1)
+            if valid:
+                lsb_c = valid & -valid
+                c = (b + 1) + lsb_c.bit_length() - 1
+                print(f"{a} {b} {c}")
+                return
+
+
+if __name__ == "__main__":
+    solve()

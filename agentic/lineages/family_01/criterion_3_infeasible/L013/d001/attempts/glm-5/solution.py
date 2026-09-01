@@ -1,58 +1,70 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.buffer.read().split()
     if not data:
         return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
-    
     adj = [set() for _ in range(n + 1)]
     edges = []
-    
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
         if u > v:
             u, v = v, u
+        edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
     
-    # Sort edges lexicographically
-    edges.sort()
+    best = None
     
-    # For each edge (u, v), find the smallest common neighbor w > v
-    # This gives us the lexicographically smallest triangle
+    # Iterate over all edges (u, v) with u < v.
+    # For each edge, find the smallest common neighbor w > v to form (u, v, w).
+    # This guarantees lexicographically smallest triangle because:
+    # - We process edges in increasing order of u, then v.
+    # - For each edge, we pick the smallest possible w > v.
+    # - The first valid triangle found is the lexicographically smallest.
     for u, v in edges:
-        # Find common neighbors w where w > v
-        # We need to check neighbors of u that are also neighbors of v
-        # To get lexicographically smallest, we want smallest w > v
-        # Since we process edges in order and want smallest w, we can iterate
-        # through neighbors of u (or v) and check
-        
-        # Iterate through neighbors of u that are > v
-        # We want the smallest such w
-        candidates = []
-        for w in adj[u]:
-            if w > v and w in adj[v]:
-                candidates.append(w)
-        
-        if candidates:
-            w = min(candidates)
-            print(u, v, w)
-            return
+        # Find smallest w in adj[u] intersect adj[v] with w > v
+        # To optimize, iterate over the smaller adjacency set
+        if len(adj[u]) > len(adj[v]):
+            small, large = adj[v], adj[u]
+        else:
+            small, large = adj[u], adj[v]
+        # We need w > v and w in both sets
+        # Since we want smallest w > v, we can iterate over small set
+        min_w = None
+        for w in small:
+            if w > v and w in large:
+                if min_w is None or w < min_w:
+                    min_w = w
+                    # Since we want the smallest w, we can't break early
+                    # because small set is not sorted. But we can track min.
+        if min_w is not None:
+            candidate = (u, v, min_w)
+            if best is None or candidate < best:
+                best = candidate
+                # Since edges are processed in order, the first found is smallest.
+                # But to be safe, we keep track.
+                # Actually, since we process edges in order, the first valid candidate
+                # is the lexicographically smallest. We can break.
+                break
     
-    # Should not reach here as problem guarantees a triangle exists
-    # But if no triangle found with the above approach, do a full search
-    for u in range(1, n - 1):
+    if best is not None:
+        print(best[0], best[1], best[2])
+        return
+    
+    # Fallback: should not reach here because problem guarantees a triangle exists.
+    # But just in case, do a full search.
+    for u in range(1, n + 1):
         for v in adj[u]:
-            if v > u:
-                for w in adj[v]:
-                    if w > v and w in adj[u]:
-                        print(u, v, w)
-                        return
+            if v < u:
+                continue
+            for w in adj[u]:
+                if w > v and w in adj[v]:
+                    print(u, v, w)
+                    return
 
-if __name__ == "__main__":
-    solve()
+solve()

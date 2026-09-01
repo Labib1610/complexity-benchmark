@@ -1,20 +1,22 @@
-# Environment Allocation
+# Critical Interference
 
 Time limit: 2 s
 Memory limit: 256 MB
 
-A system administrator is trying to deploy $n$ software modules (numbered 1 through $n$) across two isolated virtual environments. The system's compatibility registry contains $m$ records of module pairs that will cause a critical system panic if installed in the same environment.
+A proposed security protocol attempts to assign $n$ communication nodes (numbered 1 to $n$) to one of two distinct channels. However, there are $m$ specific bidirectional connections between nodes that cause severe interference.
 
-The administrator suspects it is impossible to deploy all modules using only two environments. To formally justify the creation of a third environment, you must output a minimal proof of this impossibility. You need to find a set of three distinct modules such that every possible pair among these three is registered as a conflict. This exact configuration ensures that no matter how you distribute these three modules across two environments, at least one conflicting pair will end up together.
+The protocol's requirements are known to be fundamentally impossible to satisfy. Your task is to certify this impossibility. You must identify a group of three distinct nodes such that all three nodes are mutually connected to each other (i.e., a connection exists between every pair of nodes in the group).
+
+Any such group of three nodes demonstrates that two channels are insufficient. It is guaranteed that at least one such group exists.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of modules that conflict with each other. 
-It is guaranteed that at least one such configuration of three modules exists.
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing a connection between node $u$ and node $v$.
+It is guaranteed that at least one group of three mutually connected nodes exists.
 
 ## Output
-Print the three integer identifiers of these modules on one line, sorted in ascending order. 
-If there are multiple valid configurations, output the one that is lexicographically smallest (smallest first integer; resolving ties by the second integer, then the third).
+Print three integers on one line, representing the identifiers of the three nodes that form the mutually connected group. The three identifiers must be printed in ascending order.
+If there are multiple such groups, output the one whose sorted sequence of identifiers is lexicographically smallest (i.e., smallest first identifier; in case of a tie, smallest second identifier; then smallest third identifier).
 
 ## Example 1
 ### Input

@@ -2,46 +2,50 @@ import sys
 from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
+    input_data = sys.stdin.buffer.read().split()
     if not input_data:
         return
     it = iter(input_data)
     n = int(next(it))
     m = int(next(it))
     
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * (n + 1)
-    possible = True
+    p = [0] * n
+    visited = [False] * n
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            queue = deque([i])
-            color[i] = 1
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        possible = False
-                        break
-                if not possible:
-                    break
-        if not possible:
-            break
+    for start in range(n):
+        if visited[start]:
+            continue
+        visited[start] = True
+        p[start] = 1
+        queue = deque([start])
+        comp = [start]
+        
+        while queue:
+            u = queue.popleft()
+            for v in adj[u]:
+                if not visited[v]:
+                    visited[v] = True
+                    p[v] = 3 - p[u]
+                    queue.append(v)
+                    comp.append(v)
+        
+        for u in comp:
+            du = len(adj[u])
+            s = 0
+            for v in adj[u]:
+                s += p[v] * p[v]
+            if s + 3 * du * p[u] != 7 * du:
+                print("NO")
+                return
     
-    if not possible:
-        print("NO")
-    else:
-        print("YES")
-        print(' '.join(map(str, color[1:])))
+    print("YES")
+    print(' '.join(map(str, p)))
 
-if __name__ == "__main__":
-    solve()
+solve()

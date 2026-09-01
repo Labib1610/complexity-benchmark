@@ -1,0 +1,49 @@
+# Problem A — Harmonic Resonance Mitigation
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+An advanced energy distribution system operates three independent power networks, identified by the codes 1, 2, and 3. The system delivers power to $n$ separate industrial complexes, indexed from 1 to $n$. Because of harmonic resonance interference, specific pairs of complexes will cause catastrophic voltage spikes if they are powered by the exact same network. To maintain safe operations, every complex must be assigned to one of the three networks in a way that completely isolates all resonating pairs from sharing a network.
+
+You must evaluate whether a safe assignment exists for the $n$ complexes. If it does, you must output the valid assignment. Note that the evaluation tests include worst-case configurations (fully within the stated limits) intentionally constructed so that basic sequential guessing strategies will require an impractical number of steps. Your approach must efficiently handle these highly constrained scenarios.
+
+## Input
+The first line provides two integers, $n$ and $m$, which denote the number of industrial complexes and the number of interfering pairs, respectively ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the subsequent $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$). This indicates that complex $u$ and complex $v$ experience harmonic resonance and cannot share a network.
+
+## Output
+If it is impossible to find a safe assignment, print a single line containing the word `NO`.
+If a safe assignment is achievable, output `YES` on the first line. On the second line, output $n$ integers $g_1, g_2, \dots, g_n$ (each being 1, 2, or 3), where $g_i$ represents the network code chosen for complex $i$.
+In the event that more than one safe assignment is possible, you must select the one that is lexicographically smallest. That is, compare valid assignments by the network code assigned to complex 1, preferring the smaller code. If there is a tie, compare the code for complex 2, and continue this sequential comparison up to complex $n$ to break any remaining ties.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

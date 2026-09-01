@@ -1,16 +1,26 @@
-n, m = map(int, input().split())
-adj = [[False] * n for _ in range(n)]
+import sys
 
-for _ in range(m):
-    u, v = map(int, input().split())
-    u -= 1
-    v -= 1
-    adj[u][v] = adj[v][u] = True
+def solve():
+    input = sys.stdin.readline
+    n, m = map(int, input().split())
+    adj = [set() for _ in range(n+1)]
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+    
+    edges.sort()
+    
+    for u, v in edges:
+        # find w > v such that (u,w) and (v,w) exist
+        for w in adj[u]:
+            if w > v and w in adj[v]:
+                print(u, v, w)
+                return
 
-for a in range(n):
-    for b in range(a + 1, n):
-        if adj[a][b]:
-            for c in range(b + 1, n):
-                if adj[a][c] and adj[b][c]:
-                    print(a + 1, b + 1, c + 1)
-                    exit()
+if __name__ == "__main__":
+    solve()

@@ -1,20 +1,20 @@
-# Problem B — Catalyst Assignment
+# Problem B — Sensor Frequency Allocation
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing process requires treating $n$ different raw materials, numbered 1 to $n$. Each material must be processed using exactly one of two available catalytic solvents, Solvent 1 or Solvent 2.
+A smart factory has $n$ wireless sensors. Each sensor must be configured to broadcast on one of two available frequency bands, labeled 1 and 2. 
 
-However, $m$ specific pairs of raw materials are known to cross-contaminate if they are processed using the same solvent. You must assign each material to a solvent such that no cross-contaminating pair shares a solvent.
+Due to hardware proximity, there are $m$ pairs of sensors that cause signal interference if configured incorrectly. To prevent data collision, for each such interfering pair of sensors $u$ and $v$, you must assign their bands $s_u$ and $s_v$ such that the sum of their band labels is exactly 3.
 
-If there is no way to safely process all materials, report impossibility.
+Determine if there is a valid configuration for all $n$ sensors. If there are multiple valid configurations, you must output the one where the sequence of band assignments $s_1 \dots s_n$ is lexicographically smallest.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) — a pair of materials that cross-contaminate.
+Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of sensors that interfere with each other.
 
 ## Output
-If no safe assignment exists, print a single line containing NO.
-Otherwise, print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each being 1 or 2), representing the lexicographically smallest valid solvent assignment.
+If no valid configuration exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $s_1 \dots s_n$ (each in {1,2}), representing the lexicographically smallest valid configuration.
 
 ## Example 1
 Input:

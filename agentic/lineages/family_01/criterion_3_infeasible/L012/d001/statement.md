@@ -1,25 +1,25 @@
-# Problem C — Hazardous Manifest
+# Problem C — System Instability
 
 Time limit: 2 s
 Memory limit: 256 MB
 
-You are managing a logistics facility that recently received a manifest of $n$ hazardous materials. Certain pairs of these materials are highly reactive and will combust if stored in the same vicinity.
+You are analyzing a security system consisting of $n$ sensors. Certain pairs of sensors are linked by a hardware interlock. 
 
-The facility is equipped with exactly two isolated storage bunkers. Strict safety protocols require assigning every material to one of these two bunkers such that no two reactive materials are placed in the same bunker. However, the current manifest is fundamentally impossible to store under these conditions.
+The system is designed to operate by assigning each sensor to one of two alternating active phases. A safety rule dictates that if two sensors are linked by an interlock, they must not be active in the same phase. However, the current configuration is fundamentally flawed. 
 
-To justify rejecting the manifest to the safety inspector, you do not need to attempt a full assignment. Instead, you must isolate a specific structural contradiction: a "critical incompatibility triad." This is a set of exactly three distinct materials where all three possible reactive pairings between them are present. Because each material in this triad reacts with the other two, it is impossible to distribute them across only two bunkers without causing a combustion event.
+To demonstrate this flaw, you do not need to attempt a full assignment. Instead, you must find a specific structural failure: a subset of exactly three distinct sensors which, when considered in isolation, cannot possibly be assigned to the two phases without violating the safety rule.
 
-It is guaranteed that the provided manifest contains at least one critical incompatibility triad. Your task is to find and report one.
+It is guaranteed that the provided configuration contains at least one such subset of three sensors. Your task is to find and report one.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of hazardous materials and the number of reactive pairs, respectively. Materials are numbered from $1$ to $n$.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of sensors and the number of interlocks, respectively. Sensors are numbered from $1$ to $n$.
 
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that material $u$ and material $v$ are reactive. Reactivity is bidirectional. It is guaranteed that no pair is listed more than once, and that at least one critical incompatibility triad exists.
+Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that sensor $u$ and sensor $v$ are linked by an interlock. Interlocks are bidirectional. It is guaranteed that no pair is listed more than once, and that at least one structural failure of three sensors exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line, representing the identifiers of the three materials that form the triad. 
+Print three integers $a$, $b$, and $c$ on a single line, representing the identifiers of the three sensors that form the structural failure. 
 
-The identifiers must be printed in ascending order ($a < b < c$). If there are multiple valid triads, you must output the one that is lexicographically smallest. This means you should first minimize $a$; if there are ties, minimize $b$ among those ties; and if there are still ties, minimize $c$.
+The identifiers must be printed in ascending order ($a < b < c$). If there are multiple valid subsets of three sensors, you must output the one that is lexicographically smallest. This means you should first minimize $a$; if there are ties, minimize $b$ among those ties; and if there are still ties, minimize $c$.
 
 ## Example 1
 **Input:**

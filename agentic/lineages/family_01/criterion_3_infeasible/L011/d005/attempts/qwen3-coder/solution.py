@@ -1,42 +1,32 @@
 import sys
 from itertools import combinations
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
-    
-    n = int(data[0])
-    m = int(data[1])
-    
-    edges = []
+def find_unresolvable_bottleneck(n, m, edges):
+    # Create adjacency list representation
     adj = [set() for _ in range(n + 1)]
-    
-    idx = 2
-    for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
-        idx += 2
-        edges.append((u, v))
+    for u, v in edges:
         adj[u].add(v)
         adj[v].add(u)
     
-    # Find all triangles (3-cliques) in the graph
-    # A triangle is a set of 3 nodes where each pair is connected
-    min_trace = float('inf')
-    result = None
-    
-    # For each combination of 3 nodes, check if they form a triangle
+    # Check all combinations of 3 nodes
     for combo in combinations(range(1, n + 1), 3):
         a, b, c = sorted(combo)
+        # Check if all three pairs are connected (form a triangle)
         if b in adj[a] and c in adj[a] and c in adj[b]:
-            # It's a triangle (deadlock)
-            trace = a * 10**8 + b * 10**4 + c
-            if trace < min_trace:
-                min_trace = trace
-                result = (a, b, c)
+            return [a, b, c]
     
-    print(result[0], result[1], result[2])
+    return None
 
-if __name__ == "__main__":
-    main()
+# Read input
+line1 = sys.stdin.readline().split()
+n, m = int(line1[0]), int(line1[1])
+
+edges = []
+for _ in range(m):
+    line = sys.stdin.readline().split()
+    u, v = int(line[0]), int(line[1])
+    edges.append((u, v))
+
+# Find and output the result
+result = find_unresolvable_bottleneck(n, m, edges)
+print(' '.join(map(str, result)))

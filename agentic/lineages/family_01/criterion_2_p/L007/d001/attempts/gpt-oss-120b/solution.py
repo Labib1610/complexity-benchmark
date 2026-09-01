@@ -1,0 +1,48 @@
+import sys
+from collections import deque
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [[] for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)          # final colors 1 or 2
+    parity = [ -1 ] * (n + 1)      # 0/1 during bfs, -1 = unvisited
+    for start in range(1, n + 1):
+        if parity[start] != -1:
+            continue
+        # BFS this component
+        q = deque([start])
+        parity[start] = 0
+        comp_vertices = [start]
+        ok = True
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if parity[v] == -1:
+                    parity[v] = parity[u] ^ 1
+                    q.append(v)
+                    comp_vertices.append(v)
+                elif parity[v] == parity[u]:
+                    print("NO")
+                    return
+        # decide orientation: make smallest vertex have color 1
+        minv = min(comp_vertices)
+        flip = parity[minv]  # if 0 keep, if 1 flip
+        for v in comp_vertices:
+            p = parity[v] ^ flip
+            color[v] = p + 1   # 1 or 2
+
+    print("YES")
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
+
+if __name__ == "__main__":
+    solve()

@@ -12,36 +12,35 @@ def main():
     edges = []
     adj = defaultdict(set)
     
-    index = 2
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        index += 2
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
         if u > v:
             u, v = v, u
         edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
     
-    # Sort edges to process in order
+    # Sort edges to help with finding lexicographically smallest triangle
     edges.sort()
     
-    # For each edge (a,b), look for a vertex c such that (a,c) and (b,c) exist
-    for a, b in edges:
-        # Common neighbors of a and b
-        common = adj[a] & adj[b]
+    # For each edge (u,v), look for a node w such that (u,w) and (v,w) are also edges
+    for u, v in edges:
+        if u >= v:
+            continue
+        # Get neighbors of both u and v
+        neighbors_u = adj[u]
+        neighbors_v = adj[v]
+        # Find common neighbors
+        common = neighbors_u & neighbors_v
         if common:
-            # Find the smallest c in common neighbors
-            c = min(common)
-            # Ensure a < b < c
-            if a < b < c:
-                print(a, b, c)
-                return
-            else:
-                # Need to sort them properly
-                triple = sorted([a, b, c])
-                print(triple[0], triple[1], triple[2])
-                return
+            # Find the smallest w such that w > v to maintain a < b < c
+            for w in sorted(common):
+                if w > v:
+                    print(u, v, w)
+                    return
 
 if __name__ == "__main__":
     main()

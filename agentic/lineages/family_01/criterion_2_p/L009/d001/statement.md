@@ -2,19 +2,19 @@
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A manufacturing plant operates in two daily shifts: shift 1 and shift 2. Each of the $n$ staff members must be assigned to exactly one of these shifts.
+A manufacturing plant is organizing its $n$ staff members into two operational shifts, identified as shift 1 and shift 2. 
 
-Certain tasks require specialized equipment. There are $m$ pairs of staff members who rely on the same unique piece of equipment. To ensure the equipment is properly utilized across the day without overlapping, exactly one staff member from each such pair must be assigned to shift 1, and the other must be assigned to shift 2.
+There are $m$ specialized tools, each assigned to a specific pair of staff members. To guarantee round-the-clock operation, every tool must be active during both shifts. A tool is considered active during a particular shift if and only if at least one of its assigned staff members is scheduled to work that shift. 
 
-You must determine a valid shift assignment for all staff members that satisfies all equipment requirements, or report that no such schedule is possible.
+You must determine an assignment of each staff member to exactly one shift (either shift 1 or shift 2) such that all tools remain active during both shifts, or report that no such arrangement is possible.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$, representing a pair of staff members who share equipment.
+Each of the next $m$ lines contains two integers $u$ and $v$ — the two staff members assigned to a single tool.
 
 ## Output
-If no valid shift schedule exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $s_1, \dots, s_n$ (each $s_i \in \{1, 2\}$), where $s_i$ is the shift assigned to staff member $i$. If there are multiple valid schedules, output the one that is lexicographically smallest.
+If no valid shift arrangement exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $s_1, \dots, s_n$ (each $s_i \in \{1, 2\}$), where $s_i$ is the shift assigned to staff member $i$. If there are multiple valid arrangements, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

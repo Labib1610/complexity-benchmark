@@ -6,12 +6,9 @@ def main():
     input = sys.stdin.read
     data = input().split()
     
-    n = int(data[0])
-    m = int(data[1])
-    
-    # Build adjacency list and set for O(1) lookup
-    adj = defaultdict(set)
+    n, m = int(data[0]), int(data[1])
     edges = []
+    adj = defaultdict(set)
     
     index = 2
     for _ in range(m):
@@ -20,29 +17,24 @@ def main():
         index += 2
         if u > v:
             u, v = v, u
+        edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
-        edges.append((u, v))
     
     # Sort edges to process in order
     edges.sort()
     
-    best = None
-    best_score = float('inf')
-    
-    # For each edge (u,v), look for a common neighbor w
+    # For each edge (u,v), look for a third node w such that (u,w) and (v,w) are also edges
     for u, v in edges:
-        if u >= best_score // 100000000:  # Early pruning
-            break
-        # Find common neighbors
-        for w in adj[u]:
-            if w > v and w in adj[v]:  # Ensure u < v < w and triangle
-                score = u * 100000000 + v * 10000 + w
-                if score < best_score:
-                    best_score = score
-                    best = (u, v, w)
-    
-    print(best[0], best[1], best[2])
+        if u >= v:
+            continue
+        # Find common neighbors of u and v
+        common = adj[u] & adj[v]
+        for w in sorted(common):
+            if w > v:
+                # Found a triangle: u, v, w
+                print(u, v, w)
+                return
 
 if __name__ == "__main__":
     main()

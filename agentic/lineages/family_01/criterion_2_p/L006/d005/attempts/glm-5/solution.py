@@ -1,61 +1,65 @@
 import sys
 from collections import deque
 
+# Increase recursion depth just in case, though we use iterative BFS
+sys.setrecursionlimit(1 << 25)
+
 def solve():
-    data = sys.stdin.buffer.read().split()
-    if not data:
+    input = sys.stdin.read().split()
+    if not input:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
+    iterator = iter(input)
+    
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(next(iterator))
+        v = int(next(iterator))
         adj[u].append(v)
         adj[v].append(u)
 
-    color = [0] * (n + 1)
+    # colors: 0=unvisited, 1=mode 1, 2=mode 2
+    colors = [0] * (n + 1)
     possible = True
-
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            comp = []
-            q = deque([start])
-            color[start] = 1
-            comp.append(start)
-            while q:
-                u = q.popleft()
+    
+    # We want the lexicographically smallest valid assignment.
+    # Since we prefer mode 1 over mode 2, we try to assign 1 to the starting node of each component.
+    # If a component is bipartite, we have two valid colorings.
+    # We must choose the one that is lexicographically smaller.
+    # The coloring starting with 1 is always lexicographically smaller than the one starting with 2
+    # (assuming the nodes are visited in increasing order).
+    
+    for i in range(1, n + 1):
+        if colors[i] == 0:
+            # Start BFS for this component
+            queue = deque([i])
+            colors[i] = 1  # Assign mode 1 to the smallest index in component
+            
+            while queue:
+                u = queue.popleft()
                 for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        comp.append(v)
-                        q.append(v)
-                    elif color[v] == color[u]:
+                    if colors[v] == 0:
+                        colors[v] = 3 - colors[u]
+                        queue.append(v)
+                    elif colors[v] == colors[u]:
                         possible = False
-            if not possible:
-                break
-            # Count ones and twos in this component
-            ones = 0
-            twos = 0
-            for u in comp:
-                if color[u] == 1:
-                    ones += 1
-                else:
-                    twos += 1
-            # Choose assignment that minimizes the concatenated integer
-            # If more ones, keep as is (1 is smaller, and more leading positions get 1)
-            # If more twos, flip the component
-            # If equal, keep as is (1 is smaller)
-            if twos > ones:
-                for u in comp:
-                    color[u] = 3 - color[u]
-
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
+            
     if not possible:
-        sys.stdout.write("NO\n")
+        print("NO")
     else:
-        out = ["YES"]
-        out.append(" ".join(str(color[i]) for i in range(1, n + 1)))
-        sys.stdout.write("\n".join(out) + "\n")
+        print("YES")
+        # Output modes 1 and 2
+        print(*(colors[1:]))
 
-solve()
+if __name__ == '__main__':
+    solve()

@@ -1,22 +1,26 @@
-# Entanglement Initialization
+# Orbital Reflection Synchrony
 
 Time limit: 1 s   Memory limit: 256 MB
 
-You are operating a quantum register that contains $n$ qubits, indexed from 1 up to $n$. Your task is to initialize the register by assigning a state value to each qubit. The only permitted state values are 1 and 2.
+A satellite network consists of $n$ orbital modules, numbered $1$ through $n$. You must assign each module an operating mode, represented by the integer $1$ or $2$.
 
-The hardware contains $m$ entanglement bridges, each physically linking a pair of qubits. To prevent decoherence, every bridge in the register must be stabilized. A bridge is considered stable if and only if the bitwise XOR of the state values of the two qubits it connects is equal to 3. 
+The modes determine how a module transforms an incoming diagnostic signal. A signal can be in one of four states, denoted by integers $1$ through $4$.
+- Mode 1 transforms the signal state according to the mapping $M_1$: state 1 becomes 2, state 2 becomes 1, state 3 becomes 4, and state 4 becomes 3.
+- Mode 2 transforms the signal state according to the mapping $M_2$: state 1 becomes 3, state 2 becomes 4, state 3 becomes 1, and state 4 becomes 2.
 
-You must determine if there is a complete assignment of state values that stabilizes all $m$ bridges simultaneously.
+The network's synchronization is governed by $m$ telemetry channels. Each channel connects a specific pair of modules. For a channel to function correctly, the combined effect of the two modules' transformations on any signal must exactly match a specific target mapping $M_{target}$, which maps state 1 to 4, state 2 to 3, state 3 to 2, and state 4 to 1. 
 
-Because there may be several valid assignments, the system's compiler enforces a deterministic selection rule. It constructs an $n$-digit sequence by concatenating the state values $c_1, c_2, \dots, c_n$ in index order. The compiler demands the valid assignment that yields the lexicographically smallest sequence (which corresponds to the minimum possible $n$-digit integer). If no stabilizing assignment exists, the compiler halts.
+That is, if you take any initial signal state $x \in \{1, 2, 3, 4\}$, apply the transformation for the mode assigned to one module, and then apply the transformation for the mode assigned to the other module, the final state must always be $M_{target}(x)$. (Since the mappings $M_1$ and $M_2$ commute, the order in which the two modules process the signal does not matter). If the combined transformations yield any other result for any state, the channel fails.
+
+Your task is to assign an operating mode ($1$ or $2$) to each of the $n$ modules so that every telemetry channel functions correctly. If multiple valid assignments are possible, you must output the lexicographically smallest valid sequence of modes. If no such assignment is possible, you must report that it cannot be done.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$), which denote the total number of qubits and the total number of entanglement bridges, respectively.
-Each of the following $m$ lines contains two integers $u$ and $v$, indicating that an entanglement bridge exists between qubit $u$ and qubit $v$.
+The first line provides two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of a pair of modules connected by a telemetry channel.
 
 ## Output
-If it is impossible to stabilize the entire register, output a single line with the word `NO`.
-If it is possible, output `YES` on the first line. On the second line, output $n$ space-separated integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2\}$) representing the state values of the qubits. This assignment must be the one that minimizes the concatenated sequence as described.
+If it is impossible to configure the modules to satisfy all channels, output a single line with NO.
+If it is possible, output YES on the first line. On the second line, output $n$ integers $p_1 \dots p_n$ (where each $p_i \in \{1,2\}$) giving the lexicographically smallest valid sequence of modes.
 
 ## Example 1
 Input:

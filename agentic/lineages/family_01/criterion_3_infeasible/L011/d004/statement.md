@@ -1,22 +1,22 @@
-# Synthetic Cell Compartmentalization
+# Production Line Diagnostics
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A synthetic biology lab is designing a cell with $n$ distinct engineered proteins. The cell has exactly two isolated environments for these proteins: the cytosol and the nucleus. Certain pairs of proteins exhibit strong binding affinity and will form inactive aggregates if they are placed in the same environment. Therefore, any two proteins with a binding affinity must be assigned to different environments.
+A manufacturing facility operates continuously using exactly two production lines. Certain pairs of manufacturing steps require a shared specialized calibration tool. A tool collision occurs if both steps of such a pair are assigned to the same production line. Currently, the entire batch of manufacturing steps cannot be distributed across the two lines without causing at least one tool collision.
 
-Currently, the cell design is unviable because a valid assignment is impossible. Analysis shows that the failure is caused by a "tertiary aggregation knot". A knot is formed when a pair of binding proteins both exhibit an affinity for the exact same third protein. Because all three proteins in this group bind to one another, distributing them across just two environments inevitably forces at least two of them into the same environment, causing aggregation.
+Your diagnostic software must isolate a root cause of this allocation failure by identifying a group of exactly three steps that form an unresolvable bottleneck. A subset of exactly three steps is considered an unresolvable bottleneck if all 8 possible ways of assigning these three steps to the two production lines result in at least one tool collision between a pair of steps within the subset.
 
-Your task is to identify the three proteins that constitute a tertiary aggregation knot. If multiple such triplets exist, you must identify the one with the minimum sequence trace. For a knot consisting of protein IDs $a, b,$ and $c$ (ordered such that $a < b < c$), the sequence trace is calculated as $a \cdot 10^8 + b \cdot 10^4 + c$.
+To ensure deterministic logging, if multiple such groups exist, the system must output the one whose step identifiers are sequentially lowest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of engineered proteins and the number of known binding affinities. The proteins are identified by integers from $1$ to $n$.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of manufacturing steps and the number of tool collision pairs. Steps are numbered from $1$ to $n$.
 
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that protein $u$ and protein $v$ have a binding affinity. 
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that step $u$ and step $v$ require a shared calibration tool and cannot be assigned to the same production line.
 
-The input data is guaranteed to contain at least one tertiary aggregation knot.
+It is guaranteed that at least one such group of three steps exists in the provided data.
 
 ## Output
-Output a single line containing three space-separated integers $a$, $b$, and $c$ ($a < b < c$) representing the IDs of the three proteins forming the knot. You must output the triplet that produces the minimum sequence trace as defined above.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three steps. Output the combination that is sequentially lowest (the smallest possible value for $a$; in case of a tie, the smallest possible value for $b$; and finally the smallest possible value for $c$).
 
 ## Example 1
 Input:

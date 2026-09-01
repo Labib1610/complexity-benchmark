@@ -8,45 +8,35 @@ def solve():
     n = int(data[0])
     m = int(data[1])
     
-    # Build adjacency list for incompatibilities
-    adj = [[] for _ in range(n+1)]
+    # Create adjacency list for incompatibilities
+    incompatible = [[] for _ in range(n + 1)]
     idx = 2
     for _ in range(m):
         u = int(data[idx])
-        v = int(data[idx+1])
-        adj[u].append(v)
-        adj[v].append(u)
+        v = int(data[idx + 1])
+        incompatible[u].append(v)
+        incompatible[v].append(u)
         idx += 2
     
-    # Try all 3^n assignments, but we can do better with backtracking
-    # We'll generate assignments in lexicographical order and return the first valid one
+    # Try all possible assignments (3^n possibilities)
+    # We want the lexicographically smallest one
+    for assignment in product([1, 2, 3], repeat=n):
+        # Check if this assignment is valid
+        valid = True
+        for i in range(1, n + 1):
+            for neighbor in incompatible[i]:
+                # Note: modules are 1-indexed, but assignment is 0-indexed
+                if assignment[i-1] == assignment[neighbor-1]:
+                    valid = False
+                    break
+            if not valid:
+                break
+        
+        if valid:
+            print("YES")
+            print(' '.join(map(str, assignment)))
+            return
     
-    # Use backtracking with constraint checking
-    assignment = [0] * (n+1)  # assignment[i] is the bus for module i
-    
-    def is_valid(module, bus):
-        # Check if assigning 'bus' to 'module' conflicts with any already assigned neighbors
-        for neighbor in adj[module]:
-            if assignment[neighbor] == bus:
-                return False
-        return True
-    
-    def backtrack(module):
-        if module > n:
-            return True
-            
-        for bus in [1, 2, 3]:
-            if is_valid(module, bus):
-                assignment[module] = bus
-                if backtrack(module + 1):
-                    return True
-                assignment[module] = 0  # Backtrack
-        return False
-    
-    if backtrack(1):
-        print("YES")
-        print(' '.join(map(str, assignment[1:])))
-    else:
-        print("NO")
+    print("NO")
 
 solve()

@@ -1,82 +1,32 @@
 import sys
-sys.setrecursionlimit(300000)
+from collections import deque
 
-def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
+input = sys.stdin.readline
 
-    color = [-1] * n
-    comps = []
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
 
-    def bfs(start):
-        from collections import deque
-        q = deque([start])
-        color[start] = 0
-        nodes = [start]
-        bipartite = True
+color = [-1] * n
+
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 1
+        q = deque([i])
         while q:
             u = q.popleft()
             for v in adj[u]:
                 if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                    color[v] = 3 - color[u]
                     q.append(v)
-                    nodes.append(v)
                 elif color[v] == color[u]:
-                    bipartite = False
-        return nodes, bipartite
+                    print("NO")
+                    sys.exit()
 
-    for i in range(n):
-        if color[i] == -1:
-            nodes, ok = bfs(i)
-            if not ok:
-                print("NO")
-                return
-            comp.append(nodes)
-
-    # For each component, we can flip all colors (0->1, 1->0) independently.
-    # We want lexicographically smallest sequence of 1/2.
-    # For each component, choose orientation that gives smaller prefix.
-    # Since components are independent, we can greedily assign per component
-    # by checking which orientation gives smaller value at the first differing position.
-
-    ans = [0] * n
-    for nodes in comp:
-        # nodes are in BFS order, but we need to compare by index order
-        # We'll collect two possible assignments for this component
-        # orientation 0: color 0 -> 1, color 1 -> 2
-        # orientation 1: color 0 -> 2, color 1 -> 1
-        # We need to pick the one that makes the overall number smaller.
-        # Since components are independent, we can decide by comparing the two
-        # assignments for this component at the smallest index where they differ.
-        assign0 = {}
-        assign1 = {}
-        for u in nodes:
-            assign0[u] = 1 if color[u] == 0 else 2
-            assign1[u] = 2 if color[u] == 0 else 1
-
-        # Compare lexicographically by index
-        nodes_sorted = sorted(nodes)
-        use0 = True
-        for u in nodes_sorted:
-            if assign0[u] < assign1[u]:
-                use0 = True
-                break
-            elif assign0[u] > assign1[u]:
-                use0 = False
-                break
-        # If all equal, either works
-        for u in nodes:
-            ans[u] = assign0[u] if use0 else assign1[u]
-
-    print("YES")
-    print(' '.join(map(str, ans)))
-
-if __name__ == "__main__":
-    solve()
+print("YES")
+print(" ".join(str(color[i]) for i in range(n)))

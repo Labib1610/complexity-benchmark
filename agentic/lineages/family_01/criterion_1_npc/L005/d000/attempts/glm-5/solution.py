@@ -1,8 +1,7 @@
 import sys
-sys.setrecursionlimit(1000000)
 
 def solve():
-    data = sys.stdin.read().split()
+    data = sys.stdin.read().strip().split()
     if not data:
         return
     it = iter(data)
@@ -16,47 +15,28 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    # We need to find lexicographically smallest valid assignment
-    # Use backtracking with constraint propagation
+    assignment = [0] * n
     
-    assignment = [0] * n  # 0 = unassigned, 1,2,3 = assigned
+    def is_safe(u, color):
+        for v in adj[u]:
+            if assignment[v] == color:
+                return False
+        return True
     
-    # For each node, track which values are forbidden by assigned neighbors
-    # forbidden[i] will be a set of values (1,2,3) that node i cannot take
-    
-    # We'll use a simple backtracking with forward checking
-    
-    def get_candidates(v):
-        """Get valid candidates for vertex v based on current assignment"""
-        forbidden = set()
-        for nb in adj[v]:
-            if assignment[nb] != 0:
-                forbidden.add(assignment[nb])
-        return [val for val in (1, 2, 3) if val not in forbidden]
-    
-    def backtrack(idx):
-        """Try to assign vertices starting from idx"""
-        if idx == n:
-            return True
-        
-        # Find next unassigned vertex (should be idx since we assign in order)
-        # But let's be safe
-        if assignment[idx] != 0:
-            return backtrack(idx + 1)
-        
-        candidates = get_candidates(idx)
-        for val in candidates:
-            assignment[idx] = val
-            if backtrack(idx + 1):
-                return True
-            assignment[idx] = 0
-        
+    def dfs(u):
+        for color in [1, 2, 3]:
+            if is_safe(u, color):
+                assignment[u] = color
+                if u == n - 1 or dfs(u + 1):
+                    return True
+                assignment[u] = 0
         return False
     
-    if backtrack(0):
+    if dfs(0):
         print("YES")
-        print(" ".join(map(str, assignment)))
+        print(' '.join(map(str, assignment)))
     else:
         print("NO")
 
-solve()
+if __name__ == "__main__":
+    solve()

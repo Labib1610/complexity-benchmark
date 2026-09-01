@@ -1,56 +1,57 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
+    import sys
+    sys.setrecursionlimit(1 << 25)
+    
     n, m = map(int, sys.stdin.readline().split())
     
-    # Build adjacency list
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
     adj = defaultdict(list)
+    edges = []
+    
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
+        edges.append((u, v))
         adj[u].append(v)
         adj[v].append(u)
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * (n + 1)
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
     
-    # Check if bipartite and find lexicographically smallest coloring
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            # BFS to color component
-            queue = deque()
-            queue.append((start, 1))  # node, color
-            color[start] = 1
-            
-            while queue:
-                node, c = queue.popleft()
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - c  # Flip color (1->2, 2->1)
-                        queue.append((neighbor, 3 - c))
-                    elif color[neighbor] == c:
-                        print("NO")
-                        return
+    def bfs(start):
+        queue = deque()
+        queue.append(start)
+        color[start] = 1
+        while queue:
+            u = queue.popleft()
+            current_color = color[u]
+            next_color = 3 - current_color  # flips 1->2, 2->1
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = next_color
+                    queue.append(v)
+                elif color[v] == current_color:
+                    return False
+        return True
     
-    # If we get here, a valid coloring exists
-    # To get lexicographically smallest, we prefer color 1 (coordinate 1) 
-    # for each node if possible. Since our BFS already ensures a valid 2-coloring,
-    # and we start with color 1 for the first node in each component, 
-    # this gives us one valid solution. But to ensure lexicographically 
-    # smallest, we need to verify our coloring approach.
+    visited = [False] * (n + 1)
     
-    # Actually, our BFS starting from the lowest index node and always 
-    # assigning the first available color (1) to unvisited nodes will 
-    # produce the lexicographically smallest result.
+    for i in range(1, n + 1):
+        if color[i] == 0:
+            if not bfs(i):
+                print("NO")
+                return
     
     print("YES")
     result = []
     for i in range(1, n + 1):
-        if color[i] == 1:
-            result.append("1")
-        else:
-            result.append("2")
+        result.append(str(color[i]))
     print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

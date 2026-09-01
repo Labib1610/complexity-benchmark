@@ -12,14 +12,15 @@ def solve():
         adj[v].add(u)
     
     for a in range(n):
-        for b in range(a + 1, n):
-            if b in adj[a]:
-                # find smallest c > b connected to both a and b
-                common = adj[a] & adj[b]
-                for c in sorted(common):
-                    if c > b:
-                        print(a + 1, b + 1, c + 1)
-                        return
+        for b in adj[a]:
+            if b <= a:
+                continue
+            for c in adj[b]:
+                if c <= b:
+                    continue
+                if c in adj[a]:
+                    print(a+1, b+1, c+1)
+                    return
 
 if __name__ == "__main__":
     solve()

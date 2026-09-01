@@ -1,0 +1,54 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Forbidden products: 1, 4, 9
+    # Forbidden pairs: (1,1), (2,2), (3,3), (1,4) is not a product, (1,4) is not a pair.
+    # Pairs (a,b) s.t. a*b is square:
+    # 1*1=1, 2*2=4, 3*3=9.
+    # So forbidden pairs are (1,1), (2,2), (3,3).
+    # Constraint: for every edge (u,v), assignment (c_u, c_v) must NOT be in {(1,1), (2,2), (3,3)}.
+    
+    assignment = [-1] * n
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        
+        for color in [1, 2, 3]:
+            valid = True
+            for neighbor in adj[idx]:
+                if assignment[neighbor] != -1:
+                    if assignment[neighbor] == color:
+                        valid = False
+                        break
+            
+            if valid:
+                assignment[idx] = color
+                if backtrack(idx + 1):
+                    return True
+                assignment[idx] = -1
+        
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(*(assignment))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

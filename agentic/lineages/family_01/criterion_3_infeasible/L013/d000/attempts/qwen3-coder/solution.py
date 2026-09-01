@@ -29,28 +29,52 @@ def main():
     # we'll process nodes in order and build adjacency sets.
     
     # Let's restructure: for each node, keep a set of neighbors
-    # Then for each edge (u,v), find common neighbors
+    # Then for each edge (u,v), check intersection of neighbors
     
-    # To ensure lexicographical order, we'll check triangles systematically
+    # To ensure lexicographical order, we'll iterate u from 1 to n,
+    # for each u, iterate v > u, and for each such edge,
+    # look for w > v such that (u,w) and (v,w) exist.
     
-    # Convert to list and sort neighbors for deterministic behavior
+    # But to make it faster, for each edge (u,v), we look for common neighbors.
+    # Since we want the lex smallest, we should process in order.
+    
+    # Let's sort the edges to help with ordering
+    # Actually, let's just iterate through all edges and for each (u,v),
+    # look for a common neighbor w such that u<v<w and (u,w),(v,w) exist.
+    
+    # To optimize, for each node, maintain sorted list of neighbors.
+    # But since n <= 2000, a simpler approach might suffice.
+    
+    # Let's do: for each edge (u,v) with u<v, 
+    # look for w in adj[u] intersect adj[v] such that w > v.
+    
+    # First, convert adjacency sets to sorted lists for easier intersection
+    adj_list = [None] * (n + 1)
     for i in range(1, n + 1):
-        adj[i] = list(adj[i])
-        adj[i].sort()
+        adj_list[i] = sorted(adj[i])
     
-    # Iterate through all edges
-    for u, v in sorted(edges):
-        if u > v:
-            u, v = v, u
-        # For each edge, check for a common neighbor that forms a triangle
-        # We want the lexicographically smallest triangle
-        # So we iterate through neighbors of u and see if they're also neighbors of v
-        # and form a valid triangle with u < v < w
-        set_v = set(adj[v])
-        for w in adj[u]:
-            if w > v and w in set_v:
-                print(u, v, w)
-                return
+    # Now iterate over all edges
+    for u in range(1, n + 1):
+        for v in adj_list[u]:
+            if v <= u:
+                continue
+            # Now look for w in adj_list[u] and adj_list[v] with w > v
+            # Since lists are sorted, we can do a merge-like intersection
+            i, j = 0, 0
+            while i < len(adj_list[u]) and j < len(adj_list[v]):
+                nu = adj_list[u][i]
+                nv = adj_list[v][j]
+                if nu == nv:
+                    w = nu
+                    if w > v:
+                        print(u, v, w)
+                        return
+                    i += 1
+                    j += 1
+                elif nu < nv:
+                    i += 1
+                else:
+                    j += 1
 
 if __name__ == "__main__":
     main()

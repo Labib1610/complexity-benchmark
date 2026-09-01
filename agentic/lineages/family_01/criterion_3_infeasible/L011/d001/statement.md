@@ -1,20 +1,20 @@
-# Process Isolation Analysis
+# Production Line Diagnostics
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A manufacturing control system dispatches queued tasks to exactly two execution threads. Certain pairs of tasks require exclusive access to the same hardware register and therefore cannot run on the same thread without a collision. The current batch of tasks cannot be safely partitioned across the two threads without inducing at least one resource conflict.
+A manufacturing facility operates continuously using exactly two production lines. Certain pairs of manufacturing steps require a shared specialized calibration tool and therefore cannot be assigned to the same production line. The current batch of manufacturing steps cannot be distributed across the two lines without causing at least one tool collision.
 
-Your diagnostic routine must isolate a root cause of this scheduling failure by identifying a set of three tasks where every pair within the set has a resource conflict. Such a triad forms an unresolvable deadlock, as no two of these three tasks can be assigned to the same thread.
+Your diagnostic software must isolate a root cause of this allocation failure by identifying a subset of exactly three steps that encapsulate exactly three tool collisions (a collision is encapsulated by a subset if both steps involved in the collision belong to that subset). Such a trio forms an unresolvable bottleneck, as no two of these three steps can be placed on the same line.
 
-To ensure deterministic logging, if multiple such deadlocked triads exist, the system must output the triad $a, b, c$ (arranged such that $a < b < c$) that strictly minimizes the deadlock signature, calculated as: $a \cdot 10^8 + b \cdot 10^4 + c$.
+To ensure deterministic logging, if multiple such unresolvable trios exist, the system must output the one whose step identifiers are sequentially lowest.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of tasks and the number of resource conflict pairs. Tasks are numbered from $1$ to $n$.
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that task $u$ and task $v$ cannot be assigned to the same thread.
-It is guaranteed that at least one set of three tasks, where every pair conflicts, exists in the provided data.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the total number of manufacturing steps and the number of tool collision pairs. Steps are numbered from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that step $u$ and step $v$ cannot be assigned to the same production line.
+It is guaranteed that at least one subset of three steps encapsulating three collisions exists in the provided data.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three tasks forming the deadlock triad. Output the combination that minimizes the deadlock signature defined above.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$, representing the identifiers of the three steps. Output the combination that is sequentially lowest (the smallest possible value for $a$; in case of a tie, the smallest possible value for $b$; and finally the smallest possible value for $c$).
 
 ## Example 1
 Input:

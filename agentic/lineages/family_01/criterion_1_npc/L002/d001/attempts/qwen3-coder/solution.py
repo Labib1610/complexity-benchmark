@@ -1,0 +1,117 @@
+from collections import defaultdict, deque
+import sys
+
+def solve():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
+    
+    # Valid pairs
+    valid_pairs = {(1,2), (1,3), (2,1), (2,3), (3,1), (3,2)}
+    
+    # Try all possible assignments using backtracking with constraint propagation
+    # We'll use a greedy approach with backtracking
+    
+    # For each connected component, we need to check 3-coloring
+    # But with specific constraints on the colors
+    
+    color = [0] * n  # 0 means uncolored
+    
+    def is_valid_color(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] != 0:
+                if (c, color[neighbor]) not in valid_pairs:
+                    return False
+        return True
+    
+    def backtrack(node):
+        if node == n:
+            return True
+            
+        if color[node] != 0:
+            return backtrack(node + 1)
+            
+        for c in [1, 2, 3]:
+            if is_valid_color(node, c):
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0
+                
+        return False
+    
+    # Check if graph is 3-colorable with our constraints
+    # We can try to color nodes in order, but we should handle disconnected components
+    
+    # First, let's see if we can color the entire graph
+    if backtrack(0):
+        print("YES")
+        print(" ".join(map(str, color)))
+    else:
+        print("NO")
+
+def solve_better():
+    n, m = map(int, input().split())
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    # Build adjacency list
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u, v = map(int, input().split())
+        u -= 1
+        v -= 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Valid pairs
+    valid_pairs = {(1,2), (1,3), (2,1), (2,3), (3,1), (3,2)}
+    
+    # Color array: 0 means unassigned
+    color = [0] * n
+    
+    # Try all combinations with backtracking, prioritizing lex order
+    def is_safe(node, c):
+        for neighbor in adj[node]:
+            if color[neighbor] != 0:
+                if (c, color[neighbor]) not in valid_pairs:
+                    return False
+        return True
+    
+    def backtrack(index):
+        if index == n:
+            return True
+        
+        for c in [1, 2, 3]:
+            if is_safe(index, c):
+                color[index] = c
+                if backtrack(index + 1):
+                    return True
+                color[index] = 0
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        result = [str(c) for c in color]
+        print(" ".join(result))
+    else:
+        print("NO")
+
+solve_better()

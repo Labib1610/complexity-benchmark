@@ -15,45 +15,41 @@ def solve():
     
     for _ in range(m):
         u, v = map(int, input().split())
-        u -= 1  # Convert to 0-indexed
+        u -= 1
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
         edges.append((u, v))
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * n
-    visited = [False] * n
+    # Try to 2-color the graph (check if bipartite)
+    color = [-1] * n
     
-    # Check if graph is bipartite
     for i in range(n):
-        if not visited[i]:
+        if color[i] == -1:
             queue = deque([i])
-            color[i] = 1
-            visited[i] = True
+            color[i] = 0
             
             while queue:
                 node = queue.popleft()
-                current_color = color[node]
-                next_color = 3 - current_color  # 1->2, 2->1
-                
                 for neighbor in adj[node]:
-                    if not visited[neighbor]:
-                        visited[neighbor] = True
-                        color[neighbor] = next_color
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - color[node]
                         queue.append(neighbor)
-                    elif color[neighbor] != next_color:
+                    elif color[neighbor] == color[node]:
                         print("NO")
                         return
     
-    # Verify the solution
+    # Check if the solution satisfies all edges
+    # For each edge, one endpoint should be 0 (power 1) and other should be 1 (power 2)
     for u, v in edges:
-        if color[u] + color[v] != 3:
+        if color[u] == color[v]:
             print("NO")
             return
     
+    # Convert colors to power levels (0 -> 1, 1 -> 2)
+    power = [1 if c == 0 else 2 for c in color]
+    
     print("YES")
-    result = [str(color[i]) for i in range(n)]
-    print(" ".join(result))
+    print(" ".join(map(str, power)))
 
 solve()

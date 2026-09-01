@@ -1,0 +1,208 @@
+**Solution Explanation**
+
+For every transceiver we store the set of its neighbours as a bitset.
+`bit i` ( `0 ≤ i < n` ) is `1` iff the transceiver `i+1` interferes with the
+current one.
+
+For a triangle `{a,b,c}` (`a<b<c`) the three edges  
+`(a,b) , (a,c) , (b,c)` exist.
+If we already know the edge `(a,b)` then `c` must be a common neighbour of
+`a` and `b` and it has to be larger than `b`.
+
+```
+common = neighbours[a]  ∧  neighbours[b]          # all common neighbours
+common = common  ∧  mask(b)                       # keep only vertices > b
+```
+
+If `common` is non‑zero we have found a triangle.
+The lowest set bit of `common` gives the smallest possible `c`.
+
+Because we examine the vertices in increasing order
+
+```
+for a = 1 … n
+    for every neighbour b of a with b > a   (in increasing order)
+        …
+```
+
+the first triangle we meet is exactly the one required by the statement:
+* smallest possible `a`,
+* then smallest possible `b`,
+* then smallest possible `c`.
+
+The graph size (`n ≤ 2000`) allows us to keep a whole adjacency row in a
+single Python integer (`2000` bits < 2 KB).  
+All operations are bitwise and therefore `O(1)`.
+
+The total work is `O(m)` – we look at each edge once.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m
+adj_int[1…n] = 0                     # bitsets
+neigh[1…n] = empty list
+
+for each edge (u,v):
+        set the bits in both rows
+        adj_int[u] |= 1 << (v-1)
+        adj_int[v] |= 1 << (u-1)
+        add v to neigh[u], u to neigh[v]
+
+for a = 1 … n:
+        sort neigh[a] (once)                # needed for increasing order
+        for b in neigh[a] where b > a:
+                common = adj_int[a] & adj_int[b]
+                # keep only vertices > b
+                mask = ((1 << n) - 1) ^ ((1 << b) - 1)   # bits b … n-1
+                common &= mask
+                if common != 0:
+                        lowest = common & -common          # lowest set bit
+                        c = lowest.bit_length()            # 1‑based index
+                        output a b c
+                        exit
+```
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs exactly the required triple.
+
+---
+
+**Lemma 1**  
+For any vertices `x` and `y` the expression  
+`adj_int[x] & adj_int[y]` has a `1` at position `z-1` **iff**
+`(x,z)` and `(y,z)` are edges of the graph.
+
+*Proof.* By construction `adj_int[x]` has a `1` at position `z-1` exactly
+when `(x,z)` is an edge, similarly for `y`. The bitwise AND is `1` precisely
+when both bits are `1`. ∎
+
+
+
+**Lemma 2**  
+During the inner loop for a fixed ordered pair `(a,b)` (`a<b`) the variable
+`common` after masking contains exactly the vertices `c` such that
+`a<b<c` and `{a,b,c}` is a triangle.
+
+*Proof.* By Lemma&nbsp;1 `adj_int[a] & adj_int[b]` contains all common
+neighbours of `a` and `b`. The mask removes every vertex `≤ b`; therefore
+only vertices `c>b` remain. For any remaining `c` both edges `(a,c)` and
+`(b,c)` exist, together with `(a,b)` they form a triangle. Conversely,
+any triangle `{a,b,c}` with `c>b` satisfies the conditions and its bit stays
+in `common`. ∎
+
+
+
+**Lemma 3**  
+If the algorithm prints `(a,b,c)` then `{a,b,c}` is a triangle and
+`a<b<c`.
+
+*Proof.* The algorithm prints only after `common` is non‑zero.
+By Lemma&nbsp;2 any vertex represented in `common` together with `a` and `b`
+forms a triangle, and the mask guarantees `c>b`. The bit we extract is the
+lowest set bit, therefore `c` is the smallest possible vertex larger than
+`b`. ∎
+
+
+
+**Lemma 4**  
+Let `T` be the set of all triangles, each written as an ordered triple
+`(a,b,c)` with `a<b<c`. The algorithm outputs the lexicographically smallest
+triple of `T`.
+
+*Proof.* The outer loop enumerates `a` in increasing order.
+The first time a triangle is found, its `a` is the smallest possible among
+all triangles, otherwise a triangle with a smaller `a` would have been
+encountered earlier.
+
+Fix this minimal `a`. The inner loop enumerates neighbours `b>a` in increasing
+order. Hence the first triangle found for this `a` uses the smallest possible
+`b`.
+
+For this pair `(a,b)` Lemma&nbsp;2 shows that `common` contains exactly the
+eligible `c` values, and we pick the smallest one. Therefore the printed
+triple is the smallest `(a,b,c)` among all triangles. ∎
+
+
+
+**Theorem**  
+The algorithm always terminates and prints the three transceiver labels that
+form a triangle and satisfy the tie‑breaking rules of the problem statement.
+
+*Proof.* The input guarantees at least one triangle, so some iteration will
+find a non‑empty `common` and the algorithm terminates.
+
+By Lemma&nbsp;3 the printed triple is a triangle.
+By Lemma&nbsp;4 it is the lexicographically smallest triangle, which is
+exactly the required tie‑breaking order. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building the adjacency bitsets*: `O(m)` time, `O(n)` integers (≈ 2 KB each).  
+*Main loops*: each edge `(a,b)` with `a<b` is examined once → `O(m)` time.  
+All bit operations are constant time (`n ≤ 2000`).  
+
+Memory consumption: `O(n + m)` for the adjacency lists and the `n` bitsets,
+well below the 256 MB limit.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj_int = [0] * (n + 1)          # 1‑based
+    neigh = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        # set bits
+        adj_int[u] |= 1 << (v - 1)
+        adj_int[v] |= 1 << (u - 1)
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    # sort neighbour lists once
+    for i in range(1, n + 1):
+        neigh[i].sort()
+
+    full_mask = (1 << n) - 1
+
+    for a in range(1, n + 1):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            common = adj_int[a] & adj_int[b]
+            # keep only vertices > b
+            mask = full_mask ^ ((1 << b) - 1)   # bits b .. n-1
+            common &= mask
+            if common:
+                lowest = common & -common        # lowest set bit
+                c = lowest.bit_length()          # 1‑based index
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

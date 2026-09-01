@@ -1,20 +1,20 @@
-# Mechanical Linkage Calibration
+# Server Synchronization States
 
 Time limit: 1 s   Memory limit: 256 MB
 
-You are calibrating a complex mechanical engine consisting of $n$ control levers, numbered $1$ through $n$. Each lever must be locked into one of two available slots: slot 1 or slot 2.
+You are configuring a network of $n$ server nodes. Each node $i$ must be assigned an operational state $x_i$. The hardware only supports two operational modes, meaning each $x_i$ must be exactly 1 or 2.
 
-The engine contains $m$ pivot rods. Each pivot rod connects a specific pair of levers. Because each rod has a fixed central fulcrum, the two levers it connects are constrained to always rest in opposite slots. If one lever is in slot 1, the other must be in slot 2, and vice versa.
+The nodes are connected by a set of $m$ bidirectional sync channels. To prevent data corruption during synchronization, every channel imposes a strict energy balance requirement on its endpoints: if a channel connects node $u$ and node $v$, their operational states must satisfy the equation $x_u^2 + x_v^2 = 5$.
 
-Your task is to determine if there is a valid configuration for all $n$ levers that respects the constraints of all $m$ pivot rods. If there are multiple valid configurations, you must provide the one that is lexicographically smallest. A configuration $A$ is lexicographically smaller than configuration $B$ if, at the first lever $i$ where they differ, configuration $A$ places lever $i$ in slot 1 while configuration $B$ places it in slot 2.
+Your task is to determine a valid state assignment for all $n$ nodes. If there are multiple valid ways to assign the states, you must output the assignment that is lexicographically smallest when written as the sequence $x_1, x_2, \dots, x_n$. If it is impossible to satisfy all channel requirements simultaneously, you must report that no such assignment exists.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing a pivot rod connecting lever $u$ and lever $v$.
+The first line contains two integers $n$ and $m$. The number of nodes $n$ is at least 1 and bounded by a network maximum of $2\cdot 10^5$. The number of channels $m$ is at least 0 and at most $2\cdot 10^5$.
+Each of the following $m$ lines contains two integers $u$ and $v$ (valid node IDs ranging from 1 to $n$), indicating that a channel exists between node $u$ and node $v$.
 
 ## Output
-If no valid configuration is physically possible, print a single line containing `NO`.
-Otherwise, print `YES` on the first line. On the second line, print $n$ integers $s_1, s_2, \dots, s_n$ (each either 1 or 2) representing the slot for each lever in the lexicographically smallest valid configuration.
+If there is no valid state assignment, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $x_1, x_2, \dots, x_n$ (each being 1 or 2), representing the lexicographically smallest valid assignment.
 
 ## Example 1
 Input:

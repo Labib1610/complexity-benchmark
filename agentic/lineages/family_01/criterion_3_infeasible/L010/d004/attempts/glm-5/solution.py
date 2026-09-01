@@ -1,30 +1,56 @@
 import sys
 
 def solve():
-    input_data = sys.stdin.buffer.read().split()
-    idx = 0
-    n = int(input_data[idx]); idx += 1
-    m = int(input_data[idx]); idx += 1
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
-    adj = [set() for _ in range(n + 1)]
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    edges = []
+    
     for _ in range(m):
-        u = int(input_data[idx]); idx += 1
-        v = int(input_data[idx]); idx += 1
-        adj[u].add(v)
-        adj[v].add(u)
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        adj[u][v] = True
+        adj[v][u] = True
     
-    for a in range(1, n + 1):
-        neighbors_a = sorted(adj[a])
-        # Filter neighbors > a
-        neighbors_a = [x for x in neighbors_a if x > a]
-        len_na = len(neighbors_a)
-        for i in range(len_na):
-            b = neighbors_a[i]
-            adj_b = adj[b]
-            for j in range(i + 1, len_na):
-                c = neighbors_a[j]
-                if c in adj_b:
-                    print(f"{a} {b} {c}")
+    # Sort edges to process in lexicographical order
+    edges.sort()
+    
+    # Iterate over edges to find the lexicographically smallest triangle
+    for u, v in edges:
+        # Check for common neighbors w such that w > u and w > v
+        # To ensure we find the lexicographically smallest triangle,
+        # we check neighbors in increasing order.
+        # Since edges are sorted by (u, v), the first triangle found is the answer.
+        start_w = max(u, v) + 1
+        for w in range(start_w, n + 1):
+            if adj[u][w] and adj[v][w]:
+                # Found triangle (u, v, w)
+                print(u, v, w)
+                return
+    
+    # If no triangle found with w > max(u, v), check other configurations
+    # This part handles cases where the triangle might not satisfy w > max(u, v)
+    # but is still the lexicographically smallest.
+    # We need to check all possible triangles.
+    
+    # Re-initialize to check all possible triangles in order
+    # Since the problem guarantees a solution, we can brute-force in order.
+    for a in range(1, n - 1):
+        for b in range(a + 1, n):
+            if not adj[a][b]:
+                continue
+            for c in range(b + 1, n + 1):
+                if adj[a][c] and adj[b][c]:
+                    print(a, b, c)
                     return
 
-solve()
+if __name__ == "__main__":
+    solve()

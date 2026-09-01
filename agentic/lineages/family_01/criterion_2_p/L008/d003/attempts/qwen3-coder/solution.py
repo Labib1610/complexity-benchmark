@@ -10,59 +10,90 @@ def solve():
         return
     
     # Build adjacency list
-    graph = defaultdict(list)
+    adj = defaultdict(list)
     edges = []
     
     for _ in range(m):
         u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
         edges.append((u, v))
-        graph[u].append(v)
-        graph[v].append(u)
     
-    # For each connected component, we need to check if it's bipartite
-    # and find a valid assignment
+    # For each edge, determine valid code pairs
+    # Codes are 1 or 2
+    # Frequency = 10 * s_u + s_v
+    # Valid if frequency % 3 == 0
+    valid_pairs = set()
+    for s_u in [1, 2]:
+        for s_v in [1, 2]:
+            if (10 * s_u + s_v) % 3 == 0:
+                valid_pairs.add((s_u, s_v))
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * (n + 1)
-    assignment = [0] * (n + 1)
+    # valid_pairs should be {(1,2), (2,1)} since:
+    # 10*1+2 = 12 % 3 = 0  ✓
+    # 10*2+1 = 21 % 3 = 0  ✓
+    # 10*1+1 = 11 % 3 = 2  ✗
+    # 10*2+2 = 22 % 3 = 1  ✗
     
-    # Check all components
+    # This is a 2-coloring problem with specific constraints
+    # We can model this as a graph where each node can be colored 1 or 2
+    # and for each edge (u,v), the pair (color[u], color[v]) must be in valid_pairs
+    
+    # Since valid_pairs are (1,2) and (2,1), this is equivalent to 
+    # coloring the graph such that adjacent nodes have different colors
+    # This is a bipartite check
+    
+    # But we also need to ensure lexicographically smallest assignment
+    # So we try to assign 1 to nodes whenever possible
+    
+    color = [0] * (n + 1)  # 0: unvisited, 1: color 1, 2: color 2
+    visited = [False] * (n + 1)
+    
+    # Check if graph is bipartite and find a valid 2-coloring
     for start in range(1, n + 1):
-        if color[start] != 0:
-            continue
+        if not visited[start]:
+            # BFS to color component
+            queue = deque()
+            queue.append(start)
+            color[start] = 1  # Try to assign 1 first for lexicographically smallest
+            visited[start] = True
             
-        # BFS to check bipartiteness and assign values
-        queue = deque([start])
-        color[start] = 1
-        assignment[start] = 1
-        
-        while queue:
-            node = queue.popleft()
-            current_assignment = assignment[node]
-            
-            # The neighbor must have assignment such that product is 2
-            # If current is 1, neighbor must be 2
-            # If current is 2, neighbor must be 1
-            neighbor_assignment = 2 if current_assignment == 1 else 1
-            
-            for neighbor in graph[node]:
-                if color[neighbor] == 0:
-                    color[neighbor] = 1 if color[node] == 2 else 2
-                    assignment[neighbor] = neighbor_assignment
-                    queue.append(neighbor)
-                else:
-                    # Check consistency
-                    if assignment[neighbor] != neighbor_assignment:
-                        print("NO")
-                        return
+            while queue:
+                u = queue.popleft()
+                current_color = color[u]
+                
+                # Determine what color neighbors must have
+                # If current node has color 1, neighbors must have color 2
+                # If current node has color 2, neighbors must have color 1
+                required_neighbor_color = 3 - current_color  # 1->2, 2->1
+                
+                for v in adj[u]:
+                    if not visited[v]:
+                        color[v] = required_neighbor_color
+                        visited[v] = True
+                        queue.append(v)
+                    else:
+                        # Check if the existing color is consistent
+                        if color[v] != required_neighbor_color:
+                            print("NO")
+                            return
     
-    # Verify all edges satisfy the constraint
+    # Verify the solution
     for u, v in edges:
-        if assignment[u] * assignment[v] != 2:
+        s_u = color[u]
+        s_v = color[v]
+        if (10 * s_u + s_v) % 3 != 0:
             print("NO")
             return
     
+    # Output the solution
     print("YES")
-    print(" ".join(map(str, assignment[1:])))
+    result = []
+    for i in range(1, n + 1):
+        if color[i] == 0:  # Isolated vertex, assign 1
+            result.append("1")
+        else:
+            result.append(str(color[i]))
+    print(" ".join(result))
 
 solve()

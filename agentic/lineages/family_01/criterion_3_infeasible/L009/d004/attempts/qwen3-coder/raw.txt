@@ -1,6 +1,6 @@
 ```python
 import sys
-from collections import defaultdict
+from itertools import combinations
 
 def main():
     import sys
@@ -10,96 +10,75 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    edges = []
-    adj = defaultdict(set)
+    edges = set()
+    adj = [set() for _ in range(n + 1)]
     
-    index = 2
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        edges.append((u, v))
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        edges.add((u, v))
         adj[u].add(v)
         adj[v].add(u)
-        index += 2
     
-    # Create a list of neighbors for each node
-    neighbors = {}
-    for node in adj:
-        neighbors[node] = sorted(list(adj[node]))
+    # We need to find a triangle (3 nodes fully connected) in the complement graph
+    # That means, in the original graph, there should be no edges between these 3 nodes
+    # But the condition is that the max safe set size for these 3 is exactly 1
+    # This means in the subgraph induced by these 3 nodes, the max independent set size is 1
+    # This happens iff the subgraph has no isolated nodes and is not a triangle
+    # Wait, let's re-read the problem.
     
-    # We want to find a triangle (three nodes all connected to each other)
-    # That means we need to find three nodes a,b,c such that (a,b), (b,c), (a,c) are all edges
+    # A safe set is a group where NO two materials are mutually volatile.
+    # So a safe set is an independent set in the graph (where edges represent volatility)
     
-    # To do it efficiently, we'll iterate through all edges and for each edge (u,v),
-    # we look for a common neighbor w such that u,v,w form a triangle.
+    # We want 3 nodes such that the max independent set in the subgraph induced by them is 1
+    # This means the subgraph has no independent set of size 2.
+    # This happens when the subgraph is a triangle (3 nodes, 3 edges)
+    # Because in a triangle, any two nodes are adjacent, so max independent set size is 1
     
-    # To ensure lexicographical order and efficiency, we process nodes in sorted order.
-    nodes = sorted(adj.keys())
-    node_index = {node: i for i, node in enumerate(nodes)}
+    # So we need to find a triangle in the original graph
+    
+    # For each node, look at its neighbors
+    # For every pair of neighbors of a node, check if they are connected
+    # If so, we have a triangle
     
     found = False
     result = None
     
-    # For each edge, check if it can be part of a triangle
-    # Sort edges to help with lexicographical ordering
-    edge_list = []
-    for u, v in edges:
-        if u < v:
-            edge_list.append((u, v))
-        else:
-            edge_list.append((v, u))
-    
-    # Sort edges primarily by first node, then by second
-    edge_list.sort()
-    
-    for u, v in edge_list:
+    for a in range(1, n + 1):
         if found:
             break
-        # Get neighbors of u and v
-        nu = set(neighbors[u]) if u in neighbors else set()
-        nv = set(neighbors[v]) if v in neighbors else set()
-        
-        # Find common neighbors
-        common = nu & nv
-        common_sorted = sorted(common)
-        
-        for w in common_sorted:
-            # Ensure we have a valid triangle u, v, w and maintain order u < v < w
-            a, b, c = sorted([u, v, w])
-            if not found or (a, b, c) < result:
+        neighbors = list(adj[a])
+        for i in range(len(neighbors)):
+            for j in range(i + 1, len(neighbors)):
+                b = neighbors[i]
+                c = neighbors[j]
+                if b in adj[c]:  # There's an edge between b and c
+                    # We found a triangle a-b, b-c, a-c
+                    trio = sorted([a, b, c])
+                    candidate = tuple(trio)
+                    if result is None or candidate < result:
+                        result = candidate
+                        found = True
+    if result is None:
+        # Brute force check all combinations if the above fails
+        for combo in combinations(range(1, n + 1), 3):
+            a, b, c = combo
+            edge_count = 0
+            if (a, b) in edges or (b, a) in edges:
+                edge_count += 1
+            if (a, c) in edges or (c, a) in edges:
+                edge_count += 1
+            if (b, c) in edges or (c, b) in edges:
+                edge_count += 1
+            if edge_count == 3:  # It's a triangle
                 result = (a, b, c)
-                found = True
-                break  # Since we're looking for the lex smallest and edges are sorted
-    
-    # If not found yet, we need to search more thoroughly
-    if not found:
-        # Try all combinations of three nodes to see if they form a triangle
-        # But since we know one exists, and m is limited, let's try a better approach
-        
-        # Let's re-process by checking triangles properly
-        # For every pair of nodes, check their common neighbors
-        
-        triplets_checked = set()
-        
-        # Re-sort edges again just in case
-        edges_sorted = sorted(edges, key=lambda x: (min(x[0], x[1]), max(x[0], x[1])))
-        
-        for u, v in edges_sorted:
-            if u in adj and v in adj:
-                nu = adj[u]
-                nv = adj[v]
-                common = nu & nv
-                for w in sorted(common):
-                    triplet = tuple(sorted([u, v, w]))
-                    if triplet not in triplets_checked:
-                        triplets_checked.add(triplet)
-                        a, b, c = sorted([u, v, w])
-                        if not result or (a, b, c) < result:
-                            result = (a, b, c)
-                            found = True
-        
-    if result:
-        print(result[0], result[1], result[2])
+                break
+                
+    print(result[0], result[1], result[2])
 
 if __name__ == "__main__":
     main()

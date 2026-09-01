@@ -1,0 +1,51 @@
+# Problem A — Team Roster
+
+Time limit: 2 s   Memory limit: 256 MB
+
+You are organizing a tournament with $n$ players, numbered $1$ to $n$. You must assign each player to exactly one of 3 teams: Team 1, Team 2, or Team 3.
+
+There are $m$ rivalries among the players. A valid tournament roster ensures that for every rivalry between player $u$ and player $v$, the two players are assigned to different teams.
+
+If there are multiple valid rosters, you must resolve the tie by prioritizing smaller team numbers for players with smaller ID numbers. Specifically, minimizing the team number for player 1 takes absolute precedence over the assignments of all other players. If ties remain, minimizing the team number for player 2 takes absolute precedence over players 3 through $n$, and so on. In other words, when comparing two valid rosters, find the smallest player ID where their team assignments differ; the roster that assigns the smaller team number to this player is strictly preferred.
+
+Your task is to find a valid roster for all $n$ players that best satisfies these tie-breaking rules. If it is impossible to form a valid roster, report that no solution exists.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of players and the number of rivalries.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that player $u$ and player $v$ have a rivalry.
+
+## Output
+If no valid roster can be formed, print a single line containing `NO`.
+If a valid roster is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \ldots, c_n$, where $c_i \in \{1, 2, 3\}$ is the team assigned to player $i$. If there are multiple valid rosters, you must output the one that is preferred according to the tie-breaking rules described above.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

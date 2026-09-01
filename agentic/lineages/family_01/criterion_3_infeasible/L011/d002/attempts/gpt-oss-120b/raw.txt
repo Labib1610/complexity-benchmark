@@ -1,0 +1,210 @@
+**Solution Explanation**
+
+For every pair of steps `u , v` we are given that they **cannot** be placed on the same
+production line.
+If three steps `a < b < c` are pairwise incompatible, they form a *triangle* in the
+undirected graph whose vertices are the steps and whose edges are the given
+incompatibilities.
+
+The task is to output the lexicographically smallest triangle
+(`a` minimal, then `b`, then `c`).  
+`n ≤ 2000`, `m ≤ 2·10⁵`.
+
+--------------------------------------------------------------------
+
+#### 1.   Data structure – bitset adjacency
+
+`n = 2000` → a vertex can be represented by a 2000‑bit integer.
+For every vertex `v` we store
+
+```
+adj[v] : int   # bit i is 1  ⇔  edge (v,i) exists
+```
+
+Setting and testing an edge is `O(1)` :
+
+```
+adj[u] |= 1 << v
+adj[v] |= 1 << u
+(edge exists?)   (adj[u] >> v) & 1
+```
+
+Memory: `n` integers → negligible.
+
+--------------------------------------------------------------------
+
+#### 2.   Searching triangles in lexicographic order  
+
+We iterate `a` from `1` to `n`.
+Only neighbours larger than `a` can be part of a lexicographically smallest
+triple, therefore we build the list
+
+```
+N = [ v | v > a and edge (a,v) exists ]   (sorted increasingly)
+```
+
+For every unordered pair `b < c` inside `N` we test whether `b` and `c`
+are also adjacent.  
+If they are, `(a,b,c)` is a triangle and, because of the loop order,
+it is the smallest possible one – we output it and stop.
+
+Complexity
+```
+for a = 1 .. n:
+        deg = |N|
+        we examine deg·(deg-1)/2 pairs
+```
+The total number of examined pairs is  
+
+```
+ Σ_a  deg_a² / 2   ≤   n·(max degree)² / 2
+```
+
+`max degree ≤ n-1`, but with the given limits the worst case is
+`n = 2000, m = 2·10⁵` → average degree ≈ 200.
+Thus the total work is well below 10⁸ elementary operations,
+comfortably inside the limits.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs exactly the lexicographically smallest
+triangle.
+
+---
+
+##### Lemma 1  
+When the outer loop is at vertex `a`, the inner loops consider **all**
+ triangles whose smallest vertex is `a`.
+
+**Proof.**  
+A triangle `{x,y,z}` with `x<a` cannot have `a` as its smallest vertex.
+If the smallest vertex is `a`, the other two vertices are larger than `a`
+and must be neighbours of `a`.  
+The list `N` contains precisely those neighbours `> a`.  
+The double loop iterates over every unordered pair `{b,c}` with `b<c`
+from `N`. Hence every triangle `{a,b,c}` with smallest vertex `a`
+is examined. ∎
+
+
+
+##### Lemma 2  
+If the algorithm prints a triple `(a,b,c)`, then `{a,b,c}` is a triangle
+(i.e. all three edges exist).
+
+**Proof.**  
+`b` and `c` are taken from `N`, therefore edges `(a,b)` and `(a,c)` exist.
+Before printing we additionally test `(b,c)` using the bitset.
+Only if this test succeeds we output, so all three edges are present. ∎
+
+
+
+##### Lemma 3  
+The first printed triangle is the lexicographically smallest triangle
+in the whole graph.
+
+**Proof.**  
+The outer loop increases `a`.  
+By Lemma&nbsp;1, before the algorithm proceeds to `a+1` it has examined **all**
+triangles whose smallest vertex equals `a`.  
+Inside the inner loops `b` grows, and for a fixed `b` the inner‑most loop
+grows `c`.  
+Thus triangles are examined in the order of increasing `(a,b,c)`.
+The first triangle that passes the edge test (Lemma&nbsp;2) is therefore the
+minimum triple in lexicographic order. ∎
+
+
+
+##### Lemma 4  
+If the input graph contains at least one triangle, the algorithm will
+eventually print one.
+
+**Proof.**  
+Take the lexicographically smallest triangle `{a,b,c}`.
+When the outer loop reaches this `a`, Lemma&nbsp;1 guarantees that the pair
+`(b,c)` is examined, and Lemma&nbsp;2 guarantees it will be printed. ∎
+
+
+
+##### Theorem  
+The algorithm terminates and outputs exactly the lexicographically smallest
+set of three steps that are pairwise incompatible.
+
+**Proof.**  
+Termination: the loops are finite, and we stop after printing the first
+triangle.  
+Existence of output: by problem statement a triangle exists; Lemma&nbsp;4
+ensures the algorithm prints one.  
+Minimality: by Lemma&nbsp;3 the printed triangle is the lexicographically
+smallest among all triangles. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Memory* : `O(n)` integers (≈ 2000·256 bits ≈ 64 KB).
+
+*Time* :
+
+```
+building adjacency : O(m)
+main loops          : Σ_a deg_a² / 2   ≤   8·10⁷   (worst realistic case)
+edge tests          : O(1) each
+```
+
+Overall well below the 2 seconds limit.
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * (n + 1)          # bitset adjacency, 1‑based
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(1, n + 1):
+        # neighbours larger than a
+        mask = adj[a] >> (a + 1)          # bits for vertices > a
+        if mask == 0:
+            continue
+        # collect them in increasing order
+        neigh = []
+        v = a + 1
+        while mask:
+            if mask & 1:
+                neigh.append(v)
+            mask >>= 1
+            v += 1
+
+        ln = len(neigh)
+        for i in range(ln):
+            b = neigh[i]
+            for j in range(i + 1, ln):
+                c = neigh[j]
+                if (adj[b] >> c) & 1:     # edge (b,c) exists
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

@@ -2,38 +2,47 @@ import sys
 from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    data = sys.stdin.buffer.read().split()
+    if not data:
         return
-    it = iter(input_data)
+    it = iter(data)
     n = int(next(it))
     m = int(next(it))
     
-    adj = [[] for _ in range(n + 1)]
-    for _ in range(m):
+    head = [-1] * (n + 1)
+    to = [0] * (2 * m)
+    nxt = [0] * (2 * m)
+    for i in range(m):
         u = int(next(it))
         v = int(next(it))
-        adj[u].append(v)
-        adj[v].append(u)
+        to[2*i] = v
+        nxt[2*i] = head[u]
+        head[u] = 2*i
+        to[2*i+1] = u
+        nxt[2*i+1] = head[v]
+        head[v] = 2*i+1
     
     color = [0] * (n + 1)
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            queue = deque([i])
-            color[i] = 1
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        return
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+        color[start] = 1
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            e = head[u]
+            while e != -1:
+                v = to[e]
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    queue.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    return
+                e = nxt[e]
     
     print("YES")
-    print(' '.join(map(str, color[1:])))
+    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
-if __name__ == "__main__":
-    solve()
+solve()

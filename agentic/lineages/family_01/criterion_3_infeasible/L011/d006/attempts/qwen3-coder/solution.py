@@ -10,33 +10,56 @@ def main():
     m = int(data[1])
     
     edges = []
-    adj = [set() for _ in range(n + 1)]
+    edge_set = set()
     
     index = 2
     for _ in range(m):
         u = int(data[index])
-        v = int(data[index + 1])
+        v = int(data[index+1])
         index += 2
+        if u > v:
+            u, v = v, u
         edges.append((u, v))
+        edge_set.add((u, v))
+    
+    # We need to find a triangle in the graph, which is an unresolvable bottleneck.
+    # Because in a triangle, no matter how you assign the 3 nodes to 2 groups,
+    # at least one edge will be within a group (pigeonhole principle).
+    
+    # Build adjacency list
+    adj = [set() for _ in range(n + 1)]
+    for u, v in edges:
         adj[u].add(v)
         adj[v].add(u)
     
-    # Find all triangles (3-cliques) in the graph
-    # A triangle is a set of three nodes where each pair is connected
-    min_trace = float('inf')
-    result = None
+    # Find all triangles by checking each combination of 3 nodes
+    # But since n can be up to 2000, we can't check all combinations.
+    # Instead, we iterate through each edge and see if there's a common neighbor.
     
-    # For each combination of 3 nodes, check if they form a triangle
-    for combo in combinations(range(1, n + 1), 3):
-        a, b, c = sorted(combo)
-        if b in adj[a] and c in adj[a] and c in adj[b]:
-            # It's a triangle
-            trace = a * (10**8) + b * (10**4) + c
-            if trace < min_trace:
-                min_trace = trace
-                result = (a, b, c)
+    # To make it efficient, for each edge (u,v), we look for a node w that is
+    # connected to both u and v.
     
-    print(result[0], result[1], result[2])
+    # We'll store triangles found and return the lexicographically smallest one.
+    
+    best_triangle = None
+    
+    # For efficiency, iterate through each edge and find common neighbors
+    for u, v in edges:
+        # Get neighbors of u and v
+        neighbors_u = adj[u]
+        neighbors_v = adj[v]
+        
+        # Find common neighbors
+        common = neighbors_u & neighbors_v
+        
+        for w in common:
+            # Found a triangle: u, v, w
+            tri = tuple(sorted([u, v, w]))
+            if best_triangle is None or tri < best_triangle:
+                best_triangle = tri
+    
+    if best_triangle:
+        print(best_triangle[0], best_triangle[1], best_triangle[2])
 
 if __name__ == "__main__":
     main()

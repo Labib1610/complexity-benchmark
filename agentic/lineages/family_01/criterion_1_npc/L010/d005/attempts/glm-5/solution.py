@@ -1,0 +1,115 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # For each vertex, list of allowed values (1,2,3) sorted ascending
+    allowed = [None] * n
+    for i in range(n):
+        L = []
+        for val in (1, 2, 3):
+            ok = True
+            for w in adj[i]:
+                if allowed[w] is not None:
+                    if (val + 2 * allowed[w][0]) % 3 == 0:
+                        ok = False
+                        break
+            if ok:
+                L.append(val)
+        if not L:
+            print("NO")
+            return
+        allowed[i] = L
+    
+    # For each vertex, list of forbidden values based on neighbors' allowed sets
+    forbidden = [set() for _ in range(n)]
+    for i in range(n):
+        for w in adj[i]:
+            for val in allowed[w]:
+                if (val + 2 * 0) % 3 == 0:  # placeholder, will recompute properly
+                    pass
+        # Recompute: val_i is forbidden if exists val_w in allowed[w] with (val_i + 2*val_w)%3==0
+        fset = set()
+        for w in adj[i]:
+            for val_w in allowed[w]:
+                # val_i + 2*val_w ≡ 0 mod 3 => val_i ≡ -2*val_w ≡ val_w mod 3
+                fset.add(val_w % 3 if val_w % 3 != 0 else 3)
+        forbidden[i] = fset
+    
+    # Actually forbidden values are those val_i such that val_i ≡ val_w (mod 3) for some neighbor's allowed val_w
+    # Since values are 1,2,3 and mod 3: 1->1, 2->2, 3->0
+    # Let's recompute properly
+    forbidden = [set() for _ in range(n)]
+    for i in range(n):
+        fset = set()
+        for w in adj[i]:
+            for val_w in allowed[w]:
+                # val_i + 2*val_w ≡ 0 mod 3
+                # val_i ≡ -2*val_w ≡ val_w mod 3 (since -2 ≡ 1 mod 3)
+                # So val_i mod 3 == val_w mod 3
+                mod_w = val_w % 3  # 1->1, 2->2, 3->0
+                # val_i candidates: 1 (mod1), 2 (mod2), 3 (mod0)
+                if mod_w == 1:
+                    fset.add(1)
+                elif mod_w == 2:
+                    fset.add(2)
+                else:  # mod_w == 0
+                    fset.add(3)
+        forbidden[i] = fset
+    
+    # Now do backtracking with pruning
+    assignment = [0] * n
+    fixed = [False] * n
+    
+    # Precompute for each vertex the list of allowed values not forbidden
+    candidates = []
+    for i in range(n):
+        cand = [v for v in (1, 2, 3) if v not in forbidden[i]]
+        if not cand:
+            print("NO")
+            return
+        candidates.append(cand)
+    
+    # Backtracking with forward checking
+    def backtrack(pos):
+        if pos == n:
+            return True
+        for val in candidates[pos]:
+            if fixed[pos]:
+                if assignment[pos] != val:
+                    continue
+            # Check consistency with already assigned neighbors
+            ok = True
+            for w in adj[pos]:
+                if fixed[w]:
+                    if (val + 2 * assignment[w]) % 3 == 0:
+                        ok = False
+                        break
+            if not ok:
+                continue
+            assignment[pos] = val
+            fixed[pos] = True
+            if backtrack(pos + 1):
+                return True
+            fixed[pos] = False
+        return False
+    
+    if backtrack(0):
+        print("YES")
+        print(' '.join(map(str, assignment)))
+    else:
+        print("NO")
+
+solve()

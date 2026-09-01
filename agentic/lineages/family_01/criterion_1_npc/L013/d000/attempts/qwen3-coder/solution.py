@@ -18,8 +18,10 @@ def main():
         conflicts[v].add(u)
         idx += 2
     
-    # Try all 3^n assignments, but prune using constraints
-    # We'll use backtracking to find the lex smallest valid assignment
+    # We need to 3-color the graph such that no adjacent nodes share the same color
+    # and among all valid colorings, we want the lexicographically smallest one
+    
+    # Try all possible assignments in lexicographical order using backtracking
     assignment = [-1] * n  # -1 means unassigned
     
     def is_valid(worker, shift):
@@ -28,15 +30,15 @@ def main():
                 return False
         return True
     
-    def backtrack(i):
-        if i == n:
+    def backtrack(pos):
+        if pos == n:
             return True
         for shift in [1, 2, 3]:
-            if is_valid(i, shift):
-                assignment[i] = shift
-                if backtrack(i+1):
+            if is_valid(pos, shift):
+                assignment[pos] = shift
+                if backtrack(pos + 1):
                     return True
-                assignment[i] = -1
+                assignment[pos] = -1
         return False
     
     if backtrack(0):

@@ -1,41 +1,52 @@
-You are analysing why several models solved a programming problem correctly.
+You are analysing how several models attempted one programming problem, to help make the
+statement hard for ALL of them AT ONCE.
 
-You will see the problem statement, and for each model that solved it: its reasoning
-trace and its final solution.
+You will see the problem statement, and for EVERY model: its verdict (solved / wrong /
+error), its reasoning trace, and its solution. Read the ones that FAILED as carefully as
+the ones that solved it — understanding why a model already failed is what stops a future
+edit from accidentally making it succeed again (a regression).
 
-Find the SINGLE most important shortcut these models shared - the specific step, cue, or
-recognition that let them reach a correct approach without deeply reasoning about the
-problem's structure. Look for: a word or phrase that triggered recall of a known problem,
-a number that revealed the structure, a phrasing that let them skip analysis.
+Your goal is to find the SINGLE affordance that ALL surviving (still-solving) models rely
+on, so one edit can defeat them together. Only if no such common affordance exists should
+you fall back to per-survivor shortcuts.
 
-If the models genuinely reasoned from first principles and you find no shortcut, say so.
-
-IMMUTABLE ELEMENTS. These cannot be changed and must NOT be proposed for removal:
+IMMUTABLE ELEMENTS — cannot be changed, must NOT be proposed for removal:
 - numeric bounds and their values (n, m, limits)
 - the input format and the output format
-- any tie-break rule (for example "lexicographically smallest")
+- any tie-break rule (e.g. "lexicographically smallest")
 - the examples' values
 
-If the shortcut you identify depends on an immutable element, do not propose removing
-it. Instead, either (a) propose changing how that element is PRESENTED - stated
-indirectly through the scenario rather than as a bare inequality - or (b) look for the
-next most important shortcut that is in mutable text, or (c) report shortcut_found: "no"
-if the only affordances are immutable.
+If an affordance depends on an immutable element, propose changing how it is PRESENTED
+(indirectly through the scenario, not as a bare inequality), or target the next affordance
+in mutable text, or report shortcut_found: "no".
 
 Respond with a single JSON object and nothing else:
 
 {
   "shortcut_found": "yes" | "no",
-  "shortcut_name": "a short label, e.g. 'two-category phrasing triggers bipartite recall'",
-  "evidence": "the specific phrases from the traces that show this, quoted briefly",
-  "affordance_in_statement": "the exact text in the statement that enables it",
+  "shortcut_name": "short label for the primary affordance to target",
+  "evidence": "the specific phrases from the traces that show it, quoted briefly",
+  "affordance_in_statement": "the exact statement text that enables it",
   "affordance_is_mutable": "yes" | "no",
   "structural_floor": "yes" | "no",
-  "secondary_shortcut_name": "the next most important shortcut in MUTABLE text, or ''",
-  "removal_suggestion": "how to remove or re-present this affordance without changing the task"
+  "secondary_shortcut_name": "next most important shortcut in MUTABLE text, or ''",
+  "removal_suggestion": "how to remove or re-present the affordance without changing the task",
+
+  "survivor_shortcuts": [
+    {"student": "<id>", "shortcut": "what let this survivor solve it", "affordance": "the enabling text"}
+  ],
+  "common_affordance": "the SINGLE affordance ALL survivors rely on, or null if none is shared",
+  "defeated_student_causes": [
+    {"student": "<id>", "why_failed": "the specific reasoning error", "fragile": true|false}
+  ],
+  "recommended_edit": "the one edit most likely to defeat all survivors at once",
+  "regression_risk": "which already-defeated students this edit might accidentally restore, or ''"
 }
 
-Set "affordance_is_mutable" to "no" when the affordance is an immutable element above.
-Set "structural_floor" to "yes" when the affordance IS the core task description itself
-(the intrinsic structure of the problem) rather than incidental wording - such a shortcut
-cannot be removed by any rewording.
+Set "affordance_is_mutable" to "no" when the affordance is an immutable element.
+Set "structural_floor" to "yes" when the affordance IS the core task itself (intrinsic
+structure) rather than incidental wording — such a shortcut cannot be reworded away.
+Set "common_affordance" to null unless every surviving model genuinely depends on the same
+thing. When it is non-null it is the priority target: one edit defeats everyone.
+For each defeated model set "fragile": true if a small wording change could flip it back to
+solving (so the teacher knows to protect that defeat).

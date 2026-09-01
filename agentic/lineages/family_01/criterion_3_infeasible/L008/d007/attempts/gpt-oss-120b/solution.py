@@ -1,0 +1,42 @@
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj_int = [0] * n          # bitset of neighbors
+    neigh = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj_int[u] |= 1 << v
+        adj_int[v] |= 1 << u
+        neigh[u].append(v)
+        neigh[v].append(u)
+
+    # ensure neighbor lists are sorted for deterministic order
+    for lst in neigh:
+        lst.sort()
+
+    for a in range(n):
+        for b in neigh[a]:
+            if b <= a:
+                continue
+            # common neighbors of a and b
+            common = adj_int[a] & adj_int[b]
+            # keep only vertices > b
+            common >>= (b + 1)
+            if common:
+                # lowest set bit
+                low = common & -common
+                idx = low.bit_length() - 1
+                c = b + 1 + idx
+                # output 1‑based sorted triple
+                print(a + 1, b + 1, c + 1)
+                return
+
+if __name__ == "__main__":
+    solve()

@@ -1,0 +1,198 @@
+**Solution Explanation**
+
+For three vertices `a < b < c` the induced subgraph contains at most one
+vertex in a safe set **iff** every two of them are connected,
+i.e. the three vertices form a **triangle**.
+So we only have to output the lexicographically smallest triangle of the
+given undirected graph.
+
+`n ≤ 2000`, therefore a bitset of length `n` fits into a single Python
+integer (`≈ 2000` bits).  
+For every vertex `v` we store
+
+```
+mask[v]  – integer whose i‑th bit (1‑based) is 1  ⇔  (v,i) is an edge
+```
+
+With bitsets the intersection of the neighbour sets of two vertices is a
+single `&` operation.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n,m
+mask[1…n] = 0
+adj[1…n] = empty list
+
+for each edge (u,v):
+        set the bits in both masks
+        add v to adj[u] and u to adj[v]
+
+for a = 1 … n-2:
+        sort adj[a] (once) – we need neighbours in increasing order
+        for each b in adj[a] with b > a (already sorted):
+                common = mask[a] & mask[b]          # vertices adjacent to both
+                # we need a vertex c > b
+                common_shift = common >> (b+1)      # drop bits ≤ b
+                if common_shift != 0:
+                        # lowest set bit gives the smallest possible c
+                        low = common_shift & -common_shift
+                        c = (low.bit_length() - 1) + (b+1)
+                        output a b c and finish
+```
+
+The outer loops enumerate triples in lexicographic order:
+* `a` grows,
+* for a fixed `a`, `b` grows,
+* for a fixed `(a,b)` we pick the smallest possible `c`.
+
+The first triangle we meet is therefore the required answer.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs exactly the lexicographically smallest
+triangle.
+
+---
+
+##### Lemma 1  
+For any vertices `a < b`, `common = mask[a] & mask[b]` contains exactly the
+vertices adjacent to **both** `a` and `b`.
+
+**Proof.**  
+`mask[a]` has a 1‑bit at position `x` iff `(a,x)` is an edge.
+The same holds for `mask[b]`.  
+The bitwise `&` keeps a 1 at position `x` only when both masks have a 1,
+i.e. when both edges exist. ∎
+
+
+
+##### Lemma 2  
+For fixed `a < b`, the algorithm finds the smallest `c > b` such that
+`(a,b,c)` is a triangle, if such a `c` exists.
+
+**Proof.**  
+By Lemma&nbsp;1, `common` contains all vertices adjacent to both `a` and `b`.
+Shifting right by `b+1` discards all vertices `≤ b`.  
+If the shifted value is non‑zero, its lowest set bit corresponds to the
+smallest remaining vertex `c`. The computation of `c` restores its original
+index. Hence the algorithm returns the minimal feasible `c`. ∎
+
+
+
+##### Lemma 3  
+If the algorithm outputs a triple `(a,b,c)`, then `{a,b,c}` is a triangle.
+
+**Proof.**  
+The algorithm outputs only after finding `c` as described in Lemma&nbsp;2,
+which guarantees that `c` is adjacent to both `a` and `b`.  
+`b` is taken from `adj[a]`, therefore `(a,b)` is an edge.
+Thus all three edges exist, i.e. the three vertices form a triangle. ∎
+
+
+
+##### Lemma 4  
+If a triangle exists, the algorithm will output one.
+
+**Proof.**  
+Consider the lexicographically smallest triangle `(a\*,b\*,c\*)`.
+When the outer loop reaches `a = a\*`, the inner loop iterates over all
+neighbours `b > a\*` in increasing order, therefore it will eventually
+process `b = b\*`.  
+At that moment `c\*` belongs to `mask[a\*] & mask[b\*]` and `c\* > b\*`,
+so the shifted intersection is non‑zero and the algorithm outputs a
+triple (by Lemma&nbsp;2 it will be exactly `(a\*,b\*,c\*)`). ∎
+
+
+
+##### Lemma 5  
+The triple output by the algorithm is the lexicographically smallest
+triangle of the graph.
+
+**Proof.**  
+By Lemma&nbsp;4 a triangle is output.  
+Assume the algorithm outputs `(a,b,c)`.  
+All triples examined earlier have either a smaller `a`, or the same `a`
+and a smaller `b`, or the same `a,b` and a smaller `c`.  
+If any of those earlier triples were a triangle, the algorithm would have
+stopped there (Lemma&nbsp;2). Hence none of them is a triangle, and
+`(a,b,c)` is the first (lexicographically smallest) triangle. ∎
+
+
+
+##### Theorem  
+The algorithm prints three integers `a < b < c` that form a triangle and
+are the lexicographically smallest such triple in the given graph.
+
+**Proof.**  
+From Lemma&nbsp;3 the printed triple is a triangle.
+From Lemma&nbsp;5 it is the lexicographically smallest triangle.
+Therefore it satisfies the required specification. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+*Building masks*: `O(m)`  
+*Main loops*:  
+For each edge `(a,b)` we perform one bitwise `&` and a constant‑time
+search for the lowest set bit.  
+Thus `O(m)` operations, each on integers of at most `n ≤ 2000` bits,
+which is `O(1)` in Python (the integer size is bounded).
+
+Overall time `O(m) ≤ 2·10⁵`, well below the limit.  
+Memory: `n` integers (`≈ 2000·2000/8 ≈ 0.5 MiB`) plus adjacency lists,
+total `O(n + m)` ≤ a few MB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    mask = [0] * (n + 1)
+    adj = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        if u == v:
+            continue
+        mask[u] |= 1 << v
+        mask[v] |= 1 << u
+        adj[u].append(v)
+        adj[v].append(u)
+
+    for a in range(1, n - 1):
+        # keep neighbours sorted for lexicographic order
+        neigh = sorted(v for v in adj[a] if v > a)
+        for b in neigh:
+            common = mask[a] & mask[b]
+            # discard vertices <= b
+            shifted = common >> (b + 1)
+            if shifted:
+                low = shifted & -shifted          # lowest set bit
+                c = (low.bit_length() - 1) + (b + 1)
+                sys.stdout.write(f"{a} {b} {c}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and
+conforms to the required input‑output format.

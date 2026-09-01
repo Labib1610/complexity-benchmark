@@ -1,18 +1,19 @@
-# Problem C — Mechanical Jam
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You are inspecting the schematics for a prototype gearbox containing $n$ cogwheels. The schematic lists $m$ contact points where a specific pair of cogwheels interlock.
+The factory operates with only two shifts, 1 and 2, but the current roster is known to be fundamentally flawed. Your task is not to create a schedule, but to provide evidence of its impossibility. 
 
-In a functioning gear train, any interlocking cogwheels must rotate in opposite directions. However, this prototype is inherently flawed and cannot turn. Your objective is to isolate the source of the jam. Specifically, the schematic is guaranteed to contain at least one set of three cogwheels that are all mutually interlocked (each of the three connects directly to the other two). Such a configuration creates a mechanical paradox, halting the entire system. You must identify one of these locked sets.
+A roster cannot be resolved into two shifts if there is a group of three workers who all mutually conflict with one another (each worker in the trio has a conflict with the other two). You must identify one such group to prove the schedule is hopeless.
 
 ## Input
-The first line provides $n$ and $m$ (3 ≤ n ≤ 2000, 3 ≤ m ≤ min(n·(n−1)/2, 2·10⁵)), representing the number of cogwheels and interlocking pairs, respectively.
-The following $m$ lines each contain two integers $u$ and $v$, indicating that cogwheel $u$ and cogwheel $v$ are interlocked.
-The input will always contain at least one mutually interlocking set of three cogwheels.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), representing the number of workers and the number of known conflicts, respectively.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating a conflict between worker $u$ and worker $v$. 
+It is guaranteed that at least one such group of three mutually conflicting workers exists in the given data.
 
 ## Output
-Output three integers $a$, $b$, and $c$ on a single line, separated by spaces, with $a < b < c$. These must represent a set where the pairs $a$–$b$, $a$–$c$, and $b$–$c$ are all present in the input. If there are multiple such sets, provide the one that is lexicographically first (prioritizing the lowest value for $a$, then the lowest for $b$, and finally $c$).
+Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, such that the pairs $a-b$, $a-c$, and $b-c$ are all conflicts. 
+You must output the lexicographically smallest valid trio (meaning the valid group with the smallest $a$; in case of a tie, the one with the smallest $b$; and if still tied, the smallest $c$).
 
 ## Example 1
 Input:

@@ -227,12 +227,17 @@ def chat(model_cfg: dict, system: str, user: str,
         kwargs["api_key"] = key
     if api_base:
         kwargs["api_base"] = api_base
+    # Reasoning models (reasoning_effort set, e.g. OpenAI gpt-5.6-*) reject temperature != 1
+    # and top_p. litellm only auto-drops these for models it knows in its map; an unknown
+    # reasoning model (e.g. gpt-5.6-sol) would still get temperature=0 -> 400. So we simply
+    # never send sampling params for reasoning models.
     if model_cfg.get("reasoning_effort"):
         kwargs["reasoning_effort"] = model_cfg["reasoning_effort"]
-    if model_cfg.get("temperature") is not None:
-        kwargs["temperature"] = model_cfg["temperature"]
-    if model_cfg.get("top_p") is not None:
-        kwargs["top_p"] = model_cfg["top_p"]
+    else:
+        if model_cfg.get("temperature") is not None:
+            kwargs["temperature"] = model_cfg["temperature"]
+        if model_cfg.get("top_p") is not None:
+            kwargs["top_p"] = model_cfg["top_p"]
     if model_cfg.get("max_tokens"):
         kwargs["max_tokens"] = model_cfg["max_tokens"]
     if extra_body:

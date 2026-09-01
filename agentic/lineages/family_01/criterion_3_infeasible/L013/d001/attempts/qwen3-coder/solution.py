@@ -9,32 +9,45 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    index = 2
     edges = []
-    adj = [set() for _ in range(n + 1)]
+    adj = defaultdict(set)
     
+    index = 2
     for _ in range(m):
         u = int(data[index])
-        v = int(data[index + 1])
+        v = int(data[index+1])
         index += 2
-        if u > v:
-            u, v = v, u
         edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
     
-    # Sort edges to help with lexicographical ordering
-    edges.sort()
+    # Convert to sorted list for consistent iteration
+    for u in adj:
+        adj[u] = sorted(adj[u])
     
-    # For each edge (u,v), look for a node w such that (u,w) and (v,w) are also edges
-    for u, v in edges:
-        # We want to find w such that w in adj[u] and w in adj[v]
-        # To maintain lexicographical order, we need u < v < w
-        common_neighbors = adj[u] & adj[v]
-        for w in sorted(common_neighbors):
-            if w > v:
-                print(u, v, w)
-                return
+    # We want the lexicographically smallest triangle
+    # So we iterate through all edges and look for a common neighbor
+    
+    edges_sorted = sorted(edges, key=lambda x: (min(x[0], x[1]), max(x[0], x[1])))
+    
+    for u, v in edges_sorted:
+        if u > v:
+            u, v = v, u
+        # Now u < v
+        # Look for a node w such that w connects to both u and v
+        # And we want the lexicographically smallest such triangle
+        
+        neighbors_u = set(adj[u])
+        neighbors_v = set(adj[v])
+        common = neighbors_u & neighbors_v
+        
+        if common:
+            # Find the smallest w in common neighbors
+            w = min(common)
+            # Ensure ordering a < b < c
+            a, b, c = sorted([u, v, w])
+            print(a, b, c)
+            return
 
 if __name__ == "__main__":
     main()

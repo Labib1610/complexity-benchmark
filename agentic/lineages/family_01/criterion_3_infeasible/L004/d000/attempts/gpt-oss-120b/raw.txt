@@ -1,0 +1,187 @@
+**Solution Explanation**
+
+For every pair of nodes we know whether they interfere (an undirected edge).
+We have to output the lexicographically smallest triangle  
+`a < b < c` such that all three edges `{a,b}`, `{a,c}`, `{b,c}` exist.
+It is guaranteed that at least one triangle exists.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data structure – bit masks  
+
+`n ≤ 2000`, therefore a 2000‑bit integer easily fits into a Python `int`.
+For every vertex `v` we store one integer `adj[v]` :
+
+* bit `i‑1` ( `0 ≤ i‑1 < n` ) is `1` **iff** the edge `{v,i}` exists.
+
+All operations we need are then bit operations:
+
+* test existence of an edge – one shift and `& 1`
+* intersection of neighbour sets – `adj[u] & adj[v]`
+* delete bits `≤ b` – mask with `~((1<<b)-1)`
+* find the smallest remaining vertex – lowest set bit of an integer
+
+All of them are `O(1)`.
+
+
+
+--------------------------------------------------------------------
+
+#### 2.   Searching triangles in lexicographic order  
+
+We iterate over all ordered pairs `(a,b)` with `a < b` **in increasing order**.
+For a fixed pair we look for a vertex `c > b` that is adjacent to **both**
+`a` and `b`.
+
+```
+common = adj[a] & adj[b]          # vertices adjacent to both a and b
+common &= ~((1 << b) - 1)         # keep only vertices with index > b
+if common != 0:
+        low = common & -common    # lowest set bit
+        c = low.bit_length()      # because bits are 0‑based, this is c
+        answer = (a,b,c)          # first found is lexicographically smallest
+```
+
+Why is the first found triangle the required one?
+
+* The outer loop increases `a`.  
+  The first triangle we meet therefore has the smallest possible `a`.
+* For this `a` the inner loop increases `b`.  
+  Hence among triangles with this `a` we obtain the smallest possible `b`.
+* Inside the pair we pick the smallest possible `c` (`low` is the lowest set
+  bit).  
+
+Thus the produced triple is exactly the lexicographically smallest triangle.
+
+
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triangle.
+
+---
+
+##### Lemma 1  
+For a fixed pair `(a,b)` (`a<b`) the algorithm finds a vertex `c>b`
+such that `{a,c}` and `{b,c}` are edges **iff** such a vertex exists.
+
+**Proof.**  
+`common = adj[a] & adj[b]` contains exactly the vertices adjacent to both
+`a` and `b`.  
+Masking with `~((1<<b)-1)` removes all vertices `≤ b`.  
+If after masking `common` is non‑zero, at least one vertex `c>b` belongs to the
+intersection, i.e. both edges exist.  
+Conversely, if a vertex `c>b` is adjacent to both, its bit survives the mask,
+so `common` is non‑zero. ∎
+
+
+
+##### Lemma 2  
+When `common` is non‑zero, the vertex `c` selected by the algorithm is the
+smallest vertex `>b` that together with `a,b` forms a triangle.
+
+**Proof.**  
+`low = common & -common` isolates the lowest set bit of `common`.  
+Its position (0‑based) is exactly the smallest index `c-1` present in `common`,
+hence `c` is the smallest vertex satisfying the condition. ∎
+
+
+
+##### Lemma 3  
+Let `(a₀,b₀,c₀)` be the triangle output by the algorithm.
+For any triangle `(a,b,c)` we have `(a₀,b₀,c₀) ≤_lex (a,b,c)`.
+
+**Proof.**  
+The outer loops enumerate all pairs `(a,b)` in increasing lexicographic order.
+The algorithm stops at the **first** pair for which Lemma&nbsp;1 yields a
+non‑empty intersection, and then chooses the smallest possible `c`
+(Lemma&nbsp;2).  
+Therefore no earlier pair `(a',b')` with `a' < a₀` or `a'=a₀, b' < b₀`
+can belong to a triangle, otherwise the algorithm would have stopped earlier.
+Consequently any triangle must have `a ≥ a₀`; if `a = a₀` then `b ≥ b₀`;
+if also `b = b₀` then `c ≥ c₀`. ∎
+
+
+
+##### Theorem  
+The algorithm always outputs a triple `a<b<c` such that all three edges exist,
+and this triple is the lexicographically smallest among all such triples.
+
+**Proof.**  
+Existence: the problem guarantees at least one triangle.
+When the algorithm reaches the pair `(a,b)` belonging to the *first* triangle
+in lexicographic order, Lemma&nbsp;1 ensures `common` is non‑empty,
+hence the algorithm outputs a triangle and terminates.
+
+Minimality: by Lemma&nbsp;3 the produced triangle is not larger than any other
+triangle in lexicographic order. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Building adjacency masks* – `O(m)`.
+
+*Main loops* – at most `n·(n-1)/2 ≤ 2·10⁶` iterations, each doing only a few
+bit operations → `O(n²)` time.
+
+Memory consumption – `n+1` integers, each ≤ `2ⁿ` → `O(n)` bits,
+i.e. `O(n)` memory (≈ 2000·256 bits ≈ 64 KB).
+
+Both limits satisfy the given constraints.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * (n + 1)          # 1‑based, bit i‑1 corresponds to vertex i
+
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        bit_u = 1 << (v - 1)
+        bit_v = 1 << (u - 1)
+        adj[u] |= bit_u
+        adj[v] |= bit_v
+
+    for a in range(1, n + 1):
+        mask_a = adj[a]
+        for b in range(a + 1, n + 1):
+            # edge a‑b ?
+            if (mask_a >> (b - 1)) & 1 == 0:
+                continue
+            common = mask_a & adj[b]
+            # keep only vertices > b
+            common &= ~((1 << b) - 1)
+            if common:
+                low = common & -common          # lowest set bit
+                c = low.bit_length()            # because bits are 0‑based
+                # c is already the vertex number (since bit 0 -> vertex 1)
+                sys.stdout.write(f"{a} {b} {c}\n")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

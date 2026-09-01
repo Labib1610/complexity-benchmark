@@ -1,23 +1,23 @@
 import sys
 
-def main():
+def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [set() for _ in range(n)]
+    adj = [set() for _ in range(n + 1)]
     for _ in range(m):
         u, v = map(int, input().split())
-        u -= 1
-        v -= 1
         adj[u].add(v)
         adj[v].add(u)
 
-    for a in range(n):
-        for b in adj[a]:
-            if b > a:
-                for c in adj[a]:
-                    if c > b and c in adj[b]:
-                        print(a + 1, b + 1, c + 1)
-                        return
+    for a in range(1, n + 1):
+        neighbors = sorted(adj[a])
+        for i in range(len(neighbors)):
+            b = neighbors[i]
+            for j in range(i + 1, len(neighbors)):
+                c = neighbors[j]
+                if c in adj[b]:
+                    print(a, b, c)
+                    return
 
 if __name__ == "__main__":
-    main()
+    solve()

@@ -1,43 +1,41 @@
 import sys
-sys.setrecursionlimit(300000)
+from collections import deque
 
-def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    color = [-1] * n
-    ans = [0] * n
-    
-    for start in range(n):
-        if color[start] != -1:
-            continue
-        # BFS to color component
-        stack = [start]
-        color[start] = 0
-        comp = [start]
-        while stack:
-            u = stack.pop()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
-                    stack.append(v)
-                    comp.append(v)
-                elif color[v] == color[u]:
-                    print("NO")
-                    return
-        # Assign values: color 0 -> 1, color 1 -> 2
-        for u in comp:
-            ans[u] = 1 if color[u] == 0 else 2
-    
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+
+def bfs(start):
+    q = deque([start])
+    color[start] = 0  # 0 means value 1, 1 means value 2
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 1 - color[u]
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
+possible = True
+for i in range(n):
+    if color[i] == -1:
+        if not bfs(i):
+            possible = False
+            break
+
+if not possible:
+    print("NO")
+else:
     print("YES")
-    print(" ".join(map(str, ans)))
-
-if __name__ == "__main__":
-    solve()
+    print(" ".join(str(color[i] + 1) for i in range(n)))

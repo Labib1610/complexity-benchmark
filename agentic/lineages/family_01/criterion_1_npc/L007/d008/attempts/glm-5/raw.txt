@@ -1,0 +1,165 @@
+Looking at this problem:
+
+- Channels 1,2,3 have signatures 3,5,6 (binary 011,101,110)
+- XOR popcount between different channels is always 2, same channel is 0
+- Sum of scores = 2m means every link must connect different channels
+- This is exactly graph 3-coloring
+
+For n≤40, I use a meet-in-the-middle approach: split nodes into two halves, enumerate valid colorings of each half, then combine. To find lexicographically smallest, I process the first half in increasing order and the second half in decreasing order, using binary search to find the smallest valid second-half coloring.
+
+```python
+import sys
+from bisect import bisect_left
+
+def solve():
+    input_data = sys.stdin.read().split()
+    idx = 0
+    n = int(input_data[idx]); idx += 1
+    m = int(input_data[idx]); idx += 1
+    adj = [0] * n
+    for _ in range(m):
+        u = int(input_data[idx]) - 1; idx += 1
+        v = int(input_data[idx]) - 1; idx += 1
+        adj[u] |= (1 << v)
+        adj[v] |= (1 << u)
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    n1 = n // 2
+    n2 = n - n1
+    mask1 = (1 << n1) - 1
+    mask2 = (1 << n2) - 1
+    
+    # First half: enumerate valid colorings in increasing order
+    first_half = []
+    for c in range(3 ** n1):
+        valid = True
+        for i in range(n1):
+            ci = c % 3
+            if (adj[i] & mask1) & (1 << i):
+                if (c // (3 ** i)) % 3 == ci:
+                    valid = False
+                    break
+        if not valid:
+            continue
+        # Check all internal edges
+        for i in range(n1):
+            ci = (c // (3 ** i)) % 3
+            neighbors = adj[i] & mask1
+            while neighbors:
+                j = (neighbors & (-neighbors)).bit_length() - 1
+                neighbors &= neighbors - 1
+                if (c // (3 ** j)) % 3 == ci:
+                    valid = False
+                    break
+            if not valid:
+                break
+        if valid:
+            first_half.append(c)
+    
+    # Second half: enumerate valid colorings, store (cross_mask, -coloring)
+    second_data = []
+    for c in range(3 ** n2):
+        valid = True
+        for i in range(n2):
+            ci = (c // (3 ** i)) % 3
+            neighbors = adj[n1 + i] & mask2
+            while neighbors:
+                j = (neighbors & (-neighbors)).bit_length() - 1
+                neighbors &= neighbors - 1
+                if (c // (3 ** j)) % 3 == ci:
+                    valid = False
+                    break
+            if not valid:
+                break
+        if not valid:
+            continue
+        # Compute cross mask
+        cross = 0
+        for i in range(n2):
+            ci = (c // (3 ** i)) % 3
+            neighbors = adj[n1 + i] & mask1
+            while neighbors:
+                j = (neighbors & (-neighbors)).bit_length() - 1
+                neighbors &= neighbors - 1
+                cj = (c // (3 ** j)) % 3  # bug: should use first half coloring
+                pass
+            # Actually cross mask depends on first half coloring, can't precompute
+        pass
+    
+    # Redesign: cross mask depends on both halves
+    # For each first half coloring, compute required cross mask, search in second half
+    
+    # Rebuild second half: for each valid coloring, precompute for each first-half node
+    # the set of forbidden colors (as a 3-bit mask per first-half node, packed in base-8)
+    second_colorings = []
+    for c in range(3 ** n2):
+        valid = True
+        for i in range(n2):
+            ci = (c // (3 ** i)) % 3
+            neighbors = adj[n1 + i] & mask2
+            while neighbors:
+                j = (neighbors & (-neighbors)).bit_length() - 1
+                neighbors &= neighbors - 1
+                if (c // (3 ** j)) % 3 == ci:
+                    valid = False
+                    break
+            if not valid:
+                break
+        if not valid:
+            continue
+        # For each first-half node, compute forbidden color mask
+        forbidden_packed = 0
+        for j in range(n1):
+            fmask = 0
+            neighbors = adj[j] & mask2
+            while neighbors:
+                i = (neighbors & (-neighbors)).bit_length() - 1
+                neighbors &= neighbors - 1
+                ci = (c // (3 ** i)) % 3
+                fmask |= (1 << ci)
+            forbidden_packed = forbidden_packed * 8 + fmask
+        second_colorings.append((forbidden_packed, c))
+    
+    second_colorings.sort(key=lambda x: (-x[1], x[0]))
+    second_keys = [s[0] for s in second_colorings]
+    
+    for c1 in first_half:
+        # Compute required forbidden_packed for second half
+        req_packed = 0
+        for j in range(n1):
+            cj = (c1 // (3 ** j)) % 3
+            fmask = 0
+            neighbors = adj[j] & mask2
+            while neighbors:
+                i = (neighbors & (-neighbors)).bit_length() - 1
+                neighbors &= neighbors - 1
+                fmask |= (1 << cj)  # second half node i cannot be color cj
+            req_packed = req_packed * 8 + fmask
+        
+        # Binary search for req_packed in second_keys (sorted by -c2, then packed)
+        lo, hi = 0, len(second_colorings)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if second_keys[mid] < req_packed:
+                lo = mid + 1
+            else:
+                hi = mid
+        if lo < len(second_colorings) and second_keys[lo] == req_packed:
+            c2 = second_colorings[lo][1]
+            result = []
+            for i in range(n1):
+                result.append((c1 // (3 ** i)) % 3 + 1)
+            for i in range(n2):
+                result.append((c2 // (3 ** i)) % 3 + 1)
+            print("YES")
+            print(" ".join(map(str, result)))
+            return
+    
+    print("NO")
+
+solve()
+```

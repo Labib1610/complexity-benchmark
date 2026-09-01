@@ -1,0 +1,229 @@
+**Solution Explanation**
+
+For every worker we know the workers he/she cannot share a shift with.
+If three workers `a < b < c` are pairwise forbidden, the three incident files
+
+```
+(a , b) , (a , c) , (b , c)
+```
+
+form a *deadlock* (a triangle in the graph of forbidden pairs).
+
+The task is to output the lexicographically smallest triangle
+(`a` minimal, then `b`, then `c`).  
+It is guaranteed that at least one triangle exists.
+
+
+
+--------------------------------------------------------------------
+
+#### 1.   Data representation – bitsets  
+
+`n ≤ 2000`, therefore a whole adjacency row fits into a single Python
+integer (2000 bits ≈ 250 bytes).
+
+```
+adj[v]  – integer, bit (u‑1) is 1  ⇔  edge (v , u) exists
+```
+
+All bits are 0‑based, worker numbers are 1‑based.
+
+Creating the bitsets:
+
+```
+adj = [0] * (n + 1)          # 1‑based
+for each edge (u , v):
+        adj[u] |= 1 << (v-1)
+        adj[v] |= 1 << (u-1)
+```
+
+--------------------------------------------------------------------
+
+#### 2.   Searching the smallest triangle  
+
+We iterate over the first two vertices of the triangle in lexicographic
+order:
+
+```
+for a = 1 … n:
+        for each neighbour b of a with b > a (in increasing order):
+                common = adj[a] & adj[b]          # vertices adjacent to both
+                # we need a vertex c > b
+                mask   = ~((1 << b) - 1)          # bits b … n-1 are 1
+                cand   = common & mask
+                if cand != 0:
+                        c = index of lowest set bit in cand + 1
+                        output a b c
+```
+
+*Why does the first found triple satisfy the required ordering?*
+
+* `a` grows from `1` upwards – the first triangle we meet has the smallest possible `a`.
+* For a fixed `a`, neighbours `b` are processed increasingly – the first triangle for this `a` has the smallest possible `b`.
+* For a fixed pair `(a,b)` we pick the smallest `c > b` (lowest set bit) – therefore the smallest possible `c`.
+
+Thus the algorithm returns exactly the lexicographically minimal triangle.
+
+--------------------------------------------------------------------
+
+#### 3.   Correctness Proof  
+
+We prove that the algorithm outputs the required triple.
+
+---
+
+##### Lemma 1  
+For any vertices `a < b`, `common = adj[a] & adj[b]` contains exactly the
+vertices adjacent to **both** `a` and `b`.
+
+**Proof.**  
+Bit `k` of `adj[a]` is `1` iff edge `(a, k+1)` exists, similarly for `adj[b]`.
+The bitwise AND is `1` exactly when both bits are `1`, i.e. when both edges
+exist. ∎
+
+
+
+##### Lemma 2  
+`cand = common & mask` contains exactly the vertices `c` such that  
+
+* `c` is adjacent to both `a` and `b`, and  
+* `c > b`.
+
+**Proof.**  
+`mask` has bits `b … n-1` set to `1` and lower bits `0`.  
+AND with `common` removes all vertices `c ≤ b`. ∎
+
+
+
+##### Lemma 3  
+If `cand ≠ 0`, the vertex `c` obtained from the lowest set bit of `cand`
+is the smallest vertex `c > b` that together with `a,b` forms a triangle.
+
+**Proof.**  
+All vertices in `cand` satisfy the conditions of Lemma&nbsp;2.
+The lowest set bit corresponds to the smallest index, i.e. the smallest
+vertex number among them. ∎
+
+
+
+##### Lemma 4  
+When the algorithm prints a triple `(a,b,c)`, it is a triangle
+(`a<b<c` and all three edges exist).
+
+**Proof.**  
+`b` is a neighbour of `a` by construction of the inner loop.  
+`c` is taken from `cand`, therefore by Lemma&nbsp;2 it is adjacent to both
+`a` and `b` and larger than `b`. Hence all three edges exist and
+`a<b<c`. ∎
+
+
+
+##### Lemma 5  
+Let `T* = (a*,b*,c*)` be the lexicographically smallest triangle in the
+graph. The algorithm will output `T*`.
+
+**Proof.**  
+Consider the outer loops:
+
+* The first loop reaches `a = a*` before any larger `a`.
+* For this `a*`, the inner loop enumerates neighbours `b` in increasing order,
+  therefore it reaches `b = b*` before any larger neighbour.
+* For the pair `(a*,b*)` Lemma&nbsp;3 yields the smallest possible `c > b*`
+  that closes a triangle. Because `T*` is a triangle, such a `c` exists and
+  must be `c*`.
+
+Thus the algorithm prints `T*` at the moment it processes `(a*,b*)`. ∎
+
+
+
+##### Theorem  
+The algorithm always terminates and prints three integers `a<b<c`
+that form a deadlock, and among all possible deadlocks the printed triple
+is lexicographically minimal.
+
+**Proof.**  
+Termination follows from the finite loops over vertices and edges.
+Existence of at least one triangle guarantees that for some pair `(a,b)`
+the set `cand` is non‑empty, so the algorithm will eventually print a
+triple. By Lemma&nbsp;4 the printed triple is a triangle.
+By Lemma&nbsp;5 it is the lexicographically smallest triangle. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### 4.   Complexity Analysis  
+
+*Building bitsets* : `O(m)`  
+*Main search* :
+
+```
+for each edge (a,b) with a<b   →   O(m) iterations
+    constant‑time bit operations (AND, mask, lowest bit)
+```
+
+Hence total time `O(m)`.  
+`m ≤ 2·10⁵`, well inside the limits.
+
+Memory: `n+1` integers, each ≤ 2ⁿ, i.e. `O(n)` bits → about `n·250 bytes`
+≈ 0.5 MiB for `n = 2000`. Fits easily into the 256 MiB limit.
+
+
+
+--------------------------------------------------------------------
+
+#### 5.   Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+
+    adj = [0] * (n + 1)          # 1‑based
+    neighbours = [[] for _ in range(n + 1)]
+
+    for _ in range(m):
+        u = int(next(it)); v = int(next(it))
+        adj[u] |= 1 << (v - 1)
+        adj[v] |= 1 << (u - 1)
+        if u < v:
+            neighbours[u].append(v)
+            neighbours[v].append(u)
+        else:
+            neighbours[v].append(u)
+            neighbours[u].append(v)
+
+    # sort neighbour lists to guarantee increasing order
+    for lst in neighbours:
+        lst.sort()
+
+    full_mask = (1 << n) - 1
+
+    for a in range(1, n + 1):
+        for b in neighbours[a]:
+            if b <= a:
+                continue
+            common = adj[a] & adj[b]
+            # keep only vertices > b
+            mask = full_mask ^ ((1 << b) - 1)   # bits b .. n-1 are 1
+            cand = common & mask
+            if cand:
+                # lowest set bit
+                low = cand & -cand
+                c = low.bit_length()            # gives position (1‑based)
+                # c is already > b because of mask
+                print(a, b, c)
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above
+and conforms to the required input‑output format.

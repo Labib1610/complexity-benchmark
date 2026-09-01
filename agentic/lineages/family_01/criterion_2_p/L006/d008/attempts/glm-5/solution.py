@@ -1,0 +1,109 @@
+import sys
+from sys import stdin
+
+def solve():
+    input_data = stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n+1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]); v = int(input_data[idx+1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    color = [0]*(n+1)
+    parent = [0]*(n+1)
+    
+    for s in range(1, n+1):
+        if color[s] != 0:
+            continue
+        color[s] = 1
+        parent[s] = 0
+        stack = [s]
+        while stack:
+            u = stack.pop()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    parent[v] = u
+                    stack.append(v)
+    
+    for u in range(1, n+1):
+        cu = color[u]
+        for v in adj[u]:
+            if color[v] == cu:
+                print("NO")
+                return
+    
+    comp_min = {}
+    for s in range(1, n+1):
+        if parent[s] == 0 and color[s] == 1:
+            root = s
+            while root > 1 and parent[root-1] != 0:
+                root = parent[root-1]
+            comp_min[s] = root
+    
+    for s in range(1, n+1):
+        if parent[s] == 0 and color[s] == 2:
+            root = s
+            while root > 1 and parent[root-1] != 0:
+                root = parent[root-1]
+            comp_min[s] = root
+    
+    comp_id = [0]*(n+1)
+    comp_counter = 0
+    for s in range(1, n+1):
+        if parent[s] == 0:
+            comp_counter += 1
+            comp_id[s] = comp_counter
+            stack = [s]
+            while stack:
+                u = stack.pop()
+                for v in adj[u]:
+                    if comp_id[v] == 0:
+                        comp_id[v] = comp_counter
+                        stack.append(v)
+    
+    comp_roots = {}
+    for s in range(1, n+1):
+        if parent[s] == 0:
+            cid = comp_id[s]
+            if cid not in comp_roots:
+                comp_roots[cid] = s
+    
+    comp_min_node = {}
+    for s in range(1, n+1):
+        if parent[s] == 0:
+            cid = comp_id[s]
+            root = s
+            while root > 1 and comp_id[root-1] == cid:
+                root = root - 1
+            comp_min_node[cid] = root
+    
+    flip = {}
+    for s in range(1, n+1):
+        if parent[s] == 0:
+            cid = comp_id[s]
+            min_node = comp_min_node[cid]
+            if color[min_node] == 2:
+                flip[cid] = True
+            else:
+                flip[cid] = False
+    
+    result = [0]*(n+1)
+    for i in range(1, n+1):
+        cid = comp_id[i]
+        if flip.get(cid, False):
+            result[i] = 3 - color[i]
+        else:
+            result[i] = color[i]
+    
+    print("YES")
+    print(' '.join(map(str, result[1:])))
+
+solve()

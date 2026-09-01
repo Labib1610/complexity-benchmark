@@ -1,21 +1,23 @@
-# Problem C — Ternary Alloy Certification
+# Problem C — Cargo Prohibition Protocol
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A metallurgy lab is testing $n$ pure metals to create new alloys. They have already tested $m$ specific binary (two-metal) mixtures, and certified that each of these $m$ mixtures successfully forms a stable bond.
+A logistics firm operates a dual-vessel shipping route for hazardous materials. Certain pairs of these materials are highly reactive when stored in the same vessel and are strictly prohibited from sharing a cargo hold.
 
-The lab now needs to identify a candidate for a ternary (three-metal) alloy. According to their theoretical model, a ternary mixture will only be stable if all of its constituent metals are known to form stable binary bonds with one another. Specifically, a set of three distinct metals can form a ternary alloy if and only if every possible two-metal combination chosen from those three is present in the list of certified binary mixtures.
+The proposed loading schedule is structurally impossible to fulfill. You must produce a definitive proof of this impossibility to trigger an automatic schedule rejection.
 
-You must find a valid set of three metals to form this ternary alloy.
+To establish this proof, you are required to isolate a "deadlock" configuration of exactly three materials. A set of three materials constitutes a deadlock if any two materials chosen from the set correspond to a prohibited reactive pair explicitly given in the input. The presence of such a configuration demonstrates that no valid assignment to the two vessels can exist.
+
+Because the automated auditing system requires deterministic reporting, it will not accept an arbitrary deadlock configuration. The system demands the canonical proof, meaning you must systematically ensure no earlier configuration could have been reported.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of metals and the number of certified binary mixtures. Metals are numbered from $1$ to $n$.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that the mixture of metal $u$ and metal $v$ is certified as stable.
-It is guaranteed that the data contains at least one set of three metals that satisfies the criteria.
+The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), indicating the number of hazardous materials and the number of prohibited pairs. The materials are identified by integers from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) — a pair of materials that are prohibited from sharing a vessel. 
+It is guaranteed that the input contains at least one deadlock configuration of three materials.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the IDs of the three metals.
-If there are multiple valid sets of three metals, output the one that is lexicographically smallest (i.e., smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Output a single line containing three integers $a$, $b$, and $c$ ($a < b < c$), representing the identifiers of the materials in the deadlock configuration.
+To satisfy the deterministic auditing system, if more than one such configuration exists, you must output the lexicographically earliest one among all valid configurations. This means you must minimize $a$; if there is a tie, minimize $b$; and if still tied, minimize $c$.
 
 ## Example 1
 Input:

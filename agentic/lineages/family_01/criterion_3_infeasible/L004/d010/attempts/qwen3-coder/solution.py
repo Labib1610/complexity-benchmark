@@ -1,0 +1,210 @@
+import sys
+from itertools import combinations
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    # Build adjacency list
+    adj = [set() for _ in range(n+1)]
+    edges = set()
+    idx = 2
+    for _ in range(m):
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.add((u,v))
+    
+    # Function to check if a triplet u1<u2<u3 is critically flawed
+    def is_critically_flawed(u1, u2, u3):
+        # Count how many edges exist among the three nodes
+        e12 = 1 if (u1, u2) in edges else 0
+        e23 = 1 if (u2, u3) in edges else 0
+        e13 = 1 if (u1, u3) in edges else 0
+        
+        # The interference energy is:
+        # E = x1*x2*I12 + x2*x3*I23 + x1*x3*I13
+        # With constraints: x1+x2+x3=0 and x1^2+x2^2+x3^2=1
+        
+        # If all three edges exist (triangle), then I12=I23=I13=1
+        # E = x1*x2 + x2*x3 + x1*x3
+        # Since x3 = -x1 - x2,
+        # E = x1*x2 + x2*(-x1 - x2) + x1*(-x1 - x2)
+        #   = x1*x2 - x1*x2 - x2^2 - x1^2 - x1*x2
+        #   = -x1^2 - x2^2 - x1*x2
+        # This expression can take multiple values depending on x1,x2
+        # So it cannot be constant -1/2 unless special conditions
+        
+        # Let's consider when E(x1,x2,x3) = -1/2 for ALL valid (x1,x2,x3)
+        # That means the quadratic form is constant
+        # This happens iff the matrix corresponding to the quadratic form 
+        # has all eigenvalues zero except possibly one, and that must be -1/2
+        # But more simply, let's think about when a quadratic form 
+        # x^T A x is constant for all x on the manifold x1+x2+x3=0, |x|=1
+        
+        # Alternatively, we can check specific coefficient choices.
+        
+        # Case 1: All three edges present
+        if e12 == 1 and e23 == 1 and e13 == 1:
+            # Check if E = -1/2 always
+            # Take x1=1, x2=0, x3=-1 => x1*x2=0, x2*x3=0, x1*x3=-1 => E=-1
+            # Take x1=0, x2=1, x3=-1 => x1*x2=0, x2*x3=-1, x1*x3=0 => E=-1
+            # Take x1=1/sqrt(2), x2=-1/sqrt(2), x3=0 => E = -1/2 + 0 + 0 = -1/2
+            # Not constant => not critically flawed
+            
+            # Actually, let's derive when E is constant -1/2
+            # We have x1+x2+x3=0 => x3 = -x1 - x2
+            # And x1^2 + x2^2 + x3^2 = 1 => x1^2 + x2^2 + (x1+x2)^2 = 1
+            # => 2*x1^2 + 2*x2^2 + 2*x1*x2 = 1
+            # => x1^2 + x2^2 + x1*x2 = 1/2
+            
+            # Now E = x1*x2*e12 + x2*x3*e23 + x1*x3*e13
+            # Substitute x3 = -x1 - x2:
+            # E = x1*x2*e12 + x2*(-x1 - x2)*e23 + x1*(-x1 - x2)*e13
+            #   = x1*x2*e12 - x1*x2*e23 - x2^2*e23 - x1^2*e13 - x1*x2*e13
+            #   = x1*x2*(e12 - e23 - e13) - x2^2*e23 - x1^2*e13
+            
+            # For this to be identically -1/2 for all valid x1,x2,
+            # the coefficient of x1*x2 must be 0, and 
+            # -x2^2*e23 - x1^2*e13 = -1/2 whenever x1^2 + x2^2 + x1*x2 = 1/2
+            
+            # This is only possible if e12 - e23 - e13 = 0 AND 
+            # the remaining terms give -1/2 under constraint
+            # But since we're dealing with 0-1 variables, let's just test
+            
+            # Simpler approach: if all 3 edges exist, then for:
+            # (x1,x2,x3) = (1,0,-1): E = 0 + 0 + (-1) = -1
+            # (x1,x2,x3) = (0,1,-1): E = 0 + (-1) + 0 = -1
+            # These are not -1/2, so not constant => not critically flawed
+            return False
+            
+        # Case 2: Exactly two edges
+        elif e12 + e23 + e13 == 2:
+            # Suppose e12=1, e23=1, e13=0
+            # E = x1*x2 + x2*x3 + 0
+            # Try (1,0,-1): E = 0 + 0 = 0
+            # Try (0,1,-1): E = 0 + (-1) = -1
+            # Not constant => not critically flawed
+            return False
+            
+        # Case 3: Exactly one edge
+        elif e12 + e23 + e13 == 1:
+            # Suppose e12=1, others 0
+            # E = x1*x2
+            # Try x1=1, x2=0, x3=-1: E = 0
+            # Try x1=0, x2=1, x3=-1: E = 0
+            # Try x1=1/sqrt(2), x2=-1/sqrt(2), x3=0: E = -1/2
+            # Not constant => not critically flawed
+            return False
+            
+        # Case 4: No edges
+        elif e12 + e23 + e13 == 0:
+            # E = 0 always => not -1/2 => not critically flawed
+            return False
+            
+        return False
+    
+    # Better approach: 
+    # A triplet u1<u2<u3 is critically flawed iff 
+    # the quadratic form Q(x1,x2,x3) = x1*x2*I12 + x2*x3*I23 + x1*x3*I13
+    # equals -1/2 for all (x1,x2,x3) satisfying x1+x2+x3=0 and x1^2+x2^2+x3^2=1
+    
+    # On the space defined by x1+x2+x3=0, we can parameterize:
+    # Let x3 = -x1 - x2
+    # Then x1^2 + x2^2 + (x1+x2)^2 = 1 => 2*x1^2 + 2*x2^2 + 2*x1*x2 = 1
+    # => x1^2 + x2^2 + x1*x2 = 1/2
+    
+    # Substituting x3 = -x1 - x2 into Q:
+    # Q = x1*x2*I12 + x2*(-x1 - x2)*I23 + x1*(-x1 - x2)*I13
+    #   = x1*x2*I12 - x1*x2*I23 - x2^2*I23 - x1^2*I13 - x1*x2*I13
+    #   = x1*x2*(I12 - I23 - I13) - x1^2*I13 - x2^2*I23
+    
+    # For this to equal -1/2 for all x1,x2 satisfying x1^2 + x2^2 + x1*x2 = 1/2,
+    # we need:
+    # Coefficient of x1*x2 = 0 => I12 - I23 - I13 = 0
+    # Coefficient of x1^2 = 0 => I13 = 0  
+    # Coefficient of x2^2 = 0 => I23 = 0
+    # Constant term = -1/2
+    
+    # But if I13=0 and I23=0, then I12 - 0 - 0 = I12
+    # So I12 = 0 as well for coefficient of x1*x2 to be 0
+    # Then Q = 0 always, which is not -1/2
+    
+    # Wait, reconsider. We want Q = -1/2 identically on the constraint set.
+    # Let's think of it differently.
+    
+    # The constraint defines a circle in the plane x1+x2+x3=0.
+    # If Q is constant on this circle, then its Hessian restricted to the circle
+    # must be such that Q is constant.
+    
+    # Alternatively, pick 3 points on the circle and solve for when Q=-1/2 at all 3.
+    
+    # Even simpler: brute-force check small cases analytically.
+    
+    # Key insight: 
+    # For the quadratic form Q(x) = x^T A x to be constant on the intersection
+    # of the plane x1+x2+x3=0 and sphere |x|^2=1, 
+    # it must be that A restricted to that subspace is a multiple of identity.
+    # In our case, A has zeros on diagonal and off-diagonal entries I_ij/2.
+    # So A = [[0, I12/2, I13/2], [I12/2, 0, I23/2], [I13/2, I23/2, 0]]
+    # Projecting to the plane x1+x2+x3=0 and restricting to unit circle,
+    # Q is constant iff the restriction of A is a scalar matrix.
+    
+    # But perhaps easier: just enumerate triplets and check directly.
+    
+    # Let's try specific assignments to see when E is always -1/2
+    
+    def check_constant_neg_half(u1, u2, u3):
+        e12 = 1 if (u1, u2) in edges else 0
+        e23 = 1 if (u2, u3) in edges else 0
+        e13 = 1 if (u1, u3) in edges else 0
+        
+        # Test several valid (x1,x2,x3) assignments
+        test_cases = []
+        # Need x1+x2+x3=0 and x1^2+x2^2+x3^2=1
+        
+        # Generate some test points on the circle x1+x2+x3=0, |x|^2=1
+        # Parameterize: x1 = a, x2 = b, x3 = -a-b
+        # Constraint: a^2 + b^2 + (a+b)^2 = 1 => 2a^2 + 2b^2 + 2ab = 1
+        
+        import math
+        # Try a few rational points if possible
+        # But for simplicity, just try a few numerical points
+        
+        # Point 1: x1=1, x2=0, x3=-1 -> Check norm: 1+0+1=2, so normalize
+        norm = math.sqrt(2)
+        x1, x2, x3 = 1/norm, 0, -1/norm
+        E1 = x1*x2*e12 + x2*x3*e23 + x1*x3*e13
+        
+        # Point 2: x1=0, x2=1, x3=-1 -> Normalize
+        x1, x2, x3 = 0, 1/norm, -1/norm
+        E2 = x1*x2*e12 + x2*x3*e23 + x1*x3*e13
+        
+        # Point 3: x1=1/sqrt(6), x2=1/sqrt(6), x3=-2/sqrt(6) 
+        # Norm check: 1/6 + 1/6 + 4/6 = 1
+        x1, x2, x3 = 1/math.sqrt(6), 1/math.sqrt(6), -2/math.sqrt(6)
+        E3 = x1*x2*e12 + x2*x3*e23 + x1*x3*e13
+        
+        # Check if all E values are -0.5
+        eps = 1e-9
+        target = -0.5
+        if abs(E1 - target) < eps and abs(E2 - target) < eps and abs(E3 - target) < eps:
+            return True
+        return False
+    
+    # Iterate through all combinations of 3 transceivers
+    for u1, u2, u3 in combinations(range(1, n+1), 3):
+        if check_constant_neg_half(u1, u2, u3):
+            print(u1, u2, u3)
+            return
+
+if __name__ == "__main__":
+    main()

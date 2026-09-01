@@ -9,40 +9,39 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
+    # Build adjacency list using sets for O(1) lookup
+    adj = defaultdict(set)
     edges = []
-    adj = [set() for _ in range(n + 1)]
     
     index = 2
     for _ in range(m):
         u = int(data[index])
-        v = int(data[index + 1])
+        v = int(data[index+1])
         index += 2
         if u > v:
             u, v = v, u
-        edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
+        edges.append((u, v))
     
-    # Sort edges to help with finding lexicographically smallest triple
-    edges.sort()
+    # For each edge (u,v), look for a common neighbor w
+    # such that u-v, u-w, v-w all exist
+    # We want the lexicographically smallest triple
     
-    # For each edge (u,v), look for a node w such that (u,w) and (v,w) are also edges
-    for u, v in edges:
-        if u >= v:
-            continue
-        # Check common neighbors of u and v
-        neighbors_u = adj[u]
-        neighbors_v = adj[v]
-        
-        # Iterate through the smaller set for efficiency
-        if len(neighbors_u) > len(neighbors_v):
-            neighbors_u, neighbors_v = neighbors_v, neighbors_u
-            
-        for w in neighbors_u:
-            if w in neighbors_v:
-                # Found a triangle: u, v, w
-                triple = sorted([u, v, w])
-                print(triple[0], triple[1], triple[2])
+    # Convert adjacency list to sorted lists for consistent iteration
+    for u in range(1, n+1):
+        adj[u] = sorted(list(adj[u]))
+    
+    # Iterate through all edges
+    for u, v in sorted(edges):
+        if u > v:
+            u, v = v, u
+        # Find common neighbors of u and v
+        # Since we want lexicographically smallest, we iterate in order
+        for w in adj[u]:
+            if w > v and w in adj[v]:
+                # Found a triangle: u < v < w
+                print(u, v, w)
                 return
 
 if __name__ == "__main__":

@@ -1,21 +1,21 @@
-# Problem C — Habitat Allocation Veto
+# Problem C — Mechanical Jam
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A conservation park is preparing to house $n$ rescued animal species, numbered 1 through $n$. The veterinary team has identified $m$ specific pairs of species that exhibit severe territorial aggression toward one another. If two species are aggressive toward each other, they cannot be placed in the same habitat enclosure. It is guaranteed that the behavioral data contains at least one group of three species where all three are mutually aggressive—meaning each species in the group is aggressive toward the other two.
+A clockwork mechanism consists of $n$ cogs, numbered 1 through $n$. The design specifies $m$ direct mechanical links, where the teeth of two specific cogs interlock. Whenever two cogs interlock, they are forced to rotate in opposite directions.
 
-The park management initially proposed constructing exactly two large enclosures to house all the species. However, this proposal is fundamentally unworkable. Because of the existence of such a group, no two-enclosure layout can possibly accommodate them without forcing two aggressive species to share the same space.
+The designers intended for the entire mechanism to rotate continuously. However, the prototype is completely seized. An inspection reveals a fatal structural flaw: a localized parity conflict. Specifically, there exists at least one triplet of distinct cogs where the first interlocks with the second, the second interlocks with the third, and the third interlocks directly back with the first. In this arrangement, rotation is physically impossible, as the alternating rotation directions cannot be simultaneously satisfied around the loop.
 
-To finalize the veto of the two-enclosure proposal, you must provide a formal certificate of its failure. Your task is to identify one of these mutually aggressive groups of three.
+To authorize a redesign, the lead engineer requires a formal defect report identifying the components involved in one of these minimal conflicting loops. Your task is to find three cogs that form this exact configuration.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing that species $u$ and species $v$ are aggressive toward each other. Each aggressive pair is listed at most once.
-It is guaranteed that at least one mutually aggressive group of three exists.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing that cog $u$ and cog $v$ interlock. Each pair is listed at most once.
+It is guaranteed that at least one such triplet of cogs exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the numbers of three species that form a mutually aggressive group. The numbers must be printed in ascending order ($a < b < c$).
-If there are multiple such groups, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the IDs of three cogs that form the described loop. The IDs must be printed in ascending order ($a < b < c$).
+If there are multiple such combinations, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
 
 ## Example 1
 Input:

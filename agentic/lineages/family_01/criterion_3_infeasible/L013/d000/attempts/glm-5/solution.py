@@ -1,40 +1,36 @@
 import sys
 
-def main():
-    input_data = sys.stdin.buffer.read().split()
-    idx = 0
-    n = int(input_data[idx]); idx += 1
-    m = int(input_data[idx]); idx += 1
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
-    adj = [[] for _ in range(n + 1)]
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    deg = [0] * (n + 1)
+    
     for _ in range(m):
-        u = int(input_data[idx]); idx += 1
-        v = int(input_data[idx]); idx += 1
-        adj[u].append(v)
-        adj[v].append(u)
+        u = int(next(it))
+        v = int(next(it))
+        adj[u][v] = True
+        adj[v][u] = True
+        deg[u] += 1
+        deg[v] += 1
     
-    # Sort adjacency lists and create sets for fast lookup
-    adj_set = [None] * (n + 1)
-    for i in range(1, n + 1):
-        adj[i].sort()
-        adj_set[i] = set(adj[i])
-    
-    for a in range(1, n + 1):
-        sa = adj_set[a]
-        for b in adj[a]:
-            if b <= a:
+    # Iterate to find lexicographically smallest triad
+    # a < b < c, so a ranges from 1 to n-2
+    for a in range(1, n - 1):
+        # b ranges from a+1 to n-1
+        for b in range(a + 1, n):
+            if not adj[a][b]:
                 continue
-            sb = adj_set[b]
-            # Find smallest c > b in both sa and sb
-            # Iterate through adj[a] (sorted) for c > b
-            for c in adj[a]:
-                if c <= b:
-                    continue
-                if c in sb:
+            # c ranges from b+1 to n
+            for c in range(b + 1, n + 1):
+                if adj[a][c] and adj[b][c]:
                     print(a, b, c)
                     return
-    
-    # Should never reach here per problem guarantee
-    print(-1)
 
-main()
+if __name__ == '__main__':
+    solve()

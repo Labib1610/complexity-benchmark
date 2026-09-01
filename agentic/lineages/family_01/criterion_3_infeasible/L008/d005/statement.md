@@ -1,20 +1,30 @@
-# Problem C — Ternary Reaction Hazard
+# Problem C — Proof of Impossibility
 
-Time limit: 2 s   Memory limit: 256 MB
+Time limit: 2 s
+Memory limit: 256 MB
 
-You are analyzing a laboratory protocol involving $n$ distinct chemical reagents. Through preliminary testing, you have compiled a list of two-reagent mixtures that produce a precipitate. 
+Management insists on dividing the workforce into exactly two non-overlapping shifts. However, the HR department knows this plan is doomed. You must provide undeniable proof of this failure.
 
-A specific reaction hazard is triggered by a set of three distinct reagents if one of them produces a precipitate with a second, the second produces a precipitate with a third, and the third produces a precipitate with the first.
+HR has a collection of incident files, where each file lists two specific workers who cannot be placed on the same shift. 
 
-Your task is to identify a set of three reagents that creates this hazard. The provided testing data guarantees that at least one such set exists.
+Management's plan can be proven impossible if you can find a 'deadlock' in the records. A deadlock is defined by a specific combination of three incident files, which we will refer to as the primary, secondary, and closing files:
+- The primary and secondary files must share exactly one worker in common.
+- This overlap leaves one worker unique to the primary file, and one worker unique to the secondary file.
+- The closing file must consist exactly of these two unique workers.
+
+It is guaranteed that at least one such deadlock exists. Your task is to identify the three distinct workers involved in such a deadlock and report them to HR.
 
 ## Input
-The first line provides two integers, $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of reagents and the number of documented precipitate reactions, respectively. Reagents are identified by integers from $1$ to $n$.
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n, u \neq v$), indicating that reagent $u$ and reagent $v$ produce a precipitate when mixed.
-It is guaranteed that the provided records contain at least one such set of three reagents.
+The first line provides the workforce size n and the total incident count m. The workforce size n is bounded below by 3 and bounded above by the facility capacity of 2000. The incident count m is at least 3, and is capped by either the theoretical maximum of n·(n−1)/2 distinct combinations, or the archival capacity of 2·10⁵, whichever is smaller. Workers are identified by integers from 1 to n.
+
+Each of the next m lines contains two integers u and v (1 ≤ u, v ≤ n, u ≠ v), identifying the two workers involved in a single incident. No two incident files list the exact same pair of workers.
+
+It is guaranteed that at least one valid deadlock exists.
 
 ## Output
-Output three integers $a$, $b$, and $c$ on a single line, ordered such that $a < b < c$, representing the three reagents that comprise the hazard. If there is more than one valid set of three reagents, you must output the one that minimizes the hazard score, calculated as $a \cdot 10^8 + b \cdot 10^4 + c$.
+Output three space-separated integers a, b, and c representing the IDs of the three workers involved. They must be printed such that a < b < c.
+
+To ensure a unique valid response when multiple such deadlocks exist, you must select the one that minimizes the value of a. If there is a tie, minimize the value of b among the tied triplets, and if a tie still persists, minimize c.
 
 ## Example 1
 Input:

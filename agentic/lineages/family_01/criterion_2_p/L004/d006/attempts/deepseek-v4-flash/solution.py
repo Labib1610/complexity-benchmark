@@ -12,26 +12,22 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 uncolored, 0 -> factor 1, 1 -> factor 2
+color = [-1] * n
+color[0] = 1  # 1 means z=1, 0 means z=2
 
-def bfs(start):
-    q = deque([start])
-    color[start] = 0  # try 1 first
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 1 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                return False
-    return True
-
-for i in range(n):
-    if color[i] == -1:
-        if not bfs(i):
-            print("NO")
-            sys.exit()
+for start in range(n):
+    if color[start] == -1:
+        color[start] = 1
+        q = deque([start])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    print("NO")
+                    sys.exit()
 
 print("YES")
-print(' '.join(str(c + 1) for c in color))
+print(" ".join(str(c) for c in color))

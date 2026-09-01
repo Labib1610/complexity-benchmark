@@ -5,17 +5,17 @@ def solve():
     n, m = map(int, sys.stdin.readline().split())
     
     # Build adjacency list
-    adj = defaultdict(list)
+    adj = defaultdict(set)
     for _ in range(m):
         u, v = map(int, sys.stdin.readline().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        adj[u].add(v)
+        adj[v].add(u)
     
-    # Try all possible assignments in lexicographical order using backtracking
-    assignment = [0] * (n + 1)  # 1-indexed
+    # Try all possible assignments with backtracking
+    # We want the lexicographically smallest one
+    assignment = [0] * (n + 1)
     
     def is_valid(person, schedule):
-        # Check if assigning 'schedule' to 'person' conflicts with neighbors
         for neighbor in adj[person]:
             if assignment[neighbor] == schedule:
                 return False
@@ -30,13 +30,13 @@ def solve():
                 assignment[person] = schedule
                 if backtrack(person + 1):
                     return True
-                assignment[person] = 0  # Backtrack
+                assignment[person] = 0
                 
         return False
     
     if backtrack(1):
         print("YES")
-        print(' '.join(map(str, assignment[1:])))
+        print(*assignment[1:])
     else:
         print("NO")
 

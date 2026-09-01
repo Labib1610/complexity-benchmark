@@ -10,12 +10,15 @@ def main():
         adj[v].add(u)
 
     for a in range(1, n + 1):
-        for b in adj[a]:
-            if b > a:
-                for c in adj[a]:
-                    if c > b and c in adj[b]:
-                        print(a, b, c)
-                        return
+        for b in range(a + 1, n + 1):
+            if b not in adj[a]:
+                continue
+            # Find smallest c > b such that c is connected to both a and b
+            common = adj[a] & adj[b]
+            for c in sorted(common):
+                if c > b:
+                    print(a, b, c)
+                    return
 
 if __name__ == "__main__":
     main()

@@ -12,13 +12,10 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n
-
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 0
-    q = deque([start])
+def try_assign(start_val):
+    color = [-1] * n
+    color[0] = start_val
+    q = deque([0])
     while q:
         u = q.popleft()
         for v in adj[u]:
@@ -26,8 +23,29 @@ for start in range(n):
                 color[v] = 1 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
+                return None
+    # For disconnected components, assign greedily
+    for i in range(n):
+        if color[i] == -1:
+            color[i] = 0
+            q = deque([i])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if color[v] == -1:
+                        color[v] = 1 - color[u]
+                        q.append(v)
+                    elif color[v] == color[u]:
+                        return None
+    return color
 
-print("YES")
-print(" ".join(str(c + 1) for c in color))
+# Try starting with 1
+res = try_assign(0)
+if res is None:
+    res = try_assign(1)
+
+if res is None:
+    print("NO")
+else:
+    print("YES")
+    print(' '.join(str(x + 1) for x in res))

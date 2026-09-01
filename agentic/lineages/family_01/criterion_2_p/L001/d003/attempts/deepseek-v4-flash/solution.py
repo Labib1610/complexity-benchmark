@@ -14,10 +14,10 @@ for _ in range(m):
 
 color = [-1] * n
 
-for i in range(n):
-    if color[i] == -1:
-        color[i] = 1
-        q = deque([i])
+for start in range(n):
+    if color[start] == -1:
+        color[start] = 1
+        q = deque([start])
         while q:
             u = q.popleft()
             for v in adj[u]:
@@ -29,4 +29,4 @@ for i in range(n):
                     sys.exit()
 
 print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+print(" ".join(str(c) for c in color))

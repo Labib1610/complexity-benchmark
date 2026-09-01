@@ -15,30 +15,30 @@ def solve():
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * n
-    
-    def is_safe(node, c):
-        for neighbor in adj[node]:
-            if color[neighbor] == c:
-                return False
-        return True
-    
-    def dfs(node):
-        if node == n:
-            return True
+    # Greedy assignment for lexicographically smallest 3-coloring
+    colors = [0] * n
+    for u in range(n):
+        used = set()
+        for v in adj[u]:
+            if v < u:
+                used.add(colors[v])
         for c in range(1, 4):
-            if is_safe(node, c):
-                color[node] = c
-                if dfs(node + 1):
-                    return True
-                color[node] = 0
-        return False
+            if c not in used:
+                colors[u] = c
+                break
+        if colors[u] == 0:
+            print("NO")
+            return
     
-    if dfs(0):
-        print("YES")
-        print(' '.join(map(str, color)))
-    else:
-        print("NO")
+    # Verify validity
+    for u in range(n):
+        for v in adj[u]:
+            if colors[u] == colors[v]:
+                print("NO")
+                return
+    
+    print("YES")
+    print(' '.join(map(str, colors)))
 
 if __name__ == "__main__":
     solve()

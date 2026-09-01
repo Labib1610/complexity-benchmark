@@ -2,38 +2,57 @@ import sys
 from collections import deque
 
 def solve():
-    data = sys.stdin.read().split()
-    ptr = 0
-    n = int(data[ptr])
-    ptr += 1
-    m = int(data[ptr])
-    ptr += 1
-    
+    data = sys.stdin.buffer.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(data[ptr])
-        v = int(data[ptr + 1])
-        ptr += 2
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
     
     color = [0] * (n + 1)
+    possible = True
     
     for start in range(1, n + 1):
-        if color[start] == 0:
-            color[start] = 1
-            queue = deque([start])
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        return
+        if color[start] != 0:
+            continue
+        # BFS to find connected component and check bipartiteness
+        color[start] = 1
+        q = deque([start])
+        comp = [start]
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == 0:
+                    color[v] = 3 - color[u]
+                    q.append(v)
+                    comp.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+        if not possible:
+            break
+        # Now try to flip the component if it makes it lexicographically smaller
+        # We want as many 1's as possible, especially at smaller indices
+        # Count how many would become 1 if we flip
+        cnt1 = sum(1 for u in comp if color[u] == 1)
+        cnt2 = len(comp) - cnt1
+        if cnt2 > cnt1:
+            for u in comp:
+                color[u] = 3 - color[u]
     
-    print("YES")
-    print(" ".join(map(str, color[1:])))
+    if not possible:
+        sys.stdout.write("NO\n")
+    else:
+        out = ["YES"]
+        out.append(" ".join(str(color[i]) for i in range(1, n + 1)))
+        sys.stdout.write("\n".join(out) + "\n")
 
 solve()

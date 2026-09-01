@@ -1,7 +1,7 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
+def main():
     import sys
     input = sys.stdin.read
     data = input().split()
@@ -9,57 +9,155 @@ def solve():
     n = int(data[0])
     m = int(data[1])
     
-    if m == 0:
-        print("YES")
-        print(" ".join(["1"] * n))
-        return
-    
     edges = []
-    index = 2
-    for _ in range(m):
-        u = int(data[index]) - 1  # Convert to 0-indexed
-        v = int(data[index+1]) - 1
-        edges.append((u, v))
-        index += 2
-    
-    # Build adjacency list
     adj = [[] for _ in range(n)]
-    for u, v in edges:
-        adj[u].append(v)
-        adj[v].append(u)
+    edge_indices = []
     
-    # Color array: 0 means unvisited, 1 and 2 are the two colors
-    color = [0] * n
+    for i in range(m):
+        u = int(data[2 + 2*i]) - 1
+        v = int(data[2 + 2*i + 1]) - 1
+        edges.append((u, v))
+        adj[u].append((v, i))
+        adj[v].append((u, i))
+        edge_indices.append(i)
     
-    # Check if bipartite for each connected component
-    for i in range(n):
-        if color[i] == 0:
-            queue = deque()
-            queue.append(i)
-            color[i] = 1  # Start coloring with 1
+    # Define the configuration arrays
+    A = [
+        [0, 1, 2, 3],  # 1-indexed, so A[1][k] = k
+        [0, 1, 2, 3],  # A1 = [1,2,3]
+        [0, 2, 1, 3]   # A2 = [2,1,3]
+    ]
+    
+    # Precompute for each pair of configurations (p_u, p_v), whether the bridge condition is satisfied
+    # valid[p_u][p_v] = True if bridge between u (config p_u) and v (config p_v) has exactly one inversion
+    valid = [[False, False], [False, False]]
+    
+    # There are only 4 combinations to check: (1,1), (1,2), (2,1), (2,2)
+    configs = [ [1,2,3], [2,1,3] ]
+    
+    for pu in range(1, 3):
+        for pv in range(1, 3):
+            # Compute C[k] = V_u[ V_v[k] ] = A[pu][ A[pv][k] ]
+            C = [0] * 4  # 1-indexed
+            for k in range(1, 4):
+                C[k] = A[pu][ A[pv][k] ]
             
-            while queue:
-                node = queue.popleft()
-                current_color = color[node]
-                next_color = 3 - current_color  # Switch between 1 and 2
-                
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = next_color
-                        queue.append(neighbor)
-                    elif color[neighbor] != next_color:
-                        print("NO")
-                        return
+            # Count inversions in C
+            inv_count = 0
+            for i in range(1, 4):
+                for j in range(i+1, 4):
+                    if C[i] > C[j]:
+                        inv_count += 1
+            
+            if inv_count == 1:
+                valid[pu-1][pv-1] = True
     
-    # Verify all edges satisfy the constraint
+    # Now we model this as a 2-SAT problem
+    # Each variable is a crystal i, value is p_i (1 or 2)
+    # For each edge (u,v), we need valid[p_u][p_v] to be True
+    # This gives us implications
+    
+    # We'll use the implication graph approach for 2-SAT
+    # Variables: for each node i, we have two variables: i_1 (p_i=1) and i_2 (p_i=2)
+    # We'll number them as: for node i, var i_1 = 2*i, var i_2 = 2*i + 1
+    # But in 2-SAT, it's easier to use: for node i, var for p_i=1 is 2*i, var for p_i=2 is 2*i+1
+    # But let's use: for node i, variable i represents p_i=1, variable i+n represents p_i=2
+    # Actually, standard approach: variables 0 to 2n-1
+    # variable 2*i represents p_i = 1, variable 2*i+1 represents p_i = 2
+    
+    # For each edge (u,v), if valid[p_u][p_v] is False, then we cannot have that combination
+    # So we add implications:
+    # If p_u=1 and p_v=1 leads to invalid, then add clause: NOT(p_u=1) OR NOT(p_v=1)
+    # Which is: (p_u != 1) OR (p_v != 1)
+    # Which is: (p_u=2) OR (p_v=2)
+    # Add edges: NOT(p_u=1) -> p_u=2, NOT(p_v=1) -> p_v=2
+    
+    # Build implication graph
+    # Nodes: 0 to 2*n - 1
+    # 2*i : p_i = 1
+    # 2*i + 1 : p_i = 2
+    
+    imp_graph = [[] for _ in range(2 * n)]
+    rev_graph = [[] for _ in range(2 * n)]
+    
     for u, v in edges:
-        if color[u] + color[v] != 3:
+        # For each forbidden combination, add implications
+        for pu in range(1, 3):
+            for pv in range(1, 3):
+                if not valid[pu-1][pv-1]:
+                    # Cannot have p_u = pu and p_v = pv
+                    # Add clause: NOT(p_u=pu) OR NOT(p_v=pv)
+                    # Which means: (p_u != pu) OR (p_v != pv)
+                    # Add implications: p_u=pu -> p_v != pv, p_v=pv -> p_u != pu
+                    u_var = 2*u + (pu - 1)  # 2*u if pu=1, 2*u+1 if pu=2
+                    v_var = 2*v + (pv - 1)
+                    not_u_var = 2*u + (1 - (pu - 1))  # flip: 2*u+1 if pu=1, 2*u if pu=2
+                    not_v_var = 2*v + (1 - (pv - 1))
+                    # p_u=pu -> p_v != pv
+                    imp_graph[u_var].append(not_v_var)
+                    rev_graph[not_v_var].append(u_var)
+                    # p_v=pv -> p_u != pu
+                    imp_graph[v_var].append(not_u_var)
+                    rev_graph[not_u_var].append(v_var)
+    
+    # Now solve 2-SAT using SCC
+    # Kosaraju's algorithm
+    order = []
+    visited = [False] * (2 * n)
+    
+    def dfs1(u):
+        visited[u] = True
+        for v in imp_graph[u]:
+            if not visited[v]:
+                dfs1(v)
+        order.append(u)
+    
+    for i in range(2 * n):
+        if not visited[i]:
+            dfs1(i)
+    
+    # Second DFS on reverse graph
+    visited = [False] * (2 * n)
+    scc_id = [-1] * (2 * n)
+    scc_count = 0
+    
+    def dfs2(u):
+        visited[u] = True
+        scc_id[u] = scc_count
+        for v in rev_graph[u]:
+            if not visited[v]:
+                dfs2(v)
+    
+    while order:
+        u = order.pop()
+        if not visited[u]:
+            dfs2(u)
+            scc_count += 1
+    
+    # Check if satisfiable
+    for i in range(n):
+        if scc_id[2*i] == scc_id[2*i + 1]:
             print("NO")
             return
     
+    # Assign values: if scc_id[2*i] > scc_id[2*i+1], then p_i = 1, else p_i = 2
+    # But actually, in Kosaraju, later finishing times correspond to source SCCs in reverse
+    # So if scc_id[2*i] > scc_id[2*i+1], then NOT(x_i) is in a later SCC, so x_i should be False
+    # Wait, let's think carefully.
+    # In the implication graph, if there's a path from x to y, then x being true forces y to be true
+    # SCC with higher index in the topological order of SCCs are "later"
+    # If NOT(x) is in a later SCC than x, then setting x=True doesn't force contradiction
+    # If x is in a later SCC than NOT(x), then x should be True
+    
+    assignment = [0] * n
+    for i in range(n):
+        if scc_id[2*i] > scc_id[2*i + 1]:
+            assignment[i] = 1  # p_i = 1
+        else:
+            assignment[i] = 2  # p_i = 2
+    
     print("YES")
-    # Convert back to 1-indexed values for output
-    result = [str(c) for c in color]
-    print(" ".join(result))
+    print(' '.join(map(str, assignment)))
 
-solve()
+if __name__ == "__main__":
+    main()

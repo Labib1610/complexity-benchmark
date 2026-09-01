@@ -1,0 +1,46 @@
+import sys
+from collections import defaultdict
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list
+    adj = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Color assignment: 0 means uncolored, 1, 2, 3 are the colors
+    color = [0] * (n + 1)
+    
+    # Try to 3-color the graph using backtracking with lex order
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        # Try colors 1, 2, 3 in order for lexicographically smallest
+        for c in range(1, 4):
+            # Check if this color is valid for current node
+            valid = True
+            for neighbor in adj[node]:
+                if color[neighbor] == c:
+                    valid = False
+                    break
+            
+            if valid:
+                color[node] = c
+                if backtrack(node + 1):
+                    return True
+                color[node] = 0  # Backtrack
+                
+        return False
+    
+    # Start backtracking from node 1
+    if backtrack(1):
+        print("YES")
+        print(' '.join(map(str, color[1:])))
+    else:
+        print("NO")
+
+solve()

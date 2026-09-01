@@ -1,0 +1,48 @@
+import sys
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Sort neighbors for deterministic iteration order
+    for i in range(1, n + 1):
+        adj[i] = sorted(adj[i])
+    
+    # Iterate a in increasing order
+    for a in range(1, n + 1):
+        # Iterate b in increasing order, b > a
+        for b in adj[a]:
+            if b <= a:
+                continue
+            # Iterate c in increasing order, c > b
+            for c in adj[a]:
+                if c <= b:
+                    continue
+                # Check if b and c are connected
+                # Binary search in adj[b] since it's sorted
+                neighbors_b = adj[b]
+                lo, hi = 0, len(neighbors_b)
+                while lo < hi:
+                    mid = (lo + hi) // 2
+                    if neighbors_b[mid] < c:
+                        lo = mid + 1
+                    else:
+                        hi = mid
+                if lo < len(neighbors_b) and neighbors_b[lo] == c:
+                    print(a, b, c)
+                    return
+
+if __name__ == "__main__":
+    solve()

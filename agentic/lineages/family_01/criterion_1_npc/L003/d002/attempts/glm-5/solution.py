@@ -1,0 +1,157 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [0] * n
+    for i in range(m):
+        u = int(input_data[2 + 2 * i]) - 1
+        v = int(input_data[3 + 2 * i]) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        
+    half = n // 2
+    other = n - half
+    
+    # Part 1: enumerate all valid colorings of the first half
+    valid_first = []
+    for mask in range(1 << half):
+        c1 = mask
+        c2 = mask << half
+        c3 = ((1 << half) - 1) ^ mask
+        
+        ok = True
+        for i in range(half):
+            if (c1 >> i) & 1:
+                if c1 & adj[i]:
+                    ok = False
+                    break
+            elif (c2 >> i) & 1:
+                if c2 & adj[i]:
+                    ok = False
+                    break
+            else:
+                if c3 & adj[i]:
+                    ok = False
+                    break
+        if ok:
+            valid_first.append((c1, c2))
+            
+    if not valid_first:
+        print("NO")
+        return
+        
+    # Part 2: enumerate all valid colorings of the second half
+    valid_second = []
+    for mask in range(1 << other):
+        c1 = mask
+        c2 = mask << other
+        c3 = ((1 << other) - 1) ^ mask
+        
+        ok = True
+        for i in range(other):
+            if (c1 >> i) & 1:
+                if c1 & adj[half + i]:
+                    ok = False
+                    break
+            elif (c2 >> i) & 1:
+                if c2 & adj[half + i]:
+                    ok = False
+                    break
+            else:
+                if c3 & adj[half + i]:
+                    ok = False
+                    break
+        if ok:
+            valid_second.append((c1, c2))
+            
+    if not valid_second:
+        print("NO")
+        return
+        
+    # Part 3: build lookup for second half
+    lookup = {}
+    for c1, c2 in valid_second:
+        key = (c1, c2)
+        if key not in lookup:
+            lookup[key] = (c1, c2)
+            
+    # Part 4: find the lexicographically smallest valid full assignment
+    best_c1 = -1
+    best_c2 = -1
+    best_c1_2 = -1
+    best_c2_2 = -1
+    
+    for c1, c2 in valid_first:
+        # cross-edges for color 1
+        cross1 = 0
+        for i in range(half):
+            if (c1 >> i) & 1:
+                cross1 |= adj[i] >> half
+                
+        # cross-edges for color 2
+        cross2 = 0
+        for i in range(half):
+            if (c2 >> i) & 1:
+                cross2 |= adj[i] >> half
+                
+        # for color 3, cross3 must be 0
+        cross3 = 0
+        for i in range(half):
+            if not ((c1 >> i) & 1) and not ((c2 >> i) & 1):
+                cross3 |= adj[i] >> half
+                
+        if cross3 != 0:
+            continue
+            
+        # we need c1_2 & cross1 == 0 and c2_2 & cross2 == 0
+        # iterate over submasks of ~cross1
+        forbidden1 = cross1
+        forbidden2 = cross2
+        
+        sub = ((1 << other) - 1) ^ forbidden1
+        m1 = sub
+        while True:
+            if (m1 & forbidden2) == 0:
+                key = (m1, m1)
+                if key in lookup:
+                    if m1 > best_c1_2 or (m1 == best_c1_2 and m1 > best_c2_2):
+                        best_c1 = c1
+                        best_c2 = c2
+                        best_c1_2 = m1
+                        best_c2_2 = m1
+            if m1 == 0:
+                break
+            m1 = (m1 - 1) & sub
+            
+    if best_c1 == -1:
+        print("NO")
+        return
+        
+    # Part 5: construct the answer
+    ans = [0] * n
+    for i in range(half):
+        if (best_c1 >> i) & 1:
+            ans[i] = 1
+        elif (best_c2 >> i) & 1:
+            ans[i] = 2
+        else:
+            ans[i] = 3
+            
+    for i in range(other):
+        if (best_c1_2 >> i) & 1:
+            ans[half + i] = 1
+        elif (best_c2_2 >> i) & 1:
+            ans[half + i] = 2
+        else:
+            ans[half + i] = 3
+            
+    print("YES")
+    print(" ".join(map(str, ans)))
+
+if __name__ == '__main__':
+    solve()

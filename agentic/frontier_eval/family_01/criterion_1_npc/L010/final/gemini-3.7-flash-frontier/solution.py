@@ -1,0 +1,189 @@
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    n = int(input_data[0])
+    m = int(input_data[1])
+    
+    adj = [[] for _ in range(n)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx]) - 1
+        v = int(input_data[idx+1]) - 1
+        idx += 2
+        if u != v:
+            adj[u].append(v)
+            adj[v].append(u)
+            
+    # Remove duplicate edges
+    for i in range(n):
+        adj[i] = list(set(adj[i]))
+
+    def solve_2sat(n_vars, clauses):
+        # 2-SAT solver using Kosaraju's algorithm
+        # Variable x in [0, n_vars-1]. Literal: 2*x for x, 2*x + 1 for ~x
+        V = 2 * n_vars
+        graph = [[] for _ in range(V)]
+        rgraph = [[] for _ in range(V)]
+        
+        for u, v in clauses:
+            # (u or v) <=> (~u -> v) and (~v -> u)
+            graph[u ^ 1].append(v)
+            graph[v ^ 1].append(u)
+            rgraph[v].append(u ^ 1)
+            rgraph[u].append(v ^ 1)
+            
+        order = []
+        visited = [False] * V
+        for i in range(V):
+            if not visited[i]:
+                stack = [(i, 0)]
+                visited[i] = True
+                while stack:
+                    curr, state = stack.pop()
+                    if state == 0:
+                        stack.append((curr, 1))
+                        for nxt in graph[curr]:
+                            if not visited[nxt]:
+                                visited[nxt] = True
+                                stack.append((nxt, 0))
+                    else:
+                        order.append(curr)
+                        
+        comp = [-1] * V
+        c_id = 0
+        for i in reversed(order):
+            if comp[i] == -1:
+                stack = [i]
+                comp[i] = c_id
+                while stack:
+                    curr = stack.pop()
+                    for nxt in rgraph[curr]:
+                        if comp[nxt] == -1:
+                            comp[nxt] = c_id
+                            stack.append(nxt)
+                c_id += 1
+                
+        for i in range(n_vars):
+            if comp[2 * i] == comp[2 * i + 1]:
+                return False
+        return True
+
+    def check_2sat(domains):
+        # Map each vertex with domain size 2 to a boolean variable
+        # If domain size 1: {a}, literal is fixed
+        clauses = []
+        var_map = [-1] * n
+        var_info = [] # (val_true, val_false)
+        n_vars = 0
+        for i in range(n):
+            d = domains[i]
+            if len(d) == 0:
+                return False
+            elif len(d) == 1:
+                var_map[i] = n_vars
+                val = next(iter(d))
+                var_info.append((val, val))
+                # x_i must be true: (x_i or x_i)
+                clauses.append((2 * n_vars, 2 * n_vars))
+                n_vars += 1
+            elif len(d) == 2:
+                var_map[i] = n_vars
+                elems = sorted(list(d))
+                var_info.append((elems[0], elems[1]))
+                n_vars += 1
+
+        for u in range(n):
+            for v in adj[u]:
+                if u < v:
+                    du = domains[u]
+                    dv = domains[v]
+                    common = du & dv
+                    for c in common:
+                        # u cannot be c AND v cannot be c
+                        # not (u == c and v == c) <=> (u != c or v != c)
+                        u_is_c = (2 * var_map[u]) if var_info[var_map[u]][0] == c else (2 * var_map[u] + 1)
+                        v_is_c = (2 * var_map[v]) if var_info[var_map[v]][0] == c else (2 * var_map[v] + 1)
+                        # clause: (~(u_is_c) or ~(v_is_c))
+                        clauses.append((u_is_c ^ 1, v_is_c ^ 1))
+
+        return solve_2sat(n_vars, clauses)
+
+    def is_colorable(domains):
+        # Unit propagation
+        domains = [set(d) for d in domains]
+        q = [i for i in range(n) if len(domains[i]) == 1]
+        head = 0
+        in_q = [False] * n
+        for i in q:
+            in_q[i] = True
+            
+        while head < len(q):
+            u = q[head]
+            head += 1
+            c = next(iter(domains[u]))
+            for v in adj[u]:
+                if c in domains[v]:
+                    domains[v].remove(c)
+                    if len(domains[v]) == 0:
+                        return False
+                    if len(domains[v]) == 1 and not in_q[v]:
+                        in_q[v] = True
+                        q.append(v)
+                        
+        # Check if all domains are <= 2
+        deg3 = [i for i in range(n) if len(domains[i]) == 3]
+        if not deg3:
+            return check_2sat(domains)
+            
+        # Branch on vertex with domain size 3 with highest degree
+        best_v = max(deg3, key=lambda x: len(adj[x]))
+        for c in (1, 2, 3):
+            next_domains = [set(d) for d in domains]
+            next_domains[best_v] = {c}
+            if is_colorable(next_domains):
+                return True
+        return False
+
+    initial_domains = [{1, 2, 3} for _ in range(n)]
+    if not is_colorable(initial_domains):
+        print("NO")
+        return
+
+    # Find lexicographically smallest assignment
+    ans = [0] * n
+    current_domains = [{1, 2, 3} for _ in range(n)]
+    
+    for i in range(n):
+        for c in (1, 2, 3):
+            if c not in current_domains[i]:
+                continue
+            test_domains = [set(d) for d in current_domains]
+            test_domains[i] = {c}
+            if is_colorable(test_domains):
+                ans[i] = c
+                # Commit this choice
+                current_domains[i] = {c}
+                # Propagate commitment
+                q = [i]
+                while q:
+                    u = q.pop()
+                    color_u = next(iter(current_domains[u]))
+                    for v in adj[u]:
+                        if color_u in current_domains[v]:
+                            current_domains[v].remove(color_u)
+                            if len(current_domains[v]) == 1:
+                                q.append(v)
+                break
+
+    print("YES")
+    print(*(ans[i] for i in range(n)))
+
+if __name__ == '__main__':
+    solve()

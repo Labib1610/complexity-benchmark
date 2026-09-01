@@ -1,0 +1,51 @@
+# Problem A — Resonant Frequencies
+
+Time limit: 2 s   Memory limit: 256 MB
+
+You are finalizing the architectural plans for a large pavilion supported by $n$ load-bearing pillars. The pillars are sequentially numbered from 1 to $n$. For each pillar, you must specify a material density grade. There are exactly three allowed density grades, represented by the values 1, 2, and 3.
+
+To provide horizontal stability, the design includes $m$ rigid cross-beams. Each cross-beam connects two specific pillars. However, wind tunnel testing has revealed a critical flaw: if any two pillars connected by a cross-beam are constructed using the exact same density grade, they will share the same resonant frequency. Under high winds, this resonance will amplify and shatter the cross-beam. Therefore, the two pillars connected by any cross-beam must always be built with differing density grades.
+
+You must determine a safe density grade assignment for all $n$ pillars. If there are several safe ways to assign the grades, you must prefer the configuration that assigns the lowest possible grade to pillar 1. If ties remain, you must break them by minimizing the grade assigned to pillar 2, continuing this element-by-element comparison up to pillar $n$. If no such configuration is possible, you must report this failure.
+
+Be aware that the structural constraints can be highly deceptive. In many cases, a very large number of partial grade assignments that successfully avoid resonance among the first several pillars will ultimately fail due to geometric restrictions appearing only at the final few pillars.
+
+## Input
+The first line provides $n$ and $m$ — the number of pillars and the number of cross-beams ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that a rigid cross-beam connects pillar $u$ and pillar $v$.
+
+## Output
+If the structure cannot be stabilized, output a single line with the word NO.
+Otherwise, output YES on the first line. On the second line, output $n$ integers separated by spaces, where each integer is 1, 2, or 3, representing the density grades assigned to pillars 1 through $n$ respectively, following the tie-breaking rules described above.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

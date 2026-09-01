@@ -1,0 +1,69 @@
+import sys
+from collections import defaultdict
+
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    
+    n = int(data[0])
+    m = int(data[1])
+    
+    index = 2
+    edges = []
+    adj = [set() for _ in range(n + 1)]
+    
+    for _ in range(m):
+        u = int(data[index])
+        v = int(data[index + 1])
+        index += 2
+        edges.append((u, v))
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # We need to find a triangle in the complement graph.
+    # That is, we need to find three nodes u<v<w such that 
+    # none of (u,v), (u,w), (v,w) are edges in the original graph.
+    # But since we're looking for a contradiction in assignments,
+    # it's actually the opposite: we want three nodes where ALL 
+    # three edges exist (a triangle in the original graph).
+    # No, let's re-read the problem carefully.
+    
+    # The problem says: find three sensors such that no matter how you assign them
+    # to two frequency bands, at least one pair sharing an interlock ends up in the same band.
+    
+    # This means: for three sensors a,b,c, if all three pairs (a,b), (a,c), (b,c) 
+    # are connected by interlocks, then no valid assignment exists for these three.
+    # Because if you try to 2-color them, you'll have a triangle (which is not bipartite),
+    # so it's impossible to color them such that no adjacent pair has the same color.
+    
+    # So we need to find a triangle in the original graph.
+    
+    # Let's build adjacency list and check for triangles.
+    # For efficiency, we can iterate over all triplets (i,j,k) with i<j<k
+    # and check if all edges (i,j), (i,k), (j,k) exist.
+    
+    # To make it faster, we can represent the graph as a set of edges.
+    edge_set = set()
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+        edge_set.add((u, v))
+    
+    # Now iterate through all combinations of 3 nodes
+    found = False
+    for i in range(1, n + 1):
+        if found:
+            break
+        for j in range(i + 1, n + 1):
+            if found:
+                break
+            for k in range(j + 1, n + 1):
+                # Check if all three edges exist
+                if (i, j) in edge_set and (i, k) in edge_set and (j, k) in edge_set:
+                    print(i, j, k)
+                    found = True
+                    break
+
+if __name__ == "__main__":
+    main()

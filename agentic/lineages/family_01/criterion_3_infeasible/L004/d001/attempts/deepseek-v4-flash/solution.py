@@ -1,59 +1,24 @@
 import sys
-import threading
 
-def main():
-    import sys
-    sys.setrecursionlimit(1 << 20)
+def solve():
     input = sys.stdin.readline
-
     n, m = map(int, input().split())
     adj = [set() for _ in range(n + 1)]
-    edges = []
     for _ in range(m):
         u, v = map(int, input().split())
+        if u > v:
+            u, v = v, u
         adj[u].add(v)
-        adj[v].add(u)
-        edges.append((u, v))
-
-    # For each edge (u, v), find a common neighbor w such that u < v < w or any order
-    # We need to find a triangle. Since n <= 2000, we can do BFS/DFS per node.
-    # But we need lexicographically smallest triangle.
-    # Approach: iterate over all triples (a, b, c) in sorted order and check.
-    # n=2000, n^3 too big. But we can do:
-    # For each node a from 1 to n:
-    #   For each neighbor b > a:
-    #       For each neighbor c > b:
-    #           if c in adj[a] and c in adj[b]: found
-    # This is O(n^3) worst-case, but with early exit and n=2000, it's 8e9 too big.
-    # Need better.
-
-    # Since m <= 2e5, graph is sparse. Use adjacency matrix bitset.
-    # But n=2000, n^2/64 ~ 62500, fine.
-    # Use bitset as integer for each node.
-    bits = [0] * (n + 1)
-    for u, v in edges:
-        bits[u] |= (1 << (v - 1))
-        bits[v] |= (1 << (u - 1))
-
-    # Iterate over all pairs (a, b) and check common neighbor
+    
     for a in range(1, n + 1):
-        for b in range(a + 1, n + 1):
-            if not (bits[a] >> (b - 1)) & 1:
+        for b in sorted(adj[a]):
+            if b <= a:
                 continue
-            common = bits[a] & bits[b]
-            if common:
-                # find smallest c > b
-                c = (common >> b) << b
-                if c == 0:
-                    continue
-                # get lowest set bit
-                c = (c & -c).bit_length()  # this is wrong, need index
-                # Actually, let's just find the smallest c > b
-                # We'll do a loop
-                for c in range(b + 1, n + 1):
-                    if (common >> (c - 1)) & 1:
-                        print(a, b, c)
-                        return
+            common = adj[a] & adj[b]
+            for c in sorted(common):
+                if c > b:
+                    print(a, b, c)
+                    return
 
 if __name__ == "__main__":
-    main()
+    solve()

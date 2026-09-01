@@ -1,41 +1,72 @@
 import sys
 from collections import defaultdict, deque
 
-def solve():
-    n, m = map(int, input().split())
+def main():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
     
-    # Build adjacency list
-    adj = defaultdict(list)
+    n = int(data[0])
+    m = int(data[1])
+    
+    if m == 0:
+        print("YES")
+        print(" ".join(["1"] * n))
+        return
+    
+    edges = []
+    graph = defaultdict(list)
+    index = 2
     for _ in range(m):
-        u, v = map(int, input().split())
-        adj[u].append(v)
-        adj[v].append(u)
+        u = int(data[index]) - 1
+        v = int(data[index+1]) - 1
+        edges.append((u, v))
+        graph[u].append(v)
+        graph[v].append(u)
+        index += 2
     
-    # Color array: 0 = unvisited, 1 = color 1, 2 = color 2
-    color = [0] * (n + 1)
+    # We need s_u & s_v = 0
+    # Modes are 1 and 2
+    # 1 & 1 = 1 != 0
+    # 1 & 2 = 0
+    # 2 & 2 = 2 != 0
+    # So, adjacent nodes must have different values: one 1 and one 2
+    # This is a bipartite graph check
     
-    # Check if bipartite using BFS
-    for start in range(1, n + 1):
-        if color[start] == 0:
-            queue = deque([start])
-            color[start] = 1
+    color = [-1] * n  # -1: unvisited, 0: color A, 1: color B
+    
+    for start in range(n):
+        if color[start] == -1:
+            queue = deque()
+            queue.append(start)
+            color[start] = 0  # Assign first color
             
             while queue:
                 node = queue.popleft()
+                current_color = color[node]
                 
-                for neighbor in adj[node]:
-                    if color[neighbor] == 0:
-                        color[neighbor] = 3 - color[node]  # Flip color (1->2, 2->1)
+                for neighbor in graph[node]:
+                    if color[neighbor] == -1:
+                        color[neighbor] = 1 - current_color
                         queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
+                    elif color[neighbor] == current_color:
                         print("NO")
                         return
     
-    # If we reach here, a valid assignment exists
-    print("YES")
+    # It's bipartite. Now we need to assign 1 and 2 to the two color classes
+    # For lex smallest, we prefer s_i = 1 if possible
+    # Color 0 -> 1
+    # Color 1 -> 2
+    
     result = []
-    for i in range(1, n + 1):
-        result.append(str(color[i]))
+    for i in range(n):
+        if color[i] == 0:
+            result.append("1")
+        else:
+            result.append("2")
+    
+    print("YES")
     print(" ".join(result))
 
-solve()
+if __name__ == "__main__":
+    main()

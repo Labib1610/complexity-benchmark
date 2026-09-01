@@ -12,17 +12,16 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n  # -1 uncolored, 0 for code 1, 1 for code 2
+color = [-1] * n
 
 def bfs(start):
-    # try color 0 (code 1) first
     q = deque([start])
     color[start] = 0
     while q:
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = 1 - color[u]
+                color[v] = color[u] ^ 1
                 q.append(v)
             elif color[v] == color[u]:
                 return False
@@ -34,5 +33,7 @@ for i in range(n):
             print("NO")
             sys.exit()
 
+# Convert 0 -> 1, 1 -> 2
+res = [1 if c == 0 else 2 for c in color]
 print("YES")
-print(' '.join(str(c + 1) for c in color))
+print(" ".join(map(str, res)))

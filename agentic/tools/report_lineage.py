@@ -145,11 +145,13 @@ def main():
             by_crit[lj["criterion"]].append(lj)
 
         # ---- survival curves (Change 1 raw metric + Change 3 per-tier) --------
-        print("\n== Survival curves (avg # students still passing at each depth) ==")
-        print("   raw    = every student, ignoring retirement (the scientific metric)")
-        print("   steer  = active, non-retired steering pool (declines by construction)")
-        print("   a+c    = passing anchor AND corner (does statement hardening work?)")
-        print("   scaled = passing the scaled tier (does instance hardness bite?)")
+        print("\n== Survival curves (avg # students at each depth) ==")
+        print("   raw     = every student still CORRECT, ignoring retirement "
+              "(file 52: the PRIMARY correctness metric)")
+        print("   defeat  = students DEFEATED (WRONG_ANSWER/RUNTIME_ERROR) -- the hardening signal")
+        print("   steer   = active, non-retired steering pool (declines by construction)")
+        print("   a+c     = passing anchor AND corner (does statement hardening work?)")
+        print("   scaled  = passing the scaled tier -- file 52: now a TIMING measure, not difficulty")
         for crit, ljs in sorted(by_crit.items()):
             print(f"\n  [{crit}]")
 
@@ -163,6 +165,15 @@ def main():
                 if not v:
                     return None                  # unmeasured depth -> skip
                 return sum(1 for x in v.values() if x == "PASS")
+
+            def defeat_count(e):
+                # file 52 change 1: students defeated on correctness (WRONG_ANSWER/RUNTIME_ERROR)
+                if e.get("raw_defeated") is not None:
+                    return len(e["raw_defeated"])
+                v = e.get("verdicts")
+                if not v:
+                    return None
+                return sum(1 for x in v.values() if x in ("WRONG_ANSWER", "RUNTIME_ERROR"))
 
             def steer_count(e):
                 # steering pool = non-retired students that PASSED (not pool size)
@@ -183,7 +194,8 @@ def main():
                     return None
                 return sum(1 for s in sids if _tier_pass(_tier(e, s, "scaled")))
 
-            for label, fn in [("raw   ", raw_count), ("steer ", steer_count),
+            for label, fn in [("raw   ", raw_count), ("defeat", defeat_count),
+                              ("steer ", steer_count),
                               ("a+c   ", ac_count), ("scaled", scaled_count)]:
                 curve = _curve(ljs, fn)
                 print(f"    {label} {'  '.join(curve)}" if curve

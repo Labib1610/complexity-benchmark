@@ -12,59 +12,76 @@ for _ in range(m):
     adj[u].append(v)
     adj[v].append(u)
 
-color = [-1] * n
-possible = True
+color = [-1] * n  # 0 -> level 1, 1 -> level 2
+
+def bfs(start):
+    q = deque([start])
+    color[start] = 0
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = color[u] ^ 1
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
 
 for i in range(n):
     if color[i] == -1:
-        color[i] = 0
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Now we have a valid bipartition, but we need lexicographically smallest.
+# We'll re-run with greedy assignment: try 1 (0) first, if conflict, use 2 (1).
+color = [-1] * n
+
+def bfs_greedy(start):
+    q = deque([start])
+    # Try assigning level 1 (0) to start
+    color[start] = 0
+    q.append(start)
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = color[u] ^ 1
+                q.append(v)
+            elif color[v] == color[u]:
+                return False
+    return True
+
+for i in range(n):
+    if color[i] == -1:
+        # Try with 0 first
+        temp_color = color[:]
+        temp_color[i] = 0
         q = deque([i])
+        ok = True
         while q:
             u = q.popleft()
             for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = color[u] ^ 1
+                if temp_color[v] == -1:
+                    temp_color[v] = temp_color[u] ^ 1
                     q.append(v)
-                elif color[v] == color[u]:
-                    possible = False
+                elif temp_color[v] == temp_color[u]:
+                    ok = False
                     break
-            if not possible:
+            if not ok:
                 break
-    if not possible:
-        break
-
-if not possible:
-    print("NO")
-else:
-    # Now we have a valid bipartite coloring.
-    # To get lexicographically smallest, we want color 0 -> coordinate 1, color 1 -> coordinate 2.
-    # But we can flip colors per component to favor smaller indices.
-    # We'll do BFS/DFS again, but for each component, decide starting color based on smallest index.
-    visited = [False] * n
-    res = [0] * n
-    for i in range(n):
-        if not visited[i]:
-            # BFS to collect component
-            comp = []
+        if ok:
+            color = temp_color
+        else:
+            # Must assign 1 (level 2)
+            color[i] = 1
             q = deque([i])
-            visited[i] = True
             while q:
                 u = q.popleft()
-                comp.append(u)
                 for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
+                    if color[v] == -1:
+                        color[v] = color[u] ^ 1
                         q.append(v)
-            # Decide starting color: smallest index in comp should be 0 (coordinate 1)
-            start_color = 0
-            # We'll assign colors relative to start node
-            # color[i] already has a bipartite coloring; we can flip if needed
-            # If color[comp[0]] != start_color, flip all in comp
-            if color[comp[0]] != start_color:
-                for u in comp:
-                    color[u] ^= 1
-            for u in comp:
-                res[u] = color[u] + 1  # 0->1, 1->2
 
-    print("YES")
-    print(" ".join(map(str, res)))
+print("YES")
+print(" ".join(str(c + 1) for c in color))

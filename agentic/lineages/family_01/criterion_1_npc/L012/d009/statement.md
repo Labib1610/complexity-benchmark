@@ -1,0 +1,52 @@
+# Problem A — Risk Audit
+
+Time limit: 2 s
+Memory limit: 256 MB
+
+You are conducting a regulatory review on a sequential ledger of financial operations. The ledger consists of a total of $n$ operations, numbered sequentially from $1$ up to $n$. Your task is to classify each operation $i$ by assigning it a security level $c_i$. The allowable security levels are restricted to exactly the first three positive integers.
+
+The audit data includes $m$ regulatory constraints between specific pairs of operations. To maintain strict compliance, no two operations connected by a constraint can share the same security level. In other words, for any constrained pair of operations, the set containing their assigned security levels must have a cardinality of exactly two. A violation of this condition constitutes an immediate audit failure.
+
+You must find a fully compliant security level classification for all $n$ operations. Should multiple valid classifications exist, regulations dictate that you must provide the one that is lexicographically smallest. Specifically, a classification sequence $A = (a_1, a_2, \dots, a_n)$ is considered lexicographically smaller than sequence $B = (b_1, b_2, \dots, b_n)$ if there exists an index $k$ ($1 \le k \le n$) such that $a_k < b_k$, and for all $i < k$, $a_i = b_i$.
+
+If it is impossible to classify all operations without violating at least one constraint, you must declare the audit impossible.
+
+## Input
+The first line contains two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$) — representing the total number of operations and the number of regulatory constraints, respectively.
+Following this, there are $m$ lines. Each line provides two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), which indicates a regulatory constraint between operation $u$ and operation $v$.
+
+## Output
+If no compliant classification can be formed, output exactly one line containing the word `NO`.
+If a valid classification exists, output `YES` on the first line. On the second line, output $n$ space-separated integers from the set $\{1, 2, 3\}$, representing the security levels assigned to operations $1$ through $n$ in the lexicographically smallest valid classification.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

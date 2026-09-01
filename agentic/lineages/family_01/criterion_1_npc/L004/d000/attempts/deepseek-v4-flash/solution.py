@@ -31,7 +31,7 @@ def solve():
 
     if backtrack(0):
         print("YES")
-        print(" ".join(str(x) for x in color))
+        print(" ".join(map(str, color)))
     else:
         print("NO")
 

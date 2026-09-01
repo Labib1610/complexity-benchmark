@@ -1,21 +1,21 @@
-# Problem C — Altitude Plan Rejection
+# Problem C — Mechanical Jam
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A logistics company manages $n$ delivery drones, labeled 1 through $n$. The safety system has flagged $m$ specific pairs of drones that will cross paths during their routes. If two drones cross paths, they cannot be assigned to the same cruising altitude. It is guaranteed that the flight data contains at least one trio of drones where all three mutually cross paths—meaning every drone in the trio crosses paths with both of the other two.
+A clockwork mechanism consists of $n$ cogs, numbered 1 through $n$. The design specifies $m$ points of engagement, where the teeth of two specific cogs mesh together. Whenever two cogs mesh, they are forced to rotate in opposite directions.
 
-The operations team initially proposed restricting the entire fleet to exactly two cruising altitudes. However, this proposal is fundamentally unworkable. Because of the existence of such a trio, no two-altitude system can possibly accommodate them without forcing two path-crossing drones to fly at the same altitude.
+The designers intended for the entire mechanism to rotate continuously. However, the prototype is completely seized. An inspection reveals a fatal structural flaw: there exists at least one set of three cogs in which every cog meshes directly with the other two. In such a configuration, rotation is physically impossible, as each cog in the set would be forced to rotate in two conflicting directions simultaneously to accommodate its two meshed partners.
 
-To finalize the rejection of the two-altitude proposal, you must provide a formal certificate of its failure. Your task is to identify one of these mutually path-crossing trios.
+To authorize a redesign, the lead engineer requires a formal defect report identifying one of these jammed configurations. Your task is to find a set of three cogs that all mutually mesh with one another.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing that drone $u$ and drone $v$ cross paths. Each path-crossing pair is listed at most once.
-It is guaranteed that at least one mutually path-crossing trio exists.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), representing that cog $u$ and cog $v$ mesh together. Each meshing pair is listed at most once.
+It is guaranteed that at least one set of three mutually meshing cogs exists.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the labels of three drones that form a mutually path-crossing trio. The labels must be printed in ascending order ($a < b < c$).
-If there are multiple such trios, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
+Print three integers $a$, $b$, and $c$ on a single line, separated by spaces, representing the IDs of three cogs that form a jammed set. The IDs must be printed in ascending order ($a < b < c$).
+If there are multiple such sets, you must output the one that is lexicographically smallest. That is, minimize $a$; if there is a tie, minimize $b$; and if there is still a tie, minimize $c$.
 
 ## Example 1
 Input:

@@ -1,21 +1,25 @@
-# Problem C — Signature Blend
+# Problem C — Cargo Prohibition Protocol
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You are developing a new fragrance using a library of $n$ distinct aromatic extracts. Due to chemical interactions, only specific pairs of extracts blend stably without degrading each other's scent profile. You have a laboratory report detailing $m$ such stable pairs.
+A logistics firm operates a shipping route for hazardous materials. Certain pairs of these materials are highly reactive and are strictly prohibited from sharing a vessel.
 
-You need to formulate a core accord. This accord must consist of exactly three distinct extracts. To ensure the fragrance does not separate over time, a stable blend must be possible between every pair of those three extracts. Therefore, a set of three extracts can only form the core accord if all three possible pairings among them are listed as stable in your laboratory report.
+The proposed loading schedule is structurally impossible to fulfill. You must produce a definitive proof of this impossibility to trigger an automatic schedule rejection.
 
-Find a set of three extracts that can form the core accord.
+To establish this proof, you are required to isolate a "deadlock" configuration of exactly three distinct materials. A configuration of three materials is a deadlock if and only if it satisfies both of the following conditions:
+1. At least one pair of materials within the configuration is prohibited from sharing a vessel.
+2. For any two materials chosen from the configuration, they must have the exact same prohibition status with respect to the remaining third material in the configuration. That is, either both are prohibited from sharing a vessel with the third material, or neither is.
+
+Because the automated auditing system requires deterministic reporting, it will not accept an arbitrary deadlock configuration. The system demands the canonical proof, meaning you must systematically ensure no earlier configuration could have been reported.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of extracts and the number of stable extract pairs. Extracts are numbered from $1$ to $n$.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that extract $u$ and extract $v$ form a stable pair.
-It is guaranteed that the input contains at least one valid set of three extracts for the accord.
+The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), indicating the number of hazardous materials and the number of prohibited pairs. The materials are identified by integers from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) — a pair of materials that are prohibited from sharing a vessel. 
+It is guaranteed that the input contains at least one deadlock configuration of three materials.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the IDs of the three extracts.
-If there are multiple valid sets of three extracts, output the one that is lexicographically smallest (i.e., smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Output a single line containing three integers $a$, $b$, and $c$ ($a < b < c$), representing the identifiers of the materials in the deadlock configuration.
+To satisfy the deterministic auditing system, if more than one such configuration exists, you must output the lexicographically earliest one among all valid configurations. This means you must minimize $a$; if there is a tie, minimize $b$; and if still tied, minimize $c$.
 
 ## Example 1
 Input:

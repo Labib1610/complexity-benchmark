@@ -2,29 +2,35 @@ import sys
 
 def solve():
     data = sys.stdin.read().split()
-    if not data:
-        return
     it = iter(data)
     n = int(next(it))
     m = int(next(it))
     
-    adj = [set() for _ in range(n + 1)]
+    adj = [[] for _ in range(n + 1)]
+    bits = [0] * (n + 1)
     
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
-        adj[u].add(v)
-        adj[v].add(u)
+        adj[u].append(v)
+        adj[v].append(u)
+        bits[u] |= 1 << v
+        bits[v] |= 1 << u
     
-    # Iterate through all possible triples in lexicographical order
-    for a in range(1, n - 1):
-        for b in range(a + 1, n):
-            if b not in adj[a]:
+    for i in range(1, n + 1):
+        adj[i].sort()
+    
+    for a in range(1, n + 1):
+        na = adj[a]
+        k = len(na)
+        for i in range(k):
+            b = na[i]
+            if b <= a:
                 continue
-            for c in range(b + 1, n + 1):
-                if c in adj[a] and c in adj[b]:
+            for j in range(i + 1, k):
+                c = na[j]
+                if bits[b] & (1 << c):
                     print(a, b, c)
                     return
 
-if __name__ == "__main__":
-    solve()
+solve()

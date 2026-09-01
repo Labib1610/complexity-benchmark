@@ -1,116 +1,188 @@
 import sys
 
 def solve():
-    data = sys.stdin.read().strip().split()
+    data = sys.stdin.read().split()
     if not data:
         return
-    it = iter(data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [[] for _ in range(n)]
+    n = int(data[0])
+    m = int(data[1])
+    adj = [0] * n
+    idx = 2
     for _ in range(m):
-        u = int(next(it)) - 1
-        v = int(next(it)) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    # We use backtracking with constraint propagation.
-    # assignment[i] = 0, 1, or 2 (representing hoppers 1, 2, 3)
-    # -1 means unassigned.
-    assignment = [-1] * n
-    
-    # To find the lexicographically smallest assignment, we try to place
-    # ingredient i into hopper 0, then 1, then 2.
-    # We need to check if a partial assignment can be extended to a full valid 3-coloring.
-    
-    # We use a simple propagation check: for any unassigned node, if it has neighbors
-    # in two different hoppers, its hopper is determined. If neighbors in 3 hoppers, fail.
-    # We iterate this until no changes. This is a form of forward checking.
-    
-    def is_possible():
-        # Check if current partial assignment can be extended
-        # We use a queue for propagation
-        # We need to track which nodes are resolved (forced into a specific hopper)
-        # and check for contradictions.
-        
-        # Make copies to not modify the main state during the check
-        # However, since we call this inside the recursive step, we can work on a copy
-        # or just use the current assignment and propagate.
-        # Let's use a local dictionary or list for determined values.
-        
-        current_val = list(assignment)
-        queue = []
-        in_queue = [False] * n
-        
-        # Initialize queue with already assigned nodes
-        for i in range(n):
-            if current_val[i] != -1:
-                queue.append(i)
-                in_queue[i] = True
-        
-        head = 0
-        while head < len(queue):
-            u = queue[head]
-            head += 1
-            u_color = current_val[u]
-            
-            for v in adj[u]:
-                if current_val[v] == u_color:
-                    return False # Conflict
-                if current_val[v] == -1:
-                    # Check if v is forced
-                    # Collect colors of assigned neighbors
-                    forbidden = {current_val[nb] for nb in adj[v] if current_val[nb] != -1}
-                    if len(forbidden) == 3:
-                        return False
-                    if len(forbidden) == 2:
-                        # Only one color left
-                        remaining = ({0, 1, 2} - forbidden).pop()
-                        current_val[v] = remaining
-                        if not in_queue[v]:
-                            queue.append(v)
-                            in_queue[v] = True
-        
-        return True
+        u = int(data[idx]) - 1
+        v = int(data[idx+1]) - 1
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
 
-    found = False
-    result = []
+    # Precompute connected components
+    comp_id = [-1] * n
+    comp_nodes = []
+    for i in range(n):
+        if comp_id[i] == -1:
+            comp = []
+            stack = [i]
+            comp_id[i] = len(comp_nodes)
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                nb = adj[u]
+                while nb:
+                    b = nb & -nb
+                    v = b.bit_length() - 1
+                    if comp_id[v] == -1:
+                        comp_id[v] = len(comp_nodes)
+                        stack.append(v)
+                    nb ^= b
+            comp_nodes.append(comp)
 
-    def backtrack(idx):
-        nonlocal found, result
-        if found:
+    # For each component, precompute masks of neighbors within the component
+    comp_count = len(comp_nodes)
+    comp_adj = []
+    for comp in comp_nodes:
+        local_adj = []
+        for u in comp:
+            mask = 0
+            nb = adj[u]
+            while nb:
+                b = nb & -nb
+                v = b.bit_length() - 1
+                mask |= 1 << comp.index(v)
+                nb ^= b
+            local_adj.append(mask)
+        comp_adj.append(local_adj)
+
+    # For each component, find all valid 3-colorings
+    comp_colorings = []
+    for c in range(comp_count):
+        nodes = comp_nodes[c]
+        size = len(nodes)
+        local_adj = comp_adj[c]
+        colorings = []
+        def dfs(pos, c1, c2, c3, coloring):
+            if pos == size:
+                colorings.append(coloring)
+                return
+            u = nodes[pos]
+            mask = local_adj[pos]
+            avail = 7 & ~(c1 | c2 | c3)
+            while avail:
+                b = avail & -avail
+                color = 0
+                if b == 1:
+                    color = 1
+                elif b == 2:
+                    color = 2
+                else:
+                    color = 3
+                nc1, nc2, nc3 = c1, c2, c3
+                if color == 1:
+                    nc1 |= mask
+                elif color == 2:
+                    nc2 |= mask
+                else:
+                    nc3 |= mask
+                dfs(pos + 1, nc1, nc2, nc3, coloring * 4 + color)
+                avail ^= b
+        dfs(0, 0, 0, 0, 0)
+        if not colorings:
+            print("NO")
             return
-        
-        if idx == n:
-            found = True
-            result = [x + 1 for x in assignment] # Convert 0,1,2 to 1,2,3
-            return
-        
-        # Try assigning ingredient idx to hopper 0, 1, 2
-        for color in range(3):
-            # Check basic constraint: no neighbor has this color
-            valid = True
-            for neighbor in adj[idx]:
-                if assignment[neighbor] == color:
-                    valid = False
-                    break
-            
-            if valid:
-                assignment[idx] = color
-                if is_possible():
-                    backtrack(idx + 1)
-                    if found:
-                        return
-                assignment[idx] = -1 # Backtrack
+        comp_colorings.append(colorings)
 
-    backtrack(0)
+    # DP over components to find lexicographically smallest assignment
+    # State: (mask1, mask2, mask3) where maskX is set of nodes in component 0..c-1 colored X
+    # We need to track the actual coloring, but that's too much memory.
+    # Instead, we do DP and backtrack.
     
-    if found:
-        print("YES")
-        print(*(result))
-    else:
-        print("NO")
+    # Since n <= 40, we can use bitmasks for the full assignment.
+    # But the number of states could be large. Let's think differently.
+    
+    # Actually, we can do a greedy approach with backtracking for lexicographically smallest.
+    # But that might be slow. Let's try DP with path reconstruction.
+    
+    # Alternative: Since we want lexicographically smallest, we can try to assign colors
+    # one by one from ingredient 1 to n, checking if a valid completion exists.
+    
+    # For checking if a valid completion exists, we can use the component colorings.
+    # For each component, we have a list of valid colorings (as integers).
+    # We need to pick one coloring per component such that the combined assignment is valid.
+    # But components are independent! So we can just pick any valid coloring for each component.
+    # Wait, that's true - components are independent, so any combination works.
+    
+    # So for lexicographically smallest, we process ingredients 1..n in order.
+    # For each ingredient, we try colors 1, 2, 3 and check if there's a valid completion.
+    # A valid completion exists if for the component containing this ingredient,
+    # there's a valid coloring consistent with all fixed assignments so far,
+    # and for all other components, there's at least one valid coloring.
+    
+    # Since all components have at least one valid coloring (checked above),
+    # we only need to check the component of the current ingredient.
+    
+    # But we need to be careful: fixing colors in a component constrains future choices.
+    
+    # Let's just do backtracking with pruning for lexicographically smallest.
+    # Since n <= 40 and 3 colors, but with graph coloring constraints, it should be manageable
+    # with the component decomposition.
+    
+    # Actually, let's just do a simple backtracking with the component colorings.
+    # We process ingredients in order 1..n. For each, we try colors 1, 2, 3.
+    # We maintain for each component which colorings are still possible.
+    
+    # This should work efficiently.
+    
+    assignment = [0] * n
+    # For each component, maintain list of valid coloring indices
+    valid = [list(range(len(comp_colorings[c]))) for c in range(comp_count)]
+    
+    for i in range(n):
+        c = comp_id[i]
+        pos_in_comp = comp_nodes[c].index(i)
+        found = False
+        for color in [1, 2, 3]:
+            new_valid_c = []
+            for ci in valid[c]:
+                coloring = comp_colorings[c][ci]
+                # Extract color at pos_in_comp
+                col = (coloring >> (4 * (len(comp_nodes[c]) - 1 - pos_in_comp))) & 3
+                # Actually, let's store colorings differently for easier access
+                pass
+            # Let me restructure
+        break
+    
+    # Let me use a cleaner approach
+    # Store colorings as tuples
+    comp_colorings_tuples = []
+    for c in range(comp_count):
+        nodes = comp_nodes[c]
+        size = len(nodes)
+        tuples = []
+        for coloring_int in comp_colorings[c]:
+            coloring = []
+            val = coloring_int
+            for _ in range(size):
+                coloring.append(val & 3)
+                val >>= 4
+            tuples.append(tuple(coloring))
+        comp_colorings_tuples.append(tuples)
+    
+    assignment = [0] * n
+    valid = [list(range(len(comp_colorings_tuples[c]))) for c in range(comp_count)]
+    
+    for i in range(n):
+        c = comp_id[i]
+        pos_in_comp = comp_nodes[c].index(i)
+        for color in [1, 2, 3]:
+            new_valid_c = [ci for ci in valid[c] if comp_colorings_tuples[c][ci][pos_in_comp] == color]
+            if new_valid_c:
+                assignment[i] = color
+                valid[c] = new_valid_c
+                break
+        else:
+            print("NO")
+            return
+    
+    print("YES")
+    print(" ".join(map(str, assignment)))
 
-if __name__ == '__main__':
-    solve()
+solve()

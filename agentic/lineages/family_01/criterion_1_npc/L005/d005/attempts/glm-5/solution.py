@@ -1,0 +1,73 @@
+import sys
+
+# We need to find p_i in {1, 2, 3} for all i in 1..n such that for every edge (u, v),
+# (p_u + p_v) does NOT divide (p_u^2 + p_v^2).
+#
+# Let's analyze the condition (p_u + p_v) | (p_u^2 + p_v^2).
+# Let S = p_u + p_v. We check if S divides p_u^2 + p_v^2.
+# Note that p_u^2 + p_v^2 = (p_u + p_v)^2 - 2*p_u*p_v = S^2 - 2*p_u*p_v.
+# So S divides p_u^2 + p_v^2 if and only if S divides 2*p_u*p_v.
+# Since S = p_u + p_v, this is equivalent to (p_u + p_v) | 2*p_u*p_v.
+#
+# Let's check all pairs (a, b) with a, b in {1, 2, 3}:
+# (1, 1): S=2. 2*p_u*p_v = 2. 2 divides 2. BAD.
+# (1, 2): S=3. 2*p_u*p_v = 4. 3 does not divide 4. OK.
+# (1, 3): S=4. 2*p_u*p_v = 6. 4 does not divide 6. OK.
+# (2, 2): S=4. 2*p_u*p_v = 8. 4 divides 8. BAD.
+# (2, 3): S=5. 2*p_u*p_v = 12. 5 does not divide 12. OK.
+# (3, 3): S=6. 2*p_u*p_v = 18. 6 divides 18. BAD.
+#
+# So the constraint is: for every edge (u, v), we cannot have p_u = p_v.
+# This is equivalent to a proper 3-coloring of the graph.
+# We need to find the lexicographically smallest valid assignment.
+
+def solve():
+    # Read all input from stdin
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(iterator)) - 1
+        v = int(next(iterator)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # Backtracking search for lexicographically smallest coloring
+    colors = [0] * n
+    
+    def backtrack(idx):
+        if idx == n:
+            return True
+        
+        for c in range(1, 4):
+            valid = True
+            for neighbor in adj[idx]:
+                if colors[neighbor] == c:
+                    valid = False
+                    break
+            
+            if valid:
+                colors[idx] = c
+                if backtrack(idx + 1):
+                    return True
+                colors[idx] = 0
+        
+        return False
+
+    if backtrack(0):
+        print("YES")
+        print(*(colors))
+    else:
+        print("NO")
+
+if __name__ == '__main__':
+    solve()

@@ -5,14 +5,14 @@ def solve():
     input_data = sys.stdin.read().split()
     if not input_data:
         return
-    iterator = iter(input_data)
-    n = int(next(iterator))
-    m = int(next(iterator))
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(iterator))
-        v = int(next(iterator))
+        u = int(next(it))
+        v = int(next(it))
         adj[u].append(v)
         adj[v].append(u)
     
@@ -35,5 +35,5 @@ def solve():
     print("YES")
     print(' '.join(map(str, color[1:])))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     solve()

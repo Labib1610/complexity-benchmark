@@ -13,21 +13,30 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
+possible = True
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    color[start] = 1
-    q = deque([start])
-    while q:
-        u = q.popleft()
-        for v in adj[u]:
-            if color[v] == -1:
-                color[v] = 3 - color[u]
-                q.append(v)
-            elif color[v] == color[u]:
-                print("NO")
-                sys.exit()
+for i in range(n):
+    if color[i] == -1:
+        color[i] = 0
+        q = deque([i])
+        while q:
+            u = q.popleft()
+            for v in adj[u]:
+                if color[v] == -1:
+                    color[v] = 1 - color[u]
+                    q.append(v)
+                elif color[v] == color[u]:
+                    possible = False
+                    break
+            if not possible:
+                break
+    if not possible:
+        break
 
-print("YES")
-print(" ".join(str(color[i]) for i in range(n)))
+if not possible:
+    print("NO")
+else:
+    # color 0 -> 1, color 1 -> 2
+    result = [1 if c == 0 else 2 for c in color]
+    print("YES")
+    print(" ".join(map(str, result)))

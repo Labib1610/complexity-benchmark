@@ -2,45 +2,96 @@ import sys
 from collections import deque
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    input = sys.stdin.read().split()
+    ptr = 0
+    n = int(input[ptr]); ptr += 1
+    m = int(input[ptr]); ptr += 1
     
     adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(input[ptr]); ptr += 1
+        v = int(input[ptr]); ptr += 1
         adj[u].append(v)
         adj[v].append(u)
     
-    # We need to assign values 1 or 2 such that for every edge (u, v),
-    # |s[u]^2 - s[v]^2| = 3.
-    # Since 1^2 = 1 and 2^2 = 4, |1 - 4| = 3.
-    # So connected nodes must have different values (one is 1, other is 2).
-    # This is a bipartite graph check.
+    # c[v] = 0: unassigned, 1: grade 1, 2: grade 2
+    c = [0] * (n + 1)
     
-    color = [0] * (n + 1)  # 0: uncolored, 1: color 1, 2: color 2
-    
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            # BFS to color this component
-            queue = deque([i])
-            color[i] = 1
-            while queue:
-                u = queue.popleft()
-                for v in adj[u]:
-                    if color[v] == 0:
-                        color[v] = 3 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        print("NO")
-                        return
+    for start in range(1, n + 1):
+        if c[start] != 0:
+            continue
+        
+        # BFS to find connected component
+        q = deque([start])
+        c[start] = 1
+        comp = []
+        while q:
+            u = q.popleft()
+            comp.append(u)
+            for v in adj[u]:
+                if c[v] == 0:
+                    c[v] = 1
+                    q.append(v)
+        
+        # Try both assignments: (all 1) or (mix of 1 and 2)
+        # Option 1: all grade 1
+        valid1 = True
+        for u in comp:
+            for v in adj[u]:
+                if u < v:
+                    R = 3 * (1 + 1) - 2 * 1 * 1
+                    if R != 5:
+                        valid1 = False
+                        break
+            if not valid1:
+                break
+        
+        if valid1:
+            continue
+        
+        # Option 2: bipartite assignment (grades 1 and 2)
+        # Reset and try bipartite
+        for u in comp:
+            c[u] = 0
+        
+        # BFS for bipartite check
+        is_bipartite = True
+        c[start] = 1
+        q = deque([start])
+        while q and is_bipartite:
+            u = q.popleft()
+            for v in adj[u]:
+                if c[v] == 0:
+                    c[v] = 3 - c[u]
+                    q.append(v)
+                elif c[v] == c[u]:
+                    is_bipartite = False
+                    break
+        
+        if not is_bipartite:
+            print("NO")
+            return
+        
+        # Verify resonance sum
+        total = 0
+        for u in comp:
+            for v in adj[u]:
+                if u < v:
+                    R = 3 * (c[u] + c[v]) - 2 * c[u] * c[v]
+                    total += R
+        
+        # Count edges in component
+        edge_count = 0
+        for u in comp:
+            for v in adj[u]:
+                if u < v:
+                    edge_count += 1
+        
+        if total != 5 * edge_count:
+            print("NO")
+            return
     
     print("YES")
-    print(*(color[1:]))
+    print(' '.join(map(str, c[1:])))
 
-if __name__ == '__main__':
-    solve()
+solve()

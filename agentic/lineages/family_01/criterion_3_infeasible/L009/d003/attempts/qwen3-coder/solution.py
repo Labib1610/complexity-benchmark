@@ -1,55 +1,46 @@
 import sys
 from collections import defaultdict
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+def find_minimal_certificate():
+    n, m = map(int, sys.stdin.readline().split())
     
-    n = int(data[0])
-    m = int(data[1])
-    
+    # Build adjacency list
+    adj = defaultdict(set)
     edges = []
-    graph = [set() for _ in range(n + 1)]
     
-    idx = 2
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx + 1])
-        idx += 2
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
         edges.append((u, v))
-        graph[u].add(v)
-        graph[v].add(u)
     
-    # For each node, sort its neighbors for consistent intersection
-    for i in range(1, n + 1):
-        graph[i] = sorted(graph[i])
+    # Convert to sorted lists for consistent iteration
+    vertices = sorted(adj.keys())
     
-    # We want the lexicographically smallest trio (a,b,c) with a<b<c
-    # So we iterate a from 1 to n, b from a+1 to n, c from b+1 to n
-    # But we optimize by checking if there's a common neighbor
+    # Check all triangles - three nodes that are all connected to each other
+    # This is equivalent to finding a triangle in the graph
+    # A triangle is a minimal certificate because it's impossible to 2-color
     
-    # For efficiency, we'll go through each edge (u,v) with u<v
-    # And look for a third node w such that u-v, u-w, v-w are all edges
-    # Since we want lexicographically smallest, we process edges in order
+    # For each edge, check if there's a common neighbor
+    min_cert = None
     
-    edges_sorted = sorted(edges)
+    # Sort edges for consistent processing
+    edges = [(min(u,v), max(u,v)) for u, v in edges]
+    edges.sort()
     
-    for u, v in edges_sorted:
-        if u >= v:
-            continue
-        # Find common neighbors of u and v that are > v
-        # This ensures u < v < w
-        neighbors_u = set(graph[u])
-        neighbors_v = set(graph[v])
-        common = neighbors_u & neighbors_v
+    for u, v in edges:
+        # Find common neighbors of u and v
+        common_neighbors = adj[u] & adj[v]
         
-        # We need w > v
-        candidates = [w for w in common if w > v]
-        if candidates:
-            w = min(candidates)
-            print(u, v, w)
-            return
+        for w in sorted(common_neighbors):
+            # We have a triangle u-v-w
+            # Make sure u < v < w for canonical form
+            a, b, c = sorted([u, v, w])
+            
+            if min_cert is None or (a, b, c) < min_cert:
+                min_cert = (a, b, c)
+    
+    # Output the result
+    print(min_cert[0], min_cert[1], min_cert[2])
 
-if __name__ == "__main__":
-    main()
+find_minimal_certificate()

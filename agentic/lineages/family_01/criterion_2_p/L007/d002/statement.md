@@ -1,20 +1,20 @@
-# Problem B — Heterodyne Array Configuration
+# Problem B — Resonant Foundations
 
 Time limit: 1 s   Memory limit: 256 MB
 
-A radio telescope array contains $n$ local oscillators, numbered 1 to $n$. Each oscillator must be tuned to a frequency multiplier of either 1 or 2.
+The structural integrity of a new skyscraper depends on $n$ primary load-bearing pillars, numbered 1 to $n$. The engineering firm must select a concrete composite grade for each pillar. The approved composite grades are exactly 1 and 2.
 
-The array's signal processing relies on $m$ heterodyne correlators. Each correlator receives the multiplier signals from two specific oscillators. For the correlator to correctly downconvert the astronomical signal, the mathematical product of the two multipliers it receives must be exactly 2.
+To mitigate wind-induced vibrations, the design includes $m$ acoustic dampeners. Each dampener spans between a specific pair of pillars. For a dampener to properly distribute stress, the sum of the composite grades of the two pillars it connects must be exactly 3. If this condition is not met, the dampener will shatter under heavy winds.
 
-You must determine if there is a valid tuning configuration for all $n$ oscillators that satisfies all correlator requirements. If a valid configuration exists, you must output it. In cases where multiple configurations satisfy all requirements, you must output the configuration that forms the lexicographically smallest sequence of multipliers.
+Your task is to determine if there is a safe composite selection for all $n$ pillars. If multiple safe selections exist, the procurement system requires the one that is lexicographically smallest when represented as a sequence of $n$ composite grades.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2\cdot 10^5$, $0 \le m \le 2\cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of two oscillators connected to a correlator.
+Each of the next $m$ lines contains two integers $u$ and $v$ — the indices of the two pillars spanned by a dampener.
 
 ## Output
-If no valid configuration exists, print a single line NO.
-Otherwise print YES, followed by a second line containing $n$ integers $s_1 \dots s_n$ (each being 1 or 2), representing the lexicographically smallest valid sequence of multipliers.
+If no safe selection exists, print a single line NO.
+Otherwise print YES, then a second line with $n$ integers $c_1 \dots c_n$ (each being 1 or 2), the lexicographically smallest safe selection.
 
 ## Example 1
 Input:

@@ -9,37 +9,50 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    edges = set()
+    edges = []
     adj = defaultdict(set)
     
-    index = 2
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        index += 2
-        u, v = min(u, v), max(u, v)
-        edges.add((u, v))
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
         adj[u].add(v)
         adj[v].add(u)
     
-    # Convert adjacency lists to sorted lists for deterministic iteration
+    # Sort edges to help with finding lexicographically smallest later
+    edges.sort()
+    
+    # Create a mapping from edge to index for quick lookup
+    edge_to_index = {edge: i for i, edge in enumerate(edges)}
+    
+    # For each vertex, sort its neighbors
     for u in adj:
         adj[u] = sorted(adj[u])
     
-    # Iterate through all possible triplets (a, b, c) with a < b < c
-    for a in range(1, n+1):
-        if a not in adj:
-            continue
-        for i, b in enumerate(adj[a]):
-            if b <= a:
-                continue
-            for c in adj[a]:
-                if c <= b:
-                    continue
-                # Check if all three edges exist: (a,b), (a,c), (b,c)
-                if (b, c) in edges:
-                    print(a, b, c)
-                    return
+    best = None
+    
+    # Iterate through each edge as the potential third edge of a triangle
+    for i, (a, b) in enumerate(edges):
+        # Find common neighbors of a and b
+        if a in adj and b in adj:
+            common = set(adj[a]).intersection(set(adj[b]))
+            for c in common:
+                # We have a triangle a-b, a-c, b-c
+                # Check if the other two edges exist
+                e1 = (min(a,c), max(a,c))
+                e2 = (min(b,c), max(b,c))
+                
+                if e1 in edge_to_index and e2 in edge_to_index:
+                    # Found a deadlock: edges (a,b), (a,c), (b,c)
+                    workers = sorted([a, b, c])
+                    if best is None or workers < best:
+                        best = workers
+    
+    print(' '.join(map(str, best)))
 
 if __name__ == "__main__":
     main()

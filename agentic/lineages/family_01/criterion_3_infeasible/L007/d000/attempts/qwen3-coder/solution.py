@@ -30,27 +30,24 @@ def main():
     # we look for a third node w such that w > v and w is connected to both u and v
     
     # To optimize, we can process nodes in order and for each node u,
-    # look at pairs of its neighbors (v,w) where v<w and check if (v,w) is an edge
+    # look at pairs of its neighbors (v,w) where v<w and both are > u
     
     found = False
     result = None
     
-    # Iterate through all edges
     for u in range(1, n + 1):
         if found:
             break
         neighbors = adj[u]
-        # For each pair of neighbors of u
-        for i in range(len(neighbors)):
+        # Only consider neighbors greater than u
+        candidates = [v for v in neighbors if v > u]
+        # For each pair of candidates (v,w) with v < w
+        for i in range(len(candidates)):
             if found:
                 break
-            v = neighbors[i]
-            if v <= u:
-                continue
-            for j in range(i + 1, len(neighbors)):
-                w = neighbors[j]
-                if w <= v:
-                    continue
+            v = candidates[i]
+            for j in range(i + 1, len(candidates)):
+                w = candidates[j]
                 # Check if v and w are connected
                 if w in adj[v]:
                     result = (u, v, w)

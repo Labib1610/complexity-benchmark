@@ -2,83 +2,70 @@ import sys
 from collections import defaultdict, deque
 
 def solve():
-    import sys
-    sys.setrecursionlimit(1 << 25)
-    
     n, m = map(int, sys.stdin.readline().split())
     
-    # Build adjacency list
-    adj = defaultdict(list)
-    edges = []
-    for _ in range(m):
-        u, v = map(int, sys.stdin.readline().split())
-        edges.append((u-1, v-1))  # Convert to 0-indexed
-        adj[u-1].append(v-1)
-        adj[v-1].append(u-1)
-    
-    # If no constraints, all vessels can be state 1
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    # Color the graph bipartite (2-coloring)
-    color = [-1] * n  # -1: unvisited, 0: color 0, 1: color 1
+    # Build adjacency list
+    adj = defaultdict(list)
+    edges = []
     
-    # Check if graph is bipartite
-    def bfs(start):
-        queue = deque()
-        queue.append(start)
-        color[start] = 0
-        while queue:
-            node = queue.popleft()
-            for neighbor in adj[node]:
-                if color[neighbor] == -1:
-                    color[neighbor] = 1 - color[node]
-                    queue.append(neighbor)
-                elif color[neighbor] == color[node]:
-                    return False
-        return True
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].append(v)
+        adj[v].append(u)
+        edges.append((u, v))
     
-    # Process each connected component
-    for i in range(n):
-        if color[i] == -1:
-            if not bfs(i):
-                print("NO")
-                return
+    # Try to 2-color the graph with constraints
+    # Each component must be bipartite
+    # Color 0 means s=1, Color 1 means s=2
+    color = [-1] * (n + 1)
+    result = [0] * (n + 1)  # 0 means s=1, 1 means s=2
     
-    # Verify all edges have different colors
+    for start in range(1, n + 1):
+        if color[start] == -1:
+            # BFS to color this component
+            queue = deque([start])
+            color[start] = 0
+            result[start] = 0  # s=1
+            
+            while queue:
+                node = queue.popleft()
+                
+                for neighbor in adj[node]:
+                    if color[neighbor] == -1:
+                        # Assign the opposite value (1->2 or 2->1)
+                        # If current node has value 1, neighbor must have 2
+                        # If current node has value 2, neighbor must have 1
+                        if result[node] == 0:  # node=1
+                            result[neighbor] = 1  # neighbor=2
+                        else:  # node=2
+                            result[neighbor] = 0  # neighbor=1
+                        color[neighbor] = 1 - color[node]
+                        queue.append(neighbor)
+                    else:
+                        # Check consistency
+                        # One must be 1, other must be 2
+                        if (result[node] == 0 and result[neighbor] == 0) or \
+                           (result[node] == 1 and result[neighbor] == 1):
+                            print("NO")
+                            return
+    
+    # Verify all edges satisfy the constraint
     for u, v in edges:
-        if color[u] == color[v]:
+        s_u = 1 if result[u] == 0 else 2
+        s_v = 1 if result[v] == 0 else 2
+        if not ((s_u == 1 and s_v == 2) or (s_u == 2 and s_v == 1)):
             print("NO")
             return
     
-    # Map colors to states to minimize penalty
-    # We want as many 1's as possible, especially at the beginning
-    # Color 0 -> state 1, Color 1 -> state 2 
-    # Or Color 0 -> state 2, Color 1 -> state 1
-    # Choose the mapping that gives minimum penalty
-    
-    # Try both mappings
-    option1 = [1 if color[i] == 0 else 2 for i in range(n)]
-    option2 = [2 if color[i] == 0 else 1 for i in range(n)]
-    
-    # Calculate penalties
-    def calculate_penalty(states):
-        penalty = 0
-        for i in range(n):
-            penalty += (states[i] - 1) * (2 ** (n - 1 - i))
-        return penalty
-    
-    penalty1 = calculate_penalty(option1)
-    penalty2 = calculate_penalty(option2)
-    
-    if penalty1 <= penalty2:
-        result = option1
-    else:
-        result = option2
-    
     print("YES")
-    print(" ".join(map(str, result)))
+    answer = []
+    for i in range(1, n + 1):
+        answer.append("1" if result[i] == 0 else "2")
+    print(" ".join(answer))
 
 solve()

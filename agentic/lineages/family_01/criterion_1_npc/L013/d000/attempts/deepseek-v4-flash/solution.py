@@ -1,37 +1,41 @@
 import sys
 
 def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
+    input_data = sys.stdin.read().strip().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
+    
     adj = [[] for _ in range(n)]
     for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
         adj[u].append(v)
         adj[v].append(u)
-
-    color = [0] * n  # 0 = unassigned, 1,2,3 = shifts
-
+    
+    assignment = [0] * n
+    
     def backtrack(idx):
         if idx == n:
             return True
-        for c in (1, 2, 3):
+        for color in (1, 2, 3):
             ok = True
             for nb in adj[idx]:
-                if color[nb] == c:
+                if assignment[nb] == color:
                     ok = False
                     break
             if ok:
-                color[idx] = c
+                assignment[idx] = color
                 if backtrack(idx + 1):
                     return True
-                color[idx] = 0
+                assignment[idx] = 0
         return False
-
+    
     if backtrack(0):
         print("YES")
-        print(" ".join(map(str, color)))
+        print(" ".join(map(str, assignment)))
     else:
         print("NO")
 

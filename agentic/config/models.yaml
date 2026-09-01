@@ -53,6 +53,26 @@ students:
     temperature: 0.0
     top_p: 1.0
     max_tokens: 32768
+    enabled: false
+
+  # --- SWAP-IN for kimi: gpt-oss-120b via OpenRouter. Staged/disabled so it does NOT
+  #     affect the in-progress family-1 run. To switch: set kimi `enabled: false` and this
+  #     `enabled: true`, then run `python3 tools/smoke_test.py --family 01` to confirm it
+  #     returns non-empty code before a full run. Reasoning control may need tuning like
+  #     kimi's (gpt-oss supports reasoning effort); the smoke test will show if `thinking:
+  #     false` alone suffices or if a `reasoning:` override is needed.
+  - id: gpt-oss-120b
+    backend: openai_compat
+    base_url: "https://openrouter.ai/api/v1/"
+    model_string: "openai/gpt-oss-120b"
+    api_key_env: OPENROUTER_API_KEY
+    thinking: false
+    # gpt-oss-120b reasoning is MANDATORY on OpenRouter (enabled:false -> HTTP 400, exactly
+    # like kimi). Cap the reasoning budget and exclude it from the response so the code fits.
+    reasoning: {max_tokens: 4000, exclude: true}
+    temperature: 0.0
+    top_p: 1.0
+    max_tokens: 32768
     enabled: true
 
   - id: qwen3-coder
@@ -108,6 +128,53 @@ held_out:
     top_p: 1.0
     max_tokens: 32768
     enabled: true
+
+# Expert co-author (3-way negotiation). CRITIQUES the teacher's draft and proposes concrete
+# alternatives; it NEVER writes final statement text (the teacher is sole author) and NEVER
+# validates (that is the gate). Role separation is ENFORCED in code: the expert must not be
+# the teacher, the verifier, the H5 solver, any student, or the held-out model. In
+# particular it must NOT be kimi-k3 (held-out) -- that model's only purpose is the transfer
+# check, which requires zero prior pipeline contact; using it as an author invalidates it.
+# It must also be a DIFFERENT provider than the teacher (teacher is Gemini). Consulted only
+# when the gate rejects a draft (invoke_when: on_reject).
+expert:
+  enabled: true
+  invoke_when: on_reject        # consult the expert only when a draft is rejected (as needed)
+  id: gpt-5.3-codex
+  backend: openai_compat
+  base_url: "https://api.openai.com/v1/"
+  model_string: "gpt-5.3-codex"
+  api_key_env: OPENAI_API_KEY
+  reasoning_effort: medium      # gpt-5.x family: reasoning model (temperature/top_p not sent)
+  max_tokens: 8192
+
+# Frontier evaluators (file 51): two strong models OUTSIDE the student panel, used to
+# independently assess the hardened statements (correctness + wall-clock time, no TLE).
+# Must NOT be the teacher, verifier, any student, the held-out model, or the H5 solver.
+#  A = GPT-5.6 Sol on the OpenAI key (never used in any other role).
+#  B = a strong Gemini that is NOT the teacher gemini-3.1-pro-preview (that wrote the
+#      statements, so solving its own output would not be independent).
+frontier_evaluators:
+  - id: gpt-5.6-sol
+    backend: openai_compat
+    base_url: "https://api.openai.com/v1/"
+    model_string: "gpt-5.6-sol"
+    api_key_env: OPENAI_API_KEY
+    reasoning_effort: medium    # reasoning model: rejects temperature/top_p (like the verifier)
+    max_tokens: 32768
+
+  # No non-teacher PRO Gemini is available on this key: gemini-3.1-pro-preview IS the
+  # teacher, gemini-2.5-pro is retired, and gemini-pro-latest aliases to the teacher. The
+  # strongest clean (non-teacher, non-solver) Gemini is the latest flash generation.
+  # Verified PASS 4/4 on the seed at 12 s / $0.014.
+  - id: gemini-3.7-flash-frontier
+    backend: openai_compat
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    model_string: "gemini-3.7-flash"
+    api_key_env: GEMINI_API_KEY
+    temperature: 0.0
+    top_p: 1.0
+    max_tokens: 32768
 
 execution:
   ollama_parallel: false

@@ -1,38 +1,55 @@
 import sys
 
 def solve():
-    input = sys.stdin.read().split()
-    ptr = 0
-    n, m = map(int, input[ptr:ptr+2])
-    ptr +=2
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    it = iter(input_data)
+    n = int(next(it))
+    m = int(next(it))
     
-    adj = [set() for _ in range(n+1)]
+    adj = [set() for _ in range(n + 1)]
+    edges = []
     for _ in range(m):
-        u, v = map(int, input[ptr:ptr+2])
-        ptr +=2
+        u = int(next(it))
+        v = int(next(it))
+        if u > v:
+            u, v = v, u
         adj[u].add(v)
         adj[v].add(u)
+        edges.append((u, v))
     
-    # Iterate through each node a in order
-    for a in range(1, n+1):
-        neighbors = sorted(adj[a])
-        # Check all pairs of neighbors b and c where b < c
-        len_neighbors = len(neighbors)
-        for i in range(len_neighbors):
-            b = neighbors[i]
-            if b < a:
-                continue  # to ensure a < b < c, but since a is the smallest, we proceed
-            for j in range(i+1, len_neighbors):
-                c = neighbors[j]
-                if c < a:
-                    continue
-                if b in adj[c]:
-                    # Found the triangle a, b, c
-                    # Ensure a < b < c
-                    x, y, z = sorted([a, b, c])
-                    print(x, y, z)
-                    return
-    # Shouldn't reach here as per problem statement
-    print(-1, -1, -1)
+    # Sort edges to process in lexicographic order
+    edges.sort()
+    
+    # For each edge (u, v), check for common neighbors w where w > v
+    # This ensures we find the lexicographically smallest triangle
+    for u, v in edges:
+        # Find common neighbors w where w > v
+        # Iterate through the smaller set for efficiency
+        if len(adj[u]) < len(adj[v]):
+            smaller, larger = adj[u], adj[v]
+        else:
+            smaller, larger = adj[v], adj[u]
+        
+        for w in smaller:
+            if w > v and w in larger:
+                print(u, v, w)
+                return
+    
+    # If not found with w > v, check all common neighbors
+    for u, v in edges:
+        if len(adj[u]) < len(adj[v]):
+            smaller, larger = adj[u], adj[v]
+        else:
+            smaller, larger = adj[v], adj[u]
+        
+        for w in smaller:
+            if w != u and w != v and w in larger:
+                # Found triangle, need to sort
+                a, b, c = sorted([u, v, w])
+                print(a, b, c)
+                return
 
-solve()
+if __name__ == "__main__":
+    solve()

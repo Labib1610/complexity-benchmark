@@ -1,21 +1,23 @@
-# Problem C — Platform Foundation
+# Problem C — Cargo Prohibition Protocol
 
 Time limit: 2 s   Memory limit: 256 MB
 
-You are designing an offshore facility supported by $n$ structural pillars. Due to the underwater terrain, only certain pairs of pillars are positioned such that a standard load-bearing beam can be installed between them. You have a survey listing $m$ such valid pillar pairs.
+A logistics firm operates a dual-vessel shipping route for hazardous materials. Certain pairs of these materials are highly reactive and are strictly prohibited from sharing a vessel.
 
-You need to construct a rigid primary deck. This deck must be supported by exactly three distinct pillars. To ensure structural integrity, a load-bearing beam must be installed between every pair of those three pillars. Therefore, a set of three pillars can only support the deck if all three possible pairs among them appear in your survey of valid pairs.
+The proposed loading schedule is structurally impossible to fulfill. You must produce a definitive proof of this impossibility to trigger an automatic schedule rejection.
 
-Find a set of three pillars that can support the primary deck.
+To establish this proof, you are required to isolate a "deadlock" configuration of exactly three materials. A set of three materials constitutes a deadlock if it is impossible to assign them to the two vessels without violating the explicit prohibitions among them. Specifically, when considered in isolation, the subset of prohibitions strictly between these three materials must be sufficient to prevent any valid two-vessel assignment.
+
+Because the automated auditing system requires deterministic reporting, it will not accept an arbitrary deadlock configuration. The system demands the canonical proof, meaning you must systematically ensure no earlier configuration could have been reported.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), representing the number of pillars and the number of valid pillar pairs. Pillars are numbered from $1$ to $n$.
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$), indicating that a beam can be installed between pillar $u$ and pillar $v$.
-It is guaranteed that the input contains at least one valid set of three pillars for the deck.
+The first line provides two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$), indicating the number of hazardous materials and the number of prohibited pairs. The materials are identified by integers from $1$ to $n$.
+Each of the following $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$) — a pair of materials that are prohibited from sharing a vessel. 
+It is guaranteed that the input contains at least one deadlock configuration of three materials.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on a single line with $a < b < c$, representing the IDs of the three pillars.
-If there are multiple valid sets of three pillars, output the one that is lexicographically smallest (i.e., smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Output a single line containing three integers $a$, $b$, and $c$ ($a < b < c$), representing the identifiers of the materials in the deadlock configuration.
+To satisfy the deterministic auditing system, if more than one such configuration exists, you must output the lexicographically earliest one among all valid configurations. This means you must minimize $a$; if there is a tie, minimize $b$; and if still tied, minimize $c$.
 
 ## Example 1
 Input:

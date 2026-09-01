@@ -1,0 +1,66 @@
+from collections import defaultdict, deque
+
+def solve():
+    n, m = map(int, input().split())
+    
+    # Build adjacency list
+    graph = defaultdict(list)
+    for _ in range(m):
+        u, v = map(int, input().split())
+        graph[u].append(v)
+        graph[v].append(u)
+    
+    # Color array: 0 means uncolored, 1, 2, 3 are the colors
+    color = [0] * (n + 1)
+    
+    # Check if graph is 3-colorable using BFS for each component
+    for start in range(1, n + 1):
+        if color[start] != 0:
+            continue
+            
+        # BFS to color this component
+        queue = deque([start])
+        color[start] = 1
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            
+            # Try to assign colors to neighbors
+            for neighbor in graph[node]:
+                if color[neighbor] == 0:
+                    # Assign the smallest available color that's different from current
+                    used_colors = set()
+                    for nn in graph[neighbor]:
+                        if color[nn] != 0:
+                            used_colors.add(color[nn])
+                    
+                    # Find the smallest color from {1,2,3} not in used_colors
+                    for c in range(1, 4):
+                        if c not in used_colors:
+                            color[neighbor] = c
+                            break
+                    else:
+                        # If no color can be assigned, it's impossible
+                        print("NO")
+                        return
+                    
+                    queue.append(neighbor)
+                else:
+                    # Check if there's a conflict
+                    if color[neighbor] == current_color:
+                        print("NO")
+                        return
+    
+    # Verify the coloring is valid
+    for u in range(1, n + 1):
+        for v in graph[u]:
+            if color[u] == color[v]:
+                print("NO")
+                return
+    
+    # Output the result
+    print("YES")
+    print(' '.join(map(str, color[1:])))
+
+solve()

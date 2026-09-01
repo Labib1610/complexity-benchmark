@@ -13,53 +13,28 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-res = [1] * n
 
-for start in range(n):
-    if color[start] != -1:
-        continue
-    # BFS to get component
-    comp = []
+def bfs(start):
     q = deque([start])
-    color[start] = 0
-    comp.append(start)
-    ok = True
+    color[start] = 0  # try 0 first (meaning value 1)
     while q:
         u = q.popleft()
         for v in adj[u]:
             if color[v] == -1:
-                color[v] = color[u] ^ 1
-                comp.append(v)
+                color[v] = 1 - color[u]
                 q.append(v)
             elif color[v] == color[u]:
-                ok = False
-    if not ok:
-        print("NO")
-        sys.exit()
-    # Try both colorings for this component
-    # coloring A: start node = 1
-    # coloring B: start node = 2
-    # We'll build both and pick lexicographically smaller
-    # Since color array currently has 0/1 for this comp, we can map
-    # 0 -> 1, 1 -> 2 for A
-    # 0 -> 2, 1 -> 1 for B
-    comp_sorted = sorted(comp)
-    seqA = [0] * n
-    seqB = [0] * n
-    for u in comp:
-        seqA[u] = 1 if color[u] == 0 else 2
-        seqB[u] = 2 if color[u] == 0 else 1
-    # Compare lexicographically on the component indices
-    # We only need to compare on comp_sorted
-    chooseA = False
-    for u in comp_sorted:
-        if seqA[u] < seqB[u]:
-            chooseA = True
-            break
-        elif seqA[u] > seqB[u]:
-            break
-    for u in comp:
-        res[u] = seqA[u] if chooseA else seqB[u]
+                return False
+    return True
 
+# Try to assign 1 (color 0) to smallest possible nodes
+for i in range(n):
+    if color[i] == -1:
+        if not bfs(i):
+            print("NO")
+            sys.exit()
+
+# Convert color to 1 or 2
+res = [1 if c == 0 else 2 for c in color]
 print("YES")
 print(" ".join(map(str, res)))

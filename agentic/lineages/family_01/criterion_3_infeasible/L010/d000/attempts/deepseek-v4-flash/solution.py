@@ -8,16 +8,15 @@ def main():
         u, v = map(int, input().split())
         adj[u].add(v)
         adj[v].add(u)
-
+    
     for a in range(1, n + 1):
-        for b in adj[a]:
-            if b > a:
-                common = adj[a] & adj[b]
-                if common:
-                    c = min(common)
-                    if c > b:
-                        print(a, b, c)
-                        return
+        for b in range(a + 1, n + 1):
+            if b not in adj[a]:
+                continue
+            for c in range(b + 1, n + 1):
+                if c in adj[a] and c in adj[b]:
+                    print(a, b, c)
+                    return
 
 if __name__ == "__main__":
     main()

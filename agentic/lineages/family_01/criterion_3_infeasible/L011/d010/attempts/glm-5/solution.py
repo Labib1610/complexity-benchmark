@@ -1,0 +1,67 @@
+import sys
+
+def solve():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    iterator = iter(input_data)
+    try:
+        n = int(next(iterator))
+        m = int(next(iterator))
+    except StopIteration:
+        return
+
+    adj = [set() for _ in range(n + 1)]
+    for _ in range(m):
+        u = int(next(iterator))
+        v = int(next(iterator))
+        adj[u].add(v)
+        adj[v].add(u)
+
+    # We need to find a triangle (a, b, c) such that the vectors are linearly independent.
+    # The vectors are v_a = (0, a+b, a+c), v_b = (a+b, 0, b+c), v_c = (a+c, b+c, 0).
+    # The determinant of the matrix formed by these vectors is 2(a+b)(a+c)(b+c).
+    # This is non-zero iff a+b != 0, a+c != 0, and b+c != 0.
+    # Since step identifiers are positive integers, their sums are always positive.
+    # Thus, any triangle of steps is an unresolvable bottleneck.
+    # The problem reduces to finding the lexicographically smallest triangle.
+
+    # To find the lexicographically smallest triangle (a, b, c) with a < b < c:
+    # We iterate a from 1 to n.
+    # For each a, we iterate b from a+1 to n such that edge (a, b) exists.
+    # For each pair (a, b), we iterate c from b+1 to n.
+    # We check if c is a common neighbor of both a and b.
+    # To optimize, we use the degree ordering heuristic for intersection checking.
+    # We iterate neighbors of the node with smaller degree and check presence in the set of the other.
+
+    for a in range(1, n + 1):
+        neighbors_a = adj[a]
+        # We need b > a and c > b.
+        # We collect valid neighbors of a that are greater than a.
+        potential_bs = [b for b in neighbors_a if b > a]
+        potential_bs.sort()
+
+        for b in potential_bs:
+            neighbors_b = adj[b]
+            
+            # Determine which neighbor set to iterate over for intersection
+            # We want to find c such that c > b and c in neighbors_a and c in neighbors_b.
+            # We iterate over the smaller set and check conditions.
+            
+            if len(neighbors_a) < len(neighbors_b):
+                # Iterate neighbors of a
+                for c in neighbors_a:
+                    if c > b and c in neighbors_b:
+                        # Found the lexicographically smallest triangle
+                        print(a, b, c)
+                        return
+            else:
+                # Iterate neighbors of b
+                for c in neighbors_b:
+                    if c > b and c in neighbors_a:
+                        # Found the lexicographically smallest triangle
+                        print(a, b, c)
+                        return
+
+if __name__ == '__main__':
+    solve()

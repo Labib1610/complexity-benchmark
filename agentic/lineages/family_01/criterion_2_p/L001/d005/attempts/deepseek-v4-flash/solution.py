@@ -1,81 +1,33 @@
 import sys
-sys.setrecursionlimit(300000)
+from collections import deque
 
-def solve():
-    input = sys.stdin.readline
-    n, m = map(int, input().split())
-    adj = [[] for _ in range(n)]
-    for _ in range(m):
-        u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].append(v)
-        adj[v].append(u)
-    
-    color = [-1] * n
-    visited = [False] * n
-    
-    def bfs(start, start_color):
-        # Try to color component starting with start_color for start node
-        c = [-1] * n
-        c[start] = start_color
-        from collections import deque
-        q = deque([start])
-        ok = True
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if c[v] == -1:
-                    c[v] = 1 - c[u]
-                    q.append(v)
-                elif c[v] == c[u]:
-                    ok = False
-                    return None
-        return c
-    
-    final_color = [-1] * n
-    for i in range(n):
-        if final_color[i] == -1:
-            # Try starting with 1
-            c1 = bfs(i, 1)
-            # Try starting with 2
-            c2 = bfs(i, 2)
-            if c1 is None and c2 is None:
+input = sys.stdin.readline
+
+n, m = map(int, input().split())
+adj = [[] for _ in range(n)]
+for _ in range(m):
+    u, v = map(int, input().split())
+    u -= 1
+    v -= 1
+    adj[u].append(v)
+    adj[v].append(u)
+
+color = [-1] * n
+
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 1
+    q = deque([start])
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = 3 - color[u]  # 1 -> 2, 2 -> 1
+                q.append(v)
+            elif color[v] == color[u]:
                 print("NO")
-                return
-            # Choose lexicographically smaller for this component
-            # We only compare nodes in this component
-            comp_nodes = []
-            stack = [i]
-            visited[i] = True
-            while stack:
-                u = stack.pop()
-                comp_nodes.append(u)
-                for v in adj[u]:
-                    if not visited[v]:
-                        visited[v] = True
-                        stack.append(v)
-            comp_nodes.sort()
-            if c1 is not None and c2 is not None:
-                # Compare sequences for comp_nodes
-                for node in comp_nodes:
-                    if c1[node] < c2[node]:
-                        chosen = c1
-                        break
-                    elif c2[node] < c1[node]:
-                        chosen = c2
-                        break
-                else:
-                    chosen = c1
-            elif c1 is not None:
-                chosen = c1
-            else:
-                chosen = c2
-            for node in comp_nodes:
-                final_color[node] = chosen[node]
-    
-    print("YES")
-    print(' '.join(str(final_color[i]) for i in range(n)))
+                sys.exit()
 
-if __name__ == "__main__":
-    solve()
+print("YES")
+print(" ".join(str(c) for c in color))

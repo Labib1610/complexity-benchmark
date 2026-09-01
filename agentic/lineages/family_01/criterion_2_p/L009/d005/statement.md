@@ -1,22 +1,26 @@
-# Differential Lighting
+# Problem B — Harmonic Stability
 
-Time limit: 1 s   Memory limit: 256 MB
+Time limit: 1 s
+Memory limit: 256 MB
 
-You are configuring a lighting system consisting of $n$ fixtures, numbered 1 through $n$. 
-Due to power constraints, every fixture must be wired to exactly one of two available power sources: Circuit 1 or Circuit 2.
+You are configuring $n$ resonance crystals in a laboratory. Each crystal $i$ must be tuned to a frequency multiplier $p_i$ of either 1 or 2.
 
-The system includes $m$ differential sensors. Each sensor monitors a specific pair of fixtures (due to wiring anomalies, a sensor might monitor the same fixture twice). 
-For a differential sensor to function correctly, it must observe a voltage difference. This means that exactly one of its monitored fixtures must be wired to Circuit 1, and the other must be wired to Circuit 2.
+The setup contains $m$ harmonic bridges. Each bridge connects exactly two specific crystals. 
 
-Your task is to determine whether there is a wiring assignment for all $n$ fixtures that allows all $m$ differential sensors to function correctly simultaneously.
+For each crystal $i$, let $d_i$ be the number of harmonic bridges connected to it. For each of these $d_i$ bridges, consider the crystal at its other end. Let $S_i$ be the sum of the squares of the frequency multipliers of these $d_i$ crystals. (If $d_i = 0$, then $S_i = 0$.)
+
+To maintain structural stability, every crystal $i$ in the setup must satisfy the following resonance equation:
+$$S_i + 3 \cdot d_i \cdot p_i = 7 \cdot d_i$$
+
+You must assign a frequency multiplier to each of the $n$ crystals so that the entire setup is perfectly stable. If no such configuration is possible, you must report it.
 
 ## Input
 The first line contains two integers $n$ and $m$ ($1 \le n \le 2 \cdot 10^5$, $0 \le m \le 2 \cdot 10^5$).
-Each of the next $m$ lines contains two integers $u$ and $v$ ($1 \le u, v \le n$), representing the indices of the fixtures monitored by a differential sensor.
+Each of the next $m$ lines contains two integers $u$ and $v$ — the two crystals connected by a single harmonic bridge.
 
 ## Output
-If no valid wiring assignment exists, print a single line containing `NO`.
-Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $c_1, \dots, c_n$, where $c_i$ is the circuit (1 or 2) assigned to fixture $i$. If there are multiple valid assignments, choose the assignment that minimizes $c_1$. If there is still a tie, minimize $c_2$ among the remaining valid assignments, and continue this process sequentially up to $c_n$.
+If no valid tuning assignment exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line, followed by a second line containing $n$ integers $p_1, \dots, p_n$ (each $p_i \in \{1, 2\}$), where $p_i$ is the frequency multiplier assigned to crystal $i$. If there are multiple valid assignments, output the one that is lexicographically smallest.
 
 ## Example 1
 Input:

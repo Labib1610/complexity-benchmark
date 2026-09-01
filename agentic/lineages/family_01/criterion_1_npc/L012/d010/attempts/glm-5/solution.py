@@ -1,0 +1,60 @@
+import sys
+sys.setrecursionlimit(10000)
+
+def solve():
+    data = sys.stdin.read().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    
+    adj = [[] for _ in range(n)]
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u].append(v)
+        adj[v].append(u)
+    
+    # We want to minimize P(A) = sum a_i * 4^(n-i).
+    # This is equivalent to lexicographically minimizing the sequence A.
+    # We use a greedy approach: for each position i from 0 to n-1,
+    # assign the smallest valid tier (1, 2, or 3) that doesn't conflict
+    # with already assigned neighbors.
+    
+    result = [0] * n
+    possible = True
+    
+    for i in range(n):
+        # Determine which tiers are used by neighbors of i
+        used = set()
+        for neighbor in adj[i]:
+            if neighbor < i:  # neighbor already assigned
+                used.add(result[neighbor])
+        
+        # Assign the smallest available tier
+        assigned = 0
+        for tier in range(1, 4):
+            if tier not in used:
+                assigned = tier
+                break
+        
+        if assigned == 0:
+            possible = False
+            break
+        
+        result[i] = assigned
+    
+    if not possible:
+        print("NO")
+    else:
+        # Verify all edges satisfy the constraint
+        for u in range(n):
+            for v in adj[u]:
+                if u < v and result[u] == result[v]:
+                    print("NO")
+                    return
+        print("YES")
+        print(" ".join(map(str, result)))
+
+solve()

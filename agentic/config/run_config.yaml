@@ -23,7 +23,10 @@ gate:
     # the teacher, or the verifier.
     enabled: true
     model_id: gemini-3.1-flash-lite-solver
-    tests: anchor
+    # anchor+corner: the solver must also handle the STANDARD corner cases (adversarial
+    # adv_* cases are excluded), so accepted statements stay solvable on ordinary edge
+    # cases -- raises the difficulty ceiling. If you swap in a weak solver, revert to anchor.
+    tests: anchor+corner
     backend: openai_compat
     base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
     model_string: "gemini-3.1-flash-lite"
@@ -45,13 +48,40 @@ feedback_loop:
   # 2 is the budget-conscious setting; raise to 3 for better selection if funded.
   candidates_per_depth: 2
 
-  max_depth: 6
+  max_depth: 10                # file 52 change 6: pass counts were still moving at 5-6
   stop_when_all_fail: true
   retire_failed_students: true # defeated students stop driving hardening
   retest_retired: true         # but are still run at every later depth
   min_passers_to_continue: 1
 
-  gate_retry: 2                # teacher retries when the gate rejects
+  # --- file 52 change 1 (revised): defeat = wrong OR too-slow -------------------
+  #   wrong_answer_only = defeat on WRONG_ANSWER/RUNTIME_ERROR only (TLE is a survivor)
+  #   wrong_or_slow     = ALSO defeat when a solution exceeds tle_ceiling_s (the NP-hard
+  #                       intractability signal: a correct-but-exponential solution that
+  #                       cannot finish within the ceiling is defeated)
+  #   all_failures      = any non-PASS is a defeat
+  # elapsed_s is always recorded regardless of mode.
+  hardening_target: wrong_or_slow       # wrong_answer_only | wrong_or_slow | all_failures
+  tle_ceiling_s: 300                    # under wrong_or_slow this is the difficulty threshold
+
+  # --- adversarial corner-case engine (defeat by edge cases + intractable instances) ---
+  adversarial_corner:
+    enabled: true                       # regenerate corner cases against survivors each depth
+    cases_per_survivor: 4               # differential-testing cases to keep per survivor
+    candidate_pool: 40                  # candidate inputs generated per pass
+    on_structural_floor: true           # when rewording is exhausted, pivot to corner attack
+
+  # --- file 52 change 2: agentic memory ----------------------------------------
+  memory_block_max_tokens: 1500         # hard cap on the {MEMORY_BLOCK} fed to the teacher
+
+  # --- file 52 change 4: aggressive mode after the strategy library is exhausted
+  aggressive_from_depth: 3
+  aggressive_requires_named_method: true
+
+  # --- file 52 change 5: gate negotiation (replaces gate_retry) -----------------
+  gate_negotiation_rounds: 4   # teacher revises using the gate's actionable feedback
+  negotiation_transcript: true # save every teacher attempt + gate response to negotiation.json
+
   skip_students_failing_seed: true   # exclude a student from a problem's baseline
                                      # if it already fails the unmodified seed
 

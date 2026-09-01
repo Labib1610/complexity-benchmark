@@ -32,6 +32,7 @@ Per run_config stop_on_gate_fail=false, failures are recorded, never deleted.
 CLI: python tools/gate.py --family 01 [--criterion 1] [--version v003]
 """
 import argparse
+import dataclasses
 import json
 import os
 import re
@@ -42,7 +43,7 @@ from pathlib import Path
 import backends as B
 
 from harness.checker import judge_problem, judge_custom, normalize
-from harness.dataset import discover_criteria
+from harness.dataset import discover_criteria, TestCase
 from harness.reference_check import _FORBIDDEN_TERMS
 from harness.runner import run_solution
 
@@ -400,17 +401,36 @@ def check_solver_roundtrip(version_stmt: str, seed_crit, run_cfg: dict,
         return {"pass": None, "solver": cfg.get("id"), "anchor": "n/a",
                 "detail": resp["error"] or "solver produced no code", "_uncertain": True,
                 **B.usage_of(resp)}
+    # Test set: anchors always; optionally the STANDARD corner cases too (tests: anchor+corner
+    # in run_config). The adversarial adv_* cases are EXCLUDED -- those are built to defeat
+    # solvers, so requiring a solver to pass them would reject every hard statement. Running
+    # H5 on the standard corner cases raises the ceiling: the statement must stay solvable on
+    # ordinary edge cases, not just the tiny anchors.
+    crit_for_h5 = seed_crit
+    sr = ((run_cfg or {}).get("gate", {}) or {}).get("solver_roundtrip", {}) or {}
+    if "corner" in (sr.get("tests") or "anchor"):
+        store = B.TESTS_DIR / f"family_{seed_crit.family_id}" / seed_crit.criterion_id
+        extra = []
+        if store.exists():
+            for inp in sorted(store.glob("*.in")):
+                if inp.stem.startswith("adv_"):
+                    continue                     # skip adversarial traps
+                outp = inp.with_suffix(".out")
+                if outp.exists():
+                    extra.append(TestCase(name="c" + inp.stem, in_path=inp, out_path=outp))
+        if extra:
+            crit_for_h5 = dataclasses.replace(seed_crit, tests=list(seed_crit.tests) + extra)
     fh = tempfile.NamedTemporaryFile("w", suffix=".py", delete=False)
     try:
         fh.write(code)
         fh.close()
-        pv = judge_problem(seed_crit, fh.name)   # seed_crit.tests == anchor cases only
+        pv = judge_problem(crit_for_h5, fh.name)
     finally:
         os.unlink(fh.name)
     npass = sum(1 for c in pv.cases if c.verdict == "PASS")
     return {"pass": pv.overall == "PASS", "solver": cfg.get("id"),
             "anchor": f"{npass}/{len(pv.cases)}",
-            "detail": pv.first_failure or "all anchor tests pass", "_uncertain": False,
+            "detail": pv.first_failure or "all solver tests pass", "_uncertain": False,
             **B.usage_of(resp)}
 
 
@@ -539,6 +559,53 @@ def evaluate_statement(version_stmt: str, seed_stmt: str, seed_crit, verifier_cf
         "leakage_hits": hits,
         "verifier": verifier,
     }
+
+
+# --- gate negotiation feedback (file 52 change 5) ---------------------------
+# The gate produces DIAGNOSTICS ONLY -- never statement text. It reports which checks
+# failed and actionable advice; the teacher writes all content and a FRESH gate call
+# re-validates. This keeps the gate an independent validator, not a co-author.
+_H_ADVICE = {
+    "H1_example_consistency": "the reference no longer reproduces a worked example -- fix the example values so they are consistent",
+    "H2_io_contract": "restore the exact numeric bound(s)/tie-break/format from the seed; you may RE-PRESENT them (e.g. in prose) but not change or drop them",
+    "H3_leakage": "remove the complexity-class vocabulary or structural giveaway you introduced",
+    "H4_s09_nonbinding": "make the added constraint non-binding on every existing input, or drop it",
+    "H5_solver_roundtrip": "an independent solver failed the anchor tests -- the task drifted; keep the exact same question as the seed",
+}
+_G_ADVICE = {
+    "G1": "disambiguate the flagged phrase -- it admits more than one reading",
+    "G2": "add the information needed to solve it that is currently missing",
+    "G3": "the rewrite asks a materially different question -- return it to the seed's exact task",
+    "G4": "make it read more like a problem a person would naturally write",
+}
+
+
+def negotiation_feedback(gres: dict) -> dict:
+    """Structured, actionable feedback from a gate result -- for the teacher to revise.
+    Contains only diagnostics (no statement content)."""
+    hard = gres.get("hard", {})
+    graded = gres.get("graded", {})
+    thr = gres.get("thresholds_applied", _DEFAULT_THRESHOLDS)
+    rejected, details, advice, keep = [], {}, [], []
+    for k, v in hard.items():
+        if v.get("pass") is False:
+            tag = k.split("_")[0]
+            rejected.append(tag)
+            details[f"{tag}_detail"] = str(v.get("detail") or v.get("hits") or "failed")
+            advice.append(_H_ADVICE.get(k, f"fix {tag}"))
+    for gk, t in thr.items():
+        cell = graded.get(_GKEY[gk], {})
+        sc = cell.get("score")
+        if sc is None or sc < t:
+            rejected.append(gk)
+            details[f"{gk}_detail"] = cell.get("justification") or "below threshold"
+            advice.append(_G_ADVICE.get(gk, f"raise {gk}"))
+        else:
+            j = (cell.get("justification") or "").strip()
+            keep.append(f"{gk} scored {sc} ({j[:70]})" if j else f"{gk} scored {sc}")
+    return {"rejected_because": rejected, **details,
+            "actionable_advice": "; ".join(advice) or "none",
+            "do_not_change": keep}
 
 
 # --- CLI over on-disk versions ----------------------------------------------

@@ -3,24 +3,28 @@ import sys
 def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [set() for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
+    mat = [[False] * (n + 1) for _ in range(n + 1)]
+    
     for _ in range(m):
         u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].add(v)
-        adj[v].add(u)
-
-    for a in range(n):
-        for b in sorted(adj[a]):
-            if b <= a:
+        adj[u].append(v)
+        adj[v].append(u)
+        mat[u][v] = mat[v][u] = True
+    
+    for i in range(1, n + 1):
+        adj[i].sort()
+    
+    # Find lexicographically smallest triangle
+    for u in range(1, n + 1):
+        for v in adj[u]:
+            if v <= u:
                 continue
-            # Find smallest c > b adjacent to both a and b
-            for c in sorted(adj[a]):
-                if c <= b:
+            for w in adj[u]:
+                if w <= v:
                     continue
-                if c in adj[b]:
-                    print(a+1, b+1, c+1)
+                if mat[v][w]:
+                    print(u, v, w)
                     return
 
 if __name__ == "__main__":

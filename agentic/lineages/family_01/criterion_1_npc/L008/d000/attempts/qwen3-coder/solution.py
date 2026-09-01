@@ -1,39 +1,39 @@
 def solve():
-    import sys
-    from itertools import product
-    
-    input = sys.stdin.read
-    data = input().split()
-    
-    n = int(data[0])
-    m = int(data[1])
+    n, m = map(int, input().split())
     
     # Build adjacency list
-    adj = [[] for _ in range(n+1)]
-    idx = 2
+    adj = [[] for _ in range(n + 1)]
     for _ in range(m):
-        u = int(data[idx])
-        v = int(data[idx+1])
+        u, v = map(int, input().split())
         adj[u].append(v)
         adj[v].append(u)
-        idx += 2
     
-    # Try all 3^n assignments, starting from lexicographically smallest
-    for assignment in product([1,2,3], repeat=n):
-        valid = True
-        # Check each edge constraint
-        for u in range(1, n+1):
-            for v in adj[u]:
-                if assignment[u-1] == assignment[v-1]:
-                    valid = False
-                    break
-            if not valid:
-                break
-        if valid:
-            print("YES")
-            print(' '.join(map(str, assignment)))
-            return
+    # Color the graph with 3 colors (1, 2, 3)
+    # -1: unvisited, 0: color 1, 1: color 2, 2: color 3
+    colors = [-1] * (n + 1)
     
-    print("NO")
+    # Check if we can 3-color the graph
+    def dfs(node, color):
+        colors[node] = color
+        for neighbor in adj[node]:
+            if colors[neighbor] == -1:
+                if not dfs(neighbor, (color + 1) % 3):
+                    return False
+            elif colors[neighbor] == color:
+                return False
+        return True
+    
+    # Try to color each component
+    for i in range(1, n + 1):
+        if colors[i] == -1:
+            if not dfs(i, 0):
+                print("NO")
+                return
+    
+    print("YES")
+    result = []
+    for i in range(1, n + 1):
+        result.append(str(colors[i] + 1))
+    print(" ".join(result))
 
 solve()

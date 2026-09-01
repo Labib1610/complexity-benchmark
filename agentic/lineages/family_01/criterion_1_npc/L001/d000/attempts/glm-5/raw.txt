@@ -10,70 +10,323 @@ def solve():
     adj = [0] * (n + 1)
     idx = 2
     for _ in range(m):
-        u = int(data[idx]); v = int(data[idx+1]); idx += 2
+        u = int(data[idx]); v = int(data[idx+1])
+        idx += 2
         adj[u] |= 1 << v
         adj[v] |= 1 << u
-
-    # Precompute for each subset the set of forbidden vertices (neighbors of any vertex in subset)
-    forbidden = [0] * (1 << n)
-    for mask in range(1 << n):
-        f = 0
-        mm = mask
-        while mm:
-            b = mm & -mm
-            v = b.bit_length() - 1
-            f |= adj[v + 1]
-            mm ^= b
-        forbidden[mask] = f
-
-    # DP over subsets: dp[mask] = True if mask can be partitioned into independent sets
-    dp = [False] * (1 << n)
-    dp[0] = True
-    for mask in range(1 << n):
-        if not dp[mask]:
+    
+    full = (1 << (n + 1)) - 1
+    full &= ~1  # exclude bit 0
+    
+    # Precompute for each vertex set S: whether S is independent
+    # and the set of vertices adjacent to all vertices in S (common neighbors)
+    size = 1 << n
+    is_indep = bytearray(size)
+    common_adj = [0] * size
+    is_indep[0] = 1
+    common_adj[0] = full
+    
+    for s in range(1, size):
+        v = (s & -s).bit_length() - 1
+        prev = s ^ (1 << v)
+        if not is_indep[prev]:
+            is_indep[s] = 0
             continue
-        avail = ((1 << n) - 1) ^ mask
-        # iterate over submasks of avail that are independent sets
-        sub = avail
-        while sub:
-            if (forbidden[sub] & sub) == 0:
-                dp[mask | sub] = True
-            sub = (sub - 1) & avail
-
-    if not dp[(1 << n) - 1]:
+        if adj[v+1] & prev:
+            is_indep[s] = 0
+        else:
+            is_indep[s] = 1
+        common_adj[s] = common_adj[prev] & adj[v+1]
+    
+    # Precompute for each vertex set S: whether S can be partitioned into 2 independent sets
+    can2 = bytearray(size)
+    can2[0] = 1
+    for s in range(1, size):
+        v = (s & -s).bit_length() - 1
+        vs = 1 << v
+        prev = s ^ vs
+        if not can2[prev]:
+            can2[s] = 0
+            continue
+        # Check if there's an independent set T subset of prev such that s\T is independent
+        # T must contain v, so T = vs | (subset of prev)
+        # s\T = prev \ (T\vs) must be independent
+        # We need: exists subset R of prev such that (vs | R) is independent and (prev ^ R) is independent
+        # Since can2[prev]=1, prev = A | B with A,B independent
+        # Try T = vs | A: need (vs|A) indep and (prev\A = B) indep -> need (vs|A) indep
+        # Try T = vs | B: need (vs|B) indep
+        # So can2[s] = 1 iff (vs|A) indep or (vs|B) indep for some valid partition of prev
+        # But we don't store partitions. Alternative: can2[s] = 1 iff exists independent T containing v, T subset s, with s\T independent
+        # We can check: iterate over subsets? Too slow.
+        # Better: can2[s] = 1 iff exists independent T subset s with v in T and s\T independent
+        # Equivalently: exists independent T subset s with v in T and is_indep[s\T]
+        # We can compute: for each s, the set of vertices v in s such that there's an independent T containing v with s\T independent
+        # But that's complex. Let's use the recursive structure differently.
+        # can2[s] = 1 iff exists nonempty independent T subset s with is_indep[s\T]
+        # We can precompute for each s: the list of maximal independent subsets? No.
+        # Alternative: can2[s] = 1 iff s can be split. We use: can2[s] = 1 iff exists independent T subset s (T nonempty) with is_indep[s\T] or can2[s\T]
+        # But that's circular for the "or can2[s\T]" part.
+        # Actually can2[s] means 2-colorable (bipartite). A graph is 2-colorable iff no odd cycle.
+        # But we need the actual partition for reconstruction.
+        # Let's just compute can2 via: can2[s] = 1 iff exists independent T (nonempty, subset s) with is_indep[s\T]
+        # This is correct because if s = T | (s\T) with both independent, that's a valid 2-partition.
+        # And if s is 2-colorable, then taking T = one color class works.
+        # So we need: exists independent T subset s, T nonempty, is_indep[s\T].
+        # To compute efficiently: for each s, we want to know if any independent subset T of s has s\T independent.
+        # Note: if is_indep[s], then can2[s] = 1 (take T = s, s\T = empty which is independent).
+        if is_indep[s]:
+            can2[s] = 1
+            continue
+        # Otherwise, need to find T. We use the fact that v must go somewhere.
+        # v is in T or in s\T.
+        # Case 1: v in T. Then T = vs | R, R subset prev. Need is_indep[vs|R] and is_indep[prev\R].
+        # Case 2: v in s\T. Then s\T = vs | R', R' subset prev. Need is_indep[vs|R'] and is_indep[prev\R'].
+        # which is symmetric to case 1 with roles swapped. So effectively:
+        # can2[s] = 1 iff exists R subset prev such that (is_indep[vs|R] and is_indep[prev\R])
+        # We can iterate over subsets R of prev, but that's 2^|prev| which is too slow in general.
+        # However, we can use the following: we only need to check maximal independent sets or use DP.
+        # Let's think differently. We precompute for each s the value can2[s] using the recurrence:
+        # can2[s] = 1 iff exists v in s such that can2[s \ {v}] and (the component stuff)... no.
+        # Actually, let's use a different approach: precompute for each s, the set of vertices that can be in color 1
+        # such that the rest is 2-colorable. But that's also complex.
+        # Given n <= 40, and we're doing 2^n = 2^20 ~ 1M states, we can afford O(3^n) total? 3^20 = 3.5 billion, too slow.
+        # We need a smarter way.
+        # Key insight: can2[s] = 1 iff exists independent T subset s with is_indep[s\T].
+        # We can compute this as: for each s, iterate over independent subsets T of s.
+        # But we can use the common_adj trick: for a fixed s, the independent subsets containing a specific vertex v
+        # are subsets of (s \ N(v)) that include v. 
+        # Alternatively, we can compute can2 using the following DP:
+        # can2[s] = 1 iff is_indep[s] or exists v in s with can2[s & ~N[v]] and is_indep[s & N(v)]
+        # where N[v] = {v} | N(v). This is because in a 2-coloring, v has color 1, its neighbors have color 2,
+        # and the rest (s \ N[v]) must be 2-colorable. Wait, that's not right either because neighbors of v
+        # might not all be the same color... no wait, in 2-coloring neighbors of v are all the other color.
+        # So: if v has color 1, then N(v) ∩ s must be independent (all color 2, no edges among them)
+        # and s \ ({v} ∪ N(v)) must be 2-colorable. But N(v) ∩ s being independent is necessary but
+        # the rest must be 2-colorable AND consistent with N(v) being color 2... 
+        # Actually no: s \ ({v} ∪ N(v)) could have vertices adjacent to N(v), which would then be color 1,
+        # and so on. So the condition is: s \ {v} is 2-colorable with v's neighbors forced to color 2.
+        # This is getting complicated. Let's just use the subset iteration with the independent set enumeration.
+        # For each s, we iterate over independent subsets T of s. We can do this efficiently using the
+        # "iterate over independent subsets" technique.
+        # But doing this for every s would be O(3^n) total.
+        # Given n <= 40 and 2^n = 2^20 ~ 1M, and we need this to be fast...
+        # Actually, we can compute can2 differently. Note that can2[s] asks if the induced subgraph is bipartite.
+        # We can compute this by: can2[s] = 1 iff no odd cycle in s. But detecting odd cycles via DP is hard.
+        # Let's use the recurrence: can2[s] = 1 iff is_indep[s] or (exists v in s: can2[s & ~N[v]] and is_indep[s & N(v)])
+        # Wait, I think this IS correct. Let me verify.
+        # Claim: s is 2-colorable iff is_indep[s] or exists v in s such that (s & N(v)) is independent and (s & ~N[v]) is 2-colorable.
+        # Proof: (<=) If is_indep[s], done. Otherwise, pick v. Color v with 1. N(v)∩s gets color 2 (must be independent).
+        # The rest s\N[v] must be 2-colorable. But we also need that vertices in s\N[v] adjacent to N(v) get color 1,
+        # and so on. The 2-coloring of s\N[v] might assign color 2 to a vertex adjacent to some vertex in N(v)∩s,
+        # which would be a conflict. So this recurrence is NOT correct in general.
+        # Hmm. So we can't use that simple recurrence.
+        # Let's think again. The correct statement is:
+        # s is 2-colorable iff exists a partition s = A | B with A, B independent.
+        # This is equivalent to: exists independent A subset s with is_indep[s \ A].
+        # To compute this for all s, we can use the following:
+        # For each independent set A, mark can2[A | B] = 1 for all B such that A, B disjoint, B independent, and A∩B=∅.
+        # But that's again expensive.
+        # Alternative: we can compute can2[s] by checking if s is bipartite using BFS/DFS on the induced subgraph.
+        # For each s, we do a BFS. The number of 1-bits in s is at most n. For each s, BFS takes O(n^2) in the worst case.
+        # Total: 2^n * n^2 = 2^20 * 1600 = 1.6 billion. Too slow.
+        # We need a better approach. Let's limit the subsets we consider.
+        # Actually, we only need can2 for subsets of the common neighbors of some independent set.
+        # The common neighbors of an independent set of size k is at most n - k vertices.
+        # And we only need can2[S] where S is a subset of common_adj[T] for some independent T.
+        # The total number of such (T, S) pairs could be large, but maybe manageable.
+        # Let's compute can2 lazily: only compute can2[S] when needed.
+        # We'll use memoization with a dictionary.
+        pass
+    
+    # Given the complexity, let me reconsider the approach.
+    # We need to find the lexicographically smallest 3-coloring.
+    # n <= 40. We can use backtracking with pruning.
+    # Assign colors to vertices 1, 2, ..., n in order. For each vertex, try colors 1, 2, 3.
+    # A color is valid if no already-colored neighbor has that color.
+    # To check 3-colorability of the remaining graph, we can use the precomputed can2.
+    # But computing can2 for arbitrary subsets is the issue.
+    # 
+    # Alternative: use the fact that after assigning colors to some vertices, the remaining vertices
+    # must be 3-colorable with the constraint that vertices adjacent to colored vertices have
+    # restricted color sets. This is more general than just 3-colorability.
+    # 
+    # Let's use a different pruning: for the remaining uncolored vertices, check if the graph is 3-colorable
+    # using a fast heuristic or exact algorithm. Since n <= 40, and we're doing backtracking,
+    # the key is to prune early.
+    # 
+    # Actually, let's just do backtracking with a simple 3-colorability check for the remaining graph.
+    # For the 3-colorability check of the remaining graph (without color restrictions from colored neighbors),
+    # we can use the following: a graph is 3-colorable iff it can be partitioned into 3 independent sets.
+    # We can check this by trying to find such a partition using backtracking on the remaining vertices.
+    # But this is recursive backtracking within backtracking, which could be slow.
+    # 
+    # Let's try a simpler approach: just do backtracking assigning colors 1,2,3 to vertices 1..n,
+    # and for pruning, check if the remaining graph (induced on uncolored vertices) is 3-colorable.
+    # For the 3-colorability check, we can use the following observation:
+    # If the remaining graph has a vertex of degree >= 3 within the remaining graph, it's not necessarily
+    # a problem. But if there's a K4 (complete graph on 4 vertices), it's not 3-colorable.
+    # We can use Brooks' theorem: a connected graph is 3-colorable unless it's K4.
+    # Wait, Brooks' theorem says chromatic number <= max degree, except for complete graphs and odd cycles.
+    # So if max degree in remaining graph <= 2, it's 3-colorable unless it's K3 (which is 3-colorable, needs 3 colors)
+    # or an odd cycle (needs 3 colors, still 3-colorable). So if max degree <= 2, always 3-colorable.
+    # If max degree >= 3, Brooks doesn't directly help.
+    # 
+    # Let's just implement the backtracking with a reasonable 3-colorability check.
+    # For the check, we can use the following: try to 3-color the remaining graph using a greedy/heuristic
+    # approach, and if it fails, do a more thorough check. But this might not be exact.
+    # 
+    # Given the constraints (n <= 40, 2 sec), let's try the following:
+    # 1. Precompute can2[S] for all S using the subset DP with the correct recurrence.
+    # 2. For can2, use: can2[S] = 1 iff is_indep[S] or exists v in S such that can2[S \ N[v]] and is_indep[S ∩ N(v)]
+    #    where N[v] = {v} ∪ N(v). I claimed this might be wrong, but let me re-examine.
+    # 
+    # Actually, I think the issue is that the 2-coloring of S \ N[v] might conflict with N(v) being color 2.
+    # But wait: in S \ N[v], vertices adjacent to N(v) would need to be color 1 (same as v), and vertices
+    # adjacent to those would be color 2, etc. The 2-coloring of S \ N[v] is unconstrained by N(v)
+    # because we're checking if S \ N[v] is 2-colorable on its own (as an induced subgraph).
+    # But the issue is: a vertex w in S \ N[v] might be adjacent to a vertex u in N(v) ∩ S.
+    # In the 2-coloring of S, u has color 2, so w must have color 1. But in the 2-coloring of S \ N[v],
+    # w might be assigned color 2, which would conflict.
+    # So the recurrence is indeed incorrect.
+    # 
+    # The correct approach for 2-colorability with some vertices pre-colored is more complex.
+    # 
+    # Let me just implement a straightforward backtracking with good pruning and hope it's fast enough.
+    
+    # Backtracking approach
+    color = [0] * (n + 1)  # 0 = unassigned, 1/2/3 = colors
+    
+    # For pruning, we need to check if the remaining graph is 3-colorable.
+    # We'll use a simple recursive 3-coloring check with pruning.
+    # But to make it fast, we'll use the following:
+    # - If remaining graph has a clique of size 4, not 3-colorable.
+    # - Use DSATUR or similar heuristic.
+    # 
+    # Actually, let's use a different strategy. Since we want lexicographically smallest,
+    # we try colors 1, 2, 3 for each vertex. For pruning, we check if the remaining graph
+    # (with color constraints from colored neighbors) is 3-colorable.
+    # The color constraints: each uncolored vertex has a set of forbidden colors (colors of colored neighbors).
+    # 
+    # For the 3-colorability check with forbidden colors, we can use backtracking with the following optimizations:
+    # - Order vertices by number of available colors (fewest first).
+    # - If any vertex has 0 available colors, fail.
+    # - If any vertex has 1 available color, assign it immediately.
+    # 
+    # Let's implement this.
+    
+    def check_remaining(pos):
+        """Check if vertices pos..n can be 3-colored given current assignments."""
+        # Collect uncolored vertices
+        uncolored = []
+        for v in range(pos, n + 1):
+            uncolored.append(v)
+        
+        if not uncolored:
+            return True
+        
+        # Compute available colors for each uncolored vertex
+        avail = {}
+        for v in uncolored:
+            forbidden = set()
+            for u in range(1, n + 1):
+                if color[u] != 0 and (adj[v] & (1 << u)):
+                    forbidden.add(color[u])
+            avail_v = {1, 2, 3} - forbidden
+            if not avail_v:
+                return False
+            avail[v] = avail_v
+        
+        # Use backtracking with MRV (minimum remaining values) heuristic
+        def bt(remaining):
+            if not remaining:
+                return True
+            # Find vertex with fewest available colors
+            best_v = None
+            best_avail = None
+            best_count = 4
+            for v in remaining:
+                forbidden = set()
+                for u in remaining:
+                    if u != v and (adj[v] & (1 << u)):
+                        # u is uncolored, so we don't know its color yet
+                        pass
+                # Recompute available colors considering both colored and uncolored neighbors
+                # that have been assigned in this bt
+                # Actually, we need to track assignments within bt separately
+                pass
+            # This is getting complicated. Let me simplify.
+            return False
+        
+        # Simpler approach: just try all 3-colorings of the remaining graph with backtracking
+        # and the color constraints from already-colored vertices.
+        assignment = {}
+        
+        def bt2(remaining_list):
+            if not remaining_list:
+                return True
+            # Find vertex with fewest available colors (MRV)
+            best_idx = -1
+            best_colors = None
+            best_count = 4
+            for i, v in enumerate(remaining_list):
+                forbidden = set()
+                # Colored neighbors (from main assignment)
+                for u in range(1, n + 1):
+                    if color[u] != 0 and (adj[v] & (1 << u)):
+                        forbidden.add(color[u])
+                # Neighbors assigned in this bt
+                for u, c in assignment.items():
+                    if (adj[v] & (1 << u)):
+                        forbidden.add(c)
+                avail_v = {1, 2, 3} - forbidden
+                if not avail_v:
+                    return False
+                if len(avail_v) < best_count:
+                    best_count = len(avail_v)
+                    best_idx = i
+                    best_colors = avail_v
+                    if best_count == 1:
+                        break
+            
+            v = remaining_list[best_idx]
+            remaining_list.pop(best_idx)
+            
+            for c in sorted(best_colors):
+                assignment[v] = c
+                if bt2(remaining_list):
+                    return True
+                del assignment[v]
+            
+            remaining_list.insert(best_idx, v)
+            return False
+        
+        return bt2(uncolored)
+    
+    def backtrack(pos):
+        if pos > n:
+            return True
+        for c in range(1, 4):
+            # Check if color c is valid for vertex pos
+            valid = True
+            for u in range(1, pos):
+                if color[u] == c and (adj[pos] & (1 << u)):
+                    valid = False
+                    break
+            if not valid:
+                continue
+            color[pos] = c
+            # Pruning: check if remaining graph is 3-colorable
+            if pos == n or check_remaining(pos + 1):
+                if backtrack(pos + 1):
+                    return True
+            color[pos] = 0
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(" ".join(str(color[i]) for i in range(1, n + 1)))
+    else:
         print("NO")
-        return
-
-    # Reconstruct lexicographically smallest assignment
-    color = [0] * (n + 1)
-    mask = 0
-    for c in range(1, 4):
-        if mask == (1 << n) - 1:
-            break
-        avail = ((1 << n) - 1) ^ mask
-        # find the lexicographically smallest independent set S subset of avail
-        # such that dp[mask | S] is True and S is nonempty (if possible)
-        best = None
-        sub = avail
-        while sub:
-            if (forbidden[sub] & sub) == 0 and dp[mask | sub]:
-                if best is None or sub < best:
-                    best = sub
-            sub = (sub - 1) & avail
-        if best is None:
-            # must assign remaining to next color (should not happen if dp[full] is True)
-            best = avail
-        # assign color c to vertices in best
-        b = best
-        while b:
-            bit = b & -b
-            v = bit.bit_length() - 1
-            color[v + 1] = c
-            b ^= bit
-        mask |= best
-
-    print("YES")
-    print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
 solve()
 ```

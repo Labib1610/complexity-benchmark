@@ -1,24 +1,31 @@
 import sys
 
-def main():
+def solve():
     input = sys.stdin.readline
     n, m = map(int, input().split())
-    adj = [set() for _ in range(n)]
+    adj = [[] for _ in range(n + 1)]
+    edges = []
+    edge_set = set()
+
     for _ in range(m):
         u, v = map(int, input().split())
-        u -= 1
-        v -= 1
-        adj[u].add(v)
-        adj[v].add(u)
-    
-    for a in range(n):
-        for b in range(a + 1, n):
-            if b not in adj[a]:
-                continue
-            for c in range(b + 1, n):
-                if c in adj[a] and c in adj[b]:
-                    print(a + 1, b + 1, c + 1)
-                    return
+        if u > v:
+            u, v = v, u
+        edges.append((u, v))
+        edge_set.add((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
+
+    for i in range(1, n + 1):
+        adj[i].sort()
+
+    # Iterate edges in sorted order
+    edges.sort()
+    for u, v in edges:
+        for w in adj[u]:
+            if w > v and (v, w) in edge_set:
+                print(u, v, w)
+                return
 
 if __name__ == "__main__":
-    main()
+    solve()

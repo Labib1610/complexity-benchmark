@@ -1,20 +1,20 @@
-# Planetary Core Assembly
+# Problem C — Grievance Audit
 
 Time limit: 2 s   Memory limit: 256 MB
 
-A mechanical engineering team is evaluating $n$ distinct gear designs, labeled with integer IDs from 1 to $n$. Through extensive prototyping, they have confirmed $m$ specific meshing compatibilities, each indicating that two particular gears can run together continuously without jamming.
+The human resources department is conducting an audit of past worker schedules to determine the root cause of a complete operational halt. You are provided with a historical archive of filed grievances. Each record in this archive documents a bidirectional conflict between two specific employees, meaning they cannot be assigned to the same shift.
 
-The engineers need to construct a "planetary core". A planetary core is an assembly consisting of exactly three distinct gears. To operate without seizing, the assembly must satisfy a strict structural condition: no matter which of the three gears is temporarily disengaged from the core, the remaining two gears must be a pair that has a confirmed meshing compatibility.
+Your objective is to process these records and identify a deadlock triplet. A deadlock triplet consists of exactly three distinct employees such that, if you select any two employees from this group of three, their bidirectional conflict is present in the archive.
 
-Physical constraints guarantee that at least one valid planetary core can be constructed. Your task is to process the compatibility records and identify one such assembly.
+Because it was impossible to divide the workforce into two shifts without internal conflicts during this period, the archive is mathematically guaranteed to contain at least one valid deadlock triplet. You must find and report one such group.
 
 ## Input
-The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n(n-1)/2, 2 \cdot 10^5)$).
-Each of the next $m$ lines contains two integers $u$ and $v$ — a pair of gears that have a confirmed meshing compatibility.
-It is guaranteed that at least one planetary core exists.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$), which are the total number of employees (identified by integers from $1$ to $n$) and the total number of filed grievances, respectively.
+The next $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that employee $u$ and employee $v$ have a bidirectional conflict.
+It is guaranteed that there exists at least one deadlock triplet in the dataset.
 
 ## Output
-Print three integers $a$, $b$, and $c$ on one line with $a < b < c$ representing the gears in the planetary core. Output the lexicographically smallest such set (smallest $a$; ties broken by smallest $b$; then smallest $c$).
+Print a single line containing three space-separated integers $a$, $b$, and $c$, arranged in strictly increasing order ($a < b < c$). These three integers must be the identifiers of the employees who make up a deadlock triplet. If the archive contains multiple valid deadlock triplets, you must output the one that is lexicographically smallest (i.e., among all valid deadlock triplets, output the one with the minimum possible value for $a$; in case of a tie, minimize $b$; and if still tied, minimize $c$).
 
 ## Example 1
 Input:

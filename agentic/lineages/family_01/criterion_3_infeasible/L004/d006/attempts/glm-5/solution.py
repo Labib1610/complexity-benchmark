@@ -1,37 +1,31 @@
 import sys
+input = sys.stdin.readline
 
-def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
-        return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
-    
-    adj = [[False] * (n + 1) for _ in range(n + 1)]
+def main():
+    n, m = map(int, input().split())
+    adj = [set() for _ in range(n + 1)]
+    edges = []
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
-        adj[u][v] = True
-        adj[v][u] = True
+        u, v = map(int, input().split())
+        adj[u].add(v)
+        adj[v].add(u)
+        edges.append((u, v))
     
-    # Iterate over all triples in lexicographical order
-    for i in range(1, n - 1):
-        for j in range(i + 1, n):
-            for k in range(j + 1, n + 1):
-                # Count edges among the triple (i, j, k)
-                cnt = 0
-                if adj[i][j]:
-                    cnt += 1
-                if adj[i][k]:
-                    cnt += 1
-                if adj[j][k]:
-                    cnt += 1
-                
-                # If 2 or more edges, the triple is not bipartite
-                if cnt >= 2:
-                    print(i, j, k)
+    # Find lexicographically smallest triangle
+    # For each vertex v (ascending), for each pair of neighbors a < b (both > v),
+    # check if a-b edge exists
+    for v in range(1, n + 1):
+        neighbors_gt = sorted(x for x in adj[v] if x > v)
+        found = False
+        for i in range(len(neighbors_gt)):
+            a = neighbors_gt[i]
+            for j in range(i + 1, len(neighbors_gt)):
+                b = neighbors_gt[j]
+                if b in adj[a]:
+                    print(f"{v} {a} {b}")
                     return
+    
+    # Should not reach here given problem guarantees
+    print("-1")
 
-if __name__ == "__main__":
-    solve()
+main()

@@ -1,0 +1,51 @@
+# Problem A — Orbital Network Frequency Coordination
+
+Time limit: 2 s   Memory limit: 256 MB
+
+An aerospace consortium is preparing the initialization profile for $n$ orbital uplink stations, numbered $1$ through $n$. The hardware supports exactly three operational frequencies, labeled 1, 2, and 3. Every station must be allocated exactly one of these frequencies.
+
+Spatial analysis has identified $m$ pairs of stations whose broadcast footprints intersect. To prevent destructive interference, any two stations in an intersecting pair must operate on strictly different frequencies.
+
+The initialization profile is expressed as a complete sequence of $n$ integers, where the $i$-th value is the frequency (1, 2, or 3) allocated to station $i$. The consortium evaluates all possible complete, interference-free profiles as a set. From this set of valid configurations, the automated deployment policy mandates selecting the profile that is lexicographically smallest. This means that when comparing two valid profiles, the system evaluates the entire sequence and selects the one with the smaller frequency value at the first station index where the two configurations differ (comparing the frequency for station 1 first, then station 2, and so forth).
+
+If the set of interference-free profiles is empty, the procedure must be aborted.
+
+## Input
+The first line contains two integers $n$ and $m$ — the number of uplink stations and the number of intersecting footprint pairs ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — representing a pair of stations that have intersecting footprints and must use different frequencies.
+
+## Output
+If the deployment must be aborted because no interference-free profile exists, print a single line containing `NO`.
+Otherwise, print `YES` on the first line. On the second line, print $n$ integers $f_1, f_2, \dots, f_n$ (where each $f_i \in \{1, 2, 3\}$), representing the frequency allocated to station $i$. Among all valid profiles, output the lexicographically smallest sequence (comparing $f_1$ first, then $f_2$, and so forth).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

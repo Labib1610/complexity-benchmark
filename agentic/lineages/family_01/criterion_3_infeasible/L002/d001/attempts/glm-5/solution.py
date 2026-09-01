@@ -8,32 +8,45 @@ def solve():
     n = int(next(it))
     m = int(next(it))
     
-    adj = [set() for _ in range(n + 1)]
-    edges = []
+    adj = [[False] * (n + 1) for _ in range(n + 1)]
+    deg = [0] * (n + 1)
     
     for _ in range(m):
         u = int(next(it))
         v = int(next(it))
-        if u > v:
-            u, v = v, u
-        adj[u].add(v)
-        adj[v].add(u)
-        edges.append((u, v))
+        adj[u][v] = True
+        adj[v][u] = True
+        deg[u] += 1
+        deg[v] += 1
     
-    # Sort edges lexicographically to find the lexicographically smallest triangle first
-    edges.sort()
+    # Sort vertices by degree
+    vertices = list(range(1, n + 1))
+    vertices.sort(key=lambda x: deg[x])
     
-    for u, v in edges:
-        # Find common neighbors of u and v
-        # Iterate through the smaller set for efficiency
-        if len(adj[u]) > len(adj[v]):
-            u, v = v, u
-        
-        for w in adj[u]:
-            if w > v and w in adj[v]:
-                # Found triangle (u, v, w) with u < v < w
-                print(u, v, w)
-                return
+    # For each vertex, create sorted neighbor list
+    neighbors = [[] for _ in range(n + 1)]
+    for u in range(1, n + 1):
+        for v in range(1, n + 1):
+            if adj[u][v]:
+                neighbors[u].append(v)
+    
+    found = None
+    
+    # Iterate vertices in order of increasing degree
+    for u in vertices:
+        # Get neighbors of u
+        nu = neighbors[u]
+        # For each pair of neighbors (v, w) with v < w
+        for i in range(len(nu)):
+            v = nu[i]
+            for j in range(i + 1, len(nu)):
+                w = nu[j]
+                if adj[v][w]:
+                    # Found triangle
+                    a, b, c = sorted([u, v, w])
+                    if found is None or (a, b, c) < found:
+                        found = (a, b, c)
+    
+    print(found[0], found[1], found[2])
 
-if __name__ == "__main__":
-    solve()
+solve()

@@ -1,34 +1,41 @@
 import sys
 
-def solve():
-    input_data = sys.stdin.buffer.read().split()
-    if not input_data:
+def solve() -> None:
+    data = sys.stdin.read().split()
+    if not data:
         return
-    n = int(input_data[0])
-    m = int(input_data[1])
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
     
-    adj = [0] * (n + 1)
-    idx = 2
+    adj = [set() for _ in range(n + 1)]
+    
     for _ in range(m):
-        u = int(input_data[idx]); v = int(input_data[idx+1])
-        idx += 2
-        if u > v:
-            u, v = v, u
-        adj[u] |= 1 << v
-        adj[v] |= 1 << u
+        u = int(next(it))
+        v = int(next(it))
+        adj[u].add(v)
+        adj[v].add(u)
     
-    full_mask = (1 << (n + 1)) - 1
-    
-    for a in range(1, n - 1):
-        adj_a = adj[a]
-        for b in range(a + 1, n):
-            if adj_a & (1 << b):
-                common = adj_a & adj[b] & full_mask
-                if common:
-                    c = (common & -common).bit_length() - 1
-                    if c > b:
-                        sys.stdout.write(f"{a} {b} {c}\n")
-                        return
+    # Iterate a from 1 to n
+    for a in range(1, n + 1):
+        neighbors_a = adj[a]
+        # We need to find b, c in neighbors_a such that c is in adj[b]
+        # To satisfy the tie-breaking (minimize b, then c), we iterate b and c in increasing order.
+        # Since neighbors_a is a set, we sort it.
+        sorted_neighbors = sorted(neighbors_a)
+        for b in sorted_neighbors:
+            if b < a: 
+                continue
+            # Check potential c values. 
+            # c must be > b to satisfy a < b < c.
+            # We iterate through neighbors of b that are also neighbors of a.
+            neighbors_b = adj[b]
+            common = neighbors_b.intersection(neighbors_a)
+            for c in sorted(common):
+                if c > b:
+                    # Found the deadlock (a, b, c)
+                    print(a, b, c)
+                    return
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     solve()

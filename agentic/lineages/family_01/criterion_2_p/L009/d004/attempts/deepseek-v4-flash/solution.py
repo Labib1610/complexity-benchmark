@@ -13,81 +13,32 @@ for _ in range(m):
     adj[v].append(u)
 
 color = [-1] * n
-possible = True
+res = [0] * n
 
-for i in range(n):
-    if color[i] == -1:
-        color[i] = 0
-        q = deque([i])
-        while q:
-            u = q.popleft()
-            for v in adj[u]:
-                if color[v] == -1:
-                    color[v] = 1 - color[u]
-                    q.append(v)
-                elif color[v] == color[u]:
-                    possible = False
-                    break
-            if not possible:
-                break
-    if not possible:
-        break
+for start in range(n):
+    if color[start] != -1:
+        continue
+    color[start] = 0
+    q = deque([start])
+    comp = [start]
+    while q:
+        u = q.popleft()
+        for v in adj[u]:
+            if color[v] == -1:
+                color[v] = color[u] ^ 1
+                q.append(v)
+                comp.append(v)
+            elif color[v] == color[u]:
+                print("NO")
+                sys.exit()
+    # Assign lexicographically smallest: try to put 1 on smallest index in this component
+    # color 0 -> value 1, color 1 -> value 2
+    # But we can flip colors if it makes the smallest index get 1
+    if color[min(comp)] == 1:
+        for node in comp:
+            color[node] ^= 1
+    for node in comp:
+        res[node] = 1 if color[node] == 0 else 2
 
-if not possible:
-    print("NO")
-else:
-    # color 0 -> 1, color 1 -> 2
-    # To minimize lexicographically, we want x1 as small as possible.
-    # We can flip colors in each component if it makes x1 smaller.
-    # Since we process from node 0, we can just check if flipping helps.
-    # But we already assigned starting color 0 to first node in each component.
-    # For lexicographic minimal, we can try flipping each component if it reduces earlier index.
-    # Simpler: we can do BFS/DFS and assign greedily: for each node in order, if unassigned, set to 1 and propagate.
-    
-    res = [0] * n
-    visited = [False] * n
-    for i in range(n):
-        if not visited[i]:
-            # try assigning 1 to i
-            color_temp = [-1] * n
-            color_temp[i] = 0  # 0 means value 1
-            q = deque([i])
-            visited[i] = True
-            while q:
-                u = q.popleft()
-                for v in adj[u]:
-                    if color_temp[v] == -1:
-                        color_temp[v] = 1 - color_temp[u]
-                        visited[v] = True
-                        q.append(v)
-            # check if this assignment is valid
-            valid = True
-            for u in range(n):
-                if color_temp[u] != -1:
-                    for v in adj[u]:
-                        if color_temp[v] != -1 and color_temp[u] == color_temp[v]:
-                            valid = False
-                            break
-                if not valid:
-                    break
-            if valid:
-                for u in range(n):
-                    if color_temp[u] != -1:
-                        res[u] = color_temp[u] + 1
-            else:
-                # assign 2 to i
-                color_temp = [-1] * n
-                color_temp[i] = 1  # 1 means value 2
-                q = deque([i])
-                while q:
-                    u = q.popleft()
-                    for v in adj[u]:
-                        if color_temp[v] == -1:
-                            color_temp[v] = 1 - color_temp[u]
-                            q.append(v)
-                for u in range(n):
-                    if color_temp[u] != -1:
-                        res[u] = color_temp[u] + 1
-
-    print("YES")
-    print(" ".join(map(str, res)))
+print("YES")
+print(" ".join(map(str, res)))

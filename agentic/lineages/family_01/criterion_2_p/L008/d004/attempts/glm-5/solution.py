@@ -1,5 +1,5 @@
 import sys
-from collections import deque
+from sys import setrecursionlimit
 
 def solve():
     input_data = sys.stdin.read().split()
@@ -17,24 +17,31 @@ def solve():
         adj[v].append(u)
     
     color = [0] * (n + 1)
+    possible = True
     
-    for i in range(1, n + 1):
-        if color[i] == 0:
-            # BFS to color the component
-            queue = deque([i])
-            color[i] = 1
-            while queue:
-                u = queue.popleft()
+    for start in range(1, n + 1):
+        if color[start] == 0:
+            color[start] = 1
+            stack = [start]
+            while stack:
+                u = stack.pop()
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
-                        queue.append(v)
+                        stack.append(v)
                     elif color[v] == color[u]:
-                        print("NO")
-                        return
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
     
-    print("YES")
-    print(' '.join(map(str, color[1:])))
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(color[i]) for i in range(1, n + 1)))
 
 if __name__ == "__main__":
     solve()

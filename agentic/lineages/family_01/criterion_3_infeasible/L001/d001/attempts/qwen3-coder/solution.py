@@ -1,46 +1,55 @@
 import sys
 from collections import defaultdict
+import heapq
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+def find_ternary_cascade():
+    n, m = map(int, sys.stdin.readline().split())
     
-    n = int(data[0])
-    m = int(data[1])
+    # Build adjacency list and set for O(1) lookup
+    adj_list = defaultdict(set)
+    adj_set = set()
     
-    # Build adjacency list and edge set for O(1) lookup
-    adj = defaultdict(set)
-    edges = set()
-    
-    index = 2
+    edges = []
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        index += 2
-        adj[u].add(v)
-        adj[v].add(u)
-        edges.add((min(u,v), max(u,v)))
+        u, v = map(int, sys.stdin.readline().split())
+        if u > v:
+            u, v = v, u
+        adj_list[u].add(v)
+        adj_list[v].add(u)
+        adj_set.add((u, v))
+        edges.append((u, v))
     
-    # Convert adjacency list to sorted lists for consistent iteration
-    adj_list = {k: sorted(list(v)) for k, v in adj.items()}
+    # Sort vertices by degree (ascending)
+    vertices = list(range(1, n + 1))
+    vertices.sort(key=lambda x: len(adj_list[x]))
     
-    # Iterate through all possible triplets (i, j, k) with i < j < k
-    for i in range(1, n+1):
-        if i not in adj_list:
-            continue
-        for idx_j in range(len(adj_list[i])):
-            j = adj_list[i][idx_j]
-            if j <= i:
+    best = None
+    
+    # For each edge, check for common neighbors
+    for u, v in edges:
+        if u > v:
+            u, v = v, u
+            
+        # Get common neighbors of u and v
+        common_neighbors = adj_list[u] & adj_list[v]
+        
+        for w in common_neighbors:
+            # Ensure we have three distinct nodes
+            if w == u or w == v:
                 continue
-            for idx_k in range(idx_j+1, len(adj_list[i])):
-                k = adj_list[i][idx_k]
-                if k <= j:
-                    continue
-                # Check if j and k are connected
-                if (j, k) in edges:
-                    print(i, j, k)
-                    return
+                
+            # Create sorted triplet
+            triplet = tuple(sorted([u, v, w]))
+            
+            # Check if this forms a triangle (all pairs must exist)
+            u_w = (min(u, w), max(u, w))
+            v_w = (min(v, w), max(v, w))
+            
+            if u_w in adj_set and v_w in adj_set:
+                if best is None or triplet < best:
+                    best = triplet
+    
+    if best:
+        print(best[0], best[1], best[2])
 
-if __name__ == "__main__":
-    main()
+find_ternary_cascade()

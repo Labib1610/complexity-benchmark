@@ -10,9 +10,9 @@ def solve():
         v -= 1
         adj[u].append(v)
         adj[v].append(u)
-
+    
     color = [0] * n  # 0 = unassigned, 1,2,3 = schedules
-
+    
     def backtrack(idx):
         if idx == n:
             return True
@@ -28,7 +28,7 @@ def solve():
                     return True
                 color[idx] = 0
         return False
-
+    
     if backtrack(0):
         print("YES")
         print(" ".join(map(str, color)))

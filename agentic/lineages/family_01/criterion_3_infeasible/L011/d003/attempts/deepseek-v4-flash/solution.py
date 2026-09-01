@@ -1,36 +1,21 @@
 n, m = map(int, input().split())
-adj = [0] * (n + 1)
-edges = []
+adj = [set() for _ in range(n + 1)]
 
 for _ in range(m):
     u, v = map(int, input().split())
-    edges.append((u, v))
-    adj[u] |= 1 << v
-    adj[v] |= 1 << u
+    adj[u].add(v)
+    adj[v].add(u)
 
-best = None
-best_trace = None
-
-for u, v in edges:
-    common = adj[u] & adj[v]
-    # We need a w such that u < v < w or u < w < v etc.
-    # Since we iterate all edges, we can just check all w in common
-    # and ensure ordering u < v < w or u < w < v etc.
-    # But to avoid duplicates, we can enforce u < v and w > v
-    if u > v:
-        u, v = v, u
-    # Now u < v
-    # Find smallest w > v in common
-    # We can iterate over bits
-    while common:
-        lsb = common & -common
-        w = lsb.bit_length()  # gives index+1
-        if w > v:
-            trace = u * 10**8 + v * 10**4 + w
-            if best_trace is None or trace < best_trace:
-                best_trace = trace
-                best = (u, v, w)
-            break  # smallest w > v found for this edge
-        common ^= lsb
-
-print(best[0], best[1], best[2])
+found = False
+for u in range(1, n + 1):
+    for v in sorted(adj[u]):
+        if v > u:
+            for w in sorted(adj[v]):
+                if w > v and w in adj[u]:
+                    print(u, v, w)
+                    found = True
+                    break
+            if found:
+                break
+    if found:
+        break

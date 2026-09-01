@@ -1,5 +1,5 @@
 import sys
-from collections import defaultdict
+from itertools import combinations
 
 def main():
     import sys
@@ -9,47 +9,22 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    edges = []
-    graph = [set() for _ in range(n + 1)]
-    
+    # Build adjacency list for prohibited pairs
+    adj = [set() for _ in range(n + 1)]
     index = 2
     for _ in range(m):
         u = int(data[index])
         v = int(data[index + 1])
-        edges.append((u, v))
-        graph[u].add(v)
-        graph[v].add(u)
+        adj[u].add(v)
+        adj[v].add(u)
         index += 2
-    
-    # For each node, sort its neighbors for consistent ordering
-    for i in range(1, n + 1):
-        graph[i] = sorted(graph[i])
-    
-    # We want the lexicographically smallest triangle
-    # So we iterate through all edges and try to find a third node
-    # that connects to both endpoints of the edge
-    best = None
-    
-    # Iterate through all edges
-    for u, v in edges:
-        if u > v:
-            u, v = v, u
-        # For each neighbor of u (excluding v)
-        for w in graph[u]:
-            if w == v:
-                continue
-            # Check if w is also connected to v
-            if w in graph[v]:
-                # Found a triangle: u, v, w
-                triple = tuple(sorted([u, v, w]))
-                if best is None or triple < best:
-                    best = triple
-    
-    if best:
-        print(best[0], best[1], best[2])
-    else:
-        # Fallback - should not happen according to problem statement
-        print(1, 2, 3)
+
+    # Check all combinations of 3 materials in lexicographical order
+    for a, b, c in combinations(range(1, n + 1), 3):
+        # Check if all three pairs are prohibited (forming a triangle)
+        if b in adj[a] and c in adj[a] and c in adj[b]:
+            print(a, b, c)
+            return
 
 if __name__ == "__main__":
     main()

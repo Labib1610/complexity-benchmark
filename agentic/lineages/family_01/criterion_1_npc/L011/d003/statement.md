@@ -1,0 +1,49 @@
+# Problem A — Frequency Allocation
+
+Time limit: 2 s   Memory limit: 256 MB
+
+You are deploying a wireless infrastructure with $n$ access points. Each access point must be assigned to operate on exactly one of three available frequency bands, identified by the integers 1, 2, and 3. 
+
+Because of their physical placement, certain pairs of access points are within interfering range of each other. If two access points in interfering range are assigned the identical frequency band, they will cause signal disruption. A network configuration is valid if and only if no two interfering access points share the same frequency band.
+
+Your objective is to determine a valid configuration for all $n$ access points. A complete configuration is represented as a sequence of $n$ integers $C = (c_1, c_2, \ldots, c_n)$. If multiple valid complete configurations exist, you must output the sequence that is lexicographically smallest. Specifically, given two distinct valid configurations $C$ and $C'$, configuration $C$ is strictly smaller than $C'$ if $c_k < c'_k$ at the lowest index $k$ where the two sequences differ. If it is impossible to configure the network without signal disruption, report that no solution exists.
+
+## Input
+The first line provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$), representing the number of access points and the number of interfering pairs, respectively.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that access point $u$ and access point $v$ are in interfering range and cannot use the same frequency band.
+
+## Output
+If no valid network configuration can be formed, print a single line containing `NO`.
+If a valid configuration is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \ldots, c_n$, where $c_i \in \{1, 2, 3\}$ is the frequency band assigned to access point $i$. If there are multiple valid assignments, you must output the lexicographically smallest sequence.
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

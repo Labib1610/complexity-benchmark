@@ -1,73 +1,74 @@
 import sys
 from collections import defaultdict, deque
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
-    
-    n = int(data[0])
-    m = int(data[1])
+def solve():
+    n, m = map(int, sys.stdin.readline().split())
     
     if m == 0:
         print("YES")
         print(" ".join(["1"] * n))
         return
     
-    edges = []
+    # Build adjacency list
     adj = defaultdict(list)
-    index = 2
+    edges = []
+    
     for _ in range(m):
-        u = int(data[index]) - 1
-        v = int(data[index+1]) - 1
-        edges.append((u, v))
+        u, v = map(int, sys.stdin.readline().split())
+        u -= 1  # Convert to 0-indexed
+        v -= 1
         adj[u].append(v)
         adj[v].append(u)
-        index += 2
+        edges.append((u, v))
     
-    # Each equation x_u + x_v = 3 with x_u, x_v in {1,2} means:
-    # (1,2) or (2,1). So u and v must have different values.
-    # This is a 2-coloring problem (bipartite check).
+    # For each edge, check if p_u^2 + p_v^2 = 5
+    # Possible values: 1^2 + 2^2 = 1 + 4 = 5 ✓
+    #                   2^2 + 1^2 = 4 + 1 = 5 ✓
+    # So each edge must connect a 1-node with a 2-node
     
-    color = [-1] * n  # -1: unvisited, 0: color A, 1: color B
+    # This is a bipartite graph problem where each component must be bipartite
+    # Color each component with 2 colors (1 and 2)
     
-    # Check if the graph is bipartite and assign values accordingly
+    color = [-1] * n  # -1: unvisited, 0: color 1, 1: color 2
+    visited = [False] * n
+    
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 0
+        visited[start] = True
+        
+        while queue:
+            node = queue.popleft()
+            current_color = color[node]
+            
+            for neighbor in adj[node]:
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    color[neighbor] = 1 - current_color
+                    queue.append(neighbor)
+                elif color[neighbor] == current_color:
+                    return False  # Not bipartite
+        return True
+    
+    # Check if all components are bipartite
     for i in range(n):
-        if color[i] == -1:
-            queue = deque()
-            queue.append(i)
-            color[i] = 0
-            while queue:
-                node = queue.popleft()
-                for neighbor in adj[node]:
-                    if color[neighbor] == -1:
-                        color[neighbor] = 1 - color[node]
-                        queue.append(neighbor)
-                    elif color[neighbor] == color[node]:
-                        print("NO")
-                        return
+        if not visited[i]:
+            if not bfs(i):
+                print("NO")
+                return
     
-    # If bipartite, assign values: color 0 -> 1, color 1 -> 2
-    # But we need to minimize lexicographically.
-    # color[i] == 0 means x_i = 1, color[i] == 1 means x_i = 2
-    # To minimize lex, we want x_1 as small as possible.
-    # If color[0] == 0, then x_1 = 1. If color[0] == 1, then x_1 = 2.
-    # To make x_1 = 1, we can flip all colors if color[0] == 1.
+    # Verify the solution satisfies all constraints
+    for u, v in edges:
+        if color[u] == color[v]:
+            print("NO")
+            return
     
-    if color[0] == 1:
-        # Flip all colors to make x_1 = 1
-        for i in range(n):
-            color[i] = 1 - color[i]
-    
-    assignment = []
+    # Convert colors to frequency multipliers (0 -> 1, 1 -> 2)
+    result = []
     for c in color:
-        if c == 0:
-            assignment.append("1")
-        else:
-            assignment.append("2")
+        result.append(str(c + 1))
     
     print("YES")
-    print(" ".join(assignment))
+    print(" ".join(result))
 
-if __name__ == "__main__":
-    main()
+solve()

@@ -1,5 +1,5 @@
 import sys
-from collections import defaultdict
+from itertools import combinations
 
 def main():
     import sys
@@ -10,46 +10,56 @@ def main():
     m = int(data[1])
     
     edges = []
-    graph = [set() for _ in range(n + 1)]
-    index = 2
+    edge_set = set()
+    adj = [[] for _ in range(n + 1)]
+    
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
-        index += 2
+        u = int(data[idx])
+        v = int(data[idx + 1])
+        idx += 2
         if u > v:
             u, v = v, u
         edges.append((u, v))
-        graph[u].add(v)
-        graph[v].add(u)
+        edge_set.add((u, v))
+        adj[u].append(v)
+        adj[v].append(u)
     
-    # Sort edges to process in order
+    # Sort edges for consistent processing
     edges.sort()
     
-    # Create adjacency set for fast lookup
-    adj = [set() for _ in range(n+1)]
+    # We need to find a triangle (three nodes a,b,c) such that all three edges (a,b), (b,c), (a,c) exist
+    # This ensures each node appears exactly twice (even count)
+    
+    # To find the lexicographically smallest triangle:
+    # Iterate through all combinations of 3 nodes, check if they form a triangle, and keep the smallest
+    
+    # However, iterating through all combinations of nodes is O(n^3) which might be too slow for n=2000
+    # Instead, iterate through each edge and for each edge (u,v), look for a common neighbor
+    
+    best = None
+    
+    # For each edge, check its endpoints' neighbors for a common node
     for u, v in edges:
-        adj[u].add(v)
-        adj[v].add(u)
+        # Get neighbors of u and v
+        neighbors_u = set(adj[u])
+        neighbors_v = set(adj[v])
+        
+        # Find common neighbors
+        common = neighbors_u & neighbors_v
+        
+        for w in common:
+            # We have a triangle u-v-w
+            # Ensure all edges exist (they should since w is a common neighbor)
+            # But we need to make sure we have the right ordering
+            a, b, c = sorted([u, v, w])
+            if (a, b) in edge_set and (b, c) in edge_set and (a, c) in edge_set:
+                candidate = (a, b, c)
+                if best is None or candidate < best:
+                    best = candidate
     
-    # We want to find a triangle (a,b,c) such that all three edges (a,b), (b,c), (a,c) exist
-    # Iterate through all edges and find a common neighbor
-    found = False
-    result = None
-    
-    # For each edge (u,v), check for a node w such that (u,w) and (v,w) also exist
-    for u, v in edges:
-        if found:
-            break
-        # Find common neighbors of u and v
-        for w in adj[u]:
-            if w != v and w in adj[v]:
-                # Found a triangle: u, v, w
-                triple = sorted([u, v, w])
-                result = triple
-                found = True
-                break
-    
-    print(result[0], result[1], result[2])
+    if best:
+        print(best[0], best[1], best[2])
 
 if __name__ == "__main__":
     main()

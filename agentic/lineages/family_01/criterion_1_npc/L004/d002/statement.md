@@ -1,23 +1,24 @@
 # Orbital Power Routing
 
-Time limit: 2 s   Memory limit: 256 MB
+**Time limit:** 2 s  
+**Memory limit:** 256 MB  
 
-An orbital satellite contains $n$ electronic modules, numbered 1 through $n$. The power management system provides three independent power buses, designated by the integers 1, 2, and 3. Every module must be powered by exactly one of these buses.
+An orbital satellite operates $n$ electronic modules, labeled with integers from 1 to $n$. To function, every module must draw its power from exactly one of three distinct, isolated power buses (Bus 1, Bus 2, or Bus 3).
 
-Due to electromagnetic sensitivity, the satellite's diagnostic system has identified $m$ pairs of modules that are susceptible to harmonic resonance. To prevent resonance from accumulating, the routing must guarantee that for any identified pair, the two modules draw power from separate buses.
+Due to severe electromagnetic interference, certain pairs of modules cannot operate safely if they draw power from the same bus. You are given a comprehensive list of these incompatible pairs. Your objective is to determine whether there exists a valid bus assignment for all $n$ modules such that no two interfering modules share the same power bus.
 
-Your task is to determine whether it is possible to assign every module to a bus such that all resonance constraints are satisfied.
+The satellite's interconnected design means these interference constraints are distributed across the system, forming a dense network of dependencies.
 
 ## Input
-The first line provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$), representing the number of modules and the number of susceptible pairs, respectively.
-Each of the following $m$ lines contains two integers $u$ and $v$ denoting a pair of modules susceptible to harmonic resonance.
+The first line contains two integers $n$ and $m$, representing the number of modules and the number of incompatible pairs, respectively ($1 \le n \le 40$, $0 \le m \le n \cdot (n-1)/2$).
+Each of the next $m$ lines contains two integers $u$ and $v$, indicating that module $u$ and module $v$ must be connected to different buses.
 
 ## Output
-If no safe routing exists, output `NO` on a single line.
-Otherwise, output `YES` on the first line. On the second line, output $n$ integers $b_1, b_2, \dots, b_n$, where $b_i \in \{1, 2, 3\}$ is the bus for module $i$. If multiple valid routings exist, output the one that is lexicographically smallest (i.e., compare $b_1$ first, then $b_2$, and so on).
+If no safe power routing exists, print `NO` on a single line.
+If a valid routing is possible, print `YES` on the first line. On the second line, output a sequence of $n$ integers $b_1, b_2, \dots, b_n$ (where each $b_i \in \{1, 2, 3\}$) indicating the bus assigned to module $i$. Should multiple valid routings exist, output the one that is lexicographically first (evaluating the bus choice for module 1 first, then module 2, and so on).
 
 ## Example 1
-Input:
+**Input:**
 ```
 4 5
 1 2
@@ -26,14 +27,14 @@ Input:
 1 4
 2 4
 ```
-Output:
+**Output:**
 ```
 YES
 1 2 3 3
 ```
 
 ## Example 2
-Input:
+**Input:**
 ```
 4 6
 1 2
@@ -43,7 +44,7 @@ Input:
 2 4
 3 4
 ```
-Output:
+**Output:**
 ```
 NO
 ```

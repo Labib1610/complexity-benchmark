@@ -1,61 +1,44 @@
-import sys
-from collections import defaultdict
-
-def main():
+def solve():
     import sys
-    input = sys.stdin.read
-    data = input().split()
-    
-    n, m = int(data[0]), int(data[1])
-    
-    # Build adjacency list for the graph
-    adj = defaultdict(list)
-    idx = 2
-    for _ in range(m):
-        u = int(data[idx]) - 1  # Convert to 0-based indexing
-        v = int(data[idx+1]) - 1
-        adj[u].append(v)
-        adj[v].append(u)
-        idx += 2
-    
-    # Try to 3-color the graph with lexicographically smallest assignment
-    # Colors: 1, 2, 3 (we'll use 0-based internally: 0, 1, 2)
-    color = [-1] * n  # -1 means uncolored
-    
-    # We process nodes in order (0 to n-1) to ensure lexicographical minimality
-    for node in range(n):
-        if color[node] == -1:
-            # Try colors 0, 1, 2 in order
-            # For each neighbor, mark forbidden colors
-            forbidden = [False] * 3
-            for neighbor in adj[node]:
-                if color[neighbor] != -1:
-                    forbidden[color[neighbor]] = True
-            
-            # Assign the smallest available color
-            assigned = False
-            for c in range(3):
-                if not forbidden[c]:
-                    color[node] = c
-                    assigned = True
-                    break
-            
-            # If no color is available, it's impossible
-            if not assigned:
-                print("NO")
-                return
-    
-    # Check if the coloring is valid
-    for u in range(n):
-        for v in adj[u]:
-            if color[u] == color[v]:
-                print("NO")
-                return
-    
-    # Convert back to 1-based colors
-    result_colors = [str(c + 1) for c in color]
-    print("YES")
-    print(" ".join(result_colors))
+    from collections import defaultdict
 
-if __name__ == "__main__":
-    main()
+    n, m = map(int, sys.stdin.readline().split())
+    
+    # Build adjacency list
+    adj = defaultdict(set)
+    for _ in range(m):
+        u, v = map(int, sys.stdin.readline().split())
+        adj[u].add(v)
+        adj[v].add(u)
+    
+    # Try to color the graph with 3 colors using backtracking
+    # We want the lexicographically smallest assignment
+    colors = [0] * (n + 1)  # colors[i] represents the color of node i (1-indexed)
+    
+    def is_safe(node, color):
+        # Check if any neighbor has the same color
+        for neighbor in adj[node]:
+            if colors[neighbor] == color:
+                return False
+        return True
+    
+    def backtrack(node):
+        if node > n:
+            return True
+            
+        for color in range(1, 4):  # Try colors 1, 2, 3 in order
+            if is_safe(node, color):
+                colors[node] = color
+                if backtrack(node + 1):
+                    return True
+                colors[node] = 0  # Backtrack
+                
+        return False
+    
+    if backtrack(1):
+        print("YES")
+        print(*colors[1:])
+    else:
+        print("NO")
+
+solve()

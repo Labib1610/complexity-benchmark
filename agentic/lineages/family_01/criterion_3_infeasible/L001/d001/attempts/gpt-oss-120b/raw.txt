@@ -1,0 +1,180 @@
+**Solution Explanation**
+
+For every substance we store the set of substances it reacts with.
+Because `n ≤ 2000` we can keep each set as a bitset inside a Python integer
+(`int` has unlimited length).  
+Bit `j` of `adj[i]` is `1` iff substances `i` and `j` react.
+
+A *ternary cascade* is a triangle – three vertices `a<b<c` such that all three
+edges exist.  
+We have to output the lexicographically smallest triangle, i.e. the smallest
+`a`, then the smallest `b`, then the smallest `c`.
+
+--------------------------------------------------------------------
+
+#### Algorithm
+```
+read n, m
+adj = [0] * n
+for each edge (u, v):
+        u--, v--
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+for a = 0 … n-3:
+        for b = a+1 … n-2:
+                if edge a‑b exists ( (adj[a] >> b) & 1 == 1 ):
+                        common = adj[a] & adj[b]          # vertices adjacent to both a and b
+                        # we need a vertex c > b
+                        mask = common >> (b+1)
+                        if mask != 0:                     # at least one such c exists
+                                # lowest set bit of mask gives the smallest possible c
+                                low = mask & -mask
+                                offset = low.bit_length() - 1   # position inside mask
+                                c = b + 1 + offset
+                                output a+1, b+1, c+1
+                                terminate
+```
+
+*Why does it give the lexicographically smallest triangle?*  
+The outer loops enumerate `(a,b)` in increasing order.
+For a fixed `(a,b)` we look only at vertices `c>b`.  
+`mask & -mask` extracts the least‑significant set bit, i.e. the smallest such
+`c`.  
+Therefore the first triangle we encounter is exactly the required one.
+
+--------------------------------------------------------------------
+
+#### Correctness Proof  
+
+We prove that the algorithm outputs the lexicographically smallest triangle.
+
+---
+
+**Lemma 1**  
+For any vertices `a<b`, `common = adj[a] & adj[b]` contains exactly the vertices
+adjacent to both `a` and `b`.
+
+*Proof.* By definition `adj[x]` has a `1` at position `y` iff edge `x‑y` exists.
+Bitwise AND keeps a `1` at position `y` only if both `adj[a]` and `adj[b]` have
+`1` there, i.e. both edges `a‑y` and `b‑y` exist. ∎
+
+
+
+**Lemma 2**  
+For fixed `a<b`, after `mask = common >> (b+1)`,
+`mask` has a `1` at position `k` (`k≥0`) iff vertex `c = b+1+k` satisfies
+`c>b` and edges `a‑c` and `b‑c` exist.
+
+*Proof.* Shifting right by `b+1` discards bits `0 … b`.  
+Thus bit `k` of `mask` corresponds to bit `b+1+k` of `common`.  
+By Lemma&nbsp;1 that bit is `1` exactly when `c = b+1+k` is adjacent to both
+`a` and `b`. ∎
+
+
+
+**Lemma 3**  
+If `mask != 0`, `c = b+1 + (mask & -mask).bit_length() - 1` is the smallest
+vertex `c>b` that together with `a,b` forms a triangle.
+
+*Proof.* `mask & -mask` isolates the least‑significant `1` of `mask`,
+i.e. the smallest `k` with bit `k` set.  
+`bit_length()-1` returns that `k`.  
+Consequently `c = b+1+k` is the smallest vertex > `b` present in `common`,
+hence the smallest `c` completing a triangle with `a,b`. ∎
+
+
+
+**Lemma 4**  
+When the algorithm prints a triple `(a,b,c)`, it is a triangle.
+
+*Proof.* The algorithm prints only after confirming edge `a‑b` exists and
+after finding `c` as described in Lemma&nbsp;3, which guarantees edges
+`a‑c` and `b‑c`. All three edges exist, so `(a,b,c)` is a triangle. ∎
+
+
+
+**Lemma 5**  
+The first printed triangle is the lexicographically smallest triangle.
+
+*Proof.* The outer loops enumerate all ordered pairs `(a,b)` with `a<b`
+in increasing lexicographic order.  
+For a given `(a,b)` the algorithm, by Lemma&nbsp;3, chooses the smallest possible
+`c`.  
+Therefore any triangle with a smaller `a` would have been examined earlier,
+and if `a` is equal, any triangle with a smaller `b` would have been examined
+earlier as well. Hence the first triangle found is the minimal one. ∎
+
+
+
+**Theorem**  
+The algorithm always outputs three integers `a<b<c` forming a ternary cascade,
+and this triple is the lexicographically smallest among all such triples.
+
+*Proof.* Existence of at least one triangle is guaranteed by the statement.
+The algorithm scans all possible `(a,b)` pairs; for each it checks whether a
+compatible `c` exists. Because a triangle exists, some iteration will succeed,
+so the algorithm terminates and prints a triangle (Lemma 4).  
+By Lemma 5 the printed triangle is the lexicographically smallest. ∎
+
+
+
+--------------------------------------------------------------------
+
+#### Complexity Analysis  
+
+`adj` construction: `O(m)`.
+
+The double loop runs at most `n·(n-1)/2 ≤ 2·10⁶` iterations (`n ≤ 2000`).  
+All operations inside are O(1) bitwise operations on Python integers of length
+≤ 2000 bits, which are fast (constant factor).  
+
+Hence total time `O(n² + m) ≤ O(4·10⁶)`, well within the 2 s limit.  
+
+Memory: one integer per vertex → `n` integers of ≤ 2000 bits → < 0.5 MB,
+plus input storage – overall far below 256 MB.
+
+--------------------------------------------------------------------
+
+#### Reference Implementation  (Python 3)
+
+```python
+import sys
+
+def solve() -> None:
+    data = sys.stdin.read().strip().split()
+    if not data:
+        return
+    it = iter(data)
+    n = int(next(it))
+    m = int(next(it))
+    adj = [0] * n
+    for _ in range(m):
+        u = int(next(it)) - 1
+        v = int(next(it)) - 1
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+
+    for a in range(n - 2):
+        a_mask = adj[a]
+        for b in range(a + 1, n - 1):
+            # edge a-b ?
+            if (a_mask >> b) & 1 == 0:
+                continue
+            common = a_mask & adj[b]
+            # keep only vertices > b
+            mask = common >> (b + 1)
+            if mask:
+                # lowest set bit
+                low = mask & -mask
+                offset = low.bit_length() - 1
+                c = b + 1 + offset
+                sys.stdout.write(f"{a+1} {b+1} {c+1}")
+                return
+
+if __name__ == "__main__":
+    solve()
+```
+
+The program follows exactly the algorithm proven correct above and conforms
+to the required input‑output format.

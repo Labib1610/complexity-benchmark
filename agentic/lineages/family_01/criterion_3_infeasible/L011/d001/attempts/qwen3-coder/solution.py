@@ -9,41 +9,33 @@ def main():
     n = int(data[0])
     m = int(data[1])
     
-    index = 2
     edges = []
+    edge_set = set()
     adj = [set() for _ in range(n + 1)]
     
+    idx = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index + 1])
-        index += 2
+        u = int(data[idx])
+        v = int(data[idx+1])
+        idx += 2
         if u > v:
             u, v = v, u
         edges.append((u, v))
+        edge_set.add((u, v))
         adj[u].add(v)
         adj[v].add(u)
     
-    # Sort edges to process in order
-    edges.sort()
+    # Generate all triangles by checking each combination of 3 nodes
+    min_triangle = None
     
-    # For each edge (u,v), look for a common neighbor w
-    min_signature = float('inf')
-    result = None
+    # We'll iterate through all combinations of 3 nodes
+    for a, b, c in combinations(range(1, n+1), 3):
+        # Check if all three edges exist
+        if (a,b) in edge_set and (a,c) in edge_set and (b,c) in edge_set:
+            if min_triangle is None or (a,b,c) < min_triangle:
+                min_triangle = (a,b,c)
     
-    for u, v in edges:
-        if u >= v:
-            continue
-        # Find common neighbors of u and v
-        common = adj[u] & adj[v]
-        for w in common:
-            if w > v:
-                # Form triplet (u, v, w) with u < v < w
-                sig = u * 10**8 + v * 10**4 + w
-                if sig < min_signature:
-                    min_signature = sig
-                    result = (u, v, w)
-    
-    print(result[0], result[1], result[2])
+    print(min_triangle[0], min_triangle[1], min_triangle[2])
 
 if __name__ == "__main__":
     main()

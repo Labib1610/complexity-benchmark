@@ -1,38 +1,34 @@
-# High-Availability Storage Quorum
+# Problem C — Proof of Impossibility
 
 Time limit: 2 s   Memory limit: 256 MB
 
-To ensure zero downtime, a cloud provider is building a new storage tier requiring groups of exactly three servers to act as a single logical unit. You are given a fleet of $n$ servers, labeled $1$ to $n$.
+The factory management has a log of incompatibility reports. Each report identifies a pair of workers who cannot share a shift. To prove that their current two-shift system is doomed to fail, management wants to find a specific pattern in the log. Your job is not to schedule the workers, but to search the log to certify this impossibility.
 
-Not all servers can synchronize with each other. Network constraints allow direct synchronization only across $m$ specific two-way connections. For a three-server group to function reliably, it must survive the unexpected loss of any one of its members. This means that regardless of which specific server in the group experiences a hardware failure, the surviving pair must have a pre-existing direct synchronization connection between them. If even one possible single-server failure scenario leaves a disconnected pair, the group cannot be formed.
+A "deadlock" is formed by a selection of exactly three distinct reports from the log that satisfies a strict requirement: if you take any two of these three reports, the workers who are named in exactly one of those two reports must be precisely the two workers named in the third report. Finding this configuration provides an undeniable certificate that two shifts cannot suffice.
 
-Given the list of all valid two-way connections, find three servers that can safely form this group. It is guaranteed that the provided network allows for at least one such group to be formed.
+It is guaranteed that the log contains at least one such deadlock. You must output the IDs of the workers who appear in the chosen reports of the deadlock.
 
 ## Input
-The first line provides the number of servers $n$ ($3 \le n \le 2000$) and the number of valid two-way connections $m$ ($3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
-The next $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \ne v$). This signifies that a direct synchronization connection exists between server $u$ and server $v$. Each connection is listed at most once.
+The first line contains two integers $n$ and $m$ ($3 \le n \le 2000$, $3 \le m \le \min(n \cdot (n-1)/2, 2 \cdot 10^5)$).
+Each of the next $m$ lines contains two integers $u$ and $v$ — a report naming two incompatible workers. All reports in the log represent distinct pairs.
+It is guaranteed that at least one deadlock exists in the given reports.
 
 ## Output
-Print three space-separated integers $a$, $b$, and $c$, ordered such that $a < b < c$, representing the identifiers of the chosen servers. If there are multiple valid groups, output the one that is lexicographically smallest (i.e., prefer the smallest $a$; in case of a tie, the smallest $b$; and then the smallest $c$).
+Print the IDs of the distinct workers who appear in the deadlock's reports on one line, sorted in ascending order. If there are multiple valid deadlocks, output the one that produces the lexicographically smallest sorted sequence of worker IDs.
 
 ## Example 1
-Input:
-```
+### Input
 4 5
 1 2
 1 3
 2 3
 2 4
 3 4
-```
-Output:
-```
+### Output
 1 2 3
-```
 
 ## Example 2
-Input:
-```
+### Input
 5 6
 1 2
 1 4
@@ -40,8 +36,5 @@ Input:
 3 4
 3 5
 4 5
-```
-Output:
-```
+### Output
 1 2 4
-```

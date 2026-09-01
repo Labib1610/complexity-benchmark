@@ -1,0 +1,55 @@
+# Problem A — Security Clearance Resolution
+
+Time limit: 2 s   Memory limit: 256 MB
+
+A secure facility is configuring the access levels for a network of $n$ interdependent modules. Each module must receive exactly one access level from the set $\{1, 2, 3\}$.
+
+To prevent critical vulnerabilities, the facility evaluates the entire network's configuration using an energy minimization model based on $m$ separation protocols. Each protocol specifies a pair of interacting modules. For any two modules $u$ and $v$ linked by a protocol, their pairwise interference energy $\Delta E$ is calculated based on their assigned access levels $c_u$ and $c_v$:
+
+$$ \Delta E(u, v) = (c_u - c_v)^4 - 5(c_u - c_v)^2 + 4 $$
+
+The total interference energy of the network is defined as the sum of $\Delta E(u, v)$ across all $m$ separation protocols. The network is deemed completely stable if and only if its total interference energy is exactly zero.
+
+Please take note: the test suite contains instances specifically designed to be adversarial. Maximum-size test cases are structured such that attempting to resolve the configuration by simply generating assignments and calculating the total system energy at the end will result in an astronomical number of dead ends before a stable state is found or proven impossible.
+
+Your task is to determine if there exists a complete access assignment that makes the network completely stable. If at least one valid assignment exists, you must identify the one that is lexicographically smallest.
+
+## Input
+The first line of the input provides two integers $n$ and $m$ ($1 \le n \le 40$, $0 \le m \le n(n-1)/2$). These represent the total number of modules and the number of separation protocols, respectively.
+The following $m$ lines each contain two integers $u$ and $v$ ($1 \le u, v \le n$, $u \neq v$), indicating that module $u$ and module $v$ are linked by a separation protocol.
+
+## Output
+If no completely stable assignment can be found, print `NO` on a single line.
+If a stable assignment is possible, print `YES` on the first line. On the second line, print $n$ integers $c_1, c_2, \dots, c_n$ (where each $c_i \in \{1, 2, 3\}$) representing the access level assigned to each respective module. Among all valid stable configurations, the sequence of access levels you output must be the lexicographically smallest (i.e., comparing the access level of module 1 first, then module 2, and so forth).
+
+## Example 1
+Input:
+```
+4 5
+1 2
+1 3
+2 3
+1 4
+2 4
+```
+Output:
+```
+YES
+1 2 3 3
+```
+
+## Example 2
+Input:
+```
+4 6
+1 2
+1 3
+1 4
+2 3
+2 4
+3 4
+```
+Output:
+```
+NO
+```

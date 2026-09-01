@@ -1,42 +1,33 @@
 import sys
 from collections import defaultdict
 
-def main():
-    import sys
-    input = sys.stdin.read
-    data = input().split()
+def find_triangle():
+    n, m = map(int, sys.stdin.readline().split())
     
-    n = int(data[0])
-    m = int(data[1])
-    
-    edges = []
+    # Store adjacency list
     adj = defaultdict(set)
+    edges = []
     
-    index = 2
     for _ in range(m):
-        u = int(data[index])
-        v = int(data[index+1])
-        index += 2
-        if u > v:
-            u, v = v, u
-        edges.append((u, v))
+        u, v = map(int, sys.stdin.readline().split())
         adj[u].add(v)
         adj[v].add(u)
+        edges.append((min(u, v), max(u, v)))
     
-    # Sort edges to process in order
-    edges.sort()
+    # Convert edges to set for O(1) lookup
+    edge_set = set(edges)
     
-    # For each edge (u,v), look for a neighbor of u that is also a neighbor of v
+    # For each edge (u,v), check if there exists a node w such that 
+    # (u,w) and (v,w) are also edges
     for u, v in edges:
-        # Get common neighbors of u and v
-        common = adj[u] & adj[v]
-        if common:
-            # Found a triangle
-            w = min(common)
-            # Output the triple in sorted order
-            triple = sorted([u, v, w])
-            print(triple[0], triple[1], triple[2])
-            return
+        # Find common neighbors of u and v
+        for w in adj[u]:
+            if w != v and w in adj[v]:
+                # Check if the edge (min(u,v), max(u,v)) exists (it should since we're iterating over edges)
+                # We already know (u,w) and (v,w) exist since w is in both adj[u] and adj[v]
+                return sorted([u, v, w])
+    
+    return None
 
-if __name__ == "__main__":
-    main()
+result = find_triangle()
+print(*result)

@@ -1,0 +1,43 @@
+import sys
+
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [0] * (n + 1)
+    neighbors = [[] for _ in range(n + 1)]
+
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u] |= 1 << v
+        adj[v] |= 1 << u
+        if u < v:
+            neighbors[u].append(v)
+        else:
+            neighbors[v].append(u)
+
+    for u in range(1, n + 1):
+        neighbors[u].sort()
+
+    for a in range(1, n + 1):
+        for b in neighbors[a]:
+            common = adj[a] & adj[b]
+            mask = ~((1 << (b + 1)) - 1)
+            valid_c = common & mask
+            if valid_c:
+                lsb = valid_c & -valid_c
+                c = lsb.bit_length() - 1
+                print(f"{a} {b} {c}")
+                return
+
+
+if __name__ == "__main__":
+    main()

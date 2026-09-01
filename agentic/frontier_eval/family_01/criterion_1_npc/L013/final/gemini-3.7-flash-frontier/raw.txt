@@ -1,0 +1,227 @@
+```python
+import sys
+
+# Increase recursion depth just in case
+sys.setrecursionlimit(2000)
+
+
+def solve_2sat(n_vars, clauses):
+    # Variables 0 .. n_vars - 1
+    # Literal for x_i is 2*i, for not x_i is 2*i + 1
+    num_nodes = 2 * n_vars
+    adj = [[] for _ in range(num_nodes)]
+
+    for u_lit, v_lit in clauses:
+        adj[u_lit ^ 1].append(v_lit)
+        adj[v_lit ^ 1].append(u_lit)
+
+    # Tarjan's SCC
+    dfn = [-1] * num_nodes
+    low = [-1] * num_nodes
+    scc = [-1] * num_nodes
+    in_stack = [False] * num_nodes
+    stack = []
+    timer = 0
+    scc_cnt = 0
+
+    for i in range(num_nodes):
+        if dfn[i] == -1:
+            call_stack = [(i, 0)]
+            while call_stack:
+                u, idx = call_stack.pop()
+                if idx == 0:
+                    dfn[u] = low[u] = timer
+                    timer += 1
+                    stack.append(u)
+                    in_stack[u] = True
+
+                advanced = False
+                while idx < len(adj[u]):
+                    v = adj[u][idx]
+                    idx += 1
+                    if dfn[v] == -1:
+                        call_stack.append((u, idx))
+                        call_stack.append((v, 0))
+                        advanced = True
+                        break
+                    elif in_stack[v]:
+                        low[u] = min(low[u], dfn[v])
+
+                if advanced:
+                    continue
+
+                if low[u] == dfn[u]:
+                    while True:
+                        w = stack.pop()
+                        in_stack[w] = False
+                        scc[w] = scc_cnt
+                        if w == u:
+                            break
+                    scc_cnt += 1
+
+                if call_stack:
+                    p = call_stack[-1][0]
+                    low[p] = min(low[p], low[u])
+
+    for i in range(n_vars):
+        if scc[2 * i] == scc[2 * i + 1]:
+            return False, None
+
+    # Construct assignment
+    # If scc[2*i] < scc[2*i+1], x_i is True (in Tarjan's reverse topological order)
+    assignment = [scc[2 * i] < scc[2 * i + 1] for i in range(n_vars)]
+    return True, assignment
+
+
+def solve_lex_2sat(n_vars, base_clauses):
+    clauses = list(base_clauses)
+    sat, _ = solve_2sat(n_vars, clauses)
+    if not sat:
+        return None
+
+    assignment = [False] * n_vars
+    for i in range(n_vars):
+        # Try setting x_i = False (literal: 2*i + 1)
+        test_clauses = clauses + [(2 * i + 1, 2 * i + 1)]
+        sat, _ = solve_2sat(n_vars, test_clauses)
+        if sat:
+            clauses.append((2 * i + 1, 2 * i + 1))
+            assignment[i] = False
+        else:
+            clauses.append((2 * i, 2 * i))
+            assignment[i] = True
+
+    return assignment
+
+
+def main():
+    input_data = sys.stdin.read().split()
+    if not input_data:
+        return
+    n = int(input_data[0])
+    m = int(input_data[1])
+
+    adj = [[] for _ in range(n + 1)]
+    idx = 2
+    for _ in range(m):
+        u = int(input_data[idx])
+        v = int(input_data[idx + 1])
+        idx += 2
+        adj[u].append(v)
+        adj[v].append(u)
+
+    color = [0] * (n + 1)
+    domain = [7] * (n + 1)  # bitmask: bit 0: color 1, bit 1: color 2, bit 2: color 3
+
+    def unit_propagate(dom):
+        dom = list(dom)
+        queue = []
+        for i in range(1, n + 1):
+            cnt = bin(dom[i]).count("1")
+            if cnt == 0:
+                return None
+            if cnt == 1 and color[i] == 0:
+                queue.append(i)
+
+        while queue:
+            u = queue.pop()
+            c_bit = dom[u]
+            for v in adj[u]:
+                if dom[v] & c_bit:
+                    dom[v] &= ~c_bit
+                    cnt = bin(dom[v]).count("1")
+                    if cnt == 0:
+                        return None
+                    if cnt == 1 and color[v] == 0:
+                        queue.append(v)
+        return dom
+
+    def solve_via_2sat(curr_dom):
+        uncolored = [i for i in range(1, n + 1) if color[i] == 0]
+        var_map = {u: i for i, u in enumerate(uncolored)}
+        n_vars = len(uncolored)
+
+        colors_of = {}
+        for u in uncolored:
+            d = curr_dom[u]
+            avail = [c for c in (1, 2, 3) if (d & (1 << (c - 1)))]
+            colors_of[u] = avail  # exactly 2 colors
+
+        clauses = []
+        for u in uncolored:
+            u_var = var_map[u]
+            c_u1, c_u2 = colors_of[u]
+            for v in adj[u]:
+                if v in var_map and u < v:
+                    v_var = var_map[v]
+                    c_v1, c_v2 = colors_of[v]
+                    # Check overlap
+                    for c in (c_u1, c_u2):
+                        if c in (c_v1, c_v2):
+                            u_lit = 2 * u_var if c == c_u1 else 2 * u_var + 1
+                            v_lit = 2 * v_var if c == c_v1 else 2 * v_var + 1
+                            clauses.append((u_lit, v_lit))
+
+        res = solve_lex_2sat(n_vars, clauses)
+        if res is None:
+            return None
+
+        sol = list(color)
+        for u in uncolored:
+            u_var = var_map[u]
+            c_u1, c_u2 = colors_of[u]
+            sol[u] = c_u2 if res[u_var] else c_u1
+        return sol
+
+    def dfs(curr_dom):
+        # Check if all uncolored have domain size <= 2
+        all_le_2 = True
+        first_uncolored = None
+        for i in range(1, n + 1):
+            if color[i] == 0:
+                if first_uncolored is None:
+                    first_uncolored = i
+                cnt = bin(curr_dom[i]).count("1")
+                if cnt == 3:
+                    all_le_2 = False
+
+        if first_uncolored is None:
+            return list(color)
+
+        if all_le_2:
+            res = solve_via_2sat(curr_dom)
+            if res is not None:
+                return res
+            return None
+
+        u = first_uncolored
+        avail = [c for c in (1, 2, 3) if (curr_dom[u] & (1 << (c - 1)))]
+        for c in avail:
+            color[u] = c
+            new_dom = list(curr_dom)
+            new_dom[u] = 1 << (c - 1)
+            prop_dom = unit_propagate(new_dom)
+            if prop_dom is not None:
+                ans = dfs(prop_dom)
+                if ans is not None:
+                    return ans
+            color[u] = 0
+
+        return None
+
+    init_dom = unit_propagate(domain)
+    if init_dom is None:
+        print("NO")
+        return
+
+    ans = dfs(init_dom)
+    if ans is None:
+        print("NO")
+    else:
+        print("YES")
+        print(*(ans[1:]))
+
+
+if __name__ == "__main__":
+    main()
+```

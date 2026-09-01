@@ -1,39 +1,47 @@
 import sys
-from collections import deque
+from sys import stdin
 
 def solve():
-    input_data = sys.stdin.read().split()
-    if not input_data:
+    input = stdin.read
+    data = input().split()
+    if not data:
         return
-    it = iter(input_data)
-    n = int(next(it))
-    m = int(next(it))
+    n = int(data[0])
+    m = int(data[1])
     
-    adj = [[] for _ in range(n + 1)]
+    adj = [[] for _ in range(n+1)]
+    idx = 2
     for _ in range(m):
-        u = int(next(it))
-        v = int(next(it))
+        u = int(data[idx]); v = int(data[idx+1])
+        idx += 2
         adj[u].append(v)
         adj[v].append(u)
     
-    color = [0] * (n + 1)
+    color = [0] * (n+1)
+    possible = True
     
-    for i in range(1, n + 1):
+    for i in range(1, n+1):
         if color[i] == 0:
-            queue = deque([i])
             color[i] = 1
-            while queue:
-                u = queue.popleft()
+            stack = [i]
+            while stack:
+                u = stack.pop()
                 for v in adj[u]:
                     if color[v] == 0:
                         color[v] = 3 - color[u]
-                        queue.append(v)
+                        stack.append(v)
                     elif color[v] == color[u]:
-                        print("NO")
-                        return
+                        possible = False
+                        break
+                if not possible:
+                    break
+        if not possible:
+            break
     
-    print("YES")
-    print(' '.join(map(str, color[1:])))
+    if not possible:
+        print("NO")
+    else:
+        print("YES")
+        print(' '.join(str(color[i]) for i in range(1, n+1)))
 
-if __name__ == "__main__":
-    solve()
+solve()
